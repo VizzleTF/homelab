@@ -1,0 +1,105 @@
+
+- name: Setting config for daemons
+  block:
+    - name: copy DHCPD config 
+      copy: 
+        src: "{{ role_path }}/files/dhcpd.conf"
+        dest: /etc/dhcp/dhcpd.conf
+    - name: copy haproxy config
+      copy:
+        src: "{{ role_path }}/files/haproxy.cfg"
+        dest: /etc/haproxy/haproxy.cfg 
+    - name: copy named config
+      copy:
+        src: "{{ role_path }}/files/named.conf"
+        dest: /etc/named.conf 
+    - name: create zones directory
+      file:
+        path: /etc/named/zones
+        state: directory    
+    - name: copy named config local
+      copy:
+        src: "{{ role_path }}/files/named.conf.local"
+        dest: /etc/named/named.conf.local     
+    - name: copy named db ptr zone 
+      copy:
+        src: "{{ role_path }}/files/db.10.11.12"
+        dest: /etc/named/zones/db.10.11.12     
+    - name: copy named db dns zone
+      copy:
+        src: "{{ role_path }}/files/db.okd.local"
+        dest: /etc/named/zones/db.okd.local 
+    - name: change apache port
+      lineinfile:
+        dest: "/etc/httpd/conf/httpd.conf"
+        regexp: "^Listen 80"
+        line: "Listen 8080"
+- name: Setting config for okd installer
+  block:
+    - name: create openshift install directory
+      file:
+        path: /etc/okd_install
+        state: directory
+    - name: copy install-config.yaml
+      copy:
+        src: "{{ role_path }}/files/install-config.yaml"
+        dest: /etc/okd_install/install-config.yaml 
+    - name: Check openshift-install exists
+      stat:
+        path: /usr/local/sbin/openshift-install
+      register: oi
+    - name: Check oc exists
+      stat:
+        path: /usr/local/sbin/oc
+      register: oc
+    - name: Download okd install
+      unarchive:
+        src: https://github.com/okd-project/okd/releases/download/4.15.0-0.okd-2024-02-10-035534/openshift-install-linux-4.15.0-0.okd-2024-02-10-035534.tar.gz
+        dest: /usr/local/sbin
+        remote_src: yes
+      when: not oi.stat.exists
+    - name: Download okd client
+      unarchive:
+        src: https://github.com/okd-project/okd/releases/download/4.15.0-0.okd-2024-02-10-035534/openshift-client-linux-4.15.0-0.okd-2024-02-10-035534.tar.gz
+        dest: /usr/local/sbin
+        remote_src: yes
+      when: not oc.stat.exists
+    - name: remove old ignition config
+      command: rm -rf /etc/okd_install/*
+    - name: remove old ignition config
+      command: rm -rf /var/www/html/*
+    - name: create ignition config
+      command: /usr/local/sbin/openshift-install create ignition-configs --dir /etc/okd_install/
+      args:
+        chdir: /etc/okd_install/
+    - name: create /var/www/html/auth directory
+      file:
+        path: /var/www/html/auth
+        state: directory
+    - name: copy ignition files to web server
+      copy:
+        src: "/etc/okd_install/{{ item }}"
+        dest: "/var/www/html/{{ item }}"
+        owner: apache
+        group: apache
+        remote_src: yes
+      loop:
+        - bootstrap.ign
+        - master.ign
+        - worker.ign
+        - metadata.json   
+        - auth/kubeadmin-password
+        - auth/kubeconfig     
+- name: Restart services
+  block:
+    - name: enable and restart services
+      systemd_service:
+        name: "{{ item }}"
+        state: restarted
+        enabled: true
+        masked: no
+      with_items:
+        - haproxy
+        - named
+        - dhcpd
+        - httpd

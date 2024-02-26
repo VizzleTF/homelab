@@ -1,0 +1,6 @@
+---
+- hosts: nfs_server
+  roles:
+    - oracle_firewalld_disable
+    - oracle_selinux_disable
+    - oracle_timezone_set

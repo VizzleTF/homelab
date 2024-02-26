@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+  namespace: homeassistant
+  name: homeassistant
+subsets:
+- addresses:
+  - ip: 10.11.12.236
+  ports:
+  - name: app
+    port: 8123
+    protocol: TCP
