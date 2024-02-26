@@ -1,0 +1,12 @@
+okd_service_node:
+  packages:
+    - tar
+    - zip
+    - telnet
+    - wget
+    - curl
+    - haproxy
+    - bind
+    - dhcp-server
+    - libvirt-libs
+    - httpd

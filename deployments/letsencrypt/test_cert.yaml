@@ -1,0 +1,13 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nc.vakaf.space
+  namespace: cert-manager
+spec:
+  secretName: nc-vakaf-tls
+  issuerRef:
+    name: letsencrypt
+  commonName: nc.vakaf.space
+  dnsNames:
+  - nc.vakaf.space

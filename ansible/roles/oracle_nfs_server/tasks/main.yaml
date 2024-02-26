@@ -1,0 +1,29 @@
+- name: Installing list of packages
+  package: name="nfs-utils" state=present
+
+- name: Create a directory for NFS
+  file:
+    path: /nfs-share
+    state: directory
+    mode: '1777'
+    owner: nobody
+    group: nobody
+
+- name: Add clients to exports
+  lineinfile:
+    path: /etc/exports
+    line: "{{ item }}"
+    create: yes
+  loop:
+      - "/nfs-share  10.11.12.201(rw)"
+      - "/nfs-share  10.11.12.202(rw)"
+      - "/nfs-share  10.11.12.203(rw)"
+
+- name: Restart services
+  block:
+    - name: enable and restart services
+      systemd_service:
+        name: nfs-server
+        state: restarted
+        enabled: true
+        masked: no

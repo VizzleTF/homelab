@@ -1,0 +1,27 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: zerossl-production
+spec:
+  acme:
+    # ZeroSSL ACME server
+    server: https://acme.zerossl.com/v2/DV90
+    email: vizzlef@gmail.com
+
+    # name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: zerossl-prod
+
+    # for each cert-manager new EAB credencials are required
+    externalAccountBinding:
+      keyID: Wjcs_18sGphPLvE4NMx3vw
+      keySecretRef:
+        name: zero-ssl-eabsecret
+        key: secret
+      keyAlgorithm: HS256
+
+    # ACME DNS-01 provider configurations to verify domain
+    solvers:
+    - http01:
+        ingress:
+          ingressClassName: openshift-default
