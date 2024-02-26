@@ -1,0 +1,5 @@
+- name: Stop service firewalld
+  systemd_service:
+    name: firewalld
+    state: stopped
+    enabled: false

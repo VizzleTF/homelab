@@ -1,0 +1,7 @@
+- name: TURN IT OFF RIGHT NOW!
+  command: "setenforce 0"
+- name: AND FOREVER!
+  lineinfile:
+    dest: "/etc/selinux/config"
+    regexp: "^SELINUX="
+    line: "SELINUX=permissive"

@@ -1,0 +1,6 @@
+---
+- hosts: okd_service_node
+  roles:
+    - okd_sn_install_packages
+    - okd_sn_config_daemons
+  # become: yes
