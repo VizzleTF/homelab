@@ -7,7 +7,6 @@ terraform {
   }
 }
 
-
 provider "proxmox" {
   endpoint = var.endpoint
   insecure = true
