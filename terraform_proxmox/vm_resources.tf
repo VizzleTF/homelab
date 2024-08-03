@@ -1,10 +1,3 @@
-### Proxmox backup server ###
-#   disk {
-#     datastore_id = "data"
-#     file_id      = proxmox_virtual_environment_file.pbs_image.id
-#     interface    = "scsi0"
-#   }
-
 locals {
   vms_config = yamldecode(file("./configs/vms.yaml"))
   # os = {
@@ -13,19 +6,18 @@ locals {
 }
 
 resource "proxmox_virtual_environment_vm" "vm" {
-  # for_each   = { for vm in local.oracle_linux : vm.name => vm }
-  for_each = { for x in local.vms_config.vms : x.vm_name => x }
-
+  for_each = { for vm in local.vms_config.vms : vm.vm_name => vm }
+  
   name       = each.value.vm_name
   tags       = concat(local.vms_config.tags,each.value.tags)
   node_name  = try(each.value.node_name, "pve5")
   vm_id      = each.value.vm_id
   boot_order = ["sata0"]
 
+  agent { enabled = true }
   cpu {
     cores        = try(each.value.cores, "2")
     type         = "host"
-    architecture = "x86_64"
   }
   memory { dedicated = try(each.value.ram, "2048") }
   startup {
@@ -55,7 +47,3 @@ resource "proxmox_virtual_environment_vm" "vm" {
   network_device { bridge = "vmbr0" }
   operating_system { type = "l26" }
 }
-
-# output "images" {
-#   value = proxmox_virtual_environment_download_file.oracle_cloud_image
-# }

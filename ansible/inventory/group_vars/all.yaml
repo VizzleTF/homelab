@@ -1,2 +1,1 @@
-all:
-  ansible_user: root
+ansible_user: root
