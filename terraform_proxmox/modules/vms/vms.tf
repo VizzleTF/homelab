@@ -13,6 +13,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
   vm_id      = var.vm_id
   boot_order = ["sata0"]
 
+  pool_id = var.pool_id
+
   agent { enabled = true }
   cpu {
     cores = var.cores
