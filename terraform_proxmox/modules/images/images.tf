@@ -6,8 +6,9 @@ terraform {
   }
 }
 
+data "proxmox_virtual_environment_nodes" "available_nodes" {}
 resource "proxmox_virtual_environment_download_file" "image" {
-  for_each = var.nodes
+  for_each = toset(data.proxmox_virtual_environment_nodes.available_nodes.names)
 
   content_type = "iso"
   datastore_id = "local"
