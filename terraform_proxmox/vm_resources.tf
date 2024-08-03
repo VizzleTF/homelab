@@ -4,7 +4,7 @@ locals {
 
 module "vms" {
   for_each = { for vm in local.vms_config.vms : vm.vm_name => vm }
-  source   = "git@github.com:VizzleTF/home_proxmox.git//terraform_proxmox/modules/vms?ref=v1.0.1"
+  source   = "git@github.com:VizzleTF/home_proxmox.git//terraform_proxmox/modules/vms?ref=v1.0.2"
 
   vm_name            = each.value.vm_name
   node_name          = try(each.value.node_name, "pve5")
@@ -17,4 +17,5 @@ module "vms" {
   vm_password        = var.vm_password
   home_pc_public_key = file("~/.ssh/id_rsa.pub")
   image_file         = try(module.images[each.value.image_name].images[each.value.node_name].id, module.images["ol94"].images[each.value.node_name].id, module.images["ol94"].images["pve5"].id)
+  pool_id            = try(each.value.pool_id, null)
 }

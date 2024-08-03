@@ -8,6 +8,7 @@ vms:
     cores: 4
     ram: 8192
     tags: [kubespray, oracle_linux]
+    pool_id: k8s-pool
   - vm_id: 302
     vm_name: kube-node-02
     address: 10.11.12.242/24
@@ -15,6 +16,7 @@ vms:
     cores: 4
     ram: 8192
     tags: [kubespray, oracle_linux]
+    pool_id: k8s-pool
   - vm_id: 303
     vm_name: kube-node-03
     address: 10.11.12.243/24
@@ -22,4 +24,5 @@ vms:
     cores: 4
     ram: 8192
     tags: [kubespray, oracle_linux]
+    pool_id: k8s-pool
 
