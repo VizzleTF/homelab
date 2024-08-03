@@ -5,7 +5,7 @@ metadata:
   name: homeassistant
 subsets:
 - addresses:
-  - ip: 10.11.12.236
+  - ip: 10.11.12.101
   ports:
   - name: app
     port: 8123

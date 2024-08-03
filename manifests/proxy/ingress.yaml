@@ -7,7 +7,6 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt
     kubernetes.io/tls-acme: 'true'
 spec:
-  ingressClassName: openshift-default
   tls:
     - hosts:
         - home.vakaf.space
