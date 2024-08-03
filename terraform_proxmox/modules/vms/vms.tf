@@ -15,8 +15,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   agent { enabled = true }
   cpu {
-    cores        = var.cores
-    type         = "host"
+    cores = var.cores
+    type  = "host"
   }
   memory { dedicated = var.ram }
   startup {
