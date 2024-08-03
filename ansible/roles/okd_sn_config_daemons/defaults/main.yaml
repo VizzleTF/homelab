@@ -1,0 +1,10 @@
+  okd_version: "4.15.0-0.okd-2024-02-10-035534"
+  install_dir: "/etc/okd_install"
+  web_dir: "/var/www/html"
+  ignition_files:
+  - bootstrap.ign
+  - master.ign
+  - worker.ign
+  - metadata.json
+  - auth/kubeadmin-password
+  - auth/kubeconfig
