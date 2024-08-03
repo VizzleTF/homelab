@@ -5,7 +5,7 @@ locals {
 
 module "vms" {
   for_each = { for vm in local.vms_config.vms : vm.vm_name => vm }
-  source = "./modules/vms"
+  source = "git@github.com:VizzleTF/home_proxmox.git//terraform_proxmox/modules/vms?ref=v1.0.0"
 
   vm_name       = each.value.vm_name
   node_name  = try(each.value.node_name, "pve5")
