@@ -64,3 +64,8 @@ variable "image_file" {
   default     = null
 }
 
+variable "pool_id" {
+  description = "ID of the pool where the VM will be created"
+  type        = string
+  default     = null
+}
