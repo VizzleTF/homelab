@@ -1,7 +1,6 @@
 provider_vars.tf
 terraform.exe
 .terraform*
-variables.tf
 terraform/provider_vars.tf
 terraform/terraform.exe
 terraform/.terraform*
