@@ -1,11 +1,13 @@
-- name: Installing list of packages
-  package: name="nfs-utils" state=present
+- name: Install NFS utils
+  package:
+    name: nfs-utils
+    state: present
 
-- name: Create a directory for NFS
+- name: Create NFS directory
   file:
     path: /nfs-share
     state: directory
-    mode: '1777'
+    mode: 1777
     owner: nobody
     group: nobody
 
@@ -15,15 +17,13 @@
     line: "{{ item }}"
     create: yes
   loop:
-      - "/nfs-share  10.11.12.201(rw)"
-      - "/nfs-share  10.11.12.202(rw)"
-      - "/nfs-share  10.11.12.203(rw)"
+    - "/nfs-share  10.11.12.201(rw)"
+    - "/nfs-share  10.11.12.202(rw)"
+    - "/nfs-share  10.11.12.203(rw)"
 
-- name: Restart services
-  block:
-    - name: enable and restart services
-      systemd_service:
-        name: nfs-server
-        state: restarted
-        enabled: true
-        masked: no
+- name: Restart NFS services
+  systemd:
+    name: nfs-server
+    state: restarted
+    enabled: true
+    masked: no

@@ -1,5 +1,6 @@
 ---
-- hosts: nfs_server
+- name: Configure Oracle VM
+  hosts: all
   roles:
     - oracle_firewalld_disable
     - oracle_selinux_disable
