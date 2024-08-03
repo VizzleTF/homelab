@@ -1,6 +1,5 @@
 locals {
   vms_config = yamldecode(file("./configs/vms.yaml"))
-  images     = module.images
 }
 
 module "vms" {
@@ -16,7 +15,6 @@ module "vms" {
   address            = each.value.address
   tags               = concat(local.vms_config.tags, each.value.tags)
   vm_password        = var.vm_password
-  home_pc_public_key = var.home_pc_public_key
-  image_file         = try(local.images[each.value.image_name].images[each.value.node_name].id, local.images["ol94"].images[each.value.node_name].id, local.images["ol94"].images["pve5"].id)
-  depends_on         = [module.images]
+  home_pc_public_key = file("~/.ssh/id_rsa.pub")
+  image_file         = try(module.images[each.value.image_name].images[each.value.node_name].id, module.images["ol94"].images[each.value.node_name].id, module.images["ol94"].images["pve5"].id)
 }
