@@ -1,3 +1,12 @@
-variable "nodes" { default = null }
-variable "url" { default = null }
-variable "file_name" { default = null }
+variable "url" {
+  type        = string
+  default     = null
+  description = "URL of the image to download"
+}
+
+variable "file_name" {
+  type        = string
+  default     = null
+  description = "Name of the downloaded image file"
+}
+
