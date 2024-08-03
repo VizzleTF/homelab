@@ -1,6 +1,13 @@
 data: 
   name: "vaultwarden-data"
   size: "2Gi"
-  class: ""
+  class: "nfs"
   path: "/data"
   # keepPvc: false
+
+domain: "https://pass.vakaf.space"
+
+ingress:
+  enabled: true
+  additionalAnnotations: 
+    cert-manager.io/cluster-issuer: letsencrypt

@@ -1,0 +1,87 @@
+nextcloud:
+  host: nc.vakaf.space
+  username: ivan
+  password: "change-me"
+  
+persistence:
+  enabled: true
+  storageClass: "nfs"
+  accessMode: ReadWriteMany
+  size: 50Gi
+
+ingress:
+  enabled: true
+  annotations:
+   nginx.ingress.kubernetes.io/proxy-body-size: 4G
+   kubernetes.io/tls-acme: "true"
+   cert-manager.io/cluster-issuer: letsencrypt
+   nginx.ingress.kubernetes.io/server-snippet: |-
+     server_tokens off;
+     proxy_hide_header X-Powered-By;
+     rewrite ^/.well-known/webfinger /index.php/.well-known/webfinger last;
+     rewrite ^/.well-known/nodeinfo /index.php/.well-known/nodeinfo last;
+     rewrite ^/.well-known/host-meta /public.php?service=host-meta last;
+     rewrite ^/.well-known/host-meta.json /public.php?service=host-meta-json;
+     location = /.well-known/carddav {
+       return 301 $scheme://$host/remote.php/dav;
+     }
+     location = /.well-known/caldav {
+       return 301 $scheme://$host/remote.php/dav;
+     }
+     location = /robots.txt {
+       allow all;
+       log_not_found off;
+       access_log off;
+     }
+     location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)/ {
+       deny all;
+     }
+     location ~ ^/(?:autotest|occ|issue|indie|db_|console) {
+       deny all;
+     }
+  tls:
+    - hosts:
+      - nc.vakaf.space
+      secretName: nextcloud-tls
+
+postgresql:
+  enabled: true
+  global:
+    postgresql:
+      auth:
+        username: nextcloud
+        password: your-db-password
+        database: nextcloud
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "nfs"
+      size: 5Gi
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: your-redis-password
+  master:
+    persistence:
+      enabled: false  
+
+# resources:
+#   limits:
+#     memory: 512Mi
+#   requests:
+#     memory: 256Mi
+#     cpu: 100m
+
+internalDatabase:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  type: postgresql
+  host: '{{ .Release.Name }}-postgresql'
+  user: nextcloud
+  password: your-db-password
+  database: nextcloud
