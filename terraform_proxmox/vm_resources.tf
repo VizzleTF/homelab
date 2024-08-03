@@ -1,49 +1,22 @@
 locals {
   vms_config = yamldecode(file("./configs/vms.yaml"))
-  # os = {
-  #   oracle_cloud_image = proxmox_virtual_environment_download_file.oracle_cloud_image[0]
-  # }
+  images = module.images
 }
 
-resource "proxmox_virtual_environment_vm" "vm" {
+module "vms" {
   for_each = { for vm in local.vms_config.vms : vm.vm_name => vm }
-  
-  name       = each.value.vm_name
-  tags       = concat(local.vms_config.tags,each.value.tags)
+  source = "./modules/vms"
+
+  vm_name       = each.value.vm_name
   node_name  = try(each.value.node_name, "pve5")
   vm_id      = each.value.vm_id
-  boot_order = ["sata0"]
-
-  agent { enabled = true }
-  cpu {
-    cores        = try(each.value.cores, "2")
-    type         = "host"
-  }
-  memory { dedicated = try(each.value.ram, "2048") }
-  startup {
-    order    = "2"
-    up_delay = "5"
-  }
-  disk {
-    datastore_id = "local-lvm"
-    file_id      = proxmox_virtual_environment_download_file.oracle_cloud_image[each.value.node_name].id
-    # file_id      = try(local.os[each.value.os], proxmox_virtual_environment_download_file.oracle_cloud_image[each.value.node_name])
-    interface    = "sata0"
-    size         = try(each.value.disk_size, 50)
-  }
-  initialization {
-    ip_config {
-      ipv4 {
-        address = each.value.address
-        gateway = "10.11.12.1"
-      }
-    }
-    user_account {
-      keys     = [trimspace(var.home_pc_public_key)]
-      password = var.vm_password
-      username = "root"
-    }
-  }
-  network_device { bridge = "vmbr0" }
-  operating_system { type = "l26" }
+  cores      = try(each.value.cores, "2")
+  ram        = try(each.value.ram, "2048")
+  disk_size  = try(each.value.disk_size, 50)
+  address    = each.value.address
+  tags       = concat(local.vms_config.tags,each.value.tags)
+  vm_password = var.vm_password
+  home_pc_public_key = var.home_pc_public_key
+  image_file  = try(local.images[each.value.image_name].images[each.value.node_name].id, local.images["ol94"].images[each.value.node_name].id, "pve5")
+  depends_on = [ module.images ]
 }

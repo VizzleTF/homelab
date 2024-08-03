@@ -1,0 +1,5 @@
+tags:
+  - terraform
+images:
+  - image_name: ol94
+    image_url: "https://yum.oracle.com/templates/OracleLinux/OL9/u4/x86_64/OL9U4_x86_64-kvm-b234.qcow2"

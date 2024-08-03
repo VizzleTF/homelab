@@ -1,14 +1,14 @@
 
 locals {
+  images_config = yamldecode(file("./configs/images.yaml"))
   nodes = toset(["home", "pve3", "pve4", "pve5"])
 }
 
-resource "proxmox_virtual_environment_download_file" "oracle_cloud_image" {
-  for_each = local.nodes
+module "images" {
+  for_each = { for image in local.images_config.images : image.image_name => image }
+  source = "./modules/images"
 
-  content_type = "iso"
-  datastore_id = "local"
-  node_name    = each.value
-  url          = "https://yum.oracle.com/templates/OracleLinux/OL9/u4/x86_64/OL9U4_x86_64-kvm-b234.qcow2"
-  file_name    = "oracle94.img"
+  nodes = local.nodes
+  url          = each.value.image_url
+  file_name    = "${each.value.image_name}.img"
 }
