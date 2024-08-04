@@ -1,10 +1,11 @@
 locals {
-  vms_config = yamldecode(file("./configs/vms.yaml"))
+  vms_config     = yamldecode(file("./configs/vms.yaml"))
+  required_nodes = ["kube-node-01", "kube-node-02", "kube-node-03"]
 }
 
 module "vms" {
   for_each = { for vm in local.vms_config.vms : vm.vm_name => vm }
-  source   = "git@github.com:VizzleTF/home_proxmox.git//terraform_proxmox/modules/vms?ref=v1.0.2"
+  source   = "./modules/vms"
 
   vm_name            = each.value.vm_name
   node_name          = try(each.value.node_name, "pve5")
@@ -18,4 +19,18 @@ module "vms" {
   home_pc_public_key = file("~/.ssh/id_rsa.pub")
   image_file         = try(module.images[each.value.image_name].images[each.value.node_name].id, module.images["ol94"].images[each.value.node_name].id, module.images["ol94"].images["pve5"].id)
   pool_id            = try(each.value.pool_id, null)
+}
+
+resource "null_resource" "run_k8s_script" {
+  count = length(setintersection(keys(module.vms), local.required_nodes)) == 3 ? 1 : 0
+
+  depends_on = [module.vms]
+
+  provisioner "local-exec" {
+    command = "./cluster_create.sh"
+  }
+
+  triggers = {
+    vms_created = join(",", [for name in local.required_nodes : module.vms[name].vm_id])
+  }
 }

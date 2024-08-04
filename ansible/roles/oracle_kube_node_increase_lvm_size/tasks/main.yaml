@@ -1,0 +1,28 @@
+    - name: Resize partition to use all available space
+      command: parted {{ device }} -s resizepart {{ partition_number }} 100%
+      register: resize_result
+      changed_when: resize_result.rc == 0
+
+
+    - name: Resize physical volume
+      command: pvresize {{ device }}{{ partition_number }}
+      register: pvresize_result
+      changed_when: pvresize_result.rc == 0
+
+    - name: Extend logical volume to use all free space
+      command: lvextend -l +100%FREE /dev/{{ vg_name }}/{{ lv_name }}
+      register: lvextend_result
+      changed_when: lvextend_result.rc == 0
+
+    - name: Grow XFS filesystem
+      command: xfs_growfs /dev/{{ vg_name }}/{{ lv_name }}
+      register: xfs_growfs_result
+      changed_when: xfs_growfs_result.rc == 0
+
+    - name: Verify new size
+      command: df -h /
+      register: df_output
+
+    - name: Display new size
+      debug:
+        var: df_output.stdout_lines
