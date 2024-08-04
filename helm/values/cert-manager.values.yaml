@@ -1,0 +1,20 @@
+crds:
+  # This option decides if the CRDs should be installed
+  # as part of the Helm installation.
+  enabled: true
+
+extraResources:
+  - apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt
+    spec:
+      acme:
+        server: https://acme-v02.api.letsencrypt.org/directory
+        email: vizzlef@gmail.com
+        privateKeySecretRef:
+          name: letsencrypt-http01-account-key
+        solvers:
+        - http01:
+            ingress:
+              class: nginx

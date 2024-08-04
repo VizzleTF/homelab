@@ -1,13 +1,12 @@
 nextcloud:
   host: nc.vakaf.space
   username: ivan
-  password: "change-me"
+  password: "changeme"
   
 persistence:
   enabled: true
-  storageClass: "nfs"
-  accessMode: ReadWriteMany
-  size: 50Gi
+  accessMode: ReadWriteOnce
+  size: 20Gi
 
 ingress:
   enabled: true
@@ -50,13 +49,12 @@ postgresql:
     postgresql:
       auth:
         username: nextcloud
-        password: your-db-password
+        password: sup3rstr0ngP@s$
         database: nextcloud
   primary:
     persistence:
       enabled: true
-      storageClass: "nfs"
-      size: 5Gi
+      size: 1Gi
 
 redis:
   enabled: true
@@ -66,7 +64,8 @@ redis:
     password: your-redis-password
   master:
     persistence:
-      enabled: false  
+      enabled: true  
+      size: 1Gi
 
 # resources:
 #   limits:
@@ -83,5 +82,5 @@ externalDatabase:
   type: postgresql
   host: '{{ .Release.Name }}-postgresql'
   user: nextcloud
-  password: your-db-password
+  password: sup3rstr0ngP@s$
   database: nextcloud

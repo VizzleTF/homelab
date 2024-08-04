@@ -1,7 +1,6 @@
 data: 
   name: "vaultwarden-data"
   size: "2Gi"
-  class: "nfs"
   path: "/data"
   # keepPvc: false
 

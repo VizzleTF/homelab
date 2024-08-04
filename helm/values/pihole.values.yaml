@@ -1,0 +1,18 @@
+---
+persistentVolumeClaim:
+  enabled: true
+ingress:
+  enabled: true
+  hosts:
+    - "pihole.vakaf.space"
+serviceWeb:
+  loadBalancerIP: 10.11.12.161
+  annotations:
+    metallb.universe.tf/allow-shared-ip: pihole-svc
+  type: LoadBalancer
+serviceDns:
+  loadBalancerIP: 10.11.12.161
+  annotations:
+    metallb.universe.tf/allow-shared-ip: pihole-svc
+  type: LoadBalancer
+replicaCount: 1

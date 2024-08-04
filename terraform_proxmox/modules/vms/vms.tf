@@ -47,3 +47,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   network_device { bridge = "vmbr0" }
   operating_system { type = "l26" }
 }
+
+output "vm_id" {
+  value = proxmox_virtual_environment_vm.vm.id
+}
