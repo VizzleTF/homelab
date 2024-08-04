@@ -1,0 +1,5 @@
+service:
+  ui:
+    type: LoadBalancer
+  manager:
+    type: LoadBalancer
