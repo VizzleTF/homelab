@@ -8,5 +8,8 @@ domain: "https://pass.internal.example"
 
 ingress:
   enabled: true
+  hostname: "pass.internal.example"
+  class: "nginx"
+  tlsSecret: vw-tls
   additionalAnnotations: 
     cert-manager.io/cluster-issuer: letsencrypt
