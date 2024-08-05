@@ -7,10 +7,10 @@
   changed_when: false
 
 - name: Set initiator name in config file
-  ansible.builtin.lineinfile:
-    path: /etc/iscsi/initiatorname.iscsi
-    line: "InitiatorName={{ iscsi_initiator_name.stdout }}"
-    create: yes
+  ansible.builtin.copy:
+    content: "InitiatorName={{ iscsi_initiator_name.stdout }}"
+    dest: /etc/iscsi/initiatorname.iscsi
+    mode: '0644'
 
 - name: Enable iscsid service
   ansible.builtin.systemd:
