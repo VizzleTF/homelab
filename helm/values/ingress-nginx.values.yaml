@@ -1,6 +1,5 @@
 controller:
-  config:
-    allow-snippet-annotations: "true"
+  allowSnippetAnnotations: "true"
   service:
     type: LoadBalancer
     loadBalancerIP: 10.11.12.160
