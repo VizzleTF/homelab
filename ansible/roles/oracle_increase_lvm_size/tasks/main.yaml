@@ -1,0 +1,95 @@
+---
+- name: Check if partition has free space
+  shell: parted -s {{ device }} unit GB print free | grep 'Free Space' | tail -n1 | awk '{print $3}'
+  register: free_space
+  changed_when: false
+
+- name: Set fact for partition resizing needed
+  set_fact:
+    partition_resize_needed: "{{ (free_space.stdout | float) > 0.01 }}"
+
+- name: Check if LVM needs extending
+  command: vgs {{ vg_name }} --noheadings -o vg_free_count
+  register: vg_free_space
+  changed_when: false
+
+- name: Set fact for LVM extending needed
+  set_fact:
+    lvm_extend_needed: "{{ vg_free_space.stdout | trim | int > 0 }}"
+
+- name: Check if filesystem needs growing
+  command: df -h /
+  register: df_output_before
+  changed_when: false
+
+- name: Resize partition to use all available space
+  command: parted {{ device }} -s resizepart {{ partition_number }} 100%
+  register: resize_result
+  changed_when: resize_result.rc == 0
+  when: partition_resize_needed
+
+- name: Resize physical volume
+  command: pvresize {{ device }}{{ partition_number }}
+  register: pvresize_result
+  changed_when: pvresize_result.rc == 0
+  when: partition_resize_needed
+
+- name: Extend logical volume to use all free space
+  command: lvextend -l +100%FREE /dev/{{ vg_name }}/{{ lv_name }}
+  register: lvextend_result
+  changed_when: lvextend_result.rc == 0
+  when: lvm_extend_needed
+
+- name: Check if XFS filesystem needs growing
+  command: xfs_info /dev/{{ vg_name }}/{{ lv_name }}
+  register: xfs_info
+  changed_when: false
+
+- name: Get XFS filesystem size
+  command: xfs_info /dev/{{ vg_name }}/{{ lv_name }}
+  register: xfs_info
+  changed_when: false
+
+- name: Get logical volume size
+  command: lvs --noheadings --units b -o lv_size /dev/{{ vg_name }}/{{ lv_name }}
+  register: lv_size
+  changed_when: false
+
+- name: Set fact for XFS grow needed
+  set_fact:
+    xfs_size_bytes: "{{ xfs_info.stdout | regex_search('blocks=([0-9]+)') | regex_replace('blocks=', '') | int * 4096 }}"
+    lv_size_bytes: "{{ lv_size.stdout | trim | regex_replace('B', '') | int }}"
+
+- name: Set fact for XFS grow needed
+  set_fact:
+    xfs_grow_needed: "{{ xfs_size_bytes | int < lv_size_bytes | int }}"
+
+- name: Grow XFS filesystem
+  command: xfs_growfs /dev/{{ vg_name }}/{{ lv_name }}
+  register: xfs_growfs_result
+  changed_when: xfs_growfs_result.rc == 0
+  when: xfs_grow_needed
+
+- name: Verify new size
+  command: df -h /
+  register: df_output_after
+  changed_when: false
+
+- name: Display size change
+  debug:
+    msg: 
+      - "Before:"
+      - "{{ df_output_before.stdout_lines }}"
+      - "After:"
+      - "{{ df_output_after.stdout_lines }}"
+  when: partition_resize_needed or lvm_extend_needed or xfs_grow_needed
+
+- name: Display no changes message
+  debug:
+    msg: "No resizing was necessary. Current filesystem usage:"
+  when: not (partition_resize_needed or lvm_extend_needed or xfs_grow_needed)
+
+- name: Display current filesystem usage
+  debug:
+    var: df_output_before.stdout_lines
+  when: not (partition_resize_needed or lvm_extend_needed or xfs_grow_needed)

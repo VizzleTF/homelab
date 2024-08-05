@@ -1,5 +1,3 @@
 packages:
-  - iscsi-initiator-utils 
-  - lsscsi
   - nfs-utils
   - parted
