@@ -1,27 +1,41 @@
-all:
-  children:
-    okd:
-      hosts:
-        okd_service_node:
-          ansible_host: 10.11.12.210
-    other:
-      hosts:
-        nfs_server:
-          ansible_host: 10.11.12.213
-    nodes:
-      hosts:
-        node1:
-          ansible_host: 10.11.12.241
-          ip: 10.11.12.241
-          access_ip: 10.11.12.241
-          ansible_user: root
-        node2:
-          ansible_host: 10.11.12.242
-          ip: 10.11.12.242
-          access_ip: 10.11.12.242
-          ansible_user: root
-        node3:
-          ansible_host: 10.11.12.243
-          ip: 10.11.12.243
-          access_ip: 10.11.12.243
-          ansible_user: root
+"all":
+  "children":
+    "etcd":
+      "hosts":
+        "kube-node-01": {}
+        "kube-node-02": {}
+        "kube-node-03": {}
+    "k8s_cluster":
+      "children":
+        "kube_control_plane": {}
+        "kube_node": {}
+    "kube_control_plane":
+      "hosts":
+        "kube-node-01": {}
+        "kube-node-02": {}
+    "kube_node":
+      "hosts":
+        "kube-node-01": {}
+        "kube-node-02": {}
+        "kube-node-03": {}
+    "oracle_linux":
+      "hosts":
+        "kube-node-01": {}
+        "kube-node-02": {}
+        "kube-node-03": {}
+  "hosts":
+    "kube-node-01":
+      "access_ip": "10.11.12.241"
+      "ansible_host": "10.11.12.241"
+      "ansible_user": "root"
+      "ip": "10.11.12.241"
+    "kube-node-02":
+      "access_ip": "10.11.12.242"
+      "ansible_host": "10.11.12.242"
+      "ansible_user": "root"
+      "ip": "10.11.12.242"
+    "kube-node-03":
+      "access_ip": "10.11.12.243"
+      "ansible_host": "10.11.12.243"
+      "ansible_user": "root"
+      "ip": "10.11.12.243"
