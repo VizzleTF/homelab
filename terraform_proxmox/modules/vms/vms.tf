@@ -46,6 +46,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
   network_device { bridge = "vmbr0" }
   operating_system { type = "l26" }
+  lifecycle {
+    ignore_changes = [
+      cpu["architecture"],
+    ]
+  }
 }
 
 output "vm_id" {

@@ -8,7 +8,7 @@ vms:
     cores: 4
     ram: 12288
     disk_size: 100
-    tags: [kubespray, oracle_linux]
+    tags: [kube_control_plane, kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
   - vm_id: 302
     vm_name: kube-node-02
@@ -17,7 +17,7 @@ vms:
     cores: 4
     ram: 12288
     disk_size: 100
-    tags: [kubespray, oracle_linux]
+    tags: [kube_control_plane, kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
   - vm_id: 303
     vm_name: kube-node-03
@@ -26,6 +26,5 @@ vms:
     cores: 4
     ram: 12288
     disk_size: 100
-    tags: [kubespray, oracle_linux]
+    tags: [kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
-
