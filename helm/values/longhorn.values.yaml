@@ -1,5 +1,7 @@
 service:
   ui:
     type: LoadBalancer
+    loadBalancerIP: "10.11.12.164"
   manager:
     type: LoadBalancer
+    loadBalancerIP: "10.11.12.164"

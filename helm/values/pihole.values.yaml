@@ -2,6 +2,7 @@
 persistentVolumeClaim:
   enabled: true
 ingress:
+  ingressClassName: nginx
   enabled: true
   hosts:
     - "pihole.vakaf.space"
