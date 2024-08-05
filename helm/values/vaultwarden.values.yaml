@@ -8,5 +8,8 @@ domain: "https://pass.vakaf.space"
 
 ingress:
   enabled: true
+  hostname: "pass.vakaf.space"
+  class: "nginx"
+  tlsSecret: vw-tls
   additionalAnnotations: 
     cert-manager.io/cluster-issuer: letsencrypt

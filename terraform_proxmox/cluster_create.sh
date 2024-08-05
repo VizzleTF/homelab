@@ -12,5 +12,5 @@ sed -i'' -e "s^server:.*^server: https://10.11.12.241:6443^" ~/.kube/config
 k get nodes -o wide
 cd ../helm
 helmfile apply
-k apply -f ../manifests/metallb/pool.yaml
-k apply -f ../manifests/letsencrypt/ClusterIssuer.yaml
+kubectl apply -f ../manifests/metallb/pool.yaml
+kubectl apply -f ../manifests/letsencrypt/ClusterIssuer.yaml
