@@ -1,0 +1,53 @@
+# service:
+#   # Service type (ClusterIP, NodePort, LoadBalancer, or ExternalName)
+#   type: LoadBalancer
+#   loadBalancerIP: "10.11.12.163"
+
+# # Ingress settings
+# ingress:
+#   # Enable ingress for home assistant
+#   enabled: true
+#   className: nginx
+#   annotations:
+#     kubernetes.io/ingress.class: nginx
+#     kubernetes.io/tls-acme: "true"
+#     cert-manager.io/cluster-issuer: letsencrypt
+#   hosts:
+#     - host: ha.vakaf.space
+#       paths:
+#         - path: /
+#           pathType: ImplementationSpecific
+#   tls:
+#     - hosts:
+#       - ha.vakaf.space
+#       secretName: ha-tls
+
+# securityContext:
+#   privileged: true
+
+# persistence:
+#   # Enable or disable persistence
+#   enabled: true
+#   # Access mode for the persistent volume claim
+#   accessMode: ReadWriteOnce
+#   # Size of the persistent volume claim
+#   size: 5Gi
+
+# # Add additional volumes for the Zigbee USB device
+# additionalVolumes:
+#   - name: zigbee-usb
+#     hostPath:
+#       path: /dev/ttySONOFF  # Use the symlink created by our udev rule
+#       type: CharDevice
+
+# # Mount the Zigbee USB device in the container
+# additionalMounts:
+#   - name: zigbee-usb
+#     mountPath: /dev/ttySONOFF
+
+# addons:
+#   codeserver:
+#     enabled: true  # Set to false if you're not using code-server
+#     additionalMounts:
+#       - name: zigbee-usb
+#         mountPath: /dev/ttySONOFF
