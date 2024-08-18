@@ -26,8 +26,8 @@ repositories:
     url: https://grafana.github.io/helm-charts             
   - name: vm                  	
     url: https://victoriametrics.github.io/helm-charts
-  - name: pajikos 
-    url: http://pajikos.github.io/home-assistant-helm-chart   
+  # - name: pajikos 
+  #   url: http://pajikos.github.io/home-assistant-helm-chart   
 
 ---
 releases:
@@ -102,9 +102,9 @@ releases:
     values:
       - ./values/nextcloud.values.yaml
 
-  - name: home-assistant
-    namespace: home-assistant
-    chart: pajikos/home-assistant
-    version: 0.2.74
-    values:
-      - ./values/home-assistant.values.yaml
+  # - name: home-assistant
+  #   namespace: home-assistant
+  #   chart: pajikos/home-assistant
+  #   version: 0.2.74
+  #   values:
+  #     - ./values/home-assistant.values.yaml
