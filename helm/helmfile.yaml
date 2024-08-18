@@ -9,7 +9,7 @@ repositories:
   - name: metallb
     url: https://metallb.github.io/metallb
   - name: mojo2600
-    url: https://mojo2600.github.io/pihole-kubernetes/
+    url: https://mojo2600.github.io/pihole-kubernetes
   - name: ingress-nginx
     url: https://kubernetes.github.io/ingress-nginx
   - name: bitnami
@@ -25,7 +25,9 @@ repositories:
   - name: grafana             	
     url: https://grafana.github.io/helm-charts             
   - name: vm                  	
-    url: https://victoriametrics.github.io/helm-charts/    
+    url: https://victoriametrics.github.io/helm-charts
+  - name: pajikos 
+    url: http://pajikos.github.io/home-assistant-helm-chart   
 
 ---
 releases:
@@ -99,3 +101,10 @@ releases:
     version: 5.5.2
     values:
       - ./values/nextcloud.values.yaml
+
+  - name: home-assistant
+    namespace: home-assistant
+    chart: pajikos/home-assistant
+    version: 0.2.74
+    values:
+      - ./values/home-assistant.values.yaml
