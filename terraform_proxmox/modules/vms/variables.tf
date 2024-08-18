@@ -69,3 +69,13 @@ variable "pool_id" {
   type        = string
   default     = null
 }
+
+variable "usb" {
+  description = "Map a host USB device to a VM"
+  type = object({
+    host    = string
+    mapping = string
+    usb3    = bool
+  })
+  default = null
+}
