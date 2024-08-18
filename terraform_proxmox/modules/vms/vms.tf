@@ -44,6 +44,16 @@ resource "proxmox_virtual_environment_vm" "vm" {
       username = "root"
     }
   }
+
+  dynamic "usb" {
+    for_each = var.usb != null ? [var.usb] : []
+    content {
+      host    = usb.value.host
+      mapping = usb.value.mapping
+      usb3    = usb.value.usb3
+    }
+  }
+
   network_device { bridge = "vmbr0" }
   operating_system { type = "l26" }
   lifecycle {
