@@ -8,6 +8,10 @@ vms:
     cores: 4
     ram: 12288
     disk_size: 100
+    usb:
+      host: "1a86:55d4" # zigbee stick
+      mapping:
+      usb3: false
     tags: [kube_control_plane, kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
   - vm_id: 302
