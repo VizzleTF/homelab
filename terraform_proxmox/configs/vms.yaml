@@ -14,6 +14,7 @@ vms:
       usb3: false
     tags: [kube_control_plane, kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
+    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
   - vm_id: 302
     vm_name: kube-node-02
     address: 10.11.12.242/24
@@ -23,6 +24,7 @@ vms:
     disk_size: 100
     tags: [kube_control_plane, kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
+    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
   - vm_id: 303
     vm_name: kube-node-03
     address: 10.11.12.243/24
@@ -32,3 +34,4 @@ vms:
     disk_size: 100
     tags: [kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
+    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"

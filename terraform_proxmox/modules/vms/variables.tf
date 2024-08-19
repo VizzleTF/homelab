@@ -79,3 +79,9 @@ variable "usb" {
   })
   default = null
 }
+
+variable "description" {
+  description = "Description of the VM"
+  type        = string
+  default     = null
+}
