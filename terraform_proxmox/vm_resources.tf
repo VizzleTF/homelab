@@ -18,4 +18,5 @@ module "vms" {
   image_file         = try(module.images[each.value.image_name].images[each.value.node_name].id, module.images["ol94"].images[each.value.node_name].id, module.images["ol94"].images["pve5"].id)
   pool_id            = try(each.value.pool_id, null)
   usb                = try(each.value.usb, null)
+  description        = try(each.value.description, null)
 }
