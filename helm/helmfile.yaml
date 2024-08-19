@@ -77,21 +77,21 @@ releases:
   - name: prometheus
     namespace: monitoring
     chart: prometheus-community/prometheus
-    version: 25.25.0
+    version: 25.26.0
     values:
       - ./values/prometheus.values.yaml
 
   - name: grafana
     namespace: monitoring
     chart: grafana/grafana
-    version: 8.3.6
+    version: 8.4.5
     values:
       - ./values/grafana.values.yaml
 
   - name: vaultwarden
     namespace: vaultwarden
     chart: vaultwarden/vaultwarden
-    version: 0.23.1
+    version: 0.24.0
     values:
       - ./values/vaultwarden.values.yaml
 
