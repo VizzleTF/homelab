@@ -26,6 +26,10 @@ repositories:
     url: https://grafana.github.io/helm-charts             
   - name: vm                  	
     url: https://victoriametrics.github.io/helm-charts
+  - name: ollama
+    url: https://otwld.github.io/ollama-helm
+  # - name: open-webui
+  #   url: https://helm.openwebui.com/
   # - name: pajikos 
   #   url: http://pajikos.github.io/home-assistant-helm-chart   
 
@@ -101,6 +105,20 @@ releases:
     version: 5.5.2
     values:
       - ./values/nextcloud.values.yaml
+
+  - name: ollama
+    namespace: ollama
+    chart: ollama/ollama
+    version: 0.54.0
+    values:
+      - ./values/ollama.values.yaml
+  
+  # - name: open-webui
+  #   namespace: open-webui
+  #   chart: open-webui/open-webui
+  #   version: 3.1.7
+  #   values:
+  #     - ./values/open-webui.values.yaml
 
   # - name: home-assistant
   #   namespace: home-assistant
