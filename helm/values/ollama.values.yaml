@@ -1,0 +1,6 @@
+ollama:
+  models:
+    - tinyllama
+service:
+  type: LoadBalancer
+  loadBalancerIP: "10.11.12.167"
