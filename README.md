@@ -1,4 +1,4 @@
-# Proxmox Home Lab with Terraform and OKD Cluster
+# [Proxmox Home Lab with Terraform and OKD Cluster](https://github.com/VizzleTF/home_proxmox)
 
 This repository contains configurations and scripts to manage a Proxmox home lab environment using Terraform, and kubernetes clusters by kubespray. It includes Ansible roles, Helm charts, Terraform configurations, and Kubernetes manifests to fully automate the deployment and management of virtualized infrastructure.
 
