@@ -8,8 +8,8 @@ repositories:
     url: https://charts.longhorn.io
   - name: metallb
     url: https://metallb.github.io/metallb
-  - name: mojo2600
-    url: https://mojo2600.github.io/pihole-kubernetes
+  # - name: mojo2600
+  #   url: https://mojo2600.github.io/pihole-kubernetes
   - name: ingress-nginx
     url: https://kubernetes.github.io/ingress-nginx
   - name: bitnami
@@ -20,14 +20,14 @@ repositories:
     url: https://nextcloud.github.io/helm/                 
   - name: vaultwarden         	
     url: https://guerzon.github.io/vaultwarden             
-  - name: prometheus-community	
-    url: https://prometheus-community.github.io/helm-charts
-  - name: grafana             	
-    url: https://grafana.github.io/helm-charts             
-  - name: vm                  	
-    url: https://victoriametrics.github.io/helm-charts
-  - name: ollama
-    url: https://otwld.github.io/ollama-helm
+  # - name: prometheus-community	
+  #   url: https://prometheus-community.github.io/helm-charts
+  # - name: grafana             	
+  #   url: https://grafana.github.io/helm-charts             
+  # - name: vm                  	
+  #   url: https://victoriametrics.github.io/helm-charts
+  # - name: ollama
+  #   url: https://otwld.github.io/ollama-helm
   # - name: open-webui
   #   url: https://helm.openwebui.com/
   # - name: pajikos 
@@ -63,12 +63,12 @@ releases:
       - ./values/cert-manager.values.yaml
 
   # pihole
-  - name: pihole
-    namespace: pihole-system
-    chart: mojo2600/pihole
-    version: 2.26.1
-    values:
-      - ./values/pihole.values.yaml
+  # - name: pihole
+  #   namespace: pihole-system
+  #   chart: mojo2600/pihole
+  #   version: 2.26.1
+  #   values:
+  #     - ./values/pihole.values.yaml
 
   # Automatic DNS for pihole
   # - name: externaldns-pihole
@@ -78,19 +78,19 @@ releases:
   #   values:
   #     - ./values/externaldns.values.yaml
 
-  - name: prometheus
-    namespace: monitoring
-    chart: prometheus-community/prometheus
-    version: 25.26.0
-    values:
-      - ./values/prometheus.values.yaml
+  # - name: prometheus
+  #   namespace: monitoring
+  #   chart: prometheus-community/prometheus
+  #   version: 25.26.0
+  #   values:
+  #     - ./values/prometheus.values.yaml
 
-  - name: grafana
-    namespace: monitoring
-    chart: grafana/grafana
-    version: 8.4.5
-    values:
-      - ./values/grafana.values.yaml
+  # - name: grafana
+  #   namespace: monitoring
+  #   chart: grafana/grafana
+  #   version: 8.4.5
+  #   values:
+  #     - ./values/grafana.values.yaml
 
   - name: vaultwarden
     namespace: vaultwarden
@@ -106,12 +106,12 @@ releases:
     values:
       - ./values/nextcloud.values.yaml
 
-  - name: ollama
-    namespace: ollama
-    chart: ollama/ollama
-    version: 0.54.0
-    values:
-      - ./values/ollama.values.yaml
+  # - name: ollama
+  #   namespace: ollama
+  #   chart: ollama/ollama
+  #   version: 0.54.0
+  #   values:
+  #     - ./values/ollama.values.yaml
   
   # - name: open-webui
   #   namespace: open-webui
