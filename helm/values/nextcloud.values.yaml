@@ -9,7 +9,7 @@ service:
 
 persistence:
   enabled: true
-  accessMode: ReadWriteOnce
+  accessMode: ReadWriteMany
   size: 40Gi
 
 ingress:

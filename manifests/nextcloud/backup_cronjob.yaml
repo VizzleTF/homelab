@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nextcloud-backup
+  namespace: nextcloud
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: sync
+            image: instrumentisto/rsync-ssh
+            command: ["rsync", "-avz", "--delete", "/source/", "/destination/"]
+            volumeMounts:
+            - name: longhorn-volume
+              mountPath: /source
+            - name: nfs-volume
+              mountPath: /destination
+          restartPolicy: OnFailure
+          volumes:
+          - name: longhorn-volume
+            persistentVolumeClaim:
+              claimName: nextcloud-nextcloud
+          - name: nfs-volume
+            nfs:
+              server: 10.11.12.213
+              path: "/nfs-share/nc/backups"
