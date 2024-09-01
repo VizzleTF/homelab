@@ -5,8 +5,8 @@
     - oracle_firewalld_disable
     - oracle_selinux_disable
     - oracle_timezone_set
-    - oracle_increase_lvm_size
     - oracle_install_packages
+    - oracle_increase_lvm_size
 
 - name: Configure Oracle VM
   hosts: kube_node

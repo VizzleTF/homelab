@@ -3,4 +3,4 @@ adminPassword: admin
 service:
   enabled: true
   type: LoadBalancer
-  loadBalancerIP: "10.11.12.166"
+  # loadBalancerIP: "10.11.12.166"
