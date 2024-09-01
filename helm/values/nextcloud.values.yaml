@@ -2,7 +2,31 @@ nextcloud:
   host: nc.vakaf.space
   username: ivan
   password: "changeme"
-  
+
+  # objectStore:
+  #   s3:
+  #     enabled: true
+  #     host: "http://seaweedfs-s3.seaweedfs.svc.cluster.local"
+  #     bucket: "nextcloud"  
+  #     port: "8333"  
+  #     ssl: false  
+  #     region: "us-east-1"  
+  #     accessKey: "i7vF6DLIGZA3Hb4q"
+  #     secretKey: "go95Sg2aHzbHHvBFtUmn68OFzm6lCVem"
+  #     autoCreate: true 
+  #     # legacyAuth: true
+  #     usePathStyle: true
+
+replicaCount: 1
+
+resources:
+  limits:
+    cpu: 2
+    memory: 2Gi
+  requests:
+    cpu: 1
+    memory: 1Gi
+
 service:
   type: LoadBalancer
   loadBalancerIP: "10.11.12.165"
@@ -60,6 +84,7 @@ postgresql:
   primary:
     persistence:
       enabled: true
+      accessMode: ReadWriteMany
       size: 1Gi
 
 redis:
@@ -71,14 +96,8 @@ redis:
   master:
     persistence:
       enabled: true  
+      accessMode: ReadWriteMany
       size: 1Gi
-
-# resources:
-#   limits:
-#     memory: 512Mi
-#   requests:
-#     memory: 256Mi
-#     cpu: 100m
 
 internalDatabase:
   enabled: false
@@ -90,3 +109,11 @@ externalDatabase:
   user: nextcloud
   password: sup3rstr0ngP@s$
   database: nextcloud
+
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 7200
+  periodSeconds: 60
+  timeoutSeconds: 5
+  failureThreshold: 15
+  successThreshold: 1

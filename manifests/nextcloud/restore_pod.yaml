@@ -1,0 +1,24 @@
+piVersion: v1
+kind: Pod
+metadata:
+  name: restore-data
+  namespace: nextcloud
+spec:
+  containers:
+  - name: restore
+    image: instrumentisto/rsync-ssh
+    command: ["rsync", "-avz", "/source/", "/destination/"]
+    volumeMounts:
+    - name: nfs-volume
+      mountPath: /source
+    - name: longhorn-volume
+      mountPath: /destination
+  restartPolicy: Never
+  volumes:
+  - name: longhorn-volume
+    persistentVolumeClaim:
+      claimName: nextcloud-nextcloud
+  - name: nfs-volume
+    nfs:
+      server: 10.11.12.213
+      path: "/nfs-share/nc/backups"

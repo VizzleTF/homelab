@@ -2,6 +2,7 @@ data:
   name: "vaultwarden-data"
   size: "2Gi"
   path: "/data"
+  accessMode: "ReadWriteMany"
   # keepPvc: false
 
 domain: "https://pass.vakaf.space"
