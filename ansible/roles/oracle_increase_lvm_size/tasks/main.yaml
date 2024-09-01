@@ -1,6 +1,6 @@
 ---
 - name: Check if partition has free space
-  shell: parted -s {{ device }} unit GB print free | grep 'Free Space' | tail -n1 | awk '{print $3}'
+  shell: parted -s {{ device }} unit GB print free | grep 'Free Space' | tail -n1 | awk '{print $3}' | sed 's/GB//'
   register: free_space
   changed_when: false
 
@@ -8,14 +8,13 @@
   set_fact:
     partition_resize_needed: "{{ (free_space.stdout | float) > 0.01 }}"
 
-- name: Check if LVM needs extending
-  command: vgs {{ vg_name }} --noheadings -o vg_free_count
-  register: vg_free_space
-  changed_when: false
-
-- name: Set fact for LVM extending needed
-  set_fact:
-    lvm_extend_needed: "{{ vg_free_space.stdout | trim | int > 0 }}"
+- name: Debug free space
+  debug:
+    var: free_space.stdout
+    
+- name: Debug partition resize needed
+  debug:
+    var: partition_resize_needed
 
 - name: Check if filesystem needs growing
   command: df -h /
@@ -33,6 +32,23 @@
   register: pvresize_result
   changed_when: pvresize_result.rc == 0
   when: partition_resize_needed
+  
+- name: Check if LVM needs extending
+  command: vgs {{ vg_name }} --noheadings -o vg_free_count
+  register: vg_free_space
+  changed_when: false
+
+- name: Set fact for LVM extending needed
+  set_fact:
+    lvm_extend_needed: "{{ vg_free_space.stdout | trim | int > 0 }}"
+
+- name: Debug free space
+  debug:
+    var: vg_free_space.stdout
+    
+- name: Debug partition resize needed
+  debug:
+    var: lvm_extend_needed
 
 - name: Extend logical volume to use all free space
   command: lvextend -l +100%FREE /dev/{{ vg_name }}/{{ lv_name }}
