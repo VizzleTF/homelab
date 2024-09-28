@@ -20,6 +20,8 @@ repositories:
     url: https://nextcloud.github.io/helm/                 
   - name: vaultwarden         	
     url: https://guerzon.github.io/vaultwarden
+  - name: metrics-server
+    url: https://kubernetes-sigs.github.io/metrics-server
   # - name: seaweedfs
   #   url: https://seaweedfs.github.io/seaweedfs/helm
   # - name: seaweedfs-csi-driver
@@ -77,9 +79,16 @@ releases:
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
-    version: 5.5.3
+    version: 6.0.3
     values:
       - ./values/nextcloud.values.yaml
+
+  - name: metrics-server
+    namespace: kube-system
+    chart: metrics-server/metrics-server
+    version: 3.12.1
+    values:
+      - ./values/metrics-server.values.yaml
 
   # - name: seaweedfs
   #   namespace: seaweedfs
