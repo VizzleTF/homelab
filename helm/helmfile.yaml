@@ -95,7 +95,7 @@ releases:
   - name: cluster-status-app
     namespace: cluster-status
     chart: cluster-status-app/cluster-status-app
-    version: 0.1.6
+    version: 0.4.0
     values:
       - ./values/cluster-status-app.values.yaml
 
