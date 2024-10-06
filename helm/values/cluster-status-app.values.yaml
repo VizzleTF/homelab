@@ -1,0 +1,106 @@
+# Default values for cluster-status.
+replicaCount: 1
+
+image:
+  repository: ghcr.io/vizzletf/cluster-status-app
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+  hosts:
+    - host: status.vakaf.space
+      paths:
+        - path: /status
+          pathType: Prefix
+  tls:
+   - secretName: cluster-status-tls
+     hosts:
+       - status.vakaf.space
+
+resources: {}
+
+autoscaling:
+  enabled: false
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+env:
+  - name: PROXMOX_API_URL
+    valueFrom:
+      secretKeyRef:
+        name: proxmox-credentials
+        key: api-url
+  - name: PROXMOX_USER
+    valueFrom:
+      secretKeyRef:
+        name: proxmox-credentials
+        key: username
+  - name: PROXMOX_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: proxmox-credentials
+        key: password
+  - name: KUBECONFIG
+    value: /root/.kube/config
+
+volumes:
+  - name: kubeconfig
+    secret:
+      secretName: kubeconfig
+      items:
+        - key: config
+          path: config
+
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /root/.kube
+    readOnly: true
+
+probes:
+  liveness:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readiness:
+    httpGet:
+      path: /ready
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10

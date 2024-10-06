@@ -22,6 +22,8 @@ repositories:
     url: https://guerzon.github.io/vaultwarden
   - name: metrics-server
     url: https://kubernetes-sigs.github.io/metrics-server
+  - name: cluster-status-app
+    url: https://vizzletf.github.io/cluster-status-app
   # - name: seaweedfs
   #   url: https://seaweedfs.github.io/seaweedfs/helm
   # - name: seaweedfs-csi-driver
@@ -46,7 +48,7 @@ releases:
   - name: longhorn
     namespace: longhorn-system
     chart: longhorn/longhorn
-    version: 1.7.0
+    version: 1.7.1
     values:
       - ./values/longhorn.values.yaml
 
@@ -65,21 +67,21 @@ releases:
   - name: cert-manager
     namespace: cert-manager
     chart: jetstack/cert-manager
-    version: v1.15.3
+    version: v1.16.0
     values:
       - ./values/cert-manager.values.yaml
 
   - name: vaultwarden
     namespace: vaultwarden
     chart: vaultwarden/vaultwarden
-    version: 0.25.2
+    version: 0.29.0
     values:
       - ./values/vaultwarden.values.yaml
 
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
-    version: 6.0.3
+    version: 6.1.0
     values:
       - ./values/nextcloud.values.yaml
 
@@ -89,6 +91,13 @@ releases:
     version: 3.12.1
     values:
       - ./values/metrics-server.values.yaml
+
+  - name: cluster-status-app
+    namespace: cluster-status
+    chart: cluster-status-app/cluster-status-app
+    version: 0.1.5
+    values:
+      - ./values/cluster-status-app.values.yaml
 
   # - name: seaweedfs
   #   namespace: seaweedfs
