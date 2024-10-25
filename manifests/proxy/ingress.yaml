@@ -4,7 +4,7 @@ metadata:
   name: homeassistant
   namespace: homeassistant
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
+    cert-manager.io/cluster-issuer: cloudflare-issuer
     kubernetes.io/tls-acme: 'true'
 spec:
   tls:
