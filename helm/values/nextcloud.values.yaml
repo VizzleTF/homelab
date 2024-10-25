@@ -30,11 +30,11 @@ replicaCount: 1
 
 resources:
   limits:
+    cpu: 4
+    memory: 4Gi
+  requests:
     cpu: 2
     memory: 2Gi
-  requests:
-    cpu: 1
-    memory: 1Gi
 
 service:
   type: LoadBalancer
@@ -96,6 +96,15 @@ postgresql:
       enabled: true
       accessMode: ReadWriteMany
       size: 1Gi
+    resources:
+      limits:
+        cpu: 1
+        ephemeral-storage: 1Gi
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        ephemeral-storage: 50Mi
+        memory: 512Mi
 
 redis:
   enabled: true
@@ -111,6 +120,9 @@ redis:
 
 internalDatabase:
   enabled: false
+
+cronjob:
+  enabled: true
 
 externalDatabase:
   enabled: true
