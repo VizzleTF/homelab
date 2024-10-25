@@ -13,4 +13,4 @@ ingress:
   class: "nginx"
   tlsSecret: vw-tls
   additionalAnnotations: 
-    cert-manager.io/cluster-issuer: letsencrypt
+    cert-manager.io/cluster-issuer: cloudflare-issuer

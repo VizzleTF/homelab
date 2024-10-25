@@ -14,6 +14,9 @@ helmfile apply || { log "Ошибка при применении Helmfile"; exi
 
 log "Создание ClusterIssuer"
 kubectl apply -f ../manifests/letsencrypt/ClusterIssuer.yaml || { log "Ошибка при создании ClusterIssuer"; exit 1; }
+kubectl apply -f ../manifests/letsencrypt/CloudFlare_Secret.yaml || { log "Ошибка при создании CloudFlare_Secret"; exit 1; }
+kubectl patch secret cloudflare-api-token -n cert-manager --type=merge -p "{\"stringData\":{\"api-token\":\"$CLOUDFLARE_TOKEN\"}}"
+kubectl apply -f ../manifests/letsencrypt/CloudFlare_ClusterIssuer.yaml || { log "Ошибка при создании CloudFlare_ClusterIssuer"; exit 1; }
 
 log "Применение конфигурации MetalLB"
 kubectl apply -f ../manifests/metallb/pool.yaml || { log "Ошибка при применении конфигурации MetalLB"; exit 1; }
