@@ -31,3 +31,13 @@ vms:
     tags: [kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
     description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
+  - vm_id: 304
+    vm_name: lampac
+    address: 10.11.12.244/24
+    node_name: pve5
+    cores: 2
+    ram: 2048
+    disk_size: 40
+    tags: [lampac, oracle_linux]
+    # pool_id: k8s-pool
+    description: "<div align='center'><img src='https://www.tvbox.one/wp-content/uploads/2021/10/lampa.jpg' /></div>"
