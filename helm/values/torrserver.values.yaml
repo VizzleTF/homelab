@@ -1,0 +1,10 @@
+service:
+  main:
+    enabled: true
+    type: LoadBalancer
+    ports:
+      http: 
+        enabled: true
+        protocol: HTTP
+        primary: true
+        port: 8090 
