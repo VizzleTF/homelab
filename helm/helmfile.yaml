@@ -24,6 +24,8 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server
   - name: cluster-status-app
     url: https://vizzletf.github.io/cluster-status-app
+  # - name: k8s-at-home
+  #   url: https://k8s-at-home.com/charts/
   # - name: seaweedfs
   #   url: https://seaweedfs.github.io/seaweedfs/helm
   # - name: seaweedfs-csi-driver
@@ -98,6 +100,13 @@ releases:
     version: 0.4.4
     values:
       - ./values/cluster-status-app.values.yaml
+
+  # - name: torrserver
+  #   namespace: torrserver
+  #   chart: k8s-at-home/torrserver
+  #   version: 1.2.2
+  #   values:
+  #     - ./values/torrserver.values.yaml
 
   # - name: seaweedfs
   #   namespace: seaweedfs
