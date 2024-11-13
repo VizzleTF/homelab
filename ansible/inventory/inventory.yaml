@@ -18,11 +18,15 @@
         "kube-node-01": {}
         "kube-node-02": {}
         "kube-node-03": {}
+    "lampac":
+      "hosts":
+        "lampac": {}
     "oracle_linux":
       "hosts":
         "kube-node-01": {}
         "kube-node-02": {}
         "kube-node-03": {}
+        "lampac": {}
   "hosts":
     "kube-node-01":
       "access_ip": "10.11.12.241"
@@ -39,3 +43,8 @@
       "ansible_host": "10.11.12.243"
       "ansible_user": "root"
       "ip": "10.11.12.243"
+    "lampac":
+      "access_ip": "10.11.12.244"
+      "ansible_host": "10.11.12.244"
+      "ansible_user": "root"
+      "ip": "10.11.12.244"
