@@ -57,7 +57,7 @@ releases:
   - name: metallb
     chart: metallb/metallb
     namespace: metallb-system
-    version: 0.14.8
+    version: 0.14.9
 
   - name: ingress-nginx
     chart: ingress-nginx/ingress-nginx
@@ -76,14 +76,14 @@ releases:
   - name: vaultwarden
     namespace: vaultwarden
     chart: vaultwarden/vaultwarden
-    version: 0.30.1
+    version: 0.31.1
     values:
       - ./values/vaultwarden.values.yaml
 
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
-    version: 6.2.4
+    version: 6.5.2
     values:
       - ./values/nextcloud.values.yaml
 
