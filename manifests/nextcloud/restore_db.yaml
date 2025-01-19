@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: restore-data
+  name: restore-db
   namespace: nextcloud
 spec:
   containers:
   - name: restore
     image: instrumentisto/rsync-ssh
-    command: ["sleep"]
+    command: ["rsync", "-avz", "--delete", "/source/", "/destination/"]
     volumeMounts:
     - name: nfs-volume
       mountPath: /source
@@ -17,8 +17,8 @@ spec:
   volumes:
   - name: longhorn-volume
     persistentVolumeClaim:
-      claimName: nextcloud-nextcloud
+      claimName: data-nextcloud-postgresql-0
   - name: nfs-volume
     nfs:
       server: 10.11.12.213
-      path: "/nfs-share/nc/backups/data/ivan/"
+      path: "/nfs-share/nc/db_backups"
