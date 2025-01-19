@@ -1,9 +1,10 @@
-data: 
-  name: "vaultwarden-data"
-  size: "2Gi"
-  path: "/data"
-  accessMode: "ReadWriteMany"
-  # keepPvc: false
+storage:
+  data: 
+    name: "vaultwarden-data"
+    size: "2Gi"
+    class: "longhorn"
+    accessMode: "ReadWriteMany"
+    # keepPvc: false
 
 domain: "https://pass.vakaf.space"
 
