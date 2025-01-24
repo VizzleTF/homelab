@@ -37,8 +37,8 @@ resources:
     memory: 2Gi
 
 service:
-  type: LoadBalancer
-  loadBalancerIP: "10.11.12.165"
+  type: ClusterIP
+  # loadBalancerIP: "10.11.12.165"
 
 persistence:
   enabled: true
