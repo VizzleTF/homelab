@@ -1,7 +1,10 @@
 controller:
+  admissionWebhooks:
+    enabled: false 
   allowSnippetAnnotations: true
   config:
     allow-snippet-annotations: "true"
+    allow-backend-server-snippet: "true"
   service:
     type: LoadBalancer
     loadBalancerIP: 10.11.12.160
