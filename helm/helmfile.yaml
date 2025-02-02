@@ -50,7 +50,7 @@ releases:
   - name: longhorn
     namespace: longhorn-system
     chart: longhorn/longhorn
-    version: 1.7.2
+    version: 1.8.0
     values:
       - ./values/longhorn.values.yaml
 
@@ -76,14 +76,14 @@ releases:
   - name: vaultwarden
     namespace: vaultwarden
     chart: vaultwarden/vaultwarden
-    version: 0.31.1
+    version: 0.31.3
     values:
       - ./values/vaultwarden.values.yaml
 
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
-    version: 6.6.2
+    version: 6.6.3
     values:
       - ./values/nextcloud.values.yaml
 
