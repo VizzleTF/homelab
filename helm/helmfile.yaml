@@ -69,21 +69,21 @@ releases:
   - name: cert-manager
     namespace: cert-manager
     chart: jetstack/cert-manager
-    version: v1.16.3
+    version: v1.17.1
     values:
       - ./values/cert-manager.values.yaml
 
   - name: vaultwarden
     namespace: vaultwarden
     chart: vaultwarden/vaultwarden
-    version: 0.31.3
+    version: 0.31.6
     values:
       - ./values/vaultwarden.values.yaml
 
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
-    version: 6.6.3
+    version: 6.6.5
     values:
       - ./values/nextcloud.values.yaml
 
