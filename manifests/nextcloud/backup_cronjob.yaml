@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: nextcloud-backup
+  name: nextcloud-backup-lxc
   namespace: nextcloud
 spec:
   schedule: "0 0 * * *"
@@ -12,7 +12,7 @@ spec:
           containers:
           - name: sync
             image: instrumentisto/rsync-ssh
-            command: ["rsync", "-avz", "--delete", "/source/", "/destination/"]
+            command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/config/config.php", "/source/data/ivan/files", "/destination/"]
             volumeMounts:
             - name: longhorn-volume
               mountPath: /source
@@ -25,5 +25,5 @@ spec:
               claimName: nextcloud-nextcloud
           - name: nfs-volume
             nfs:
-              server: 10.11.12.213
-              path: "/nfs-share/nc/backups"
+              server: 10.11.12.120
+              path: "/nfs-share/nc"

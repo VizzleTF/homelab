@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: vaultwarden-backup
+  name: vaultwarden-backup-lxc
   namespace: vaultwarden
 spec:
   schedule: "0 0 * * *"
@@ -12,7 +12,7 @@ spec:
           containers:
           - name: sync
             image: instrumentisto/rsync-ssh
-            command: ["rsync", "-avz", "--delete", "/source/", "/destination/"]
+            command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/", "/destination/"]
             volumeMounts:
             - name: longhorn-volume
               mountPath: /source
@@ -25,5 +25,5 @@ spec:
               claimName: vaultwarden-data-vaultwarden-0
           - name: nfs-volume
             nfs:
-              server: 10.11.12.213
+              server: 10.11.12.120
               path: "/nfs-share/vault"

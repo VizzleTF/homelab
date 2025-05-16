@@ -16,12 +16,12 @@ nextcloud:
   #     autoCreate: true 
   #     # legacyAuth: true
   #     usePathStyle: true
-  extraVolumes:
-   - name: nfs-backup
-     nfs:
-       server: "10.11.12.213"
-       path: "/nfs-share/nc/backups"
-       readOnly: false
+  # extraVolumes:
+  #  - name: nfs-backup
+  #    nfs:
+  #      server: "10.11.12.213"
+  #      path: "/nfs-share/nc/backups"
+  #      readOnly: false
   extraVolumeMounts:
    - name: nfs-backup
      mountPath: "/backup"
