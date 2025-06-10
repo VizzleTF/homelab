@@ -1,0 +1,37 @@
+# Пример Ingress с автоматическим созданием DNS записей
+# External-DNS будет автоматически создавать DNS записи в Cloudflare
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-app-ingress
+  namespace: default
+  annotations:
+    # Nginx ingress
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    
+    # Cert-manager для автоматических TLS сертификатов
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    
+    # External-DNS аннотации (опционально)
+    external-dns.alpha.kubernetes.io/hostname: "app.your-domain.com"
+    external-dns.alpha.kubernetes.io/target: "XX.XX.XX.XX"  # IP вашего LoadBalancer
+    external-dns.alpha.kubernetes.io/ttl: "300"
+    
+spec:
+  tls:
+  - hosts:
+    - app.your-domain.com
+    secretName: app-tls-secret
+  rules:
+  - host: app.your-domain.com  # Замените на ваш домен
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: example-service
+            port:
+              number: 80

@@ -22,9 +22,9 @@ nextcloud:
   #      server: "10.11.12.213"
   #      path: "/nfs-share/nc/backups"
   #      readOnly: false
-  extraVolumeMounts:
-   - name: nfs-backup
-     mountPath: "/backup"
+  # extraVolumeMounts:
+  #  - name: nfs-backup
+  #    mountPath: "/backup"
 
 replicaCount: 1
 
@@ -43,7 +43,7 @@ service:
 persistence:
   enabled: true
   accessMode: ReadWriteMany
-  size: 40Gi
+  size: 50Gi
 
 ingress:
   enabled: true
