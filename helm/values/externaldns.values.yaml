@@ -1,14 +1,61 @@
-provider: pihole
+# Cloudflare DNS provider configuration
+provider: cloudflare
+
+# Policy for handling DNS records
 policy: upsert-only
-txtOwnerId: "homelab"
-pihole:
-  server: http://pihole-web.pihole-system.svc.cluster.local
+
+# Unique identifier for this external-dns instance
+txtOwnerId: "homelab-k8s"
+
+# Sources to watch for DNS records
+sources:
+  - ingress
+  - service
+
+# Domain filter - укажите ваш домен
+domainFilters:
+  - "vakaf.space"
+
+# Cloudflare specific configuration
+cloudflare:
+  proxied: false
+
+# Environment variables for Cloudflare API access
 extraEnvVars:
-  - name: EXTERNAL_DNS_PIHOLE_PASSWORD
+  - name: CF_API_TOKEN
     valueFrom:
       secretKeyRef:
-        name: pihole-password
-        key: password
+        name: cloudflare-api-token
+        key: cloudflare_api_token
 serviceAccount:
   create: true
   name: "external-dns"
+
+# RBAC permissions
+rbac:
+  create: true
+
+# Security context
+securityContext:
+  fsGroup: 65534
+  runAsNonRoot: true
+  runAsUser: 65534
+
+# Resources and scaling
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Logging configuration
+logLevel: info
+logFormat: text
+
+# Interval for DNS updates
+interval: 1m
+
+# Annotations for ingress resources to watch
+annotationFilter: "external-dns.alpha.kubernetes.io/target"
