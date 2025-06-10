@@ -1,3 +1,4 @@
+# Terraform sensitive files
 provider_vars.tf
 terraform.exe
 .terraform*
@@ -5,5 +6,37 @@ terraform/provider_vars.tf
 terraform/terraform.exe
 terraform/.terraform*
 terraform/variables.tf
+
+# Ansible sensitive files
 ansible/roles/okd_sn_config_daemons/files/install-config.yaml
+
+# Kubespray
 kubespray*
+
+# Kubernetes secrets and sensitive manifests
+manifests/letsencrypt/CloudFlare_Secret.yaml
+manifests/keycloak/secret.yaml
+manifests/cluster-status/proxmox_secret.yaml
+manifests/cluster-status/kubeconf_secret.yaml
+manifests/crossplane/keycloak-provider-config.yaml
+
+# Helm values with passwords
+helm/values/nextcloud.values.yaml
+helm/values/keycloak.values.yaml
+
+# Any other secret files (but not examples)
+*secret*.yaml
+*Secret*.yaml
+*_secret.yaml
+*_Secret.yaml
+# Allow example files
+!*example*.yaml
+!*_example.yaml
+
+# Backup files
+*.bak
+*.backup
+
+# OS files
+.DS_Store
+Thumbs.db
