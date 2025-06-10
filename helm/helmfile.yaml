@@ -24,6 +24,16 @@ repositories:
     url: https://kubernetes-sigs.github.io/metrics-server
   - name: cluster-status-app
     url: https://vizzletf.github.io/cluster-status-app
+  - name: emberstack
+    url: https://emberstack.github.io/helm-charts
+  - name: bitnami-keycloak
+    url: https://charts.bitnami.com/bitnami
+  - name: bedag
+    url: https://bedag.github.io/helm-charts/
+  - name: crossplane-stable
+    url: https://charts.crossplane.io/stable
+  - name: jaconi
+    url: https://charts.jaconi.io
   # - name: k8s-at-home
   #   url: https://k8s-at-home.com/charts/
   # - name: seaweedfs
@@ -45,45 +55,58 @@ repositories:
 
 ---
 releases:
+  # Kubernetes Reflector for secret/configmap replication
+  - name: reflector
+    namespace: kube-system
+    chart: emberstack/reflector
+    version: 7.1.288
+
   # Distributed storage
   # ssh root@all_nodes yum install iscsi-initiator-utils lsscsi -y
   - name: longhorn
     namespace: longhorn-system
     chart: longhorn/longhorn
-    version: 1.8.1
+    version: 1.9.0
     values:
       - ./values/longhorn.values.yaml
 
   - name: metallb
     chart: metallb/metallb
     namespace: metallb-system
-    version: 0.14.9
+    version: 0.15.2
 
   - name: ingress-nginx
     chart: ingress-nginx/ingress-nginx
     namespace: ingress-nginx
-    version: 4.12.1
+    version: 4.12.3
     values:
       - ./values/ingress-nginx.values.yaml
   
   - name: cert-manager
     namespace: cert-manager
     chart: jetstack/cert-manager
-    version: v1.17.1
+    version: v1.17.2
     values:
       - ./values/cert-manager.values.yaml
+  # Automatic DNS for Cloudflare
+  - name: external-dns
+    namespace: external-dns
+    chart: bitnami/external-dns
+    version: 8.8.4
+    values:
+      - ./values/externaldns.values.yaml
 
   - name: vaultwarden
     namespace: vaultwarden
     chart: vaultwarden/vaultwarden
-    version: 0.31.8
+    version: 0.32.1
     values:
       - ./values/vaultwarden.values.yaml
 
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
-    version: 6.6.9
+    version: 6.6.10
     values:
       - ./values/nextcloud.values.yaml
 
@@ -100,6 +123,56 @@ releases:
     version: 0.4.4
     values:
       - ./values/cluster-status-app.values.yaml
+
+  - name: keycloak-secret
+    namespace: keycloak
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../manifests/keycloak/secret.yaml
+
+  - name: keycloak-ingress
+    namespace: keycloak
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../manifests/keycloak/ingress.yaml
+
+  - name: keycloak
+    namespace: keycloak
+    chart: bitnami-keycloak/keycloak
+    version: 24.7.3
+    values:
+      - ./values/keycloak.values.yaml
+    needs:
+      - keycloak-secret
+
+  - name: crossplane
+    namespace: crossplane-system
+    chart: crossplane-stable/crossplane
+    version: 1.20.0
+    values:
+      - ./values/crossplane.values.yaml
+
+  - name: crossplane-keycloak-provider
+    namespace: crossplane-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../manifests/crossplane/keycloak-provider.yaml
+    needs:
+      - crossplane
+
+  - name: crossplane-keycloak-provider-config
+    namespace: crossplane-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../manifests/crossplane/keycloak-provider-config.yaml
+    needs:
+      - crossplane-keycloak-provider
+
+
 
   # - name: torrserver
   #   namespace: torrserver
@@ -129,14 +202,6 @@ releases:
   #   version: 2.26.1
   #   values:
   #     - ./values/pihole.values.yaml
-
-  # Automatic DNS for pihole
-  # - name: externaldns-pihole
-  #   namespace: pihole-system
-  #   chart: bitnami/external-dns
-  #   version: 8.3.3
-  #   values:
-  #     - ./values/externaldns.values.yaml
 
   # - name: prometheus
   #   namespace: monitoring
