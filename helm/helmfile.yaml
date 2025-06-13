@@ -8,6 +8,8 @@ repositories:
     url: https://charts.longhorn.io
   - name: metallb
     url: https://metallb.github.io/metallb
+  - name: uptime-kuma
+    url: https://dirsigler.github.io/uptime-kuma-helm
   # - name: mojo2600
   #   url: https://mojo2600.github.io/pihole-kubernetes
   - name: ingress-nginx
@@ -172,7 +174,46 @@ releases:
     needs:
       - crossplane-keycloak-provider
 
+  # pihole
+  - name: pihole-secret
+    namespace: pihole-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../manifests/pihole/secret.yaml
 
+  - name: pihole-externaldns-rbac
+    namespace: pihole-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../manifests/pihole/externaldns-rbac.yaml
+
+  - name: pihole-externaldns
+    namespace: pihole-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../manifests/pihole/externaldns.yaml
+    needs:
+      - pihole-secret
+      - pihole-externaldns-rbac
+
+  - name: pihole
+    namespace: pihole-system
+    chart: mojo2600/pihole
+    version: 2.31.0
+    values:
+      - ./values/pihole.values.yaml
+    needs:
+      - pihole-secret
+
+  # - name: uptime-kuma
+  #   namespace: uptime-kuma
+  #   chart: uptime-kuma/uptime-kuma
+  #   version: 2.21.3
+  #   values:
+  #     - ./values/uptime-kuma.values.yaml
 
   # - name: torrserver
   #   namespace: torrserver
@@ -194,14 +235,6 @@ releases:
   #   version: 0.2.2
   #   values:
   #     - ./values/seaweedfs-csi-driver.values.yaml
-
-  # pihole
-  # - name: pihole
-  #   namespace: pihole-system
-  #   chart: mojo2600/pihole
-  #   version: 2.26.1
-  #   values:
-  #     - ./values/pihole.values.yaml
 
   # - name: prometheus
   #   namespace: monitoring
