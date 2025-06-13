@@ -12,7 +12,7 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     
     # Cert-manager для автоматических TLS сертификатов
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/cluster-issuer: cloudflare-issuer
     
     # External-DNS аннотации (опционально)
     external-dns.alpha.kubernetes.io/hostname: "app.your-domain.com"
