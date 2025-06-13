@@ -40,3 +40,4 @@ helm/values/keycloak.values.yaml
 # OS files
 .DS_Store
 Thumbs.db
+nextcloud.values.yaml
