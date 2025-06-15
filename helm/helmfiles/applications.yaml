@@ -1,0 +1,26 @@
+bases:
+  - repositories.yaml
+  - defaults.yaml
+
+releases:
+  # User Applications
+  - name: vaultwarden
+    namespace: vaultwarden
+    chart: vaultwarden/vaultwarden
+    version: 0.32.1
+    values:
+      - ../values/applications/vaultwarden.values.yaml.gotmpl
+
+  - name: nextcloud
+    namespace: nextcloud
+    chart: nextcloud/nextcloud
+    version: 6.6.10
+    values:
+      - ../values/applications/nextcloud.values.yaml.gotmpl
+
+  - name: cluster-status-app
+    namespace: cluster-status
+    chart: cluster-status-app/cluster-status-app
+    version: 0.4.4
+    values:
+      - ../values/applications/cluster-status-app.values.yaml.gotmpl 

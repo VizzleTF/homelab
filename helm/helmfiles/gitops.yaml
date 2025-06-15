@@ -1,0 +1,38 @@
+bases:
+  - repositories.yaml
+  - defaults.yaml
+
+releases:
+  # ArgoCD for GitOps
+  - name: argocd
+    namespace: argocd
+    chart: argo/argo-cd
+    version: 8.0.17
+    values:
+      - ../values/gitops/argocd.values.yaml.gotmpl
+
+  # Crossplane for Infrastructure as Code
+  - name: crossplane
+    namespace: crossplane-system
+    chart: crossplane-stable/crossplane
+    version: 1.20.0
+    values:
+      - ../values/gitops/crossplane.values.yaml
+
+  - name: crossplane-keycloak-provider
+    namespace: crossplane-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/crossplane/keycloak-provider.yaml
+    needs:
+      - crossplane
+
+  - name: crossplane-keycloak-provider-config
+    namespace: crossplane-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/crossplane/keycloak-provider-config.yaml
+    needs:
+      - crossplane-keycloak-provider 

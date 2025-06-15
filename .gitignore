@@ -21,8 +21,8 @@ manifests/cluster-status/kubeconf_secret.yaml
 manifests/crossplane/keycloak-provider-config.yaml
 
 # Helm values with passwords
-helm/values/nextcloud.values.yaml
-helm/values/keycloak.values.yaml
+helm/values/applications/nextcloud.values.yaml.gotmpl
+helm/values/security/keycloak.values.yaml
 
 # Any other secret files (but not examples)
 *secret*.yaml
@@ -40,4 +40,3 @@ helm/values/keycloak.values.yaml
 # OS files
 .DS_Store
 Thumbs.db
-nextcloud.values.yaml
