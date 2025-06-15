@@ -13,7 +13,7 @@ sources:
 
 # Domain filter - укажите ваш домен
 domainFilters:
-  - "vakaf.space"
+  - {{ .Values.domain.base | quote }}
 
 # Cloudflare specific configuration
 cloudflare:

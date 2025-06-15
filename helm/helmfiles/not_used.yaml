@@ -1,0 +1,104 @@
+bases:
+  - repositories.yaml
+  - defaults.yaml
+
+# Дополнительные репозитории для неиспользуемых компонентов
+repositories:
+  - name: uptime-kuma
+    url: https://dirsigler.github.io/uptime-kuma-helm
+  - name: k8s-at-home
+    url: https://k8s-at-home.com/charts/
+  - name: seaweedfs
+    url: https://seaweedfs.github.io/seaweedfs/helm
+  - name: seaweedfs-csi-driver
+    url: https://seaweedfs.github.io/seaweedfs-csi-driver/helm
+  - name: prometheus-community	
+    url: https://prometheus-community.github.io/helm-charts
+  - name: grafana             	
+    url: https://grafana.github.io/helm-charts             
+  - name: vm                  	
+    url: https://victoriametrics.github.io/helm-charts
+  - name: ollama
+    url: https://otwld.github.io/ollama-helm
+  - name: open-webui
+    url: https://helm.openwebui.com/
+  - name: pajikos 
+    url: http://pajikos.github.io/home-assistant-helm-chart   
+
+releases:
+  # Monitoring (закомментированный)
+  - name: uptime-kuma
+    namespace: uptime-kuma
+    chart: uptime-kuma/uptime-kuma
+    version: 2.21.3
+    values:
+      - ../values/not_used/uptime-kuma.values.yaml
+    installed: false
+
+  - name: torrserver
+    namespace: torrserver
+    chart: k8s-at-home/torrserver
+    version: 1.2.2
+    values:
+      - ../values/not_used/torrserver.values.yaml
+    installed: false
+
+  # Alternative storage
+  - name: seaweedfs
+    namespace: seaweedfs
+    chart: seaweedfs/seaweedfs
+    version: 4.0.0
+    values:
+      - ../values/not_used/seaweedfs.values.yaml
+    installed: false
+  
+  - name: seaweedfs-csi-driver
+    namespace: seaweedfs
+    chart: seaweedfs-csi-driver/seaweedfs-csi-driver
+    version: 0.2.2
+    values:
+      - ../values/not_used/seaweedfs-csi-driver.values.yaml
+    installed: false
+
+  # Monitoring stack
+  - name: prometheus
+    namespace: monitoring
+    chart: prometheus-community/prometheus
+    version: 25.26.0
+    values:
+      - ../values/not_used/prometheus.values.yaml
+    installed: false
+
+  - name: grafana
+    namespace: monitoring
+    chart: grafana/grafana
+    version: 8.4.5
+    values:
+      - ../values/not_used/grafana.values.yaml
+    installed: false
+
+  # AI/LLM stack
+  - name: ollama
+    namespace: ollama
+    chart: ollama/ollama
+    version: 0.54.0
+    values:
+      - ../values/not_used/ollama.values.yaml
+    installed: false
+  
+  - name: open-webui
+    namespace: open-webui
+    chart: open-webui/open-webui
+    version: 3.1.7
+    values:
+      - ../values/not_used/open-webui.values.yaml
+    installed: false
+
+  # Home automation
+  - name: home-assistant
+    namespace: home-assistant
+    chart: pajikos/home-assistant
+    version: 0.2.74
+    values:
+      - ../values/not_used/home-assistant.values.yaml
+    installed: false 

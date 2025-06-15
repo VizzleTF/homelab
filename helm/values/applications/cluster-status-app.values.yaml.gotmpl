@@ -26,9 +26,10 @@ service:
 
 ingress:
   enabled: true
-  className: "nginx"
+  className: {{ .Values.ingress.className | quote }}
   annotations:
-    cert-manager.io/cluster-issuer: cloudflare-issuer
+    cert-manager.io/cluster-issuer: {{ .Values.certificates.issuer | quote }}
+    kubernetes.io/tls-acme: {{ .Values.certificates.acme | quote }}
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
@@ -38,14 +39,14 @@ ingress:
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     nginx.ingress.kubernetes.io/enable-cors: "true"
   hosts:
-    - host: status.vakaf.space
+    - host: status.{{ .Values.domain.base }}
       paths:
         - path: /status
           pathType: Prefix
   tls:
    - secretName: cluster-status-tls
      hosts:
-       - status.vakaf.space
+       - status.{{ .Values.domain.base }}
 
 resources:
   requests:
