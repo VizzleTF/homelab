@@ -1,0 +1,45 @@
+bases:
+  - repositories.yaml
+  - defaults.yaml
+
+releases:
+  # Kubernetes Reflector for secret/configmap replication
+  - name: reflector
+    namespace: kube-system
+    chart: emberstack/reflector
+    version: 7.1.288
+
+  # Distributed storage
+  # ssh root@all_nodes yum install iscsi-initiator-utils lsscsi -y
+  - name: longhorn
+    namespace: longhorn-system
+    chart: longhorn/longhorn
+    version: 1.9.0
+    values:
+      - ../values/infrastructure/longhorn.values.yaml
+
+  - name: metallb
+    chart: metallb/metallb
+    namespace: metallb-system
+    version: 0.15.2
+
+  - name: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
+    namespace: ingress-nginx
+    version: 4.12.3
+    values:
+      - ../values/infrastructure/ingress-nginx.values.yaml
+  
+  - name: cert-manager
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    version: v1.17.2
+    values:
+      - ../values/infrastructure/cert-manager.values.yaml
+
+  - name: metrics-server
+    namespace: kube-system
+    chart: metrics-server/metrics-server
+    version: 3.12.2
+    values:
+      - ../values/infrastructure/metrics-server.values.yaml 

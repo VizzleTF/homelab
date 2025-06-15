@@ -1,0 +1,31 @@
+repositories:
+  - name: longhorn
+    url: https://charts.longhorn.io
+  - name: metallb
+    url: https://metallb.github.io/metallb
+  - name: ingress-nginx
+    url: https://kubernetes.github.io/ingress-nginx
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+  - name: jetstack            	
+    url: https://charts.jetstack.io                        
+  - name: argo
+    url: https://argoproj.github.io/argo-helm
+  - name: nextcloud           	
+    url: https://nextcloud.github.io/helm/                 
+  - name: vaultwarden         	
+    url: https://guerzon.github.io/vaultwarden
+  - name: metrics-server
+    url: https://kubernetes-sigs.github.io/metrics-server
+  - name: cluster-status-app
+    url: https://vizzletf.github.io/cluster-status-app
+  - name: emberstack
+    url: https://emberstack.github.io/helm-charts
+  - name: bitnami-keycloak
+    url: https://charts.bitnami.com/bitnami
+  - name: bedag
+    url: https://bedag.github.io/helm-charts/
+  - name: crossplane-stable
+    url: https://charts.crossplane.io/stable
+  - name: mojo2600
+    url: https://mojo2600.github.io/pihole-kubernetes 
