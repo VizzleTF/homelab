@@ -11,16 +11,19 @@ persistentVolumeClaim:
   size: 1Gi
 
 ingress:
-  ingressClassName: nginx
+  ingressClassName: {{ .Values.ingress.className | quote }}
   enabled: true
   annotations:
-    cert-manager.io/cluster-issuer: cloudflare-issuer
+    cert-manager.io/cluster-issuer: {{ .Values.certificates.issuer | quote }}
+    kubernetes.io/tls-acme: {{ .Values.certificates.acme | quote }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
   hosts:
-    - "pihole.vakaf.space"
+    - "pihole.{{ .Values.domain.base }}"
   tls:
     - secretName: pihole-tls
       hosts:
-        - "pihole.vakaf.space"
+        - "pihole.{{ .Values.domain.base }}"
 
 serviceWeb:
   loadBalancerIP: 10.11.12.171

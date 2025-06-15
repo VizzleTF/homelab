@@ -1,0 +1,28 @@
+bases:
+  - repositories.yaml
+  - defaults.yaml
+
+releases:
+  # Keycloak Identity Provider
+  - name: keycloak-secret
+    namespace: keycloak
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/keycloak/secret.yaml
+
+  - name: keycloak-ingress
+    namespace: keycloak
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/keycloak/ingress.yaml
+
+  - name: keycloak
+    namespace: keycloak
+    chart: bitnami-keycloak/keycloak
+    version: 24.7.3
+    values:
+      - ../values/security/keycloak.values.yaml
+    needs:
+      - keycloak-secret 

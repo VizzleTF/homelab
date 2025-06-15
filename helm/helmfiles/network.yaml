@@ -1,0 +1,46 @@
+bases:
+  - repositories.yaml
+  - defaults.yaml
+
+releases:
+  # Automatic DNS for Cloudflare
+  - name: external-dns
+    namespace: external-dns
+    chart: bitnami/external-dns
+    version: 8.8.4
+    values:
+      - ../values/network/externaldns.values.yaml.gotmpl
+
+  # pihole DNS filtering
+  - name: pihole-secret
+    namespace: pihole-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/pihole/secret.yaml
+
+  - name: pihole-externaldns-rbac
+    namespace: pihole-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/pihole/externaldns-rbac.yaml
+
+  - name: pihole-externaldns
+    namespace: pihole-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/pihole/externaldns.yaml
+    needs:
+      - pihole-secret
+      - pihole-externaldns-rbac
+
+  - name: pihole
+    namespace: pihole-system
+    chart: mojo2600/pihole
+    version: 2.31.0
+    values:
+      - ../values/network/pihole.values.yaml.gotmpl
+    needs:
+      - pihole-secret 
