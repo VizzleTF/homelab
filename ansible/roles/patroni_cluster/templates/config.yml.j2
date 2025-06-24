@@ -1,0 +1,102 @@
+name: {{ inventory_hostname }}
+scope: {{ patroni_cluster_name }}
+namespace: /service/ 
+
+etcd3:
+  hosts: {% for host in etcd_cluster %}{{ hostvars[host]['ip'] }}:2379{% if not loop.last %},{% endif %}{% endfor %}
+
+watchdog:
+  mode: off
+
+restapi:
+  listen: 0.0.0.0:{{ rest_port }}
+  connect_address: {{ ip }}:{{ rest_port }}
+  auth: 'username:{{ patroni_rest_password }}'
+
+log:
+  dir: /var/log/patroni/
+  file_num: 14
+  file_size: 10485760
+#  level: DEBUG
+#  traceback_level: DEBUG
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        archive_mode: "on"
+        wal_level: hot_standby
+        max_wal_senders: 10
+        wal_keep_segments: 8
+        archive_timeout: 1800s
+        max_replication_slots: 5
+        hot_standby: "on"
+        wal_log_hints: "on"
+        ### Extra pars ###
+        logging_collector: 'on'
+        log_directory: '/var/log/postgresql'
+        log_filename: postgresql-{{ psql_version }}-main-%Y-%m-%d_%H%M%S.log
+        log_file_mode: '0644'
+        log_rotation_size: 0
+        wal_keep_size: 1600
+        synchronous_commit: 'off'
+        wal_compression: 'on'
+        wal_buffers: '128MB'
+        max_wal_size: '10GB'
+        log_statement: 'mod'
+        max_connections: 1000
+        random_page_cost: 1
+        #####################
+      pg_hba:
+        - local all postgres peer
+        - host all postgres 127.0.0.1/32 scram-sha-256
+        - host replication {{ user_replication }} 127.0.0.1/32 scram-sha-256
+{% for host in patroni_cluster %}
+        - host all postgres,{{ user_rewind }} {{ hostvars[host]['ip'] }}/32 scram-sha-256
+        - host replication {{ user_replication }} {{ hostvars[host]['ip'] }}/32 scram-sha-256
+{% if not loop.last %}
+{% endif %}
+{% endfor %}
+
+  initdb:
+    - encoding: UTF8
+    - locale: en_US.UTF-8
+
+      
+postgresql:
+  listen: "0.0.0.0:5432"
+  connect_address: {{ ip }}:5432 
+  max_connections: '{{ max_connections }}'
+  use_unix_socket: true
+  data_dir: /var/lib/postgresql/{{ psql_version }}/main # каталог данных  
+  bin_dir: /usr/pgsql-{{ psql_version }}/bin
+  config_dir: /var/lib/postgresql/{{ psql_version }}/main
+  pgpass: /var/lib/postgresql/.pgpass_patroni
+  authentication:
+    replication:
+      username: {{ user_replication }}
+    superuser:
+      username: postgres
+    rewind:
+      username: {{ user_rewind }}
+  parameters:
+    unix_socket_directories: /var/run/postgresql
+    ### Extra parrs ###
+    logging_collector: 'on'
+    log_directory: '/var/log/postgresql'
+    log_filename: postgresql-{{ psql_version }}-main-%Y-%m-%d_%H%M%S.log
+    log_file_mode: '0644'
+    log_rotation_size: 0
+    wal_keep_size: 1600
+    synchronous_commit: 'off'
+    wal_compression: 'on'
+    wal_buffers: '128MB'
+    max_wal_size: '10GB'
+    log_statement: 'mod'
+    random_page_cost: 1
+    ##################### 

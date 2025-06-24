@@ -1,0 +1,301 @@
+---
+- name: Install Patroni and dependencies
+  block:
+    - name: Install system packages for Oracle Linux
+      ansible.builtin.package:
+        name:
+          - python3-pip
+          - python3-devel
+        state: present
+      when: ansible_distribution == "OracleLinux"
+
+    - name: Install system packages for Debian/Ubuntu
+      ansible.builtin.package:
+        name:
+          - python3-pip
+          - python3-dev
+          - libpq-dev
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Python packages
+      ansible.builtin.pip:
+        name:
+          - psycopg2-binary
+          - wheel
+          - python-etcd
+          - patroni[etcd3]
+
+    - name: Create patroni log directory with matching permissions
+      file:
+        path: /var/log/patroni
+        state: directory
+        owner: root
+        group: postgres
+        mode: '1775'
+
+    - name: Create patroni configuration directory
+      file:
+        path: /etc/patroni
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
+
+    - name: Create PostgreSQL directories
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "/var/lib/postgresql", mode: "0755" }
+        - { path: "/var/lib/postgresql/{{ psql_version }}", mode: "0700" }
+        - { path: "/var/lib/postgresql/{{ psql_version }}/main", mode: "0700" }
+        - { path: "/var/run/postgresql", mode: "0755" }
+        - { path: "/var/log/postgresql", mode: "0755" }
+
+    - name: Create Patroni systemd service file
+      copy:
+        content: |
+          [Unit]
+          Description=Runners to orchestrate a high-availability PostgreSQL
+          After=syslog.target network.target
+
+          [Service]
+          Type=simple
+          User=postgres
+          Group=postgres
+          ExecStart=/usr/local/bin/patroni /etc/patroni/{{ psql_version }}-main.yml
+          KillMode=process
+          TimeoutSec=30
+          Restart=no
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/patroni.service
+        mode: '0644'
+
+  tags: 
+    - patroni
+    - install
+
+- name: Configure Patroni
+  block:
+    - name: Stop Patroni service
+      ansible.builtin.service:
+        name: patroni
+        state: stopped
+
+    - name: Ensure PostgreSQL is running for initial setup
+      ansible.builtin.service:
+        name: "postgresql-{{ psql_version }}"
+        state: started
+        enabled: no
+
+    - name: Check and create user_replication role
+      block:
+        - name: Check user_replication role
+          ansible.builtin.command: psql -c "SELECT * FROM pg_catalog.pg_roles WHERE rolname = '{{ user_replication }}'"
+          become: yes
+          become_user: postgres
+          register: replication_user
+          changed_when: false
+
+        - name: Create user_replication role if not exists
+          ansible.builtin.command: psql -c "CREATE USER {{ user_replication }} WITH REPLICATION ENCRYPTED PASSWORD '{{ replication_user_password }}';"
+          become: yes
+          become_user: postgres
+          when: replication_user.stdout is not search('{{ user_replication }}')
+      run_once: true
+      when: inventory_hostname == ansible_play_hosts[0]
+
+    - name: Check and create user_rewind role
+      block:
+        - name: Check user_rewind role
+          ansible.builtin.command: psql -c "SELECT * FROM pg_catalog.pg_roles WHERE rolname = '{{ user_rewind }}'"
+          become: yes
+          become_user: postgres
+          register: rewind_user_check
+          changed_when: false
+          
+        - name: Create user_rewind role if not exists
+          ansible.builtin.command: psql -c "CREATE USER {{ user_rewind }} WITH LOGIN ENCRYPTED PASSWORD '{{ rewind_password }}';"
+          become: yes
+          become_user: postgres
+          when: rewind_user_check.stdout is not search('{{ user_rewind }}')
+
+        - name: Grant execute permissions to user_rewind
+          ansible.builtin.command: |
+            psql -c "GRANT EXECUTE ON FUNCTION pg_catalog.pg_ls_dir(text, boolean, boolean) TO {{ user_rewind }};
+                    GRANT EXECUTE ON FUNCTION pg_catalog.pg_stat_file(text, boolean) TO {{ user_rewind }};
+                    GRANT EXECUTE ON FUNCTION pg_catalog.pg_read_binary_file(text) TO {{ user_rewind }};
+                    GRANT EXECUTE ON FUNCTION pg_catalog.pg_read_binary_file(text, bigint, bigint, boolean) TO {{ user_rewind }};"
+          become: yes
+          become_user: postgres
+          ignore_errors: yes
+      run_once: true
+      when: inventory_hostname == ansible_play_hosts[0]
+
+    - name: Stop PostgreSQL service
+      ansible.builtin.service:
+        name: "postgresql-{{ psql_version }}"
+        state: stopped
+        enabled: false
+
+    - name: Generate Patroni configuration
+      ansible.builtin.template:
+        src: templates/config.yml.j2
+        dest: /etc/patroni/{{ psql_version }}-main.yml
+        owner: postgres
+        group: postgres
+        mode: "0644"
+
+    - name: Enable Patroni service
+      systemd:
+        name: patroni
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Ensure systemd override directory exists
+      file:
+        path: "/etc/systemd/system/patroni.service.d"
+        state: directory
+        mode: '0755'
+
+    - name: Configure Patroni systemd override
+      template:
+        src: patroni.service.override.j2
+        dest: /etc/systemd/system/patroni.service.d/override.conf
+        mode: '0600'
+      notify: 
+        - Reload systemd
+        - Restart patroni
+
+  tags:
+    - patroni
+    - configure
+
+- name: Start Patroni cluster
+  block:
+    - name: Start Patroni service on first node
+      ansible.builtin.service:
+        name: patroni
+        state: restarted
+        enabled: true
+      when: inventory_hostname == ansible_play_hosts[0]
+
+    - name: Pause for 15 seconds to up cluster
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Wait for Patroni cluster to be available
+      uri:
+        url: "http://localhost:8008/cluster"
+        method: GET
+        timeout: 300
+      register: result
+      until: result.status == 200
+      retries: 60
+      delay: 5
+      when: inventory_hostname == ansible_play_hosts[0]
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+      when: inventory_hostname != ansible_play_hosts[0]
+
+    - name: Start Patroni service on other nodes
+      ansible.builtin.service:
+        name: patroni
+        state: restarted
+        enabled: true
+      when: inventory_hostname != ansible_play_hosts[0]
+
+    - name: Pause for 5 seconds to up patroni 
+      ansible.builtin.pause:
+        seconds: 5
+
+  tags:
+    - patroni
+    - start
+
+- name: Recover secondary nodes
+  block:
+    - name: Stop patroni service
+      systemd:
+        name: patroni
+        state: stopped
+      when: inventory_hostname != ansible_play_hosts[0]
+
+    - name: Pause for 5 seconds to kill patroni
+      ansible.builtin.pause:
+        seconds: 5
+
+    - name: Clean PostgreSQL data directory
+      file:
+        path: "/var/lib/postgresql/{{ psql_version }}/main"
+        state: absent
+      when: inventory_hostname != ansible_play_hosts[0]
+
+    - name: Create empty PostgreSQL data directory
+      file:
+        path: "/var/lib/postgresql/{{ psql_version }}/main"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0700'
+      when: inventory_hostname != ansible_play_hosts[0]
+
+    - name: Start patroni service
+      systemd:
+        name: patroni
+        state: started
+      when: inventory_hostname != ansible_play_hosts[0]
+
+    - name: Switch Leader role to first node
+      systemd:
+        name: patroni
+        state: restarted
+      when: inventory_hostname != ansible_play_hosts[0]
+
+  tags:
+    - patroni
+    - recover
+
+- name: Verify and repair cluster
+  block:
+    - name: Check individual node state
+      ansible.builtin.uri:
+        url: "http://localhost:8008/cluster"
+        method: GET
+      register: node_state
+      changed_when: false
+
+    - name: Reinitialize node if restapi is unreachable
+      block:
+        - name: Pause Patroni cluster
+          ansible.builtin.command: patronictl -c /etc/patroni/{{ psql_version }}-main.yml pause
+          run_once: true
+
+        - name: Restart Patroni service
+          ansible.builtin.service:
+            name: patroni
+            state: restarted
+
+        - name: Reinitialize node
+          ansible.builtin.command: patronictl -c /etc/patroni/{{ psql_version }}-main.yml reinit {{ patroni_cluster_name }} {{ ansible_hostname }} --force
+
+        - name: Resume Patroni cluster
+          ansible.builtin.command: patronictl -c /etc/patroni/{{ psql_version }}-main.yml resume
+          run_once: true
+      when: node_state.failed is defined and node_state.failed
+  ignore_errors: yes
+  tags:
+    - patroni
+    - verify 

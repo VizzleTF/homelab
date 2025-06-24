@@ -1,0 +1,177 @@
+# n8n Configuration
+# Automation workflow tool
+
+# Database configuration
+db:
+  type: postgresdb
+
+# External PostgreSQL via HAProxy (external IP)
+externalPostgresql:
+  host: 10.11.12.172
+  port: 5433
+  database: n8n
+  username: n8n
+  existingSecret: n8n-postgresql-secret
+
+# n8n encryption key
+encryptionKey: "n8n-encryption-key-change-me-in-production"
+
+# Timezone
+timezone: "Europe/Moscow"
+
+# Default locale
+defaultLocale: "en"
+
+# Main node configuration
+main:
+  # Resource limits
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+      
+  # Extra environment variables
+  extraEnvVars:
+    N8N_HOST: "n8n.vakaf.space"
+    N8N_PORT: "5678"
+    N8N_PROTOCOL: "https"
+    WEBHOOK_URL: "https://n8n.vakaf.space"
+    N8N_LOG_LEVEL: "info"
+    N8N_METRICS: "true"
+    # Радикальные DNS настройки для Node.js
+    NODE_OPTIONS: "--dns-result-order=ipv4first --max-old-space-size=1024"
+    # Отключаем IPv6 полностью
+    NODE_IPV6: "false"
+    # Используем системный резолвер вместо c-ares
+    UV_USE_IO_URING: "0"
+    UV_THREADPOOL_SIZE: "128" 
+    NODE_ENV: "production"
+    # Принудительно используем IPv4
+    FORCE_IPV4: "true"
+
+  # Health checks
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: "http"
+    initialDelaySeconds: 120
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /healthz/readiness
+      port: "http"
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 5678
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: cloudflare-issuer
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    external-dns.alpha.kubernetes.io/target: "91.77.167.6"
+  hosts:
+    - host: n8n.vakaf.space
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: n8n-tls
+      hosts:
+        - n8n.vakaf.space
+
+# DNS Configuration для решения ENOTFOUND проблемы
+dnsPolicy: "Default"
+dnsConfig:
+  options:
+    # Увеличиваем timeout для DNS запросов
+    - name: timeout
+      value: "15"
+    # Количество попыток резолвинга
+    - name: attempts
+      value: "5"
+    # Отключаем IPv6 полностью
+    - name: inet6
+      value: "false"
+    # Ротация nameservers для балансировки нагрузки
+    - name: rotate
+      value: "true"
+    # Дополнительные опции для стабильности
+    - name: single-request-reopen
+      value: "true"
+    - name: single-request
+      value: "true"
+  nameservers:
+    # Публичные DNS серверы
+    - "10.11.12.170"
+    - "10.11.12.52"
+
+# Node configuration  
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Security context
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: "OnRootMismatch"
+
+securityContext:
+  allowPrivilegeEscalation: false
+
+# ServiceAccount
+serviceAccount:
+  create: true
+  annotations: {}
+
+# Log configuration
+log:
+  level: info
+  output:
+    - console
+
+# API configuration
+api:
+  enabled: true
+  path: api
+  swagger:
+    enabled: true
+
+# Worker configuration (for queue mode)
+worker:
+  mode: regular
+
+# Webhook configuration  
+webhook:
+  mode: regular
+
+# Diagnostics
+diagnostics:
+  enabled: false
+
+# Version notifications
+versionNotifications:
+  enabled: false
+
+# License (enterprise)
+license:
+  enabled: false 

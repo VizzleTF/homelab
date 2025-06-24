@@ -7,11 +7,11 @@ terraform {
 }
 
 resource "proxmox_virtual_environment_vm" "vm" {
-  name       = var.vm_name
-  tags       = var.tags
-  node_name  = var.node_name
-  vm_id      = var.vm_id
-  boot_order = ["sata0"]
+  name        = var.vm_name
+  tags        = var.tags
+  node_name   = var.node_name
+  vm_id       = var.vm_id
+  boot_order  = ["sata0"]
   description = var.description
 
   pool_id = var.pool_id
@@ -27,16 +27,19 @@ resource "proxmox_virtual_environment_vm" "vm" {
     up_delay = "5"
   }
   disk {
-    datastore_id = "local-lvm"
+    datastore_id = var.datastore_id
     file_id      = var.image_file
     interface    = "sata0"
     size         = var.disk_size
   }
   initialization {
+    dns {
+      servers = var.dns_servers
+    }
     ip_config {
       ipv4 {
         address = var.address
-        gateway = "10.11.12.1"
+        gateway = var.gateway
       }
     }
     user_account {

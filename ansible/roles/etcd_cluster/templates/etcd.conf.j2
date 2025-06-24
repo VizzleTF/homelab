@@ -1,0 +1,18 @@
+# etcd configuration file
+name: {{ inventory_hostname }}
+data-dir: {{ etcd_data_dir }}
+
+# Initial cluster configuration
+initial-advertise-peer-urls: http://{{ ip }}:2380
+listen-peer-urls: http://{{ ip }}:2380
+listen-client-urls: http://{{ ip }}:2379,http://127.0.0.1:2379
+advertise-client-urls: http://{{ ip }}:2379
+
+# Cluster settings
+initial-cluster: {{ etcd_initial_cluster }}
+initial-cluster-token: {{ etcd_cluster_name }}
+initial-cluster-state: new
+
+# Logging
+log-level: info
+logger: zap 

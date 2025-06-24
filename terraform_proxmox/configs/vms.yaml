@@ -7,7 +7,7 @@ vms:
     node_name: pve3
     cores: 4
     ram: 12288
-    disk_size: 150
+    disk_size: 200
     tags: [kube_control_plane, kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
     description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
@@ -17,7 +17,7 @@ vms:
     node_name: pve4
     cores: 4
     ram: 12288
-    disk_size: 150
+    disk_size: 200
     tags: [kube_control_plane, kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
     description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
@@ -27,17 +27,39 @@ vms:
     node_name: pve5
     cores: 4
     ram: 12288
-    disk_size: 150
+    disk_size: 200
     tags: [kube_node, etcd, oracle_linux]
     pool_id: k8s-pool
     description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
+  # Patroni + PostgreSQL cluster
   - vm_id: 304
-    vm_name: lampac
-    address: 10.11.12.244/24
-    node_name: pve5
+    vm_name: patroni-postgres-01
+    address: 10.11.12.247/24
+    node_name: pve1
     cores: 2
-    ram: 2048
+    ram: 4096
     disk_size: 40
-    tags: [lampac, oracle_linux]
-    # pool_id: k8s-pool
-    description: "<div align='center'><img src='https://www.tvbox.one/wp-content/uploads/2021/10/lampa.jpg' /></div>"
+    tags: [common-patroni, common-db, oracle_linux]
+    pool_id: db
+    description: "<div align='center'><img src='https://raw.githubusercontent.com/postgres/postgres/master/doc/src/sgml/html/logo.png' /></div>"
+  - vm_id: 305
+    vm_name: patroni-postgres-02
+    address: 10.11.12.245/24
+    node_name: pve4
+    cores: 2
+    ram: 4096
+    disk_size: 40
+    tags: [common-patroni, common-db, oracle_linux]
+    pool_id: db
+    description: "<div align='center'><img src='https://raw.githubusercontent.com/postgres/postgres/master/doc/src/sgml/html/logo.png' /></div>"
+  # etcd cluster
+  - vm_id: 306
+    vm_name: patroni-etcd-01
+    address: 10.11.12.246/24
+    node_name: pve5
+    cores: 1
+    ram: 2048
+    disk_size: 38
+    tags: [common-etcd, common-db, oracle_linux]
+    pool_id: db
+    description: "<div align='center'><img src='https://raw.githubusercontent.com/etcd-io/etcd/main/logos/etcd-horizontal-color.png' /></div>"

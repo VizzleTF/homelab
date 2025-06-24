@@ -23,12 +23,13 @@ releases:
     namespace: metallb-system
     version: 0.15.2
 
+  # Ingress Nginx without CrowdSec Bouncer Integration for first install only. Then use security.yaml with CrowdSec integration
   - name: ingress-nginx
-    chart: ingress-nginx/ingress-nginx
     namespace: ingress-nginx
+    chart: ingress-nginx/ingress-nginx
     version: 4.12.3
     values:
-      - ../values/infrastructure/ingress-nginx.values.yaml
+      - ../values/network/ingress-nginx.values.yaml
   
   - name: cert-manager
     namespace: cert-manager

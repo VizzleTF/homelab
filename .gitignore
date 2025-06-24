@@ -19,6 +19,7 @@ manifests/keycloak/secret.yaml
 manifests/cluster-status/proxmox_secret.yaml
 manifests/cluster-status/kubeconf_secret.yaml
 manifests/crossplane/keycloak-provider-config.yaml
+manifests/crowdsec/notification-telegram.yaml
 
 # Helm values with passwords
 helm/values/applications/nextcloud.values.yaml.gotmpl
@@ -40,3 +41,4 @@ helm/values/security/keycloak.values.yaml
 # OS files
 .DS_Store
 Thumbs.db
+.cursor
