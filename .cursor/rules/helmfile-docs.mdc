@@ -1,6 +1,7 @@
 ---
 description: 
-globs: 
-alwaysApply: true
+globs: helm/**/*
+alwaysApply: false
 ---
-- Используй документацию по helmfile при работе с ним
+- Используй документацию по helmfile
+- Используй context7 в каждом запросе

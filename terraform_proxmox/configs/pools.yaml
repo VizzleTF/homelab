@@ -1,0 +1,5 @@
+pools:
+  - pool_id: k8s-pool
+    comment: "Managed by Terraform"
+  - pool_id: db
+    comment: "Database services pool for PostgreSQL, etcd and other DB services" 

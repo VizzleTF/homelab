@@ -1,0 +1,5 @@
+---
+# defaults file for etcd_cluster
+etcd_data_dir: /var/lib/etcd
+etcd_cluster_name: project-etcd
+etcd_version: v3.6.1 

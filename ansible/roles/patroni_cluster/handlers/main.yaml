@@ -1,0 +1,11 @@
+---
+# handlers file for patroni
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Restart patroni
+  systemd:
+    name: patroni
+    state: restarted 

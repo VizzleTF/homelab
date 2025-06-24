@@ -103,12 +103,3 @@ notifications:
 # CRDs installation
 crds:
   install: true
-
-# Initial admin password (change after first login)
-configs:
-  secret:
-    argocdServerAdminPassword: '$2a$10$rRyBsGSHK6.uc8fntPwVIuLVHgsAhAX7TcdrqW/RADU0uh7CaChLa' # password: admin
-  
-  # Enable anonymous access for easier home lab access (optional)
-  params:
-    server.insecure: true 

@@ -1,0 +1,70 @@
+---
+# Playbook for installing ETCD cluster and PostgreSQL with Patroni
+- name: Setup ETCD cluster
+  hosts: common-db
+  become: yes
+  gather_facts: yes
+  vars:
+    etcd_cluster_name: "patroni-etcd-cluster"
+    etcd_version: "v3.6.1"
+    etcd_data_dir: "/var/lib/etcd"
+  tasks:
+    - name: Generate etcd initial cluster configuration
+      set_fact:
+        etcd_initial_cluster: "{% for host in groups['common-db'] %}{{ host }}=http://{{ hostvars[host]['ip'] }}:2380{% if not loop.last %},{% endif %}{% endfor %}"
+
+    - name: Debug etcd cluster configuration
+      debug:
+        msg: "ETCD initial cluster: {{ etcd_initial_cluster }}"
+
+    - name: Deploy ETCD cluster
+      include_role:
+        name: etcd_cluster
+  tags:
+    - etcd
+
+- name: Install PostgreSQL
+  hosts: common-patroni
+  become: yes
+  gather_facts: yes
+  vars:
+    psql_version: 16
+  roles:
+    - postgresql_install
+  tags:
+    - postgresql
+
+- name: Setup Patroni cluster
+  hosts: common-patroni
+  become: yes
+  gather_facts: yes
+  vars:
+    psql_version: 16
+    patroni_cluster_name: "postgres-ha-cluster"
+    postgres_password: "{{ vault_postgres_password | default('StrongPassword123!') }}"
+    patroni_rest_password: "{{ postgres_password }}"
+    replication_user_password: "{{ postgres_password }}"
+    rewind_password: "{{ postgres_password }}"
+    user_replication: "replicator"
+    user_rewind: "rewind_user"
+    rest_port: 8008
+    max_connections: 1000
+    # Переопределяем группы для шаблонов Patroni
+    etcd_cluster: "{{ groups['common-db'] }}"
+    patroni_cluster: "{{ groups['common-patroni'] }}"
+  pre_tasks:
+    - name: Set etcd endpoints for Patroni
+      set_fact:
+        etcd_endpoints: "{% for host in groups['common-db'] %}{{ hostvars[host]['ip'] }}:2379{% if not loop.last %},{% endif %}{% endfor %}"
+
+    - name: Debug etcd endpoints
+      debug:
+        msg: "ETCD endpoints for Patroni: {{ etcd_endpoints }}"
+
+    - name: Debug patroni cluster members
+      debug:
+        msg: "Patroni cluster members: {{ groups['common-patroni'] }}"
+  roles:
+    - patroni_cluster
+  tags:
+    - patroni 

@@ -2,7 +2,7 @@ locals {
   vms_config = yamldecode(file("./configs/vms.yaml"))
 }
 module "vms" {
-  for_each = { for vm in local.vms_config.vms : vm.vm_name => vm }
+  for_each = { for vm in(local.vms_config.vms != null ? local.vms_config.vms : []) : vm.vm_name => vm }
   source   = "./modules/vms"
 
   vm_name            = each.value.vm_name

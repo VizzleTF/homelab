@@ -1,0 +1,10 @@
+[Service]
+Environment=PATRONI_postgres_PASSWORD='{{ postgres_password }}'
+Environment=PATRONI_replication_user_PASSWORD='{{ replication_user_password }}'
+Environment=PATRONI_rewind_user_PASSWORD='{{ rewind_password }}'
+Environment=PATRONI_SUPERUSER_USERNAME='postgres'
+Environment=PATRONI_SUPERUSER_PASSWORD='{{ postgres_password }}'
+Environment=PATRONI_REPLICATION_USERNAME='{{ user_replication }}'
+Environment=PATRONI_REPLICATION_PASSWORD='{{ replication_user_password }}'
+Environment=PATRONI_REWIND_USERNAME='{{ user_rewind }}'
+Environment=PATRONI_REWIND_PASSWORD='{{ rewind_password }}' 

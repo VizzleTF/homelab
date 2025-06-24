@@ -1,0 +1,24 @@
+---
+# Tasks for PostgreSQL installation
+
+- name: Install PostgreSQL repository
+  ansible.builtin.yum:
+    name: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+    state: present
+    disable_gpg_check: yes
+  tags: postgresql
+
+- name: Install PostgreSQL packages
+  ansible.builtin.package:
+    name:
+      - postgresql{{ psql_version }}-server
+      - postgresql{{ psql_version }}
+      - postgresql{{ psql_version }}-contrib
+    state: present
+  tags: postgresql
+
+- name: Initialize PostgreSQL database
+  ansible.builtin.command:
+    cmd: "/usr/pgsql-{{ psql_version }}/bin/postgresql-{{ psql_version }}-setup initdb"
+    creates: "/var/lib/pgsql/{{ psql_version }}/data/postgresql.conf"
+  tags: postgresql 

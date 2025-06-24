@@ -1,0 +1,85 @@
+---
+- name: Set up etcd
+  block:
+    - name: Set up etcd user and group
+      block:
+        - name: Create etcd group
+          ansible.builtin.group:
+            name: etcd
+            state: present
+
+        - name: Add the etcd user
+          ansible.builtin.user:
+            name: etcd
+            shell: /sbin/nologin
+            group: etcd
+            state: present
+
+    - name: Download and install etcd binaries
+      block:
+        - name: Download etcd
+          ansible.builtin.get_url:
+            url: "https://github.com/etcd-io/etcd/releases/download/{{ etcd_version }}/etcd-{{ etcd_version }}-linux-amd64.tar.gz"
+            dest: "/tmp/etcd-{{ etcd_version }}-linux-amd64.tar.gz"
+            mode: '0440'
+
+        - name: Extract etcd
+          ansible.builtin.unarchive:
+            src: "/tmp/etcd-{{ etcd_version }}-linux-amd64.tar.gz"
+            remote_src: yes
+            dest: /tmp
+
+        - name: Copy etcd binaries
+          ansible.builtin.copy:
+            src: "/tmp/etcd-{{ etcd_version }}-linux-amd64/{{ item }}"
+            dest: "/usr/local/bin/{{ item }}"
+            remote_src: yes
+            owner: etcd
+            group: etcd
+            mode: '0755'
+          loop:
+            - etcd
+            - etcdctl
+
+    - name: Create etcd directories
+      ansible.builtin.file:
+        state: directory
+        path: "{{ item.path }}"
+        mode: "{{ item.mode }}"
+        owner: etcd
+        group: etcd
+      loop:
+        - { path: /etc/etcd, mode: '0750' }
+        - { path: /var/lib/etcd, mode: '0700' }
+
+    - name: Configure etcd
+      block:
+        - name: Generate etcd configuration file
+          ansible.builtin.template:
+            src: templates/etcd.conf.j2
+            dest: /etc/etcd/etcd.conf
+            mode: "0644"
+          register: config
+
+        - name: Create systemd unit file
+          ansible.builtin.template:
+            src: templates/etcd.service.j2
+            dest: /etc/systemd/system/etcd.service
+            owner: "root"
+            group: "root"
+            mode: "0644"
+          register: unit
+
+        - name: Reload systemd
+          ansible.builtin.systemd:
+            daemon_reload: true
+          when: unit.changed
+
+    - name: Ensure etcd service is running
+      ansible.builtin.service:
+        name: etcd
+        state: restarted
+        enabled: true
+      when: unit.changed or config.changed
+
+  tags: etcd 

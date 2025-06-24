@@ -43,4 +43,22 @@ releases:
     values:
       - ../values/network/pihole.values.yaml.gotmpl
     needs:
-      - pihole-secret 
+      - pihole-secret
+
+  # HAProxy Load Balancer for PostgreSQL Database
+  - name: haproxy-postgres
+    namespace: database-system
+    chart: haproxytech/haproxy
+    version: 1.24.0
+    values:
+      - ../values/network/haproxy-postgres.values.yaml
+
+  # External Service for HAProxy PostgreSQL
+  - name: haproxy-postgres-service
+    namespace: database-system
+    chart: bedag/raw
+    version: 2.0.0
+    values:
+      - ../../manifests/proxy/haproxy-postgres-service.yaml
+    needs:
+      - haproxy-postgres 
