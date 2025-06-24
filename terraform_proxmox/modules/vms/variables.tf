@@ -85,3 +85,21 @@ variable "description" {
   type        = string
   default     = null
 }
+
+variable "gateway" {
+  description = "Gateway IP address for the VM network"
+  type        = string
+  default     = "10.11.12.52"
+}
+
+variable "dns_servers" {
+  description = "List of DNS servers for the VM"
+  type        = list(string)
+  default     = ["10.11.12.170", "10.11.12.52"]
+}
+
+variable "datastore_id" {
+  description = "Datastore ID for VM disk storage"
+  type        = string
+  default     = "local-lvm"
+}

@@ -1,5 +1,17 @@
 "all":
   "children":
+    "common-db":
+      "hosts":
+        "patroni-etcd-01": {}
+        "patroni-postgres-01": {}
+        "patroni-postgres-02": {}
+    "common-etcd":
+      "hosts":
+        "patroni-etcd-01": {}
+    "common-patroni":
+      "hosts":
+        "patroni-postgres-01": {}
+        "patroni-postgres-02": {}
     "etcd":
       "hosts":
         "kube-node-01": {}
@@ -18,15 +30,14 @@
         "kube-node-01": {}
         "kube-node-02": {}
         "kube-node-03": {}
-    "lampac":
-      "hosts":
-        "lampac": {}
     "oracle_linux":
       "hosts":
         "kube-node-01": {}
         "kube-node-02": {}
         "kube-node-03": {}
-        "lampac": {}
+        "patroni-etcd-01": {}
+        "patroni-postgres-01": {}
+        "patroni-postgres-02": {}
   "hosts":
     "kube-node-01":
       "access_ip": "10.11.12.241"
@@ -43,8 +54,18 @@
       "ansible_host": "10.11.12.243"
       "ansible_user": "root"
       "ip": "10.11.12.243"
-    "lampac":
-      "access_ip": "10.11.12.244"
-      "ansible_host": "10.11.12.244"
+    "patroni-etcd-01":
+      "access_ip": "10.11.12.246"
+      "ansible_host": "10.11.12.246"
       "ansible_user": "root"
-      "ip": "10.11.12.244"
+      "ip": "10.11.12.246"
+    "patroni-postgres-01":
+      "access_ip": "10.11.12.247"
+      "ansible_host": "10.11.12.247"
+      "ansible_user": "root"
+      "ip": "10.11.12.247"
+    "patroni-postgres-02":
+      "access_ip": "10.11.12.245"
+      "ansible_host": "10.11.12.245"
+      "ansible_user": "root"
+      "ip": "10.11.12.245"
