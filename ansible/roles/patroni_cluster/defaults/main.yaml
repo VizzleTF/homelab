@@ -1,0 +1,12 @@
+---
+# defaults file for patroni
+psql_version: 16
+patroni_cluster_name: my_cluster
+postgres_password: changeme
+patroni_rest_password: "{{ postgres_password }}"
+replication_user_password: "{{ postgres_password }}"
+rewind_password: "{{ postgres_password }}"
+user_replication: "user_replication"
+user_rewind: "user_rewind"
+rest_port: 8008
+max_connections: 1000 

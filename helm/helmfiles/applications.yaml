@@ -23,4 +23,12 @@ releases:
     chart: cluster-status-app/cluster-status-app
     version: 0.4.4
     values:
-      - ../values/applications/cluster-status-app.values.yaml.gotmpl 
+      - ../values/applications/cluster-status-app.values.yaml.gotmpl
+
+  # n8n Workflow Automation Tool
+  - name: n8n
+    namespace: n8n-system
+    chart: community-charts/n8n
+    version: 1.8.7
+    values:
+      - ../values/applications/n8n.values.yaml 
