@@ -79,7 +79,7 @@ service:
 # Ingress configuration
 ingress:
   enabled: true
-  className: nginx
+  ingressClassName: nginx
   annotations:
     cert-manager.io/cluster-issuer: cloudflare-issuer
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
