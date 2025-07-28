@@ -7,14 +7,14 @@ releases:
   - name: vaultwarden
     namespace: vaultwarden
     chart: vaultwarden/vaultwarden
-    version: 0.32.1
+    version: 0.32.3
     values:
       - ../values/applications/vaultwarden.values.yaml.gotmpl
 
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
-    version: 6.6.10
+    version: 7.0.0
     values:
       - ../values/applications/nextcloud.values.yaml.gotmpl
 
@@ -25,10 +25,10 @@ releases:
     values:
       - ../values/applications/cluster-status-app.values.yaml.gotmpl
 
-  # n8n Workflow Automation Tool
-  - name: n8n
-    namespace: n8n-system
-    chart: community-charts/n8n
-    version: 1.8.7
+  # CouchDB NoSQL Database
+  - name: couchdb
+    namespace: couchdb
+    chart: couchdb/couchdb
+    version: 4.6.2
     values:
-      - ../values/applications/n8n.values.yaml 
+      - ../values/applications/couchdb.values.yaml.gotmpl 

@@ -13,6 +13,13 @@ spec:
           - name: sync
             image: instrumentisto/rsync-ssh
             command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/", "/destination/"]
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
             volumeMounts:
             - name: longhorn-volume
               mountPath: /source

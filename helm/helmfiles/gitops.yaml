@@ -3,14 +3,6 @@ bases:
   - defaults.yaml
 
 releases:
-  # ArgoCD for GitOps
-  - name: argocd
-    namespace: argocd
-    chart: argo/argo-cd
-    version: 8.0.17
-    values:
-      - ../values/gitops/argocd.values.yaml.gotmpl
-
   # Crossplane for Infrastructure as Code
   - name: crossplane
     namespace: crossplane-system
