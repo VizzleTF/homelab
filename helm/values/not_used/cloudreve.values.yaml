@@ -1,0 +1,84 @@
+# Cloudreve Configuration
+
+# Ingress Configuration
+ingress:
+  main:
+    enabled: true
+    primary: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: cloudflare-issuer
+      nginx.ingress.kubernetes.io/proxy-body-size: "1G"
+      external-dns.alpha.kubernetes.io/target: "91.77.167.6"
+    hosts:
+      - host: cloudreve.{{ .Values.domain.base }}
+        paths:
+          - path: /
+            pathType: Prefix
+            service:
+              identifier: main
+              port: main
+    tls:
+      - secretName: cloudreve-tls
+        hosts:
+          - cloudreve.{{ .Values.domain.base }}
+
+# Service Configuration
+service:
+  main:
+    ports:
+      main:
+        port: 5212
+        targetPort: 5212
+
+# Persistence Configuration
+persistence:
+  data:
+    enabled: true
+    mountPath: /cloudreve/uploads
+    size: 20Gi
+    accessMode: ReadWriteMany
+  config:
+    enabled: true  
+    mountPath: /cloudreve/conf
+    size: 1Gi
+    accessMode: ReadWriteOnce
+
+# PostgreSQL Database via CNPG
+cnpg:
+  main:
+    enabled: true
+    user: cloudreve
+    database: cloudreve
+    # Настройки размера storage для PostgreSQL
+    cluster:
+      storage:
+        size: 1Gi
+      walStorage:
+        size: 1Gi
+
+# Redis Configuration
+redis:
+  enabled: true
+  redisUsername: default
+
+# Resources
+resources:
+  limits:
+    cpu: 2
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Pod Configuration
+workload:
+  main:
+    podSpec:
+      containers:
+        main:
+          env:
+            # Database configuration is handled automatically by TrueCharts
+            # Redis configuration is handled automatically by TrueCharts
+            CR_CONF_System.Debug: "false"
+            CR_CONF_System.Mode: "master" 
