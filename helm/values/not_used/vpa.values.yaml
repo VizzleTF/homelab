@@ -1,0 +1,79 @@
+# VPA configuration for resource optimization
+rbac:
+  create: true
+  # Дополнительные правила для каждого типа роли
+  extraRules:
+    vpaActor: []
+    vpaStatusActor: []
+    vpaCheckpointActor: []
+    vpaEvictioner: []
+    vpaMetricsReader: []
+    vpaTargetReader: []
+    vpaStatusReader: []
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: true
+
+recommender:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  # extraArgs в формате map
+  extraArgs:
+    v: "4"
+    pod-recommendation-min-cpu-millicores: 15
+    pod-recommendation-min-memory-mb: 100
+    recommendation-margin-fraction: "0.15"
+    stderrthreshold: "info"
+    cpu-histogram-decay-half-life: "24h0m0s"
+    memory-histogram-decay-half-life: "24h0m0s"
+
+updater:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  extraArgs:
+    v: "4"
+    stderrthreshold: "info"
+    min-replicas: "1"
+    updater-interval: "1m0s"
+
+admissionController:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  extraArgs:
+    v: "4"
+    stderrthreshold: "info"
+    default-recommendation-margin-fraction: "0.15"
+  # Настройки для webhook
+  generateCertificate: true
+  registerWebhook: false
+
+# Общие настройки
+priorityClassName: ""
+podLabels: {}
+
+# Metrics
+metrics:
+  serviceMonitor:
+    enabled: false 

@@ -26,6 +26,42 @@ repositories:
     url: http://pajikos.github.io/home-assistant-helm-chart   
 
 releases:
+  # GitOps
+  - name: argocd
+    namespace: argocd
+    chart: argo/argo-cd
+    version: 8.0.17
+    values:
+      - ../values/not_used/argocd.values.yaml
+    installed: false
+
+  # Infrastructure
+  - name: vpa
+    namespace: vpa-system
+    chart: fairwinds-stable/vpa
+    version: 4.6.0
+    values:
+      - ../values/not_used/vpa.values.yaml
+    installed: false
+
+  # Workflow Automation
+  - name: n8n
+    namespace: n8n-system
+    chart: community-charts/n8n
+    version: 1.8.7
+    values:
+      - ../values/not_used/n8n.values.yaml
+    installed: false
+
+  # Cloud Storage
+  - name: cloudreve
+    namespace: cloudreve
+    chart: oci://tccr.io/truecharts/cloudreve
+    version: 10.3.0
+    values:
+      - ../values/not_used/cloudreve.values.yaml
+    installed: false
+
   # Monitoring (закомментированный)
   - name: uptime-kuma
     namespace: uptime-kuma

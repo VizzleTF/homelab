@@ -34,4 +34,10 @@ repositories:
   - name: haproxytech
     url: https://haproxytech.github.io/helm-charts
   - name: community-charts
-    url: https://community-charts.github.io/helm-charts 
+    url: https://community-charts.github.io/helm-charts
+  - name: fairwinds-stable
+    url: https://charts.fairwinds.com/stable
+  - name: cnpg
+    url: https://cloudnative-pg.github.io/charts 
+  - name: couchdb
+    url: https://apache.github.io/couchdb-helm 

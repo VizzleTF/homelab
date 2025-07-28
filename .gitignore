@@ -23,6 +23,7 @@ manifests/crowdsec/notification-telegram.yaml
 
 # Helm values with passwords
 helm/values/applications/nextcloud.values.yaml.gotmpl
+helm/values/applications/couchdb.values.yaml.gotmpl
 helm/values/security/keycloak.values.yaml
 
 # Any other secret files (but not examples)
