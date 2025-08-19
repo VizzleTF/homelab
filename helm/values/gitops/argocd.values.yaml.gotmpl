@@ -1,0 +1,106 @@
+# ArgoCD Configuration for Home Lab  
+global:
+  domain: argocd.{{ .Values.domain.base }}
+
+# Disable dex for simplicity in home lab
+dex:
+  enabled: false
+
+# Server configuration  
+server:
+  # Insecure mode for home lab behind ingress
+  insecure: false
+  
+  # Resources
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 443
+
+  # Ingress configuration
+  ingress:
+    enabled: true
+    ingressClassName: {{ .Values.ingress.className | quote }}
+    annotations:
+      cert-manager.io/cluster-issuer: {{ .Values.certificates.issuer | quote }}
+      kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+      kubernetes.io/tls-acme: {{ .Values.certificates.acme | quote }}
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    hosts:
+      - argocd.{{ .Values.domain.base }}
+    tls:
+      - hosts:
+        - argocd.{{ .Values.domain.base }}
+        secretName: argocd-server-tls
+
+  # Config for Git repos access
+  config:
+    url: https://argocd.{{ .Values.domain.base }}
+    application.instanceLabelKey: argocd.argoproj.io/instance
+    
+# Repository server configuration
+repoServer:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Application controller configuration  
+controller:
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# Redis configuration
+redis:
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# ApplicationSet controller
+applicationSet:
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Notifications controller
+notifications:
+  enabled: true
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# CRDs installation
+crds:
+  install: true
