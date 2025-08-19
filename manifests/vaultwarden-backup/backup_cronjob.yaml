@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vaultwarden-backup-lxc
+  namespace: vaultwarden
+spec:
+  schedule: "0 0 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: sync
+            image: instrumentisto/rsync-ssh
+            command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/", "/destination/"]
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+            volumeMounts:
+            - name: longhorn-volume
+              mountPath: /source
+            - name: nfs-volume
+              mountPath: /destination
+          restartPolicy: OnFailure
+          volumes:
+          - name: longhorn-volume
+            persistentVolumeClaim:
+              claimName: vaultwarden-data-vaultwarden-0
+          - name: nfs-volume
+            nfs:
+              server: 10.11.12.120
+              path: "/nfs-share/vault"

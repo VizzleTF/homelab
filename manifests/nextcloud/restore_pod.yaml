@@ -21,4 +21,4 @@ spec:
   - name: nfs-volume
     nfs:
       server: 10.11.12.213
-      path: "/nfs-share/nc/backups/data/ivan/"
+      path: "/nfs-share/nc/files"
