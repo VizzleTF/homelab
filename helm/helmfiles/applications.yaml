@@ -4,13 +4,8 @@ bases:
 
 releases:
   # User Applications
-  - name: vaultwarden
-    namespace: vaultwarden
-    chart: vaultwarden/vaultwarden
-    version: 0.32.3
-    values:
-      - ../values/applications/vaultwarden.values.yaml.gotmpl
-
+  # vaultwarden moved to ArgoCD - see /argocd/vaultwarden-application.yaml
+  
   - name: nextcloud
     namespace: nextcloud
     chart: nextcloud/nextcloud
@@ -31,4 +26,4 @@ releases:
     chart: couchdb/couchdb
     version: 4.6.2
     values:
-      - ../values/applications/couchdb.values.yaml.gotmpl 
+      - ../values/applications/couchdb.values.yaml.gotmpl
