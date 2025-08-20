@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/metrics-server/
+      targetRevision: 3.13.0
+      chart: metrics-server
+      helm:
+        valueFiles:
+          - $values/infrastructure/metrics-server.yaml
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
