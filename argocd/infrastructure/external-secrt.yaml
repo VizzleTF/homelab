@@ -1,25 +1,25 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: reflector
+  name: external-secrets
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    - repoURL: https://emberstack.github.io/helm-charts
-      chart: reflector
-      targetRevision: 9.1.26
+    - repoURL: https://charts.external-secrets.io
+      chart: external-secrets
+      targetRevision: 0.19.2
       helm:
         valueFiles:
-          - $values/infrastructure/reflector.yaml
+          - $values/infrastructure/external-secrets.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: reflector
+    namespace: external-secrets-system
   syncPolicy:
     automated:
       prune: true
@@ -27,3 +27,10 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 3
