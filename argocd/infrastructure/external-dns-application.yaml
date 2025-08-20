@@ -8,15 +8,18 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://charts.bitnami.com/bitnami
+    - repoURL: https://mirror.yandex.ru/helm/charts.bitnami.com
       chart: external-dns
-      targetRevision: 9.0.0
+      targetRevision: 9.0.2
       helm:
         valueFiles:
           - $values/infrastructure/external-dns.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      path: manifests/external-dns
   destination:
     server: https://kubernetes.default.svc
     namespace: external-dns
