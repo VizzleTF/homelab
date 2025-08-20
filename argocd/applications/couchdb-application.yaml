@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: couchdb
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Helm chart source
+    - repoURL: https://apache.github.io/couchdb-helm
+      chart: couchdb
+      targetRevision: 4.6.2
+      helm:
+        valueFiles:
+          - $values/applications/couchdb.yaml
+    # Values repository
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: couchdb
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

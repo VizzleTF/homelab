@@ -1,32 +1,29 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vaultwarden
+  name: cluster-status-app
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    - repoURL: https://guerzon.github.io/vaultwarden
-      chart: vaultwarden
-      targetRevision: 0.34.3
+    - repoURL: https://vizzletf.github.io/cluster-status-app
+      chart: cluster-status-app
+      targetRevision: 0.4.4
       helm:
         valueFiles:
-          - $values/defaults.yaml
-          - $values/applications/vaultwarden/vaultwarden-values.yaml
+          - $values/applications/cluster-status-app.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
-    - repoURL: git@github.com:VizzleTF/home-proxmox.git
-      path: manifests/vaultwarden-backup
-      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: vaultwarden
+    namespace: cluster-status
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true

@@ -6,24 +6,8 @@ releases:
   # User Applications
   # vaultwarden moved to ArgoCD - see /argocd/vaultwarden-application.yaml
   
-  - name: nextcloud
-    namespace: nextcloud
-    chart: nextcloud/nextcloud
-    version: 7.0.0
-    values:
-      - ../values/applications/nextcloud.values.yaml.gotmpl
+  # nextcloud moved to ArgoCD - see /argocd/nextcloud-application.yaml
 
-  - name: cluster-status-app
-    namespace: cluster-status
-    chart: cluster-status-app/cluster-status-app
-    version: 0.4.4
-    values:
-      - ../values/applications/cluster-status-app.values.yaml.gotmpl
+  # cluster-status-app moved to ArgoCD - see /argocd/cluster-status-app-application.yaml
 
-  # CouchDB NoSQL Database
-  - name: couchdb
-    namespace: couchdb
-    chart: couchdb/couchdb
-    version: 4.6.2
-    values:
-      - ../values/applications/couchdb.values.yaml.gotmpl
+  # couchdb moved to ArgoCD - see /argocd/couchdb-application.yaml
