@@ -3,50 +3,51 @@ bases:
   - defaults.yaml
 
 releases:
-  # CloudNative-PG Operator for PostgreSQL management
-  - name: cloudnative-pg
-    namespace: cnpg-system
-    chart: cnpg/cloudnative-pg
-    version: 0.25.0
+  # # CloudNative-PG Operator for PostgreSQL management
+  # - name: cloudnative-pg
+  #   namespace: cnpg-system
+  #   chart: cnpg/cloudnative-pg
+  #   version: 0.25.0
+  #   installed: false
 
-  # Kubernetes Reflector for secret/configmap replication
-  - name: reflector
-    namespace: kube-system
-    chart: emberstack/reflector
-    version: 9.1.22
+  # # Kubernetes Reflector for secret/configmap replication
+  # - name: reflector
+  #   namespace: kube-system
+  #   chart: emberstack/reflector
+  #   version: 9.1.22
 
-  # Distributed storage
-  # ssh root@all_nodes yum install iscsi-initiator-utils lsscsi -y
-  - name: longhorn
-    namespace: longhorn-system
-    chart: longhorn/longhorn
-    version: 1.9.1
-    values:
-      - ../values/infrastructure/longhorn.values.yaml
+  # # Distributed storage
+  # # ssh root@all_nodes yum install iscsi-initiator-utils lsscsi -y
+  # - name: longhorn
+  #   namespace: longhorn-system
+  #   chart: longhorn/longhorn
+  #   version: 1.9.1
+  #   values:
+  #     - ../values/infrastructure/longhorn.values.yaml
 
-  - name: metallb
-    chart: metallb/metallb
-    namespace: metallb-system
-    version: 0.15.2
+  # - name: metallb
+  #   chart: metallb/metallb
+  #   namespace: metallb-system
+  #   version: 0.15.2
 
-  # Ingress Nginx without CrowdSec Bouncer Integration for first install only. Then use security.yaml with CrowdSec integration
-  - name: ingress-nginx
-    namespace: ingress-nginx
-    chart: ingress-nginx/ingress-nginx
-    version: 4.13.0
-    values:
-      - ../values/network/ingress-nginx.values.yaml
+  # # Ingress Nginx without CrowdSec Bouncer Integration for first install only. Then use security.yaml with CrowdSec integration
+  # - name: ingress-nginx
+  #   namespace: ingress-nginx
+  #   chart: ingress-nginx/ingress-nginx
+  #   version: 4.13.0
+  #   values:
+  #     - ../values/network/ingress-nginx.values.yaml
   
-  - name: cert-manager
-    namespace: cert-manager
-    chart: jetstack/cert-manager
-    version: v1.18.2
-    values:
-      - ../values/infrastructure/cert-manager.values.yaml
+  # - name: cert-manager
+  #   namespace: cert-manager
+  #   chart: jetstack/cert-manager
+  #   version: v1.18.2
+  #   values:
+  #     - ../values/infrastructure/cert-manager.values.yaml
 
-  - name: metrics-server
-    namespace: kube-system
-    chart: metrics-server/metrics-server
-    version: 3.13.0
-    values:
-      - ../values/infrastructure/metrics-server.values.yaml 
+  # - name: metrics-server
+  #   namespace: kube-system
+  #   chart: metrics-server/metrics-server
+  #   version: 3.13.0
+  #   values:
+  #     - ../values/infrastructure/metrics-server.values.yaml 

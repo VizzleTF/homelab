@@ -33,7 +33,6 @@ releases:
     version: 8.0.17
     values:
       - ../values/not_used/argocd.values.yaml
-    installed: false
 
   # Infrastructure
   - name: vpa
