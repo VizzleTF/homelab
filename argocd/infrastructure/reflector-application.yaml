@@ -14,7 +14,7 @@ spec:
       helm:
         valueFiles:
           - $values/infrastructure/reflector.yaml
-    - repoURL: https://github.com/ivan-bokov/argocd-values.git
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
   destination:
