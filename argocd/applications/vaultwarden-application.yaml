@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://guerzon.github.io/vaultwarden
       chart: vaultwarden
-      targetRevision: 0.34.3
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/vaultwarden-values.yaml
