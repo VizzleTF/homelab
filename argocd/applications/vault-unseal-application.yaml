@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://babykart.github.io/vault-unseal
       chart: vault-unseal
-      targetRevision: 0.10.0
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/vault-unseal.yaml
