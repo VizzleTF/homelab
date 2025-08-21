@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://charts.external-secrets.io
       chart: external-secrets
-      targetRevision: 0.19.2
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/infrastructure/external-secrets.yaml

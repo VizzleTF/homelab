@@ -11,7 +11,7 @@ spec:
     # Helm chart source
     - repoURL: https://apache.github.io/couchdb-helm
       chart: couchdb
-      targetRevision: 4.6.2
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/couchdb.yaml

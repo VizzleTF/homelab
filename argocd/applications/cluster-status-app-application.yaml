@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://vizzletf.github.io/cluster-status-app
       chart: cluster-status-app
-      targetRevision: 0.4.4
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/cluster-status-app.yaml

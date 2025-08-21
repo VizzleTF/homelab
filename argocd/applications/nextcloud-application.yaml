@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://nextcloud.github.io/helm
       chart: nextcloud
-      targetRevision: 7.0.2
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/nextcloud.yaml
