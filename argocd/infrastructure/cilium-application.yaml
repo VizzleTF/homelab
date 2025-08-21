@@ -1,27 +1,29 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ingress-nginx
+  name: cilium
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    - repoURL: https://kubernetes.github.io/ingress-nginx
+    - repoURL: https://helm.cilium.io/
+      chart: cilium
       targetRevision: "*"
-      chart: ingress-nginx
       helm:
         valueFiles:
-          - $values/infrastructure/ingress-nginx.yaml
+          - $values/infrastructure/cilium.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: ingress-nginx
+    namespace: kube-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+      - CreateNamespace=false
       - ServerSideApply=true

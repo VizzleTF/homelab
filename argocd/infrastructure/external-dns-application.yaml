@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://mirror.yandex.ru/helm/charts.bitnami.com
       chart: external-dns
-      targetRevision: 9.0.2
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/infrastructure/external-dns.yaml
