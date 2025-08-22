@@ -17,7 +17,7 @@ spec:
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
-    - repoURL: git@github.com:VizzleTF/home_proxmox.git
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       path: manifests/vaultwarden-backup
       targetRevision: HEAD
   destination:
