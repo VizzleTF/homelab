@@ -1,0 +1,72 @@
+# CouchDB Configuration
+# NoSQL database with JSON documents
+
+# Single node configuration
+clusterSize: 1
+
+# Auto setup after installation
+autoSetup:
+  enabled: true
+
+# Admin credentials
+adminUsername: admin
+adminPassword: "couchdb-admin-password-change-in-production"
+
+# Enable single node mode
+couchdbConfig:
+  couchdb:
+    single_node: true
+    uuid: decafbaddecafbaddecafbaddecafbad
+  chttpd:
+    bind_address: any
+    require_valid_user: false
+    enable_cors: true
+    # Дополнительные настройки для Obsidian LiveSync
+    max_http_request_size: 4294967296
+    buffer_response: true
+  cors:
+    enable_cors: true
+    origins: "*"
+    credentials: true
+    methods: "GET,POST,PUT,DELETE,HEAD,OPTIONS,PATCH"
+    headers: "accept,authorization,content-type,origin,referer,x-requested-with,if-match,if-none-match,cache-control,pragma"
+    max_age: 86400
+
+# Service configuration
+service:
+  type: ClusterIP
+
+# Resource limits
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+# Persistence
+persistentVolume:
+  enabled: true
+  size: 2Gi
+  storageClass: "longhorn"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - couchdb.vakaf.space
+  path: /
+  annotations:
+    cert-manager.io/cluster-issuer: cloudflare-issuer
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    external-dns.alpha.kubernetes.io/target: "91.77.167.6"
+    # Дополнительные настройки для Obsidian LiveSync
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  tls:
+    - secretName: couchdb-tls
+      hosts:
+        - couchdb.vakaf.space 

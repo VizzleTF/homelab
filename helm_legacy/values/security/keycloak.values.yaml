@@ -1,0 +1,78 @@
+# Keycloak Configuration
+auth:
+  adminUser: admin
+  existingSecret: "keycloak-secret"
+  passwordSecretKey: "admin-password"
+
+# Production settings - отключаем https внутри пода
+production: true
+proxy: edge
+httpRelativePath: "/"
+
+# Database configuration (внешняя PostgreSQL)
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "keycloak-postgres-pass"
+    username: "keycloak"
+    password: "keycloak-db-pass"
+    database: "keycloak"
+
+# Service configuration
+service:
+  type: ClusterIP
+  ports:
+    http: 8080
+
+# Resources
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Persistence
+persistence:
+  enabled: true
+  storageClass: "longhorn"
+  size: 10Gi
+
+# Health checks
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 300
+  periodSeconds: 1
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 1
+  successThreshold: 1
+  failureThreshold: 3
+
+# Keycloak configuration
+keycloakConfigCli:
+  enabled: false
+
+# Extra environment variables - отключаем внутренний HTTPS
+extraEnvVars:
+  - name: KEYCLOAK_PROXY_ADDRESS_FORWARDING
+    value: "true"
+  - name: KEYCLOAK_ENABLE_HTTPS
+    value: "false"
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HOSTNAME_STRICT
+    value: "false"
+  - name: KC_HOSTNAME_STRICT_HTTPS
+    value: "false"
+
+# Ingress will be created separately in manifests
+ingress:
+  enabled: false 

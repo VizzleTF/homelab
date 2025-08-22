@@ -1,0 +1,55 @@
+bases:
+  - repositories.yaml
+  - defaults.yaml
+
+releases:
+  # Keycloak Identity Provider
+  # - name: keycloak-secret
+  #   namespace: keycloak
+  #   chart: bedag/raw
+  #   version: 2.0.0
+  #   values:
+  #     - ../../manifests/keycloak/secret.yaml
+
+  # - name: keycloak-ingress
+  #   namespace: keycloak
+  #   chart: bedag/raw
+  #   version: 2.0.0
+  #   values:
+  #     - ../../manifests/keycloak/ingress.yaml
+
+  # - name: keycloak
+  #   namespace: keycloak
+  #   chart: bitnami-keycloak/keycloak
+  #   version: 24.7.3
+  #   values:
+  #     - ../values/security/keycloak.values.yaml
+  #   needs:
+  #     - keycloak-secret
+
+  # # CrowdSec Security Engine
+  # - name: crowdsec-secret
+  #   namespace: crowdsec
+  #   chart: bedag/raw
+  #   version: 2.0.0
+  #   values:
+  #     - ../../manifests/crowdsec/secret.yaml
+
+  # - name: crowdsec
+  #   namespace: crowdsec
+  #   chart: crowdsec/crowdsec
+  #   version: 0.19.3
+  #   values:
+  #     - ../values/security/crowdsec.values.yaml
+  #   needs:
+  #     - crowdsec-secret
+  
+  # - name: ingress-nginx
+  #   namespace: ingress-nginx
+  #   chart: ingress-nginx/ingress-nginx
+  #   version: 4.12.3
+  #   values:
+  #     - ../values/network/ingress-nginx.values.yaml
+  #     - ../values/security/crowdsec-ingress-nginx.yaml
+  #   needs:
+  #     - crowdsec/crowdsec 
