@@ -4,12 +4,12 @@ bases:
 
 releases:
   # Automatic DNS for Cloudflare
-  - name: external-dns
-    namespace: external-dns
-    chart: bitnami/external-dns
-    version: 9.0.0
-    values:
-      - ../values/network/externaldns.values.yaml.gotmpl
+  # - name: external-dns
+  #   namespace: external-dns
+  #   chart: bitnami/external-dns
+  #   version: 9.0.0
+  #   values:
+  #     - ../values/network/externaldns.values.yaml.gotmpl
 
   # # pihole DNS filtering
   # - name: pihole-secret
