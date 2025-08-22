@@ -1,0 +1,130 @@
+nextcloud:
+  host: nc.{{ .Values.domain.base }}
+  username: ivan
+  password: "changeme"
+
+  # Extra mounts for the pods
+  extraVolumes:
+  - name: nfs-backup
+    nfs:
+      server: "10.11.12.213"
+      path: "/nfs-share/nc"
+      readOnly: true
+  extraVolumeMounts:
+  - name: nfs-backup
+    mountPath: "/backup"
+
+replicaCount: 1
+
+resources:
+  limits:
+    cpu: 4
+    memory: 4Gi
+  requests:
+    cpu: 1
+    memory: 2Gi
+
+service:
+  type: ClusterIP
+  # loadBalancerIP: "10.11.12.165"
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteMany
+  size: 50Gi
+
+ingress:
+  enabled: true
+  className: {{ .Values.ingress.className | quote }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    nginx.ingress.kubernetes.io/proxy-body-size: 4G
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+    kubernetes.io/tls-acme: {{ .Values.certificates.acme | quote }}
+    cert-manager.io/cluster-issuer: {{ .Values.certificates.issuer | quote }}
+    nginx.ingress.kubernetes.io/server-snippet: |-
+      server_tokens off;
+      proxy_hide_header X-Powered-By;
+      rewrite ^/.well-known/webfinger /index.php/.well-known/webfinger last;
+      rewrite ^/.well-known/nodeinfo /index.php/.well-known/nodeinfo last;
+      rewrite ^/.well-known/host-meta /public.php?service=host-meta last;
+      rewrite ^/.well-known/host-meta.json /public.php?service=host-meta-json;
+      location = /.well-known/carddav {
+        return 301 $scheme://$host/remote.php/dav;
+      }
+      location = /.well-known/caldav {
+        return 301 $scheme://$host/remote.php/dav;
+      }
+      location = /robots.txt {
+        allow all;
+        log_not_found off;
+        access_log off;
+      }
+      location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)/ {
+        deny all;
+      }
+      location ~ ^/(?:autotest|occ|issue|indie|db_|console) {
+        deny all;
+      }
+  tls:
+    - hosts:
+      - nc.{{ .Values.domain.base }}
+      secretName: nextcloud-tls
+
+postgresql:
+  enabled: true
+  global:
+    postgresql:
+      auth:
+        username: nextcloud
+        password: sup3rstr0ngP@s$
+        database: nextcloud
+  primary:
+    persistence:
+      enabled: true
+      accessMode: ReadWriteMany
+      size: 1Gi
+    resources:
+      limits:
+        cpu: 1
+        ephemeral-storage: 1Gi
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        ephemeral-storage: 50Mi
+        memory: 512Mi
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    password: your-redis-password
+  master:
+    persistence:
+      enabled: true  
+      accessMode: ReadWriteMany
+      size: 1Gi
+
+internalDatabase:
+  enabled: false
+
+cronjob:
+  enabled: false
+
+#externalDatabase:
+#  enabled: true
+#  type: postgresql
+#  host: '{{ .Release.Name }}-postgresql'
+#  user: nextcloud
+#  password: sup3rstr0ngP@s$
+#  database: nextcloud
+
+# FOR THE FIRST TIME. BUG WITH RWX VOLUME
+#startupProbe:
+#  enabled: true
+#  initialDelaySeconds: 7200
+#  periodSeconds: 60
+#  timeoutSeconds: 5
+#  failureThreshold: 15
+#  successThreshold: 1
