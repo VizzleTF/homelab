@@ -43,3 +43,7 @@ helm/values/security/keycloak.values.yaml
 .DS_Store
 Thumbs.db
 .cursor
+
+# Symlinks
+.cursor
+.trae
