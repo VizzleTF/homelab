@@ -1,25 +1,28 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vault-unseal
+  name: n8n
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    - repoURL: https://babykart.github.io/vault-unseal
-      chart: vault-unseal
+    - repoURL: oci://8gears.container-registry.com/library/n8n
+      chart: n8n
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/vault-unseal.yaml
+          - $values/applications/n8n.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/n8n
+      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: vault
+    namespace: n8n
   syncPolicy:
     automated:
       prune: true
@@ -27,6 +30,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
