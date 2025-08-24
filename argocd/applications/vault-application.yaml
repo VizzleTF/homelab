@@ -4,7 +4,7 @@ metadata:
   name: vault
   namespace: argocd
   finalizers:
-    - resources-finalizer.argocd.argoproj.io
+    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:

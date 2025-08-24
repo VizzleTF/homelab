@@ -63,3 +63,13 @@ vms:
     tags: [common-etcd, common-db, oracle_linux]
     pool_id: db
     description: "<div align='center'><img src='https://raw.githubusercontent.com/etcd-io/etcd/main/logos/etcd-horizontal-color.png' /></div>"
+  - vm_id: 307
+    vm_name: kube-node-04
+    address: 10.11.12.244/24
+    node_name: pve3
+    cores: 4
+    ram: 12288
+    disk_size: 100
+    tags: [kube_node, etcd, oracle_linux]
+    pool_id: k8s-pool
+    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
