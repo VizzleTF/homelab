@@ -63,6 +63,8 @@ resource "proxmox_virtual_environment_vm" "vm" {
   lifecycle {
     ignore_changes = [
       cpu["architecture"],
+      initialization[0].dns[0].servers,
+      initialization[0].user_account[0].keys,
     ]
   }
 }

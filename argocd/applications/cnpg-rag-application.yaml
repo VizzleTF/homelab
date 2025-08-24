@@ -1,28 +1,28 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-dns
+  name: cnpg-rag
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    - repoURL: https://mirror.yandex.ru/helm/charts.bitnami.com
-      chart: external-dns
+    - repoURL: https://cloudnative-pg.github.io/charts
       targetRevision: "*"
+      chart: cluster
       helm:
         valueFiles:
-          - $values/infrastructure/external-dns.yaml
+          - $values/applications/cnpg-rag.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/cnpg-rag
       targetRevision: HEAD
-      path: manifests/external-dns
   destination:
     server: https://kubernetes.default.svc
-    namespace: external-dns
+    namespace: cnpg-rag
   syncPolicy:
     automated:
       prune: true
@@ -30,3 +30,10 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
