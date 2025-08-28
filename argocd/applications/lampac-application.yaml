@@ -1,32 +1,37 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-dns
+  name: lampac
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    - repoURL: https://kubernetes-sigs.github.io/external-dns/
-      chart: external-dns
-      targetRevision: "*"
+    # Local Lampac chart from values repository
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: charts/lampac
+      targetRevision: HEAD
       helm:
         valueFiles:
-          - $values/infrastructure/external-dns.yaml
+          - $values/applications/lampac.yaml
+    # Values repository
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      targetRevision: HEAD
-      path: manifests/external-dns
   destination:
     server: https://kubernetes.default.svc
-    namespace: external-dns
+    namespace: lampac
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
