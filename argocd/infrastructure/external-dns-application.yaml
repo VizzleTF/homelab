@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://mirror.yandex.ru/helm/charts.bitnami.com
+    - repoURL: https://kubernetes-sigs.github.io/external-dns/
       chart: external-dns
       targetRevision: "*"
       helm:

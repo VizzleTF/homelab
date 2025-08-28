@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: onlyoffice
+  namespace: argocd
+  labels:
+    app: onlyoffice
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: onlyoffice
+  sources:
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/onlyoffice
+      targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
