@@ -1,34 +1,30 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: lampac
+  name: descheduler
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    # External Lampac chart from Helm repository
-    - repoURL: https://vizzletf.github.io/lampac_helm
-      chart: lampac
+    - repoURL: https://kubernetes-sigs.github.io/descheduler/
       targetRevision: "*"
+      chart: descheduler
       helm:
         valueFiles:
-          - $values/applications/lampac.yaml
-    # Values repository
+          - $values/infrastructure/descheduler.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: lampac
+    namespace: kube-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - RespectIgnoreDifferences=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
