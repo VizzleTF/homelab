@@ -8,9 +8,9 @@ metadata:
 spec:
   project: default
   sources:
-    # Local Lampac chart from values repository
+    # External Lampac chart from Helm repository
     - repoURL: https://vizzletf.github.io/lampac_helm
-      path: lampac
+      chart: lampac
       targetRevision: "*"
       helm:
         valueFiles:
