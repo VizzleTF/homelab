@@ -9,9 +9,9 @@ spec:
   project: default
   sources:
     # Local Lampac chart from values repository
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: charts/lampac
-      targetRevision: HEAD
+    - repoURL: https://vizzletf.github.io/lampac_helm
+      path: lampac
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/lampac.yaml
