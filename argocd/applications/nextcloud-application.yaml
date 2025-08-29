@@ -18,7 +18,7 @@ spec:
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/nextcloud-backup
+      path: manifests/nextcloud
       targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
