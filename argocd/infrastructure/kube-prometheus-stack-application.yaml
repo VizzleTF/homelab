@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  sources:
+    # Kube-Prometheus-Stack Helm chart from public repository
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/infrastructure/kube-prometheus-stack.yaml
+    
+    # Values repository
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+    
+    # Additional manifests (ServiceMonitors, External Secrets, PVE Exporter)
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/prometheus
+      targetRevision: HEAD
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prometheus
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true  # Required for CRDs
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  revisionHistoryLimit: 3
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    name: kube-prometheus-stack-grafana
+    jqPathExpressions:
+    - '.spec.template.spec.containers[] | select(.name == "grafana") | .env[]? | select(.valueFrom.resourceFieldRef) | .valueFrom.resourceFieldRef.divisor'
+  - group: apps
+    kind: StatefulSet
+    name: kube-prometheus-stack-grafana
+    jqPathExpressions:
+    - '.spec.template.spec.containers[] | select(.name == "grafana") | .env[]? | select(.valueFrom.resourceFieldRef) | .valueFrom.resourceFieldRef.divisor'
