@@ -1,34 +1,62 @@
-# [Proxmox Home Lab with Terraform and OKD Cluster](https://github.com/VizzleTF/home_proxmox)
+# [Proxmox Home Lab with Terraform and Kubernetes](https://github.com/VizzleTF/home_proxmox)
 
-This repository contains configurations and scripts to manage a Proxmox home lab environment using Terraform, and kubernetes clusters by kubespray. It includes Ansible roles, Helm charts, Terraform configurations, and Kubernetes manifests to fully automate the deployment and management of virtualized infrastructure.
+This repository contains configurations and scripts to manage a Proxmox home lab environment using Terraform for infrastructure provisioning and ArgoCD for GitOps-based Kubernetes application deployment. It includes Ansible roles, Terraform configurations, ArgoCD applications, and utility scripts to fully automate the deployment and management of virtualized infrastructure.
 
 ## Project Structure
 
 ### 1. `ansible/`
-This folder contains Ansible playbooks for automating tasks like configuring network, deploying services, and managing VM configurations in the Proxmox environment.
+Ansible playbooks and roles for automating VM configuration tasks:
+- **Playbooks**: Database clusters, NFS servers, Oracle VM setup
+- **Roles**: PostgreSQL/Patroni clusters, package installation, system configuration
 
-### 2. `helm/`
-Helm charts are provided here for managing Kubernetes applications, allowing easy deployment of repeatable app environments within the OKD cluster.
+### 2. `argocd/`
+ArgoCD Application manifests for GitOps-based deployment:
+- **`applications/`**: Application deployments (Vault, Nextcloud, CouchDB, N8N, etc.)
+- **`infrastructure/`**: Infrastructure components (Prometheus, Grafana, Ingress, Cert-Manager, etc.)
 
-### 3. `manifests/`
-This directory contains Kubernetes manifest files, such as deployments, services, and configurations, for managing workloads in the OKD cluster. These YAML files define the desired state of the cluster applications.
+### 3. `scripts/`
+Utility scripts for cluster management:
+- **`k8s/`**: Kubernetes monitoring and debugging scripts
 
 ### 4. `terraform_proxmox/`
-This directory holds the core Terraform scripts for provisioning and managing virtual machines on Proxmox.
+Terraform configurations for Proxmox infrastructure:
+- **VM provisioning**: Kubernetes nodes, database clusters
+- **Resource management**: Storage pools, network configuration
+- **Configuration files**: VM specifications, images, LXC containers
 
 ## Technologies Used
-- **Proxmox VE**: A complete open-source server virtualization management solution.
-- **Terraform**: Infrastructure as Code tool to define and provision the Proxmox environment.
-- **Ansible**: Used for configuring VMs and automating tasks.
-- **Helm**: Kubernetes package manager to streamline app deployment.
+- **Proxmox VE**: Open-source server virtualization management solution
+- **Terraform**: Infrastructure as Code for Proxmox VM provisioning
+- **Kubernetes**: Container orchestration platform (3-node cluster)
+- **ArgoCD**: GitOps continuous delivery for Kubernetes
+- **Ansible**: VM configuration and automation
+- **PostgreSQL/Patroni**: High-availability database cluster
+
+## Infrastructure Overview
+
+### Kubernetes Cluster
+- **3-node cluster**: 2 control plane + worker nodes, 1 worker node
+- **Resources**: 4 CPU cores, 12GB RAM, 200GB storage per node
+- **Network**: 10.11.12.241-243/24
+
+### Database Cluster
+- **PostgreSQL with Patroni**: High-availability setup
+- **2 nodes**: 2 CPU cores, 4GB RAM, 40GB storage each
+- **Network**: 10.11.12.245, 10.11.12.247/24
+
+### Deployed Applications
+- **Infrastructure**: Prometheus/Grafana, Ingress-NGINX, Cert-Manager, Longhorn, External-DNS
+- **Applications**: HashiCorp Vault, Nextcloud, CouchDB, N8N, Vaultwarden, Lampac
+- **Monitoring**: Kube-Prometheus-Stack with custom Proxmox monitoring
 
 ## Setup and Usage
 
 ### Prerequisites
-- Install [Proxmox VE](https://www.proxmox.com/en/proxmox-ve)
-- Install [Terraform](https://www.terraform.io/)
-- Install [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
-- Install [Helm](https://helm.sh/docs/intro/install/)
+- [Proxmox VE](https://www.proxmox.com/en/proxmox-ve)
+- [Terraform](https://www.terraform.io/)
+- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- [ArgoCD CLI](https://argo-cd.readthedocs.io/en/stable/cli_installation/)
 
 ### Instructions
 
@@ -38,18 +66,47 @@ This directory holds the core Terraform scripts for provisioning and managing vi
     cd home_proxmox
     ```
 
-2. **Terraform Setup:**
-   Navigate to the `terraform_proxmox/` directory and initialize the Terraform environment.
-    ```bash
-    terraform init
-    terraform apply
-    ```
+2. **Provision Infrastructure:**
+   ```bash
+   cd terraform_proxmox/
+   terraform init
+   terraform plan
+   terraform apply
+   ```
 
-3. **Manage Cluster with Kubernetes Manifests:**
-   Use the manifests under `manifests/` to manage your OKD cluster resources.
-    ```bash
-    kubectl apply -f manifests/<resource_file>.yaml
-    ```
+3. **Configure VMs with Ansible:**
+   ```bash
+   cd ansible/
+   ansible-playbook -i inventory/inventory.yaml playbooks/db_cluster.yaml
+   ```
+
+4. **Deploy Applications with ArgoCD:**
+   ```bash
+   # Applications are automatically deployed via GitOps
+   # Monitor deployment status:
+   kubectl get applications -n argocd
+   ```
+
+5. **Monitor Resources:**
+   ```bash
+   # Use the provided monitoring script
+   ./scripts/k8s/k8s-top-pods-with-requests.sh
+   ```
+
+## GitOps Workflow
+
+This repository works in conjunction with [home-proxmox-values](https://github.com/VizzleTF/home-proxmox-values) repository:
+- **home_proxmox**: ArgoCD Application definitions (this repo)
+- **home-proxmox-values**: Helm values, charts, and additional manifests
+
+Applications are automatically synchronized via ArgoCD when changes are pushed to the values repository.
+
+## Monitoring and Debugging
+
+- **Prometheus/Grafana**: Available at configured ingress endpoints
+- **ArgoCD UI**: Monitor application deployment status
+- **Resource monitoring**: Use `scripts/k8s/k8s-top-pods-with-requests.sh`
+- **Logs**: `kubectl logs` and ArgoCD application logs
 
 ## Contributing
 Feel free to open issues or submit pull requests if you have any improvements or feature suggestions.
