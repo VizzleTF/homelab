@@ -3,14 +3,12 @@ kind: Application
 metadata:
   name: homeassistant-proxy
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   source:
     repoURL: git@github.com:VizzleTF/home-proxmox-values.git
     targetRevision: HEAD
-    path: manifests/proxy
+    path: manifests/homeassistant
   destination:
     server: https://kubernetes.default.svc
     namespace: homeassistant
