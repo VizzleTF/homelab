@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:VizzleTF/home_proxmox.git
+    repoURL: git@github.com:VizzleTF/home-proxmox-values.git
     targetRevision: HEAD
     path: manifests/proxy
   destination:
