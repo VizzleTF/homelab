@@ -30,11 +30,13 @@
         "kube-node-01": {}
         "kube-node-02": {}
         "kube-node-03": {}
+        "kube-node-04": {}
     "oracle_linux":
       "hosts":
         "kube-node-01": {}
         "kube-node-02": {}
         "kube-node-03": {}
+        "kube-node-04": {}
         "patroni-etcd-01": {}
         "patroni-postgres-01": {}
         "patroni-postgres-02": {}
@@ -54,6 +56,11 @@
       "ansible_host": "10.11.12.243"
       "ansible_user": "root"
       "ip": "10.11.12.243"
+    "kube-node-04":
+      "access_ip": "10.11.12.145"
+      "ansible_host": "10.11.12.145"
+      "ansible_user": "root"
+      "ip": "10.11.12.145"
     "patroni-etcd-01":
       "access_ip": "10.11.12.246"
       "ansible_host": "10.11.12.246"
@@ -69,3 +76,4 @@
       "ansible_host": "10.11.12.245"
       "ansible_user": "root"
       "ip": "10.11.12.245"
+      
