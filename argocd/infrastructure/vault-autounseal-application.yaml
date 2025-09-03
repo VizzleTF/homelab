@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault-autounseal
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: vault-autounseal
+    app.kubernetes.io/component: infrastructure
+spec:
+  project: default
+  sources:
+    - repoURL: https://pytoshka.github.io/vault-autounseal
+      targetRevision: "*"
+      chart: vault-autounseal
+      helm:
+        valueFiles:
+          - $values/infrastructure/vault-autounseal.yaml
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
