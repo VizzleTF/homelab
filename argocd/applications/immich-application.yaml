@@ -1,0 +1,51 @@
+# ArgoCD Application для Immich
+# Использует внешний Helm chart и values из репозитория
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: immich
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Helm chart from public repository
+    - repoURL: https://immich-app.github.io/immich-charts
+      chart: immich
+      targetRevision: "*"  # Use latest version for automatic updates
+      helm:
+        valueFiles:
+          - $values/applications/immich.yaml
+
+    - repoURL: https://cloudnative-pg.github.io/charts
+      targetRevision: "*"
+      chart: cluster
+      helm:
+        valueFiles:
+          - $values/applications/cnpg-immich-db.yaml
+    # Values repository
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+    # Additional manifests
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/immich
+      targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: immich
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
