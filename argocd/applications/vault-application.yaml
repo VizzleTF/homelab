@@ -8,9 +8,9 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: charts/vault
-      targetRevision: HEAD
+    - repoURL: https://helm.releases.hashicorp.com
+      chart: vault
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/vault.yaml
@@ -23,6 +23,15 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: vault
+  ignoreDifferences:
+  - group: apps
+    kind: StatefulSet
+    name: vault
+    jsonPointers:
+    - /spec/volumeClaimTemplates/0/apiVersion
+    - /spec/volumeClaimTemplates/0/kind
+    - /spec/volumeClaimTemplates/1/apiVersion
+    - /spec/volumeClaimTemplates/1/kind
   syncPolicy:
     automated:
       prune: true
