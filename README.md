@@ -1,5 +1,5 @@
 # [Proxmox Home Lab with Terraform and Kubernetes](https://github.com/VizzleTF/home_proxmox)
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/home_proxmox)
 This repository contains configurations and scripts to manage a Proxmox home lab environment using Terraform for infrastructure provisioning and ArgoCD for GitOps-based Kubernetes application deployment. It includes Ansible roles, Terraform configurations, ArgoCD applications, and utility scripts to fully automate the deployment and management of virtualized infrastructure.
 
 ## Project Structure
