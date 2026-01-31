@@ -11,7 +11,7 @@ spec:
   project: default
   sources:
     - repoURL: https://charts.longhorn.io
-      targetRevision: "1.10.0"
+      targetRevision: "*"
       chart: longhorn
       helm:
         valueFiles:
