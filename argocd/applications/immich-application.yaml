@@ -18,7 +18,7 @@ spec:
           - $values/applications/immich.yaml
     - repoURL: https://cloudnative-pg.github.io/charts
       chart: cluster
-      targetRevision: "*"
+      targetRevision: "0.4.0"
       helm:
         valueFiles:
           - $values/applications/cnpg-immich-db.yaml
