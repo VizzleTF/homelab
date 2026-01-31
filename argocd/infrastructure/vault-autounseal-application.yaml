@@ -3,15 +3,16 @@ kind: Application
 metadata:
   name: vault-autounseal
   namespace: argocd
-  labels:
-    app.kubernetes.io/name: vault-autounseal
-    app.kubernetes.io/component: infrastructure
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
     - repoURL: https://pytoshka.github.io/vault-autounseal
-      targetRevision: "*"
       chart: vault-autounseal
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/infrastructure/vault-autounseal.yaml
@@ -28,7 +29,6 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:

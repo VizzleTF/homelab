@@ -3,6 +3,10 @@ kind: Application
 metadata:
   name: homeassistant-proxy
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2" # User applications
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   source:

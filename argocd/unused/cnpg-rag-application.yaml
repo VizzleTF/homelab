@@ -1,26 +1,30 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cert-manager
+  name: cnpg-rag
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1" # Databases before apps that need them
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    - repoURL: https://charts.jetstack.io
+    - repoURL: https://cloudnative-pg.github.io/charts
       targetRevision: "*"
-      chart: cert-manager
+      chart: cluster
       helm:
         valueFiles:
-          - $values/infrastructure/cert-manager.yaml
+          - $values/applications/cnpg-rag.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/cert-manager
+      path: manifests/cnpg-rag
       targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: cert-manager
+    namespace: cnpg-rag
   syncPolicy:
     automated:
       prune: true
@@ -28,3 +32,10 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

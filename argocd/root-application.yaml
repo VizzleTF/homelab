@@ -1,0 +1,51 @@
+# Root Application - App of Apps Pattern
+# This application manages all other ArgoCD applications
+# Deploy this manually first: kubectl apply -f root-application.yaml -n argocd
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  sources:
+    # Infrastructure applications (deployed first via sync waves)
+    - repoURL: git@github.com:VizzleTF/home_proxmox.git
+      path: argocd/infrastructure
+      targetRevision: HEAD
+
+    # User applications (deployed after infrastructure)
+    - repoURL: git@github.com:VizzleTF/home_proxmox.git
+      path: argocd/applications
+      targetRevision: HEAD
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences in child applications status
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jsonPointers:
+        - /status
+
+  revisionHistoryLimit: 5

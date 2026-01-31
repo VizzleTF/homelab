@@ -3,19 +3,19 @@ kind: Application
 metadata:
   name: argocd
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
   finalizers:
-    - resources-finalizer.argocd.argoproj.io
+    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    # Helm chart from argo repository
     - repoURL: https://argoproj.github.io/argo-helm
       chart: argo-cd
       targetRevision: "*"
       helm:
         valueFiles:
           - $values/infrastructure/argocd.yaml
-    # Values repository
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
@@ -24,7 +24,7 @@ spec:
     namespace: argocd
   syncPolicy:
     automated:
-      prune: false  # Disabled for safety - ArgoCD managing itself
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
@@ -35,4 +35,3 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  revisionHistoryLimit: 10

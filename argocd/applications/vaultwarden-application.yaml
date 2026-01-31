@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: vaultwarden
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
@@ -13,13 +15,13 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/vaultwarden-values.yaml
+          - $values/applications/vaultwarden.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/vaultwarden-backup
       targetRevision: HEAD
+      path: manifests/vaultwarden-backup
   destination:
     server: https://kubernetes.default.svc
     namespace: vaultwarden
@@ -29,3 +31,10 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
