@@ -1,32 +1,39 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-dns
+  name: couchdb
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1" # Databases before apps that need them
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    - repoURL: https://kubernetes-sigs.github.io/external-dns/
-      chart: external-dns
+    # Helm chart source
+    - repoURL: https://apache.github.io/couchdb-helm
+      chart: couchdb
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/infrastructure/external-dns.yaml
+          - $values/applications/couchdb.yaml
+    # Values repository
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      targetRevision: HEAD
-      path: manifests/external-dns
   destination:
     server: https://kubernetes.default.svc
-    namespace: external-dns
+    namespace: couchdb
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -3,14 +3,16 @@ kind: Application
 metadata:
   name: cnpg
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
     - repoURL: https://cloudnative-pg.github.io/charts
-      targetRevision: "*"
       chart: cluster
+      targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/cnpg.yaml
@@ -18,8 +20,8 @@ spec:
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/cnpg
       targetRevision: HEAD
+      path: manifests/cnpg
   destination:
     server: https://kubernetes.default.svc
     namespace: cnpg
@@ -30,7 +32,6 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:

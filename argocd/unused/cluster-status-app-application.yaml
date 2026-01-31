@@ -1,25 +1,30 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-secrets
+  name: cluster-status-app
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2" # User applications
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    - repoURL: https://charts.external-secrets.io
-      chart: external-secrets
+    - repoURL: https://vizzletf.github.io/cluster-status-app
+      chart: cluster-status-app
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/infrastructure/external-secrets.yaml
+          - $values/applications/cluster-status-app.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/cluster-status
+      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: external-secrets-system
+    namespace: cluster-status
   syncPolicy:
     automated:
       prune: true
@@ -27,10 +32,3 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-  revisionHistoryLimit: 3

@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: vault
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
@@ -18,20 +20,20 @@ spec:
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/vault
       targetRevision: HEAD
+      path: manifests/vault
   destination:
     server: https://kubernetes.default.svc
     namespace: vault
   ignoreDifferences:
-  - group: apps
-    kind: StatefulSet
-    name: vault
-    jsonPointers:
-    - /spec/volumeClaimTemplates/0/apiVersion
-    - /spec/volumeClaimTemplates/0/kind
-    - /spec/volumeClaimTemplates/1/apiVersion
-    - /spec/volumeClaimTemplates/1/kind
+    - group: apps
+      kind: StatefulSet
+      name: vault
+      jsonPointers:
+        - /spec/volumeClaimTemplates/0/apiVersion
+        - /spec/volumeClaimTemplates/0/kind
+        - /spec/volumeClaimTemplates/1/apiVersion
+        - /spec/volumeClaimTemplates/1/kind
   syncPolicy:
     automated:
       prune: true

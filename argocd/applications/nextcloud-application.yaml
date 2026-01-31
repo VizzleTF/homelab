@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: nextcloud
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
@@ -18,8 +20,8 @@ spec:
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/nextcloud
       targetRevision: HEAD
+      path: manifests/nextcloud
   destination:
     server: https://kubernetes.default.svc
     namespace: nextcloud
@@ -30,3 +32,9 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
