@@ -1,34 +1,34 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: couchdb
+  name: external-secrets
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    # Helm chart source
-    - repoURL: https://apache.github.io/couchdb-helm
-      chart: couchdb
+    - repoURL: https://charts.external-secrets.io
+      chart: external-secrets
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/couchdb.yaml
-    # Values repository
+          - $values/infrastructure/external-secrets.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: couchdb
+    namespace: external-secrets-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - RespectIgnoreDifferences=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:

@@ -1,23 +1,27 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: metrics-server
+  name: ingress-nginx
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1" # Ingress after cert-manager
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    - repoURL: https://kubernetes-sigs.github.io/metrics-server/
+    - repoURL: https://kubernetes.github.io/ingress-nginx
       targetRevision: "*"
-      chart: metrics-server
+      chart: ingress-nginx
       helm:
         valueFiles:
-          - $values/infrastructure/metrics-server.yaml
+          - $values/infrastructure/ingress-nginx.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: kube-system
+    namespace: ingress-nginx
   syncPolicy:
     automated:
       prune: true

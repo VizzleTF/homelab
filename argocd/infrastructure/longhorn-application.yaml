@@ -3,6 +3,10 @@ kind: Application
 metadata:
   name: longhorn
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4" # Storage early
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
