@@ -3,19 +3,19 @@ kind: Application
 metadata:
   name: lampac
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    # External Lampac chart from Helm repository
     - repoURL: https://vizzletf.github.io/lampac_helm
       chart: lampac
       targetRevision: "*"
       helm:
         valueFiles:
           - $values/applications/lampac.yaml
-    # Values repository
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
@@ -28,7 +28,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - RespectIgnoreDifferences=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
