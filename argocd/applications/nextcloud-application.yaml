@@ -25,6 +25,12 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: nextcloud
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: nextcloud-postgresql
+      jqPathExpressions:
+        - .data
   syncPolicy:
     automated:
       prune: true
@@ -32,6 +38,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:

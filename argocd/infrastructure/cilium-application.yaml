@@ -25,6 +25,22 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: cilium-ca
+      jqPathExpressions:
+        - .data
+    - group: ""
+      kind: Secret
+      name: hubble-relay-client-certs
+      jqPathExpressions:
+        - .data
+    - group: ""
+      kind: Secret
+      name: hubble-server-certs
+      jqPathExpressions:
+        - .data
   syncPolicy:
     automated:
       prune: true
@@ -32,3 +48,4 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
