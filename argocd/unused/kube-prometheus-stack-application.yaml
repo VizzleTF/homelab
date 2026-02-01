@@ -17,7 +17,7 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/infrastructure/kube-prometheus-stack.yaml
+          - $values/values/unused/kube-prometheus-stack.yaml
 
     # Values repository
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
@@ -26,7 +26,7 @@ spec:
 
     # Additional manifests (ServiceMonitors, External Secrets, PVE Exporter)
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/prometheus
+      path: manifests/unused/prometheus
       targetRevision: HEAD
 
   destination:

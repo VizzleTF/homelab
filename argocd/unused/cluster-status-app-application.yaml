@@ -15,12 +15,12 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/cluster-status-app.yaml
+          - $values/values/unused/cluster-status-app.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/cluster-status
+      path: manifests/unused/cluster-status
       targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc

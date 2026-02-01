@@ -12,7 +12,7 @@ spec:
   sources:
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
-      path: manifests/onlyoffice
+      path: manifests/applications/onlyoffice
   destination:
     server: https://kubernetes.default.svc
     namespace: onlyoffice

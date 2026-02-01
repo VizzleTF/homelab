@@ -15,13 +15,13 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/nextcloud.yaml
+          - $values/values/applications/nextcloud.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
-      path: manifests/nextcloud
+      path: manifests/applications/nextcloud
   destination:
     server: https://kubernetes.default.svc
     namespace: nextcloud

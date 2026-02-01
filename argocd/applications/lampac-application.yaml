@@ -15,7 +15,7 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/lampac.yaml
+          - $values/values/applications/lampac.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values

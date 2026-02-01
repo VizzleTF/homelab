@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: git@github.com:VizzleTF/home-proxmox-values.git
     targetRevision: HEAD
-    path: manifests/homeassistant
+    path: manifests/unused/homeassistant
   destination:
     server: https://kubernetes.default.svc
     namespace: homeassistant

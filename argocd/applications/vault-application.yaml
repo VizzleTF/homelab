@@ -15,13 +15,13 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/vault.yaml
+          - $values/values/applications/vault.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
-      path: manifests/vault
+      path: manifests/applications/vault
   destination:
     server: https://kubernetes.default.svc
     namespace: vault

@@ -15,19 +15,19 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/immich.yaml
+          - $values/values/applications/immich.yaml
     - repoURL: https://cloudnative-pg.github.io/charts
       chart: cluster
       targetRevision: "0.4.0"
       helm:
         valueFiles:
-          - $values/applications/cnpg-immich-db.yaml
+          - $values/values/applications/cnpg-immich-db.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
-      path: manifests/immich
+      path: manifests/applications/immich
   destination:
     server: https://kubernetes.default.svc
     namespace: immich

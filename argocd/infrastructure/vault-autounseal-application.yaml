@@ -15,7 +15,7 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/infrastructure/vault-autounseal.yaml
+          - $values/values/infrastructure/vault-autounseal.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values

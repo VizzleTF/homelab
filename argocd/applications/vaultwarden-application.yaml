@@ -15,16 +15,16 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/vaultwarden.yaml
+          - $values/values/applications/vaultwarden.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
-      path: manifests/vaultwarden-backup
+      path: manifests/applications/vaultwarden-backup
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
-      path: manifests/vaultwarden
+      path: manifests/applications/vaultwarden
   destination:
     server: https://kubernetes.default.svc
     namespace: vaultwarden

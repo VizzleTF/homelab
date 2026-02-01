@@ -15,12 +15,12 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/applications/n8n.yaml
+          - $values/values/unused/n8n.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/n8n
+      path: manifests/unused/n8n
       targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
