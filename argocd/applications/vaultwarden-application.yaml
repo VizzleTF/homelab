@@ -22,6 +22,9 @@ spec:
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       path: manifests/vaultwarden-backup
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      path: manifests/vaultwarden
   destination:
     server: https://kubernetes.default.svc
     namespace: vaultwarden
