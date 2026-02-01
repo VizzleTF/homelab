@@ -15,12 +15,12 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/infrastructure/cilium.yaml
+          - $values/values/infrastructure/cilium.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/cilium
+      path: manifests/infrastructure/cilium
       targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc

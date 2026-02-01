@@ -15,7 +15,7 @@ spec:
       chart: ingress-nginx
       helm:
         valueFiles:
-          - $values/infrastructure/ingress-nginx.yaml
+          - $values/values/unused/ingress-nginx.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values

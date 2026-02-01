@@ -15,13 +15,13 @@ spec:
       targetRevision: "0.4.0"
       helm:
         valueFiles:
-          - $values/applications/cnpg.yaml
+          - $values/values/applications/cnpg.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
-      path: manifests/cnpg
+      path: manifests/applications/cnpg
   destination:
     server: https://kubernetes.default.svc
     namespace: cnpg

@@ -15,12 +15,12 @@ spec:
       chart: cluster
       helm:
         valueFiles:
-          - $values/applications/cnpg-rag.yaml
+          - $values/values/unused/cnpg-rag.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/cnpg-rag
+      path: manifests/unused/cnpg-rag
       targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
