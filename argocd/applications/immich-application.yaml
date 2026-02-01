@@ -31,6 +31,13 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: immich
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
   syncPolicy:
     automated:
       prune: true
