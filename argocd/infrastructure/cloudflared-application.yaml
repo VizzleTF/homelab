@@ -1,27 +1,30 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vault-autounseal
+  name: cloudflared
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
   sources:
-    - repoURL: https://pytoshka.github.io/vault-autounseal
-      chart: vault-autounseal
+    - repoURL: https://community-charts.github.io/helm-charts
+      chart: cloudflared
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/values/infrastructure/vault-autounseal.yaml
+          - $values/values/infrastructure/cloudflared.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      path: manifests/infrastructure/cloudflared
   destination:
     server: https://kubernetes.default.svc
-    namespace: vault
+    namespace: cloudflared
   syncPolicy:
     automated:
       prune: true

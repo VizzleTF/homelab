@@ -15,7 +15,7 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/infrastructure/external-secrets.yaml
+          - $values/values/infrastructure/external-secrets.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
