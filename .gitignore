@@ -34,6 +34,8 @@ helm/values/security/keycloak.values.yaml
 # Allow example files
 !*example*.yaml
 !*_example.yaml
+# Allow Helm chart templates
+!charts/**/templates/secret.yaml
 
 # Backup files
 *.bak
