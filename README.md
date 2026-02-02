@@ -1,5 +1,6 @@
 # [Proxmox Home Lab with Terraform and Kubernetes](https://github.com/VizzleTF/home_proxmox)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/home_proxmox)
+
 This repository contains configurations and scripts to manage a Proxmox home lab environment using Terraform for infrastructure provisioning and ArgoCD for GitOps-based Kubernetes application deployment. It includes Ansible roles, Terraform configurations, ArgoCD applications, and utility scripts to fully automate the deployment and management of virtualized infrastructure.
 
 ## Project Structure
@@ -11,8 +12,10 @@ Ansible playbooks and roles for automating VM configuration tasks:
 
 ### 2. `argocd/`
 ArgoCD Application manifests for GitOps-based deployment:
-- **`applications/`**: Application deployments (Vault, Nextcloud, CouchDB, N8N, etc.)
-- **`infrastructure/`**: Infrastructure components (Prometheus, Grafana, Ingress, Cert-Manager, etc.)
+- **`applications/`**: Application deployments (Vault, Nextcloud, Immich, Vaultwarden, Lampac, OnlyOffice, CNPG)
+- **`infrastructure/`**: Infrastructure components (ArgoCD, Cert-Manager, Cilium, Cloudflared, CNPG Operator, External Secrets, Gateway API, Longhorn, Vault Autounseal)
+- **`unused/`**: Archived application manifests
+- **`root-application.yaml`**: App of Apps pattern root application
 
 ### 3. `scripts/`
 Utility scripts for cluster management:
@@ -30,24 +33,39 @@ Terraform configurations for Proxmox infrastructure:
 - **Kubernetes**: Container orchestration platform (3-node cluster)
 - **ArgoCD**: GitOps continuous delivery for Kubernetes
 - **Ansible**: VM configuration and automation
-- **PostgreSQL/Patroni**: High-availability database cluster
+- **Cilium**: CNI with Gateway API support
+- **Cloudflared**: Secure tunnel for external access
+- **HashiCorp Vault**: Secrets management
+- **CloudNativePG**: PostgreSQL operator for Kubernetes
 
 ## Infrastructure Overview
 
 ### Kubernetes Cluster
 - **3-node cluster**: 2 control plane + worker nodes, 1 worker node
-- **Resources**: 4 CPU cores, 12GB RAM, 200GB storage per node
-- **Network**: 10.11.12.241-243/24
+- **Resources**: 4 CPU cores, 12GB RAM, 200GB-500GB storage per node
+- **CNI**: Cilium with Gateway API
 
-### Database Cluster
-- **PostgreSQL with Patroni**: High-availability setup
-- **2 nodes**: 2 CPU cores, 4GB RAM, 40GB storage each
-- **Network**: 10.11.12.245, 10.11.12.247/24
+### Deployed Components
 
-### Deployed Applications
-- **Infrastructure**: Prometheus/Grafana, Ingress-NGINX, Cert-Manager, Longhorn, External-DNS
-- **Applications**: HashiCorp Vault, Nextcloud, CouchDB, N8N, Vaultwarden, Lampac
-- **Monitoring**: Kube-Prometheus-Stack with custom Proxmox monitoring
+#### Infrastructure:
+- **ArgoCD** - GitOps continuous delivery
+- **Cert-Manager** - SSL certificate management with Cloudflare DNS01
+- **Cilium** - CNI with L2 announcements and Gateway API
+- **Cloudflared** - Secure tunnel for external access (replaces traditional ingress exposure)
+- **CNPG Operator** - CloudNativePG for PostgreSQL databases
+- **External Secrets** - Secrets management with Vault integration
+- **Gateway API** - Kubernetes Gateway API for HTTP routing
+- **Longhorn** - Distributed block storage
+- **Vault Autounseal** - Transit secrets engine for Vault auto-unseal
+
+#### Applications:
+- **CNPG** - PostgreSQL database clusters
+- **Immich** - Self-hosted photo/video backup solution
+- **Lampac** - Media streaming service
+- **Nextcloud** - File sync and collaboration platform
+- **OnlyOffice** - Document editing integration for Nextcloud
+- **Vault** - Secrets management
+- **Vaultwarden** - Bitwarden-compatible password manager
 
 ## Setup and Usage
 
@@ -96,17 +114,56 @@ Terraform configurations for Proxmox infrastructure:
 ## GitOps Workflow
 
 This repository works in conjunction with [home-proxmox-values](https://github.com/VizzleTF/home-proxmox-values) repository:
-- **home_proxmox**: ArgoCD Application definitions (this repo)
-- **home-proxmox-values**: Helm values, charts, and additional manifests
+- **home_proxmox**: ArgoCD Application definitions and infrastructure code (this repo)
+- **home-proxmox-values**: Helm values, additional manifests, and service documentation
+
+**Repository Structure:**
+```
+home-proxmox-values/
+├── values/
+│   ├── applications/    # Helm values for applications
+│   ├── infrastructure/  # Helm values for infrastructure
+│   └── unused/          # Archived values
+├── manifests/
+│   ├── applications/    # HTTPRoutes, External Secrets, CronJobs
+│   ├── infrastructure/  # ClusterIssuers, StorageClasses, CiliumL2Pools
+│   └── unused/          # Archived manifests
+└── README/              # Service documentation
+```
 
 Applications are automatically synchronized via ArgoCD when changes are pushed to the values repository.
 
+## Networking
+
+The cluster uses **Cilium** as CNI with the following features:
+- **L2 Announcements** for LoadBalancer services
+- **Gateway API** for HTTP routing (HTTPRoute resources)
+- **Hubble** for network observability
+
+External access is provided via **Cloudflared tunnel** - no direct cluster exposure required.
+
+SSL certificates are managed by **Cert-Manager** with Cloudflare DNS01 challenge and wildcard certificate for `*.vakaf.space`.
+
 ## Monitoring and Debugging
 
-- **Prometheus/Grafana**: Available at configured ingress endpoints
 - **ArgoCD UI**: Monitor application deployment status
+- **Hubble UI**: Cilium network observability
 - **Resource monitoring**: Use `scripts/k8s/k8s-top-pods-with-requests.sh`
 - **Logs**: `kubectl logs` and ArgoCD application logs
+
+```bash
+# Check all applications
+kubectl get applications -n argocd
+
+# Check HTTPRoutes
+kubectl get httproutes -A
+
+# Check External Secrets
+kubectl get externalsecrets -A
+
+# Force sync an application
+argocd app sync <app-name>
+```
 
 ## Contributing
 Feel free to open issues or submit pull requests if you have any improvements or feature suggestions.
