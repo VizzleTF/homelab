@@ -21,7 +21,7 @@ spec:
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: rss-to-telegram-bot
+    namespace: rsstt
   syncPolicy:
     automated:
       prune: true
