@@ -1,0 +1,14 @@
+apiVersion: v2
+name: tracktor
+description: A Helm chart for Tracktor - self-hosted expense and budget tracking
+type: application
+version: 0.1.0
+appVersion: "latest"
+home: https://github.com/javedh-dev/tracktor
+sources:
+  - https://github.com/javedh-dev/tracktor
+keywords:
+  - expense
+  - budget
+  - tracking
+  - finance
