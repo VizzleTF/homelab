@@ -3,7 +3,7 @@
 replicaCount: 1
 
 image:
-  repository: rongronggg9/rss-to-telegram
+  repository: ghcr.io/vizzletf/rss-to-telegram-bot-2
   pullPolicy: IfNotPresent
   tag: "dev" # Use "latest" for stable version
 
