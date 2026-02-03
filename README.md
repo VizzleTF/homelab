@@ -3,6 +3,8 @@
 
 This repository contains configurations and scripts to manage a Proxmox home lab environment using Terraform for infrastructure provisioning and ArgoCD for GitOps-based Kubernetes application deployment. It includes Ansible roles, Terraform configurations, ArgoCD applications, and utility scripts to fully automate the deployment and management of virtualized infrastructure.
 
+![Alt](https://repobeats.axiom.co/api/embed/f8bae5bb43169239582bac61ee8996a95f0d64f3.svg "Repobeats analytics image")
+
 ## Project Structure
 
 ### 1. `ansible/`
