@@ -4,7 +4,7 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/vizzletf/rss-to-telegram-bot-2
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "dev" # Use "latest" for stable version
 
 imagePullSecrets: []
