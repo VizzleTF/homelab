@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/external-dns/
+      chart: external-dns
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/values/infrastructure/external-dns.yaml
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      path: manifests/infrastructure/external-dns
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
