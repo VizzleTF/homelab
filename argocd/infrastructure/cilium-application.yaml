@@ -41,6 +41,10 @@ spec:
       name: hubble-server-certs
       jqPathExpressions:
         - .data
+    - group: discovery.k8s.io
+      kind: EndpointSlice
+      jqPathExpressions:
+        - .endpoints[]?.conditions
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       jqPathExpressions:
