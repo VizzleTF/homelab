@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "rss-to-telegram-bot.fullname" . }}
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
   labels:
     {{- include "rss-to-telegram-bot.labels" . | nindent 4 }}
 spec:
