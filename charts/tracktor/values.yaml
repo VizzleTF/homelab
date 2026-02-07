@@ -1,5 +1,9 @@
 replicaCount: 1
 
+# Deployment strategy
+strategy:
+  type: Recreate
+
 image:
   repository: ghcr.io/javedh-dev/tracktor
   pullPolicy: IfNotPresent

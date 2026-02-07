@@ -2,6 +2,10 @@
 
 replicaCount: 1
 
+# Deployment strategy
+strategy:
+  type: Recreate
+
 image:
   repository: ghcr.io/vizzletf/rss-to-telegram-bot-2
   pullPolicy: Always

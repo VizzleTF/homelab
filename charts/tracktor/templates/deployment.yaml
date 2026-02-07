@@ -6,10 +6,12 @@ metadata:
     {{- include "tracktor.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
-  {{- if .Values.persistence.enabled }}
   strategy:
-    type: Recreate
-  {{- end }}
+    type: {{ .Values.strategy.type | default "RollingUpdate" }}
+    {{- if and (eq (.Values.strategy.type | default "RollingUpdate") "RollingUpdate") .Values.strategy.rollingUpdate }}
+    rollingUpdate:
+      {{- toYaml .Values.strategy.rollingUpdate | nindent 6 }}
+    {{- end }}
   selector:
     matchLabels:
       {{- include "tracktor.selectorLabels" . | nindent 6 }}
