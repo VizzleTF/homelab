@@ -6,6 +6,10 @@ metadata:
     {{- include "tracktor.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  {{- if .Values.persistence.enabled }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "tracktor.selectorLabels" . | nindent 6 }}
