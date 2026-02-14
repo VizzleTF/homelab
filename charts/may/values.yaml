@@ -1,0 +1,34 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/dannymcc/may
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 5050
+
+env:
+  SECRET_KEY: "change-me-to-random-secret-key"
+  ADMIN_PASSWORD: "admin123"
+  # DATABASE_URL: "sqlite:///data/may.db"
+  # UPLOAD_FOLDER: "/app/data/uploads"
+
+persistence:
+  enabled: true
+  storageClass: "longhorn"
+  accessMode: ReadWriteOnce
+  size: 5Gi
+  mountPath: /app/data
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
