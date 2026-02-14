@@ -16,6 +16,17 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: default
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingAdmissionPolicy
+      name: safe-upgrades.gateway.networking.k8s.io
+      jsonPointers:
+        - /spec
+    - group: admissionregistration.k8s.io
+      kind: ValidatingAdmissionPolicyBinding
+      name: safe-upgrades.gateway.networking.k8s.io
+      jsonPointers:
+        - /spec
   syncPolicy:
     automated:
       prune: false
