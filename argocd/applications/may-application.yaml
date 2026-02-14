@@ -7,10 +7,13 @@ metadata:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: default
-  source:
-    repoURL: https://github.com/VizzleTF/home_proxmox.git
-    path: charts/may
-    targetRevision: HEAD
+  sources:
+    - repoURL: https://github.com/VizzleTF/home_proxmox.git
+      path: charts/may
+      targetRevision: HEAD
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/applications/may
+      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
     namespace: may
