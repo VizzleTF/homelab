@@ -27,6 +27,11 @@ spec:
       name: safe-upgrades.gateway.networking.k8s.io
       jsonPointers:
         - /spec
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: httproutes.gateway.networking.k8s.io
+      jsonPointers:
+        - /metadata/annotations
   syncPolicy:
     automated:
       prune: false
