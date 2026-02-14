@@ -53,6 +53,11 @@ spec:
         - .spec.rules[]?.backendRefs[]?.group
         - .spec.rules[]?.backendRefs[]?.kind
         - .spec.rules[]?.backendRefs[]?.weight
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cilium-gateway
+      jqPathExpressions:
+        - .spec.listeners[]?.tls?.certificateRefs[]?.group
   syncPolicy:
     automated:
       prune: true
