@@ -22,11 +22,9 @@ spec:
         - name: http
           containerPort: {{ .Values.service.port }}
           protocol: TCP
-        env:
-        - name: SECRET_KEY
-          value: {{ .Values.env.SECRET_KEY | quote }}
-        - name: ADMIN_PASSWORD
-          value: {{ .Values.env.ADMIN_PASSWORD | quote }}
+        envFrom:
+        - secretRef:
+            name: may-app-secrets
         {{- if .Values.persistence.enabled }}
         volumeMounts:
         - name: data
