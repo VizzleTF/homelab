@@ -59,6 +59,11 @@ spec:
         - /metadata/resourceVersion
         - /metadata/generation
         - /metadata/managedFields
+        - /spec/parentRefs/0/group
+        - /spec/parentRefs/0/kind
+        - /spec/rules/0/backendRefs/0/group
+        - /spec/rules/0/backendRefs/0/kind
+        - /spec/rules/0/backendRefs/0/weight
   syncPolicy:
     automated:
       prune: true
