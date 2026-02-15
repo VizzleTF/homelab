@@ -28,8 +28,12 @@ spec:
   ignoreDifferences:
     - group: external-secrets.io
       kind: ExternalSecret
+      name: alertmanager-config
       jsonPointers:
         - /status
+        - /metadata/resourceVersion
+        - /metadata/generation
+        - /metadata/managedFields
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
@@ -41,8 +45,12 @@ spec:
         - /data
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+      name: grafana
       jsonPointers:
         - /status
+        - /metadata/resourceVersion
+        - /metadata/generation
+        - /metadata/managedFields
   syncPolicy:
     automated:
       prune: true
