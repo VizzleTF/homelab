@@ -34,6 +34,14 @@ spec:
         - /metadata/resourceVersion
         - /metadata/generation
         - /metadata/managedFields
+        - /metadata/finalizers
+        - /spec/data/0/remoteRef/conversionStrategy
+        - /spec/data/0/remoteRef/decodingStrategy
+        - /spec/data/0/remoteRef/metadataPolicy
+        - /spec/data/1/remoteRef/conversionStrategy
+        - /spec/data/1/remoteRef/decodingStrategy
+        - /spec/data/1/remoteRef/metadataPolicy
+        - /spec/target/deletionPolicy
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
