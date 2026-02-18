@@ -11,8 +11,8 @@ spec:
   project: default
   source:
     repoURL: https://github.com/kubernetes-sigs/gateway-api.git
-    targetRevision: v1.2.1
-    path: config/crd/experimental
+    targetRevision: HEAD
+    path: config/crd/standard
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -32,6 +32,12 @@ spec:
       name: httproutes.gateway.networking.k8s.io
       jsonPointers:
         - /metadata/annotations
+    # Cilium 1.19.x uses TLSRoute v1alpha2; keep it served until Cilium supports v1
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: tlsroutes.gateway.networking.k8s.io
+      jqPathExpressions:
+        - '.spec.versions[] | select(.name == "v1alpha2") | .served'
   syncPolicy:
     automated:
       prune: false
@@ -39,6 +45,7 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - Replace=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
