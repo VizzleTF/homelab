@@ -11,8 +11,8 @@ spec:
   project: default
   source:
     repoURL: https://github.com/kubernetes-sigs/gateway-api.git
-    targetRevision: HEAD
-    path: config/crd/standard
+    targetRevision: v1.2.1
+    path: config/crd/experimental
   destination:
     server: https://kubernetes.default.svc
     namespace: default
