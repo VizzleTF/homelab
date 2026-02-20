@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: goldilocks
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.fairwinds.com/stable
+      targetRevision: "*"
+      chart: goldilocks
+      helm:
+        valueFiles:
+          - $values/values/infrastructure/goldilocks.yaml
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      path: manifests/infrastructure/goldilocks
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: goldilocks
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
