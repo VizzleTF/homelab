@@ -30,6 +30,8 @@ spec:
         - .spec.rules[]?.backendRefs[]?.group
         - .spec.rules[]?.backendRefs[]?.kind
         - .spec.rules[]?.backendRefs[]?.weight
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
   syncPolicy:
     automated:
       prune: true
