@@ -34,12 +34,6 @@ spec:
         - /spec/volumeClaimTemplates/0/kind
         - /spec/volumeClaimTemplates/1/apiVersion
         - /spec/volumeClaimTemplates/1/kind
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      jqPathExpressions:
-        - .spec.rules[]?.backendRefs[]?.group
-        - .spec.rules[]?.backendRefs[]?.kind
-        - .spec.rules[]?.backendRefs[]?.weight
   syncPolicy:
     automated:
       prune: true
@@ -47,6 +41,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:

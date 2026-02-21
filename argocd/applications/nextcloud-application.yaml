@@ -34,9 +34,6 @@ spec:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       jqPathExpressions:
-        - .spec.rules[]?.backendRefs[]?.group
-        - .spec.rules[]?.backendRefs[]?.kind
-        - .spec.rules[]?.backendRefs[]?.weight
         - .spec.rules[]?.filters[]?.type
   syncPolicy:
     automated:
