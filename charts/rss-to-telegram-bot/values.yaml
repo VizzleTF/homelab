@@ -15,7 +15,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# Required configuration
+# Use existing secret instead of creating one from config values
+existingSecret: ""
+
+# Required configuration (ignored if existingSecret is set)
 config:
   # Telegram bot token from @BotFather (required)
   token: ""
