@@ -22,9 +22,6 @@ spec:
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       path: manifests/infrastructure/cilium
       targetRevision: HEAD
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/infrastructure/cilium/network-policies
-      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
