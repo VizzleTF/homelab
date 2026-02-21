@@ -30,12 +30,6 @@ spec:
       kind: Service
       jqPathExpressions:
         - .spec.ports[]?.nodePort
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      jqPathExpressions:
-        - .spec.rules[]?.backendRefs[]?.group
-        - .spec.rules[]?.backendRefs[]?.kind
-        - .spec.rules[]?.backendRefs[]?.weight
   syncPolicy:
     automated:
       prune: true
