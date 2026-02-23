@@ -19,6 +19,9 @@ spec:
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      path: manifests/infrastructure/cnpg-system
+      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
     namespace: cnpg-system
