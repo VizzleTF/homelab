@@ -26,11 +26,6 @@ spec:
     server: https://kubernetes.default.svc
     namespace: nextcloud
   ignoreDifferences:
-    - group: ""
-      kind: Secret
-      name: nextcloud-postgresql
-      jqPathExpressions:
-        - .data
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       jqPathExpressions:
