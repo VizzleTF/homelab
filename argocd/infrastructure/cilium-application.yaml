@@ -50,6 +50,11 @@ spec:
       name: cilium-gateway
       jqPathExpressions:
         - .spec.listeners[]?.tls?.certificateRefs[]?.group
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cilium-gateway-internal
+      jqPathExpressions:
+        - .spec.listeners[]?.tls?.certificateRefs[]?.group
   syncPolicy:
     automated:
       prune: true
