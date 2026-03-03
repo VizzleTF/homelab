@@ -12,77 +12,79 @@ spec:
           - name: cnpg
             chart: cluster
             repoURL: https://cloudnative-pg.github.io/charts
-            namespace: cnpg
             wave: "1"
-            valuesFile: cnpg
-            manifestsPath: applications/cnpg
             targetRevision: "0.4.0"
           - name: lampac
-            chart: lampac
             repoURL: https://vizzletf.github.io/lampac_helm
-            namespace: lampac
             wave: "2"
-            valuesFile: lampac
-            manifestsPath: applications/lampac
-            targetRevision: "*"
           - name: nextcloud
-            chart: nextcloud
             repoURL: https://nextcloud.github.io/helm
-            namespace: nextcloud
             wave: "2"
-            valuesFile: nextcloud
-            manifestsPath: applications/nextcloud
-            targetRevision: "*"
           - name: openclaw
-            chart: openclaw
             repoURL: https://serhanekicii.github.io/openclaw-helm
-            namespace: openclaw
             wave: "2"
-            valuesFile: openclaw
-            manifestsPath: applications/openclaw
-            targetRevision: "*"
           - name: valkey
-            chart: valkey
             repoURL: https://charts.bitnami.com/bitnami
-            namespace: valkey
             wave: "1"
-            valuesFile: valkey
-            manifestsPath: applications/valkey
-            targetRevision: "*"
+          - name: vault
+            repoURL: https://helm.releases.hashicorp.com
+            wave: "0"
           - name: vaultwarden
-            chart: vaultwarden
             repoURL: https://guerzon.github.io/vaultwarden
-            namespace: vaultwarden
             wave: "2"
-            valuesFile: vaultwarden
-            manifestsPath: applications/vaultwarden
-            targetRevision: "*"
+          - name: rss-to-telegram-bot
+            repoURL: https://github.com/VizzleTF/home_proxmox.git
+            chartPath: charts/rss-to-telegram-bot
+            namespace: rsstt
+            wave: "2"
+            targetRevision: HEAD
   template:
     metadata:
       name: "{{.name}}"
       namespace: argocd
+    spec:
+      project: applications
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ dig \"namespace\" .name . }}"
+  templatePatch: |
+    metadata:
       annotations:
         argocd.argoproj.io/sync-wave: "{{.wave}}"
+      labels:
+        app.kubernetes.io/managed-by: argocd-applicationset
+        app.kubernetes.io/part-of: applications
       finalizers:
         - resources-finalizer.argocd.argoproj.io/background
     spec:
-      project: default
       sources:
+        {{- if hasKey . "chartPath" }}
         - repoURL: "{{.repoURL}}"
-          chart: "{{.chart}}"
-          targetRevision: "{{.targetRevision}}"
+          targetRevision: "{{ dig "targetRevision" "HEAD" . }}"
+          path: "{{.chartPath}}"
           helm:
             valueFiles:
-              - "$values/values/applications/{{.valuesFile}}.yaml"
+              - "$values/values/applications/{{.name}}.yaml"
+        {{- else }}
+        - repoURL: "{{.repoURL}}"
+          chart: "{{ dig "chart" .name . }}"
+          targetRevision: "{{ dig "targetRevision" "*" . }}"
+          helm:
+            valueFiles:
+              - "$values/values/applications/{{.name}}.yaml"
+        {{- end }}
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
+        {{- if hasKey . "manifestsPath" }}
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           path: "manifests/{{.manifestsPath}}"
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: "{{.namespace}}"
+        {{- else }}
+        - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+          targetRevision: HEAD
+          path: "manifests/applications/{{.name}}"
+        {{- end }}
       syncPolicy:
         automated:
           prune: true
