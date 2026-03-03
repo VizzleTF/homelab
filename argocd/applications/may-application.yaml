@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: may
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
@@ -11,6 +13,12 @@ spec:
     - repoURL: https://github.com/VizzleTF/home_proxmox.git
       path: charts/may
       targetRevision: HEAD
+      helm:
+        valueFiles:
+          - $values/values/applications/may.yaml
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       path: manifests/applications/may
       targetRevision: HEAD
@@ -24,3 +32,9 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

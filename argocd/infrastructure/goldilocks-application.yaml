@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: goldilocks
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
@@ -23,15 +25,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: goldilocks
-  ignoreDifferences:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      jqPathExpressions:
-        - .spec.rules[]?.backendRefs[]?.group
-        - .spec.rules[]?.backendRefs[]?.kind
-        - .spec.rules[]?.backendRefs[]?.weight
-        - .spec.parentRefs[]?.group
-        - .spec.parentRefs[]?.kind
   syncPolicy:
     automated:
       prune: true
