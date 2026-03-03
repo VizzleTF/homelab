@@ -26,22 +26,6 @@ spec:
     server: https://kubernetes.default.svc
     namespace: victoria-metrics
   ignoreDifferences:
-    - group: external-secrets.io
-      kind: ExternalSecret
-      name: alertmanager-config
-      jsonPointers:
-        - /status
-        - /metadata/resourceVersion
-        - /metadata/generation
-        - /metadata/managedFields
-        - /metadata/finalizers
-        - /spec/data/0/remoteRef/conversionStrategy
-        - /spec/data/0/remoteRef/decodingStrategy
-        - /spec/data/0/remoteRef/metadataPolicy
-        - /spec/data/1/remoteRef/conversionStrategy
-        - /spec/data/1/remoteRef/decodingStrategy
-        - /spec/data/1/remoteRef/metadataPolicy
-        - /spec/target/deletionPolicy
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
@@ -51,19 +35,6 @@ spec:
       name: victoria-metrics-k8s-stack-victoria-metrics-operator-validation
       jsonPointers:
         - /data
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: grafana
-      jsonPointers:
-        - /status
-        - /metadata/resourceVersion
-        - /metadata/generation
-        - /metadata/managedFields
-        - /spec/parentRefs/0/group
-        - /spec/parentRefs/0/kind
-        - /spec/rules/0/backendRefs/0/group
-        - /spec/rules/0/backendRefs/0/kind
-        - /spec/rules/0/backendRefs/0/weight
   syncPolicy:
     automated:
       prune: true

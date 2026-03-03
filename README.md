@@ -16,7 +16,6 @@ Ansible playbooks and roles for automating VM configuration tasks:
 ArgoCD Application manifests for GitOps-based deployment:
 - **`applications/`**: Application deployments (Vault, Nextcloud, Immich, Vaultwarden, Lampac, OnlyOffice, CNPG)
 - **`infrastructure/`**: Infrastructure components (ArgoCD, Cert-Manager, Cilium, Cloudflared, CNPG Operator, External Secrets, Gateway API, Longhorn, Vault Autounseal)
-- **`unused/`**: Archived application manifests
 - **`root-application.yaml`**: App of Apps pattern root application
 
 ### 3. `scripts/`
@@ -124,12 +123,10 @@ This repository works in conjunction with [home-proxmox-values](https://github.c
 home-proxmox-values/
 ├── values/
 │   ├── applications/    # Helm values for applications
-│   ├── infrastructure/  # Helm values for infrastructure
-│   └── unused/          # Archived values
+│   └── infrastructure/  # Helm values for infrastructure
 ├── manifests/
 │   ├── applications/    # HTTPRoutes, External Secrets, CronJobs
-│   ├── infrastructure/  # ClusterIssuers, StorageClasses, CiliumL2Pools
-│   └── unused/          # Archived manifests
+│   └── infrastructure/  # ClusterIssuers, StorageClasses, CiliumL2Pools
 └── README/              # Service documentation
 ```
 
