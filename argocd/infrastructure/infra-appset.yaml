@@ -10,135 +10,84 @@ spec:
     - list:
         elements:
           - name: cert-manager
-            chart: cert-manager
             repoURL: https://charts.jetstack.io
-            namespace: cert-manager
             wave: "-5"
-            valuesFile: cert-manager
-            manifestsPath: infrastructure/cert-manager
-            targetRevision: "*"
           - name: cloudflared
-            chart: cloudflared
             repoURL: https://community-charts.github.io/helm-charts
-            namespace: cloudflared
             wave: "0"
-            valuesFile: cloudflared
-            manifestsPath: infrastructure/cloudflared
-            targetRevision: "*"
           - name: cnpg-operator
             chart: cloudnative-pg
             repoURL: https://cloudnative-pg.github.io/charts
             namespace: cnpg-system
             wave: "-2"
-            valuesFile: cnpg-operator
-            manifestsPath: infrastructure/cnpg-system
-            targetRevision: "*"
           - name: external-secrets
-            chart: external-secrets
             repoURL: https://charts.external-secrets.io
             namespace: external-secrets-system
             wave: "-2"
-            valuesFile: external-secrets
-            manifestsPath: infrastructure/eso
-            targetRevision: "*"
           - name: external-dns
-            chart: external-dns
             repoURL: https://kubernetes-sigs.github.io/external-dns/
-            namespace: external-dns
             wave: "-2"
-            valuesFile: external-dns
-            manifestsPath: infrastructure/external-dns
-            targetRevision: "*"
           - name: external-dns-openwrt
             chart: external-dns
             repoURL: https://kubernetes-sigs.github.io/external-dns/
-            namespace: external-dns-openwrt
             wave: "-2"
-            valuesFile: external-dns-openwrt
-            manifestsPath: infrastructure/external-dns-openwrt
-            targetRevision: "*"
           - name: goldilocks
-            chart: goldilocks
             repoURL: https://charts.fairwinds.com/stable
-            namespace: goldilocks
             wave: "0"
-            valuesFile: goldilocks
-            manifestsPath: infrastructure/goldilocks
-            targetRevision: "*"
           - name: intel-device-plugins-operator
-            chart: intel-device-plugins-operator
             repoURL: https://intel.github.io/helm-charts/
             namespace: kube-system
             wave: "-1"
-            valuesFile: intel-device-plugins-operator
-            manifestsPath: infrastructure/intel-device-plugins-operator
-            targetRevision: "*"
           - name: intel-device-plugins-gpu
-            chart: intel-device-plugins-gpu
             repoURL: https://intel.github.io/helm-charts/
             namespace: kube-system
             wave: "0"
-            valuesFile: intel-device-plugins-gpu
-            manifestsPath: infrastructure/intel-device-plugins-gpu
-            targetRevision: "*"
           - name: metrics-server
-            chart: metrics-server
             repoURL: https://kubernetes-sigs.github.io/metrics-server/
             namespace: kube-system
             wave: "-3"
-            valuesFile: metrics-server
-            manifestsPath: infrastructure/metrics-server
-            targetRevision: "*"
           - name: node-feature-discovery
-            chart: node-feature-discovery
             repoURL: https://kubernetes-sigs.github.io/node-feature-discovery/charts
-            namespace: node-feature-discovery
             wave: "-1"
-            valuesFile: nfd
-            manifestsPath: infrastructure/nfd
-            targetRevision: "*"
           - name: vault-autounseal
-            chart: vault-autounseal
             repoURL: https://pytoshka.github.io/vault-autounseal
             namespace: vault
             wave: "1"
-            valuesFile: vault-autounseal
-            manifestsPath: infrastructure/vault-autounseal
-            targetRevision: "*"
           - name: vpa
-            chart: vpa
             repoURL: https://charts.fairwinds.com/stable
-            namespace: vpa
             wave: "0"
-            valuesFile: vpa
-            manifestsPath: infrastructure/vpa
-            targetRevision: "*"
   template:
     metadata:
       name: "{{.name}}"
       namespace: argocd
+    spec:
+      project: infrastructure
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ dig \"namespace\" .name . }}"
+  templatePatch: |
+    metadata:
       annotations:
         argocd.argoproj.io/sync-wave: "{{.wave}}"
+      labels:
+        app.kubernetes.io/managed-by: argocd-applicationset
+        app.kubernetes.io/part-of: infrastructure
       finalizers:
         - resources-finalizer.argocd.argoproj.io/background
     spec:
-      project: default
       sources:
         - repoURL: "{{.repoURL}}"
-          chart: "{{.chart}}"
-          targetRevision: "{{.targetRevision}}"
+          chart: "{{ dig "chart" .name . }}"
+          targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
-              - "$values/values/infrastructure/{{.valuesFile}}.yaml"
+              - "$values/values/infrastructure/{{.name}}.yaml"
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
-          path: "manifests/{{.manifestsPath}}"
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: "{{.namespace}}"
+          path: "manifests/infrastructure/{{.name}}"
       syncPolicy:
         automated:
           prune: true
