@@ -25,15 +25,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: vault
-  ignoreDifferences:
-    - group: apps
-      kind: StatefulSet
-      name: vault
-      jsonPointers:
-        - /spec/volumeClaimTemplates/0/apiVersion
-        - /spec/volumeClaimTemplates/0/kind
-        - /spec/volumeClaimTemplates/1/apiVersion
-        - /spec/volumeClaimTemplates/1/kind
   syncPolicy:
     automated:
       prune: true
@@ -41,7 +32,6 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
