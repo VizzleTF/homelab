@@ -144,7 +144,7 @@ The cluster uses **Cilium** as CNI with the following features:
 
 External access is provided via **Cloudflared tunnel** - no direct cluster exposure required.
 
-SSL certificates are managed by **Cert-Manager** with Cloudflare DNS01 challenge and wildcard certificate for `*.internal.example`.
+SSL certificates are managed by **Cert-Manager** with Cloudflare DNS01 challenge and wildcard certificate for `*.example.com`.
 
 ## Monitoring and Debugging
 
