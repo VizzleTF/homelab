@@ -13,12 +13,6 @@ spec:
     - repoURL: https://github.com/VizzleTF/home_proxmox.git
       path: charts/may
       targetRevision: HEAD
-      helm:
-        valueFiles:
-          - $values/values/applications/may.yaml
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      targetRevision: HEAD
-      ref: values
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       path: manifests/applications/may
       targetRevision: HEAD
