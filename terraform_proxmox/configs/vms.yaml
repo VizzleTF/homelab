@@ -1,75 +1,104 @@
+global:
+  node_name: "pve1"
+  datastore_id: "local-lvm"
+  gateway: "10.11.11.1"
+  dns_servers: ["10.11.12.1"]
+  cores: 4
+  ram: 2048
+  disk_size: 20
+  pool_id: null
+  boot_order: ["sata0"]
+  startup_order: 2
+  startup_up_delay: 5
+  cpu_type: "x86-64-v3"
+  network_bridge: "vmbr0"
+  os_type: "l26"
+
 tags:
   - terraform
+
 vms:
-  - vm_id: 301
-    vm_name: kube-node-01
-    address: 10.11.12.241/24
-    node_name: pve3
+  talos-cp-01:
+    node_name: "pve1"
+    enabled: true
+    vm_id: 501
+    address: "10.11.11.101/24"
+    tags: ["talos", "kubernetes"]
+    description: "Talos Linux VM for Kubernetes cluster"
+    image_file: "talos-nocloud"
+    talos_config: "controlplane"
+    vlan_id: "11"
     cores: 4
-    ram: 12288
-    disk_size: 200
-    tags: [kube_control_plane, kube_node, etcd, oracle_linux]
-    pool_id: k8s-pool
-    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
-  - vm_id: 302
-    vm_name: kube-node-02
-    address: 10.11.12.242/24
-    node_name: pve4
+    ram: 14336
+    disk_size: 300
+    machine: "q35"
+    cpu_type: "host"
+    hostpci:
+      - device: "hostpci0"
+        id: "0000:00:02"
+        pcie: true
+        rombar: false
+        xvga: false
+  talos-cp-02:
+    node_name: "pve2"
+    enabled: true
+    vm_id: 502
+    address: "10.11.11.102/24"
+    tags: ["talos", "kubernetes"]
+    description: "Talos Linux VM for Kubernetes cluster"
+    image_file: "talos-nocloud"
+    talos_config: "controlplane"
+    vlan_id: "11"
     cores: 4
-    ram: 12288
-    disk_size: 200
-    tags: [kube_control_plane, kube_node, etcd, oracle_linux]
-    pool_id: k8s-pool
-    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
-  - vm_id: 303
-    vm_name: kube-node-03
-    address: 10.11.12.243/24
-    node_name: pve5
+    ram: 14336
+    disk_size: 300
+    machine: "q35"
+    cpu_type: "host"
+    hostpci:
+      - device: "hostpci0"
+        id: "0000:00:02.0"
+        pcie: true
+        rombar: false
+        xvga: false
+  talos-cp-03:
+    node_name: "pve3"
+    enabled: true
+    vm_id: 503
+    address: "10.11.11.103/24"
+    tags: ["talos", "kubernetes"]
+    description: "Talos Linux VM for Kubernetes cluster"
+    image_file: "talos-nocloud"
+    talos_config: "controlplane"
+    vlan_id: "11"
     cores: 4
-    ram: 12288
-    disk_size: 200
-    tags: [kube_node, etcd, oracle_linux]
-    pool_id: k8s-pool
-    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
-  # Patroni + PostgreSQL cluster
-  - vm_id: 304
-    vm_name: patroni-postgres-01
-    address: 10.11.12.247/24
-    node_name: pve1
-    cores: 2
-    ram: 4096
-    disk_size: 40
-    tags: [common-patroni, common-db, oracle_linux]
-    pool_id: db
-    description: "<div align='center'><img src='https://raw.githubusercontent.com/postgres/postgres/master/doc/src/sgml/html/logo.png' /></div>"
-  - vm_id: 305
-    vm_name: patroni-postgres-02
-    address: 10.11.12.245/24
-    node_name: pve4
-    cores: 2
-    ram: 4096
-    disk_size: 40
-    tags: [common-patroni, common-db, oracle_linux]
-    pool_id: db
-    description: "<div align='center'><img src='https://raw.githubusercontent.com/postgres/postgres/master/doc/src/sgml/html/logo.png' /></div>"
-  # etcd cluster
-  - vm_id: 306
-    vm_name: patroni-etcd-01
-    address: 10.11.12.246/24
-    node_name: pve5
-    cores: 1
-    ram: 2048
-    disk_size: 38
-    tags: [common-etcd, common-db, oracle_linux]
-    pool_id: db
-    description: "<div align='center'><img src='https://raw.githubusercontent.com/etcd-io/etcd/main/logos/etcd-horizontal-color.png' /></div>"
-  - vm_id: 307
-    vm_name: kube-node-04
-    address: 10.11.12.244/24
-    node_name: pve3
+    ram: 14336
+    disk_size: 125
+    machine: "q35"
+    cpu_type: "host"
+    hostpci:
+      - device: "hostpci0"
+        id: "0000:00:02.0"
+        pcie: true
+        rombar: false
+        xvga: false
+  talos-worker-01:
+    node_name: "pve4"
+    enabled: true
+    vm_id: 504
+    address: "10.11.11.111/24"
+    tags: ["talos", "kubernetes"]
+    description: "Talos Linux VM for Kubernetes cluster"
+    image_file: "talos-nocloud"
+    talos_config: "worker"
+    vlan_id: "11"
     cores: 4
-    ram: 12288
-    disk_size: 100
-    tags: [kube_node, etcd, oracle_linux]
-    pool_id: k8s-pool
-    description: "<div align='center'><img src='https://www.allangray.co.za/globalassets/information-technology/kubernetes.png' /></div>"
+    ram: 14336
+    disk_size: 300
+    machine: "q35"
+    cpu_type: "host"
+    hostpci:
+      - device: "hostpci0"
+        id: "0000:00:02.0"
+        pcie: true
+        rombar: false
+        xvga: false

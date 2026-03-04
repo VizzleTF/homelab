@@ -13,4 +13,3 @@ provider "proxmox" {
   username = var.proxmox_username
   password = var.main_password
 }
-
