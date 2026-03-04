@@ -99,6 +99,7 @@ resource "proxmox_virtual_environment_vm" "vms" {
   
   lifecycle {
     ignore_changes = [
+      disk[0].file_id,
       initialization[0].dns[0].servers,
       initialization[0].user_account[0].keys,
     ]
