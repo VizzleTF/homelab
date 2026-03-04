@@ -1,7 +1,5 @@
 # Local .terraform directories
 **/.terraform/*
-**/._.terraform*
-**/._talos_configs*
 
 # .tfstate files
 *.tfstate
@@ -29,11 +27,6 @@ terraform.rc
 _out/talosconfig
 _out/kubeconfig
 _out*
-
-# Keep only example YAML files in _out
-_out/*.yaml
-!_out/README.md
-
 # Backup files
 *.backup
 *.bak
