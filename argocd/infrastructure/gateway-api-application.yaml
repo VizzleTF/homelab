@@ -33,11 +33,12 @@ spec:
       jsonPointers:
         - /metadata/annotations
     # Cilium 1.19.x uses TLSRoute v1alpha2; keep it served until Cilium supports v1
+    # Select entire v1alpha2 object so RespectIgnoreDifferences copies live state on Replace
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition
       name: tlsroutes.gateway.networking.k8s.io
       jqPathExpressions:
-        - '.spec.versions[] | select(.name == "v1alpha2") | .served'
+        - '.spec.versions[] | select(.name == "v1alpha2")'
   syncPolicy:
     automated:
       prune: false
