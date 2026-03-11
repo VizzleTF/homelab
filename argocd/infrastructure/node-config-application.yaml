@@ -8,7 +8,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: git@github.com:VizzleTF/home-proxmox-values.git
     targetRevision: HEAD
