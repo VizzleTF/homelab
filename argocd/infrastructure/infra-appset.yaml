@@ -34,6 +34,9 @@ spec:
           - name: goldilocks
             repoURL: https://charts.fairwinds.com/stable
             wave: "0"
+          - name: kubelet-csr-approver
+            repoURL: https://postfinance.github.io/kubelet-csr-approver
+            wave: "-3"
           - name: intel-device-plugins-operator
             repoURL: https://intel.github.io/helm-charts/
             namespace: kube-system
