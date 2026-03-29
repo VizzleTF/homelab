@@ -8,7 +8,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
-  project: default
+  project: applications
   sources:
     - repoURL: https://github.com/VizzleTF/home_proxmox.git
       path: charts/may
