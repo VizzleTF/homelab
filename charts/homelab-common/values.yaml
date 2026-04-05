@@ -120,3 +120,7 @@ cnpgDatabase: null
 #   owner: myapp_user
 #   clusterName: cnpg-cluster
 #   extensions: []
+
+# Опциональные workload (Deployment/Service/PVC). Профили: may | rss-to-telegram-bot
+homelab-common:
+  workloads: []
