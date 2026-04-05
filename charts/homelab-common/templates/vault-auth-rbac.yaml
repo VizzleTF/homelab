@@ -1,0 +1,51 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $va := $hc.vaultAuthKubernetes }}
+{{- if and $va $va.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $va.serviceAccount.name | default "vault-auth" }}
+  namespace: {{ $va.serviceAccount.namespace | default $.Release.Namespace }}
+  {{- with $va.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: {{ $va.serviceAccount.automountServiceAccountToken | default true }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $va.clusterRole.name | default "vault-auth-delegator" }}
+{{- if $va.clusterRole.rules }}
+rules:
+  {{- toYaml $va.clusterRole.rules | nindent 2 }}
+{{- else }}
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $va.clusterRoleBinding.name | default "vault-auth-delegator-vault" }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $va.clusterRole.name | default "vault-auth-delegator" }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $va.serviceAccount.name | default "vault-auth" }}
+    namespace: {{ $va.serviceAccount.namespace | default $.Release.Namespace }}
+{{- end }}
