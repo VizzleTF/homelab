@@ -1,0 +1,6 @@
+# Helm ignores these files when packaging the chart
+README.md
+SUMMARY.md
+MIGRATION.md
+CHANGELOG.md
+examples/
