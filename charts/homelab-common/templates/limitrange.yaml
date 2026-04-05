@@ -1,0 +1,21 @@
+{{ $hc := index .Values "homelab-common" | default dict }}
+{{ $lr := $hc.limitRange }}
+{{- if $lr }}
+{{- if $lr.enabled }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: {{ $.Release.Namespace }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+{{- end }}
+{{- end }}

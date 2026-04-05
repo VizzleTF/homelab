@@ -1,0 +1,40 @@
+{{ $hc := index .Values "homelab-common" | default dict }}
+{{ $np := $hc.networkPolicy }}
+{{- if $np }}
+{{- if $np.enabled }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ $np.name | default $.Release.Name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $np.appLabel | default $.Release.Name }}
+  ingress:
+    {{- if $np.allowIngress }}
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: {{ $np.appPort | quote }}
+              protocol: TCP
+    {{- end }}
+  egress:
+    {{- if $np.allowDNS }}
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+    {{- end }}
+    {{- if $np.allowWorld }}
+    - toEntities:
+        - world
+    {{- end }}
+{{- end }}
+{{- end }}

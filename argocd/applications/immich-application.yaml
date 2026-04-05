@@ -10,24 +10,34 @@ metadata:
 spec:
   project: applications
   sources:
+    # Основной Immich chart
     - repoURL: https://immich-app.github.io/immich-charts
       chart: immich
       targetRevision: "*"
       helm:
         valueFiles:
           - $values/values/applications/immich.yaml
+    
+    # CNPG cluster для БД
     - repoURL: https://cloudnative-pg.github.io/charts
       chart: cluster
       targetRevision: "0.4.0"
       helm:
         valueFiles:
           - $values/values/applications/cnpg-immich-db.yaml
+    
+    # Общие ресурсы через homelab-common
+    - repoURL: https://github.com/VizzleTF/home_proxmox.git
+      path: charts/homelab-common
+      targetRevision: HEAD
+      helm:
+        valueFiles:
+          - $values/values/applications/immich.yaml
+    
+    # Values репозиторий
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      targetRevision: HEAD
-      path: manifests/applications/immich
   destination:
     server: https://kubernetes.default.svc
     namespace: immich
