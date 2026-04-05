@@ -25,7 +25,12 @@ spec:
           containers:
             - name: sync
               image: instrumentisto/rsync-ssh
+              {{- if .command }}
+              command:
+{{- toYaml .command | nindent 16 }}
+              {{- else }}
               command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/", "/destination/"]
+              {{- end }}
               volumeMounts:
                 - name: source-volume
                   mountPath: /source
@@ -35,12 +40,16 @@ spec:
                 - name: dest-volume
                   mountPath: /destination
               resources:
+{{- if .resources }}
+{{- toYaml .resources | nindent 16 }}
+{{- else }}
                 requests:
                   cpu: 100m
                   memory: 128Mi
                 limits:
                   cpu: "1"
                   memory: 512Mi
+{{- end }}
           volumes:
             - name: source-volume
               persistentVolumeClaim:
@@ -83,12 +92,16 @@ spec:
                   subPath: {{ .source.subPath }}
                   {{- end }}
               resources:
+{{- if .resources }}
+{{- toYaml .resources | nindent 16 }}
+{{- else }}
                 requests:
                   cpu: 100m
                   memory: 256Mi
                 limits:
                   cpu: "1"
                   memory: 512Mi
+{{- end }}
           volumes:
             - name: source-volume
               persistentVolumeClaim:
