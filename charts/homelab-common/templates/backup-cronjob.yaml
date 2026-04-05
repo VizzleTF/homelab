@@ -2,6 +2,7 @@
 {{- $jobs := $hc.backupCronJobs | default list }}
 {{- $nfs := (.Values.global).backup | default dict | dig "nfs" dict }}
 {{- $webdav := (.Values.global).backup | default dict | dig "webdav" dict }}
+{{- $rcloneImage := (.Values.global).backup | default dict | dig "rcloneImage" "rclone/rclone:1.69" }}
 {{- range $jobs }}
 ---
 apiVersion: batch/v1
@@ -28,8 +29,18 @@ spec:
               volumeMounts:
                 - name: source-volume
                   mountPath: /source
+                  {{- if .source.subPath }}
+                  subPath: {{ .source.subPath }}
+                  {{- end }}
                 - name: dest-volume
                   mountPath: /destination
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
           volumes:
             - name: source-volume
               persistentVolumeClaim:
@@ -42,7 +53,7 @@ spec:
           {{- $remoteName := .destination.remote | splitList ":" | first | upper }}
           containers:
             - name: rclone
-              image: rclone/rclone:latest
+              image: {{ $rcloneImage }}
               args:
                 - sync
                 - /source
@@ -68,6 +79,9 @@ spec:
                 - name: source-volume
                   mountPath: /source
                   readOnly: true
+                  {{- if .source.subPath }}
+                  subPath: {{ .source.subPath }}
+                  {{- end }}
               resources:
                 requests:
                   cpu: 100m
