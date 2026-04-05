@@ -1,0 +1,121 @@
+# Default values for homelab-common chart
+# This is a LIBRARY chart - it provides templates but doesn't deploy anything by itself
+
+# Global defaults that can be overridden
+global:
+  # Vault configuration
+  vault:
+    secretStore: vault-backend-cluster
+    secretStoreKind: ClusterSecretStore
+    refreshInterval: 1h
+    pathPrefix: homelab/k8s
+  
+  # Gateway configuration
+  gateway:
+    external:
+      name: cilium-gateway
+      namespace: kube-system
+    internal:
+      name: cilium-gateway-internal
+      namespace: kube-system
+  
+  # DNS configuration
+  dns:
+    domain: vaka.work
+    cloudflareProxied: "true"
+  
+  # Backup configuration
+  backup:
+    webdav:
+      url: "https://webdav.cloud.mail.ru"
+      user: "vizzletf@mail.ru"
+      vendor: "other"
+      vaultPath: homelab/k8s/shared/webdav-backup
+    nfs:
+      server: 10.11.12.237
+      basePath: /volume5/k8s_svc
+
+# ExternalSecrets to create
+externalSecrets: []
+# Example:
+# - name: app-secrets
+#   vaultPath: myapp/app-secrets  # Will be prefixed with global.vault.pathPrefix
+#   data:
+#     - secretKey: password
+#       property: password
+#   templateData:
+#     PASSWORD: "{{ .password }}"
+
+# HTTPRoutes to create
+httpRoutes: []
+# Example:
+# - name: myapp
+#   hostname: myapp  # Will be suffixed with global.dns.domain
+#   gateway: external  # or "internal" or "both"
+#   service:
+#     name: myapp
+#     port: 8080
+#   cloudflareProxied: true  # Optional, defaults to global.dns.cloudflareProxied
+
+# CronJobs for backups
+backupCronJobs: []
+# Example:
+# - name: backup-myapp
+#   schedule: "0 2 * * *"
+#   type: rsync  # or "rclone"
+#   source:
+#     pvc: myapp-data
+#     subPath: ""  # Optional
+#   destination:
+#     type: nfs  # or "webdav"
+#     path: /myapp  # For NFS: appended to global.backup.nfs.basePath
+
+# RBAC resources
+rbac:
+  serviceAccount: null
+  # Example:
+  # serviceAccount:
+  #   name: myapp
+  #   create: true
+  
+  clusterRole: null
+  # Example:
+  # clusterRole:
+  #   name: myapp-readonly
+  #   rules:
+  #     - apiGroups: [""]
+  #       resources: ["pods"]
+  #       verbs: ["get", "list"]
+
+# CiliumNetworkPolicy
+networkPolicy: null
+# Example:
+# networkPolicy:
+#   enabled: true
+#   appLabel: myapp  # Matches app.kubernetes.io/name
+#   appPort: 8080
+#   allowIntraNamespace: true
+#   allowDNS: true
+#   allowWorld: true
+#   allowIngress: true  # From Cilium gateway
+
+# LimitRange
+limitRange: null
+# Example:
+# limitRange:
+#   enabled: true
+#   defaults:
+#     cpu: 500m
+#     memory: 512Mi
+#   defaultRequests:
+#     cpu: 50m
+#     memory: 64Mi
+
+# CNPG Database
+cnpgDatabase: null
+# Example:
+# cnpgDatabase:
+#   name: myapp
+#   owner: myapp_user
+#   clusterName: cnpg-cluster
+#   extensions: []
