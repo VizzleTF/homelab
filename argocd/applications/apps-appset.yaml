@@ -73,18 +73,15 @@ spec:
             valueFiles:
               - "$values/values/applications/{{.name}}.yaml"
         {{- end }}
+        - repoURL: https://github.com/VizzleTF/home_proxmox.git
+          path: charts/homelab-common
+          targetRevision: HEAD
+          helm:
+            valueFiles:
+              - "$values/values/applications/{{.name}}.yaml"
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
-        {{- if hasKey . "manifestsPath" }}
-        - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-          targetRevision: HEAD
-          path: "manifests/{{.manifestsPath}}"
-        {{- else }}
-        - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-          targetRevision: HEAD
-          path: "manifests/applications/{{.name}}"
-        {{- end }}
       syncPolicy:
         automated:
           prune: true

@@ -38,11 +38,6 @@ spec:
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
-
-    # Манифесты (PVC и другие ресурсы)
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-      path: manifests/applications/immich
-      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
     namespace: immich
