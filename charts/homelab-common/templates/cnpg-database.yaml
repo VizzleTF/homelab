@@ -1,0 +1,23 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $db := $hc.cnpgDatabase }}
+{{- if $db }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ $db.name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  name: {{ $db.name }}
+  owner: {{ $db.owner }}
+  cluster:
+    name: {{ $db.clusterName }}
+  {{- if $db.extensions }}
+  extensions:
+    {{- range $db.extensions }}
+    - name: {{ .name }}
+      ensure: present
+    {{- end }}
+  {{- end }}
+  ensure: present
+{{- end }}

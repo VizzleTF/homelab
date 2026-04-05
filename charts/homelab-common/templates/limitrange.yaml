@@ -1,5 +1,5 @@
-{{ $hc := index .Values "homelab-common" | default dict }}
-{{ $lr := $hc.limitRange }}
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $lr := $hc.limitRange }}
 {{- if $lr }}
 {{- if $lr.enabled }}
 ---
