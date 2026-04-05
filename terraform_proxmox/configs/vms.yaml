@@ -26,10 +26,10 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "controlplane"
+    talos_config: "cp-01"
     vlan_id: "11"
-    cores: 4
-    ram: 14336
+    cores: 3
+    ram: 12288
     disk_size: 300
     machine: "q35"
     cpu_type: "host"
@@ -47,10 +47,10 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "controlplane"
+    talos_config: "cp-02"
     vlan_id: "11"
-    cores: 4
-    ram: 14336
+    cores: 3
+    ram: 12288
     disk_size: 300
     machine: "q35"
     cpu_type: "host"
@@ -68,10 +68,10 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "controlplane"
+    talos_config: "cp-03"
     vlan_id: "11"
-    cores: 4
-    ram: 14336
+    cores: 3
+    ram: 12288
     disk_size: 125
     machine: "q35"
     cpu_type: "host"
@@ -89,11 +89,47 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "worker"
+    talos_config: "worker-01"
+    vlan_id: "11"
+    cores: 3
+    ram: 12288
+    disk_size: 300
+    machine: "q35"
+    cpu_type: "host"
+    hostpci:
+      - device: "hostpci0"
+        id: "0000:00:02.0"
+        pcie: true
+        rombar: false
+        xvga: false
+  talos-worker-02:
+    node_name: "pve5"
+    enabled: true
+    vm_id: 505
+    address: "10.11.11.112/24"
+    tags: ["talos", "kubernetes"]
+    description: "Talos Linux VM for Kubernetes cluster"
+    image_file: "talos-nocloud"
+    talos_config: "worker-02"
     vlan_id: "11"
     cores: 4
-    ram: 14336
+    ram: 6144
     disk_size: 300
+    machine: "q35"
+    cpu_type: "host"
+  talos-worker-03:
+    node_name: "pve6"
+    enabled: true
+    vm_id: 506
+    address: "10.11.11.113/24"
+    tags: ["talos", "kubernetes"]
+    description: "Talos Linux VM for Kubernetes cluster"
+    image_file: "talos-nocloud"
+    talos_config: "worker-03"
+    vlan_id: "11"
+    cores: 4
+    ram: 12288
+    disk_size: 100
     machine: "q35"
     cpu_type: "host"
     hostpci:

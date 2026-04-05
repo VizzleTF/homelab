@@ -8,13 +8,12 @@ images:
   talos:
     enabled: false
     content_type: "import"
-    # Image with qemu-agents
-    url: "https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.1/metal-amd64.qcow2"
-    file_name: "talos-1.11.1.qcow2"
-    
+    url: "https://factory.talos.dev/image/eed1860a28ccc6fdb77f1f41ab0ae2a20c19bc6101618d416d5d72ec919bf679/v1.13.0-beta.1/metal-amd64.qcow2"
+    file_name: "talos-1.13.0-beta.1.qcow2"
+
   talos-nocloud:
     enabled: true
     content_type: "import"
     # NoCloud image for cloud-init support (compressed)
-    url: "https://factory.talos.dev/image/88d1f7a5c4f1d3aba7df787c448c1d3d008ed29cfb34af53fa0df4336a56040b/v1.11.1/nocloud-amd64.qcow2"
-    file_name: "talos-nocloud-1.11.1.qcow2"
+    url: "https://factory.talos.dev/image/eed1860a28ccc6fdb77f1f41ab0ae2a20c19bc6101618d416d5d72ec919bf679/v1.13.0-beta.1/nocloud-amd64.qcow2"
+    file_name: "talos-nocloud-1.13.0-beta.1.qcow2"
