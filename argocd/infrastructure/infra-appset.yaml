@@ -12,9 +12,11 @@ spec:
           - name: cert-manager
             repoURL: https://charts.jetstack.io
             wave: "-5"
+            extraManifests: true
           - name: cloudflared
             repoURL: https://community-charts.github.io/helm-charts
             wave: "0"
+            extraManifests: true
           - name: cnpg-operator
             chart: cloudnative-pg
             repoURL: https://cloudnative-pg.github.io/charts
@@ -94,9 +96,11 @@ spec:
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
+        {{- if index . "extraManifests" }}
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           path: "manifests/infrastructure/{{.name}}"
+        {{- end }}
       syncPolicy:
         automated:
           prune: true

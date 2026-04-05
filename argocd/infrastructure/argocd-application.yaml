@@ -16,6 +16,12 @@ spec:
       helm:
         valueFiles:
           - $values/values/infrastructure/argocd.yaml
+    - repoURL: https://github.com/VizzleTF/home_proxmox.git
+      path: charts/homelab-common
+      targetRevision: HEAD
+      helm:
+        valueFiles:
+          - $values/values/infrastructure/argocd.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
