@@ -1,0 +1,83 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $jobs := $hc.backupCronJobs | default list }}
+{{- $nfs := (.Values.global).backup | default dict | dig "nfs" dict }}
+{{- $webdav := (.Values.global).backup | default dict | dig "webdav" dict }}
+{{- range $jobs }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .failedJobsHistoryLimit | default 3 }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .backoffLimit | default 2 }}
+      template:
+        spec:
+          restartPolicy: OnFailure
+          {{- if eq .type "rsync" }}
+          containers:
+            - name: sync
+              image: instrumentisto/rsync-ssh
+              command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/", "/destination/"]
+              volumeMounts:
+                - name: source-volume
+                  mountPath: /source
+                - name: dest-volume
+                  mountPath: /destination
+          volumes:
+            - name: source-volume
+              persistentVolumeClaim:
+                claimName: {{ .source.pvc }}
+            - name: dest-volume
+              nfs:
+                server: {{ $nfs.server }}
+                path: {{ printf "%s%s" $nfs.basePath .destination.path }}
+          {{- else if eq .type "rclone" }}
+          {{- $remoteName := .destination.remote | splitList ":" | first | upper }}
+          containers:
+            - name: rclone
+              image: rclone/rclone:latest
+              args:
+                - sync
+                - /source
+                - {{ .destination.remote }}
+                {{- range .rcloneArgs }}
+                - {{ . | quote }}
+                {{- end }}
+              env:
+                - name: RCLONE_CONFIG_{{ $remoteName }}_TYPE
+                  value: "webdav"
+                - name: RCLONE_CONFIG_{{ $remoteName }}_URL
+                  value: {{ $webdav.url | quote }}
+                - name: RCLONE_CONFIG_{{ $remoteName }}_USER
+                  value: {{ $webdav.user | quote }}
+                - name: RCLONE_CONFIG_{{ $remoteName }}_VENDOR
+                  value: {{ $webdav.vendor | quote }}
+                - name: RCLONE_CONFIG_{{ $remoteName }}_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .destination.secretName }}
+                      key: RCLONE_CONFIG_{{ $remoteName }}_PASS
+              volumeMounts:
+                - name: source-volume
+                  mountPath: /source
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+          volumes:
+            - name: source-volume
+              persistentVolumeClaim:
+                claimName: {{ .source.pvc }}
+          {{- end }}
+{{- end }}

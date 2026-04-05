@@ -1,5 +1,5 @@
-{{ $hc := index .Values "homelab-common" | default dict }}
-{{ $rbac := $hc.rbac }}
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $rbac := $hc.rbac }}
 {{- if $rbac }}
 {{- if $rbac.serviceAccount }}
 {{- if $rbac.serviceAccount.create }}

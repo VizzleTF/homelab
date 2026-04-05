@@ -1,5 +1,5 @@
-{{ $hc := index .Values "homelab-common" | default dict }}
-{{ $np := $hc.networkPolicy }}
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $np := $hc.networkPolicy }}
 {{- if $np }}
 {{- if $np.enabled }}
 ---

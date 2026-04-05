@@ -1,5 +1,5 @@
-{{ $hc := index .Values "homelab-common" | default dict }}
-{{ $routes := $hc.httpRoutes | default list }}
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $routes := $hc.httpRoutes | default list }}
 {{- range $routes }}
 {{- $gateway := .gateway | default "external" }}
 {{- $hostname := .hostname }}
