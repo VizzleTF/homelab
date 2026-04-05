@@ -1,5 +1,5 @@
-# Default values for homelab-common chart
-# This is a LIBRARY chart - it provides templates but doesn't deploy anything by itself
+# Default values for homelab-common (shared Helm chart).
+# Секреты и среда (NFS/WebDAV/NIC) задаются в private values, см. values/shared/global.yaml.
 
 # Global defaults that can be overridden
 global:
@@ -9,7 +9,7 @@ global:
     secretStoreKind: ClusterSecretStore
     refreshInterval: 1h
     pathPrefix: homelab/k8s
-  
+
   # Gateway configuration
   gateway:
     external:
@@ -18,23 +18,23 @@ global:
     internal:
       name: cilium-gateway-internal
       namespace: kube-system
-  
+
   # DNS configuration
   dns:
     domain: vaka.work
     cloudflareProxied: "true"
-  
-  # Backup configuration
+
+  # Backup: без реальных хостов в публичном репозитории — задайте в private global или в values релиза
   backup:
     rcloneImage: rclone/rclone:1.69
     webdav:
-      url: "https://webdav.cloud.mail.ru"
-      user: "vizzletf@mail.ru"
+      url: ""
+      user: ""
       vendor: "other"
-      vaultPath: homelab/k8s/shared/webdav-backup
+      vaultPath: ""
     nfs:
-      server: 10.11.12.237
-      basePath: /volume5/k8s_svc
+      server: ""
+      basePath: ""
 
 # ExternalSecrets to create
 externalSecrets: []

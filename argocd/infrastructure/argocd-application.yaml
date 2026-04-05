@@ -21,6 +21,7 @@ spec:
       targetRevision: HEAD
       helm:
         valueFiles:
+          - $values/values/shared/global.yaml
           - $values/values/infrastructure/argocd.yaml
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
