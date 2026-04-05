@@ -93,33 +93,11 @@ sources:
         - $values/values/applications/immich.yaml  # Тот же файл
 ```
 
-### May (custom chart)
+### May (workload в homelab-common)
 
-**До:**
-```yaml
-# may-application.yaml
-sources:
-  - repoURL: https://github.com/VizzleTF/home_proxmox.git
-    path: charts/may
-  - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-    path: manifests/applications/may  # Отдельные манифесты
-```
+**До:** два Helm source (`charts/may` + `charts/homelab-common`).
 
-**После:**
-```yaml
-# may-application.yaml
-sources:
-  - repoURL: https://github.com/VizzleTF/home_proxmox.git
-    path: charts/may
-    helm:
-      valueFiles:
-        - $values/values/applications/may.yaml
-  - repoURL: https://github.com/VizzleTF/home_proxmox.git
-    path: charts/homelab-common
-    helm:
-      valueFiles:
-        - $values/values/applications/may.yaml  # Тот же файл
-```
+**После:** один source `charts/homelab-common`; Deployment/Service/PVC задаются в `homelab-common.workloads` с `profile: may` в `values/applications/may.yaml`.
 
 ## Чеклист миграции
 

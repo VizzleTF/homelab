@@ -32,7 +32,7 @@ spec:
             homelabValuesFile: values/applications/vaultwarden.homelab.yaml
           - name: rss-to-telegram-bot
             repoURL: https://github.com/VizzleTF/home_proxmox.git
-            chartPath: charts/rss-to-telegram-bot
+            chartPath: charts/homelab-common
             namespace: rsstt
             wave: "2"
             targetRevision: HEAD

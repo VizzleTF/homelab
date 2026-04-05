@@ -10,15 +10,6 @@ metadata:
 spec:
   project: applications
   sources:
-    # Кастомный May chart
-    - repoURL: https://github.com/VizzleTF/home_proxmox.git
-      path: charts/may
-      targetRevision: HEAD
-      helm:
-        valueFiles:
-          - $values/values/applications/may.yaml
-    
-    # Общие ресурсы через homelab-common
     - repoURL: https://github.com/VizzleTF/home_proxmox.git
       path: charts/homelab-common
       targetRevision: HEAD
@@ -26,8 +17,7 @@ spec:
         valueFiles:
           - $values/values/shared/global.yaml
           - $values/values/applications/may.yaml
-    
-    # Values репозиторий
+
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
