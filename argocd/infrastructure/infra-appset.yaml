@@ -91,13 +91,25 @@ spec:
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
+              {{- if eq .name "cert-manager" }}
+              - "$values/values/infrastructure/cert-manager.yaml"
+              {{- else if eq .name "cloudflared" }}
+              - "$values/values/infrastructure/cloudflared.yaml"
+              {{- else }}
               - "$values/values/infrastructure/{{.name}}.yaml"
+              {{- end }}
         - repoURL: https://github.com/VizzleTF/home_proxmox.git
           path: charts/homelab-common
           targetRevision: HEAD
           helm:
             valueFiles:
+              {{- if eq .name "cert-manager" }}
+              - "$values/values/infrastructure/cert-manager.homelab.yaml"
+              {{- else if eq .name "cloudflared" }}
+              - "$values/values/infrastructure/cloudflared.homelab.yaml"
+              {{- else }}
               - "$values/values/infrastructure/{{.name}}.yaml"
+              {{- end }}
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
