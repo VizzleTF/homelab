@@ -32,9 +32,17 @@ spec:
             - port: "53"
               protocol: UDP
     {{- end }}
+    {{- if $np.allowIntraNamespace }}
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: {{ $.Release.Namespace }}
+    {{- end }}
     {{- if $np.allowWorld }}
     - toEntities:
         - world
+    {{- end }}
+    {{- if $np.customEgress }}
+    {{- toYaml $np.customEgress | nindent 4 }}
     {{- end }}
 {{- end }}
 {{- end }}

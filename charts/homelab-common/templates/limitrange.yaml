@@ -12,10 +12,10 @@ spec:
   limits:
     - type: Container
       default:
-        cpu: 500m
-        memory: 512Mi
+        cpu: {{ $lr.defaults.cpu | default "500m" }}
+        memory: {{ $lr.defaults.memory | default "512Mi" }}
       defaultRequest:
-        cpu: 50m
-        memory: 64Mi
+        cpu: {{ $lr.defaultRequests.cpu | default "50m" }}
+        memory: {{ $lr.defaultRequests.memory | default "64Mi" }}
 {{- end }}
 {{- end }}
