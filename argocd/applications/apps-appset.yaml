@@ -68,14 +68,22 @@ spec:
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
+              {{- if eq .name "vaultwarden" }}
+              - "$values/values/applications/vaultwarden.yaml"
+              {{- else }}
               - "$values/values/applications/{{.name}}.yaml"
+              {{- end }}
         {{- end }}
         - repoURL: https://github.com/VizzleTF/home_proxmox.git
           path: charts/homelab-common
           targetRevision: HEAD
           helm:
             valueFiles:
+              {{- if eq .name "vaultwarden" }}
+              - "$values/values/applications/vaultwarden.homelab.yaml"
+              {{- else }}
               - "$values/values/applications/{{.name}}.yaml"
+              {{- end }}
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
