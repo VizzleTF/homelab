@@ -1,0 +1,255 @@
+# Полный пример использования homelab-common chart для Immich
+# Демонстрирует все возможности: ExternalSecrets, HTTPRoutes, Backups, CNPG Database
+
+# ВАЖНО: Этот файл является частью values/applications/immich.yaml
+# Секция homelab-common добавляется в начало основного values файла приложения
+# ArgoCD использует один и тот же values файл для обоих sources (immich chart + homelab-common)
+
+# Общие ресурсы через homelab-common chart
+homelab-common:
+  # ExternalSecrets для Vault интеграции
+  externalSecrets:
+    # Секреты приложения (JWT, Typesense API key)
+    - name: immich-app-secrets
+      vaultPath: immich/app-secrets
+      data:
+        - secretKey: db_password
+          property: password
+          vaultPath: immich/main-database
+        - secretKey: jwt_secret
+          property: jwt_secret
+        - secretKey: typesense_api_key
+          property: typesense_api_key
+      templateData:
+        DB_PASSWORD: "{{ .db_password }}"
+        JWT_SECRET: "{{ .jwt_secret }}"
+        TYPESENSE_API_KEY: "{{ .typesense_api_key }}"
+    
+    # Credentials для подключения к БД из приложения
+    - name: immich-db-credentials
+      vaultPath: immich/main-database
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+    
+    # Credentials для CNPG (создание пользователя в БД)
+    - name: immich-main-user-credentials
+      vaultPath: immich/main-database
+      templateType: kubernetes.io/basic-auth
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+    
+    # WebDAV credentials для backup
+    - name: immich-webdav-credentials
+      vaultPath: shared/webdav-backup
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
+  
+  # HTTPRoutes для внешнего и внутреннего доступа
+  httpRoutes:
+    - name: immich
+      hostname: immich
+      gateway: both  # Создаст external и internal маршруты
+      service:
+        name: immich-server
+        port: 2283
+  
+  # Backup CronJobs
+  backupCronJobs:
+    # Rsync backup на NFS
+    - name: backup-immich-library
+      schedule: "0 2 * * *"
+      type: rsync
+      source:
+        pvc: immich-library-pvc
+      destination:
+        type: nfs
+        path: /immich
+    
+    # Rclone backup на WebDAV (Mail.ru Cloud)
+    - name: webdav-backup-immich
+      schedule: "0 3 * * *"
+      type: rclone
+      source:
+        pvc: immich-library-pvc
+      destination:
+        type: webdav
+        remote: mailru:/backup/immich
+        secretName: immich-webdav-credentials
+      rcloneArgs:
+        - --transfers=4
+        - --checkers=8
+        - --verbose
+  
+  # CNPG Database
+  cnpgDatabase:
+    name: immich
+    owner: immich_user
+    clusterName: immich-cluster
+    extensions:
+      - name: vector
+      - name: cube
+      - name: earthdistance
+  
+  # CiliumNetworkPolicy (опционально)
+  networkPolicy:
+    enabled: false  # Включите при необходимости
+    appLabel: immich-server
+    appPort: 2283
+    allowIngress: true
+    allowDNS: true
+    allowWorld: true
+    allowIntraNamespace: true
+    customEgress:
+      # Allow access to ML service
+      - toEndpoints:
+          - matchLabels:
+              app.kubernetes.io/name: immich-machine-learning
+        toPorts:
+          - ports:
+              - port: "3003"
+                protocol: TCP
+
+# Дополнительные ресурсы (не из homelab-common)
+# PVC для библиотеки фото/видео
+additionalResources:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: immich-library-pvc
+      namespace: immich
+    spec:
+      accessModes:
+        - ReadWriteMany
+      storageClassName: longhorn
+      volumeMode: Filesystem
+      resources:
+        requests:
+          storage: 185Gi
+
+
+# ============================================
+# Основные настройки Immich chart (ниже в том же файле)
+# ============================================
+
+_shared_config:
+  hostname: &hostname immich.vaka.work
+  url: &url https://immich.vaka.work
+  version: &version "v2.6.3"
+  ml_tag: &ml_tag "v2.6.3-openvino"
+
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          tag: *version
+        resources:
+          requests:
+            cpu: 15m
+            memory: 2400Mi
+          limits:
+            cpu: 1000m
+            memory: 5Gi
+        env:
+          DB_HOSTNAME: "immich-cluster-rw"
+          DB_PORT: "5432"
+          DB_DATABASE_NAME: "immich"
+          DB_USERNAME:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: username
+          DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: password
+          REDIS_HOSTNAME: "immich-valkey"
+          IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
+          IMMICH_SERVER_URL: *url
+          PUBLIC_IMMICH_SERVER_URL: *url
+
+immich:
+  persistence:
+    library:
+      existingClaim: "immich-library-pvc"
+
+server:
+  ingress:
+    main:
+      enabled: false
+
+machine-learning:
+  defaultPodOptions:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+  controllers:
+    main:
+      containers:
+        main:
+          image:
+            tag: *ml_tag
+          env:
+            MACHINE_LEARNING_DEVICE: GPU
+            MACHINE_LEARNING_PRELOAD__CLIP: ViT-B-16-SigLIP2__webli
+            MACHINE_LEARNING_WORKERS: "1"
+            MACHINE_LEARNING_WORKER_TIMEOUT: "0"
+          resources:
+            requests:
+              cpu: 15m
+              memory: 3200Mi
+            limits:
+              cpu: 2000m
+              memory: 8Gi
+              gpu.intel.com/i915: "1"
+  persistence:
+    cache:
+      enabled: true
+      size: 15Gi
+      type: persistentVolumeClaim
+      storageClass: "longhorn"
+      accessMode: ReadWriteMany
+
+valkey:
+  enabled: true
+  primary:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 100Mi
+      limits:
+        cpu: 100m
+        memory: 160Mi
+  persistence:
+    data:
+      enabled: true
+      size: 1Gi
+      type: persistentVolumeClaim
+      storageClass: "longhorn"
+      accessMode: ReadWriteOnce
+      retain: true
+
+service:
+  main:
+    type: ClusterIP
