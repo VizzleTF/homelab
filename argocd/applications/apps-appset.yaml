@@ -26,9 +26,6 @@ spec:
           - name: valkey
             repoURL: https://charts.bitnami.com/bitnami
             wave: "1"
-          - name: vault
-            repoURL: https://helm.releases.hashicorp.com
-            wave: "0"
           - name: vaultwarden
             repoURL: https://guerzon.github.io/vaultwarden
             wave: "2"
@@ -82,11 +79,6 @@ spec:
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
-        {{- if eq .name "vault" }}
-        - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-          targetRevision: HEAD
-          path: manifests/applications/vault
-        {{- end }}
       syncPolicy:
         automated:
           prune: true

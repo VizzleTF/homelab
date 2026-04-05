@@ -22,6 +22,11 @@ spec:
             repoURL: https://cloudnative-pg.github.io/charts
             namespace: cnpg-system
             wave: "-2"
+          - name: vault
+            repoURL: https://helm.releases.hashicorp.com
+            namespace: vault
+            wave: "-4"
+            extraManifests: true
           - name: external-secrets
             repoURL: https://charts.external-secrets.io
             namespace: external-secrets-system
