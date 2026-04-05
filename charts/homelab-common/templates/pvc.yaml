@@ -1,0 +1,25 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $pvcs := $hc.persistentVolumeClaims | default list }}
+{{- range $pvcs }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  accessModes:
+    {{- range .accessModes }}
+    - {{ . }}
+    {{- end }}
+  {{- if .volumeName }}
+  volumeName: {{ .volumeName }}
+  {{- end }}
+  volumeMode: {{ .volumeMode | default "Filesystem" }}
+  resources:
+    requests:
+      storage: {{ .size }}
+  {{- if .storageClassName }}
+  storageClassName: {{ .storageClassName }}
+  {{- end }}
+{{- end }}
