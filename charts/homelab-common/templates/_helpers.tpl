@@ -16,14 +16,3 @@ Workload fullname — совместимо с legacy charts may / rss-to-telegra
 {{- end }}
 {{- end }}
 {{- end }}
-
-{{- define "homelab-common.workload.rssSelectorLabels" -}}
-app.kubernetes.io/name: {{ .workload.name }}
-app.kubernetes.io/instance: {{ .root.Release.Name }}
-{{- end }}
-
-{{- define "homelab-common.workload.rssLabels" -}}
-helm.sh/chart: {{ printf "%s-%s" .root.Chart.Name .root.Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
-{{ include "homelab-common.workload.rssSelectorLabels" . }}
-app.kubernetes.io/managed-by: {{ .root.Release.Service }}
-{{- end }}
