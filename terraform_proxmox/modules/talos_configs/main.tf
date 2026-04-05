@@ -26,4 +26,8 @@ resource "proxmox_virtual_environment_file" "talos_configs" {
     data      = each.value.config_data
     file_name = each.value.file_name
   }
+
+  lifecycle {
+    ignore_changes = [source_raw]
+  }
 }

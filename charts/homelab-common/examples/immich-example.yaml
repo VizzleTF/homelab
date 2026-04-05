@@ -24,7 +24,7 @@ homelab-common:
         DB_PASSWORD: "{{ .db_password }}"
         JWT_SECRET: "{{ .jwt_secret }}"
         TYPESENSE_API_KEY: "{{ .typesense_api_key }}"
-    
+
     # Credentials для подключения к БД из приложения
     - name: immich-db-credentials
       vaultPath: immich/main-database
@@ -36,7 +36,7 @@ homelab-common:
       templateData:
         username: "{{ .username }}"
         password: "{{ .password }}"
-    
+
     # Credentials для CNPG (создание пользователя в БД)
     - name: immich-main-user-credentials
       vaultPath: immich/main-database
@@ -49,7 +49,7 @@ homelab-common:
       templateData:
         username: "{{ .username }}"
         password: "{{ .password }}"
-    
+
     # WebDAV credentials для backup
     - name: immich-webdav-credentials
       vaultPath: shared/webdav-backup
@@ -58,7 +58,7 @@ homelab-common:
           property: password
       templateData:
         RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
-  
+
   # HTTPRoutes для внешнего и внутреннего доступа
   httpRoutes:
     - name: immich
@@ -67,7 +67,7 @@ homelab-common:
       service:
         name: immich-server
         port: 2283
-  
+
   # Backup CronJobs
   backupCronJobs:
     # Rsync backup на NFS
@@ -79,7 +79,7 @@ homelab-common:
       destination:
         type: nfs
         path: /immich
-    
+
     # Rclone backup на WebDAV (Mail.ru Cloud)
     - name: webdav-backup-immich
       schedule: "0 3 * * *"
@@ -94,7 +94,7 @@ homelab-common:
         - --transfers=4
         - --checkers=8
         - --verbose
-  
+
   # CNPG Database
   cnpgDatabase:
     name: immich
@@ -104,7 +104,7 @@ homelab-common:
       - name: vector
       - name: cube
       - name: earthdistance
-  
+
   # CiliumNetworkPolicy (опционально)
   networkPolicy:
     enabled: false  # Включите при необходимости
