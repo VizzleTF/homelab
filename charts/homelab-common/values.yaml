@@ -121,6 +121,6 @@ cnpgDatabase: null
 #   clusterName: cnpg-cluster
 #   extensions: []
 
-# Опциональные workload (Deployment/Service/PVC). Профили: may | rss-to-telegram-bot
+# workload: опционально secret / configMap / pvc / deployment / service (полные spec под ключами)
 homelab-common:
   workloads: []
