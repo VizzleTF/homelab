@@ -13,10 +13,12 @@ spec:
             repoURL: https://charts.jetstack.io
             wave: "-5"
             extraManifests: true
+            homelabValuesFile: values/infrastructure/cert-manager.homelab.yaml
           - name: cloudflared
             repoURL: https://community-charts.github.io/helm-charts
             wave: "0"
             extraManifests: true
+            homelabValuesFile: values/infrastructure/cloudflared.homelab.yaml
           - name: cnpg-operator
             chart: cloudnative-pg
             repoURL: https://cloudnative-pg.github.io/charts
@@ -91,25 +93,14 @@ spec:
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
-              {{- if eq .name "cert-manager" }}
-              - "$values/values/infrastructure/cert-manager.yaml"
-              {{- else if eq .name "cloudflared" }}
-              - "$values/values/infrastructure/cloudflared.yaml"
-              {{- else }}
-              - "$values/values/infrastructure/{{.name}}.yaml"
-              {{- end }}
+              - "$values/{{ index . "valuesFile" | default (printf "values/infrastructure/%s.yaml" .name) }}"
         - repoURL: https://github.com/VizzleTF/home_proxmox.git
           path: charts/homelab-common
           targetRevision: HEAD
           helm:
             valueFiles:
-              {{- if eq .name "cert-manager" }}
-              - "$values/values/infrastructure/cert-manager.homelab.yaml"
-              {{- else if eq .name "cloudflared" }}
-              - "$values/values/infrastructure/cloudflared.homelab.yaml"
-              {{- else }}
-              - "$values/values/infrastructure/{{.name}}.yaml"
-              {{- end }}
+              - "$values/values/shared/global.yaml"
+              - "$values/{{ index . "homelabValuesFile" | default (printf "values/infrastructure/%s.yaml" .name) }}"
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values

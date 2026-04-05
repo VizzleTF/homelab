@@ -29,6 +29,7 @@ spec:
           - name: vaultwarden
             repoURL: https://guerzon.github.io/vaultwarden
             wave: "2"
+            homelabValuesFile: values/applications/vaultwarden.homelab.yaml
           - name: rss-to-telegram-bot
             repoURL: https://github.com/VizzleTF/home_proxmox.git
             chartPath: charts/rss-to-telegram-bot
@@ -61,29 +62,22 @@ spec:
           path: "{{.chartPath}}"
           helm:
             valueFiles:
-              - "$values/values/applications/{{.name}}.yaml"
+              - "$values/{{ index . "valuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
         {{- else }}
         - repoURL: "{{.repoURL}}"
           chart: "{{ dig "chart" .name . }}"
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
-              {{- if eq .name "vaultwarden" }}
-              - "$values/values/applications/vaultwarden.yaml"
-              {{- else }}
-              - "$values/values/applications/{{.name}}.yaml"
-              {{- end }}
+              - "$values/{{ index . "valuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
         {{- end }}
         - repoURL: https://github.com/VizzleTF/home_proxmox.git
           path: charts/homelab-common
           targetRevision: HEAD
           helm:
             valueFiles:
-              {{- if eq .name "vaultwarden" }}
-              - "$values/values/applications/vaultwarden.homelab.yaml"
-              {{- else }}
-              - "$values/values/applications/{{.name}}.yaml"
-              {{- end }}
+              - "$values/values/shared/global.yaml"
+              - "$values/{{ index . "homelabValuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values

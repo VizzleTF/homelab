@@ -24,6 +24,7 @@ spec:
       targetRevision: HEAD
       helm:
         valueFiles:
+          - $values/values/shared/global.yaml
           - $values/values/applications/may.yaml
     
     # Values репозиторий

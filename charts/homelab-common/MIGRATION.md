@@ -22,7 +22,7 @@ image:
 
 ### 2. Обновите ArgoCD Application
 
-Добавьте homelab-common как дополнительный source:
+Добавьте homelab-common как дополнительный source. В `helm.valueFiles` **только у этого source** укажите сначала `$values/values/shared/global.yaml`, затем файл приложения (upstream chart оставьте без `global.yaml`, если у чарта строгая values schema).
 
 ```yaml
 spec:
@@ -41,7 +41,8 @@ spec:
       targetRevision: HEAD
       helm:
         valueFiles:
-          - $values/values/applications/myapp.yaml  # Тот же файл!
+          - $values/values/shared/global.yaml
+          - $values/values/applications/myapp.yaml
     
     # Values репозиторий (существующий)
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git

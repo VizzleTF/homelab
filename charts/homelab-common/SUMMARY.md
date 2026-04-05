@@ -2,7 +2,7 @@
 
 ## ✅ Что сделано
 
-1. **Создан универсальный chart** для общих ресурсов (ExternalSecrets, HTTPRoutes, Backups, RBAC, NetworkPolicy, LimitRange, CNPG Database)
+1. **Создан shared Helm chart** (`type: application` в Chart.yaml) для общих ресурсов (ExternalSecrets, HTTPRoutes, Backups, RBAC, NetworkPolicy, LimitRange, CNPG Database)
 
 2. **Один values файл** — секция `homelab-common` в основном values файле приложения
 
@@ -14,7 +14,7 @@
 
 ```
 home_proxmox/charts/homelab-common/
-├── Chart.yaml (type: application)
+├── Chart.yaml (type: application — отдельный ArgoCD source, не Helm library chart)
 ├── values.yaml (defaults)
 ├── templates/
 │   ├── externalsecret.yaml ✅

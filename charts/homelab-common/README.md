@@ -1,8 +1,8 @@
 # Homelab Common Chart
 
-Universal Helm chart для общих Kubernetes ресурсов в homelab проектах.
+Shared Helm chart (`Chart.yaml`: `type: application`) для общих Kubernetes ресурсов. Отдельно от upstream chart в ArgoCD multi-source; это не Helm `type: library` (такой тип только как зависимость и не деплоится своим релизом).
 
-## ✅ РАБОТАЕТ! Все шаблоны с LF, один values файл
+## ✅ РАБОТАЕТ! Все шаблоны с LF; для homelab-common source: `values/shared/global.yaml` + файл приложения (`global.*` и `homelab-common`)
 
 ## Возможности
 
@@ -40,7 +40,8 @@ spec:
       targetRevision: HEAD
       helm:
         valueFiles:
-          - $values/values/applications/immich.yaml  # ТОТ ЖЕ ФАЙЛ!
+          - $values/values/shared/global.yaml
+          - $values/values/applications/immich.yaml
     
     # Values репозиторий
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
