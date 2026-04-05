@@ -1,0 +1,41 @@
+{{ $hc := index .Values "homelab-common" | default dict }}
+{{ $rbac := $hc.rbac }}
+{{- if $rbac }}
+{{- if $rbac.serviceAccount }}
+{{- if $rbac.serviceAccount.create }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $rbac.serviceAccount.name | default $.Release.Name }}
+  namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+
+{{- if $rbac.clusterRole }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $rbac.clusterRole.name }}
+rules:
+  {{- toYaml $rbac.clusterRole.rules | nindent 2 }}
+{{- end }}
+
+{{- if and $rbac.clusterRole $rbac.serviceAccount }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $rbac.clusterRole.name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $rbac.clusterRole.name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $rbac.serviceAccount.name | default $.Release.Name }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+
+{{- end }}
