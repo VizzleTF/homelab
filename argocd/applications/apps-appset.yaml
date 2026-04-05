@@ -82,6 +82,11 @@ spec:
         - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
+        {{- if eq .name "vault" }}
+        - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+          targetRevision: HEAD
+          path: manifests/applications/vault
+        {{- end }}
       syncPolicy:
         automated:
           prune: true
