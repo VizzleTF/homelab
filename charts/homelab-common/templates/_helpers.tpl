@@ -1,14 +1,13 @@
 {{/*
-Workload fullname — совместимо с legacy charts may / rss-to-telegram-bot:
-если имя релиза содержит workload.name, итоговое имя = Release.Name.
+Имя ресурса приложения: если Release.Name содержит app.name — итог = Release.Name.
 */}}
-{{- define "homelab-common.workload.fullname" -}}
-{{- $w := .workload }}
+{{- define "homelab-common.app.fullname" -}}
+{{- $a := .app }}
 {{- $root := .root }}
-{{- if $w.fullnameOverride }}
-{{- $w.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- if $a.fullnameOverride }}
+{{- $a.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := $w.name | default "workload" }}
+{{- $name := $a.name | default "app" }}
 {{- if contains $name $root.Release.Name }}
 {{- $root.Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
