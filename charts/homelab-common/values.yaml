@@ -26,6 +26,7 @@ global:
   
   # Backup configuration
   backup:
+    rcloneImage: rclone/rclone:1.69
     webdav:
       url: "https://webdav.cloud.mail.ru"
       user: "vizzletf@mail.ru"
