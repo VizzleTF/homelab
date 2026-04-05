@@ -2,11 +2,52 @@
 {{- $workloads := $hc.workloads | default list }}
 {{- range $workloads }}
 {{- if (.enabled | default true) }}
-{{- $ctx := dict "workload" . "root" $ }}
-{{- if eq .profile "may" }}
-{{ include "homelab-common.workload.may.render" $ctx }}
-{{- else if eq .profile "rss-to-telegram-bot" }}
-{{ include "homelab-common.workload.rssToTelegram.render" $ctx }}
+{{- $w := . }}
+{{- $ctx := dict "workload" $w "root" $ }}
+{{- $fullname := include "homelab-common.workload.fullname" $ctx }}
+{{- $root := $ }}
+
+{{- with $w.secret }}
+{{ include "homelab-common.k8s.secret" (dict
+  "root" $root
+  "metadata" (merge (dict "name" $fullname) (.metadata | default dict))
+  "type" (.type | default "Opaque")
+  "stringData" .stringData
+  "data" .data
+) }}
 {{- end }}
+
+{{- with $w.configMap }}
+{{ include "homelab-common.k8s.configmap" (dict
+  "root" $root
+  "metadata" (merge (dict "name" $fullname) (.metadata | default dict))
+  "data" .data
+) }}
+{{- end }}
+
+{{- with $w.pvc }}
+{{ include "homelab-common.k8s.pvc" (dict
+  "root" $root
+  "metadata" (merge (dict "name" $fullname) (.metadata | default dict))
+  "spec" .spec
+) }}
+{{- end }}
+
+{{- with $w.deployment }}
+{{ include "homelab-common.k8s.deployment" (dict
+  "root" $root
+  "metadata" (merge (dict "name" $fullname) (.metadata | default dict))
+  "spec" .spec
+) }}
+{{- end }}
+
+{{- with $w.service }}
+{{ include "homelab-common.k8s.service" (dict
+  "root" $root
+  "metadata" (merge (dict "name" $fullname) (.metadata | default dict))
+  "spec" .spec
+) }}
+{{- end }}
+
 {{- end }}
 {{- end }}
