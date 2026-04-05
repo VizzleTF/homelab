@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: may
+  name: rss-to-telegram-bot
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "2"
@@ -19,14 +19,14 @@ spec:
       helm:
         valueFiles:
           - $values/values/shared/global.yaml
-          - $values/values/applications/may.yaml
+          - $values/values/applications/rss-to-telegram-bot.yaml
 
     - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: may
+    namespace: rsstt
   syncPolicy:
     automated:
       prune: true

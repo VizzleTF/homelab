@@ -30,12 +30,6 @@ spec:
             repoURL: https://guerzon.github.io/vaultwarden
             wave: "2"
             homelabValuesFile: values/applications/vaultwarden.homelab.yaml
-          - name: rss-to-telegram-bot
-            repoURL: https://github.com/VizzleTF/home_proxmox.git
-            chartPath: charts/homelab-common
-            namespace: rsstt
-            wave: "2"
-            targetRevision: HEAD
   template:
     metadata:
       name: "{{.name}}"
@@ -56,21 +50,12 @@ spec:
         - resources-finalizer.argocd.argoproj.io/background
     spec:
       sources:
-        {{- if hasKey . "chartPath" }}
-        - repoURL: "{{.repoURL}}"
-          targetRevision: "{{ dig "targetRevision" "HEAD" . }}"
-          path: "{{.chartPath}}"
-          helm:
-            valueFiles:
-              - "$values/{{ index . "valuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
-        {{- else }}
         - repoURL: "{{.repoURL}}"
           chart: "{{ dig "chart" .name . }}"
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
               - "$values/{{ index . "valuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
-        {{- end }}
         - repoURL: https://github.com/VizzleTF/home_proxmox.git
           path: charts/homelab-common
           targetRevision: HEAD
