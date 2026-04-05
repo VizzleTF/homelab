@@ -97,7 +97,7 @@ sources:
 
 **До:** два Helm source (`charts/may` + `charts/homelab-common`).
 
-**После:** один source `charts/homelab-common`; Deployment/Service/PVC задаются в `homelab-common.workloads` с `profile: may` в `values/applications/may.yaml`.
+**После:** один source `charts/homelab-common`; `homelab-common.apps` (deployment/service/secret/configMap), PVC — `homelab-common.persistentVolumeClaims` (шаблон `pvc.yaml`).
 
 ## Чеклист миграции
 

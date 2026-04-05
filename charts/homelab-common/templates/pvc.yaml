@@ -7,6 +7,14 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ .name }}
   namespace: {{ $.Release.Namespace }}
+  {{- with .labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   accessModes:
     {{- range .accessModes }}

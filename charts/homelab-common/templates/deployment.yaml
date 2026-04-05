@@ -1,0 +1,28 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $apps := $hc.apps | default list }}
+{{- range $apps }}
+{{- if (.enabled | default true) }}
+{{- $ctx := dict "app" . "root" $ }}
+{{- $fullname := include "homelab-common.app.fullname" $ctx }}
+{{- $root := $ }}
+{{- with .deployment }}
+{{- $meta := merge (dict "name" $fullname) (.metadata | default dict) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $meta.name }}
+  namespace: {{ $meta.namespace | default $root.Release.Namespace }}
+  {{- with $meta.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $meta.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- toYaml .spec | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}

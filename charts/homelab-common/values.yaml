@@ -121,6 +121,7 @@ cnpgDatabase: null
 #   clusterName: cnpg-cluster
 #   extensions: []
 
-# workload: опционально secret / configMap / pvc / deployment / service (полные spec под ключами)
+# apps: опционально secret / configMap / deployment / service; PVC — persistentVolumeClaims (шаблон pvc.yaml)
 homelab-common:
-  workloads: []
+  apps: []
+  persistentVolumeClaims: []
