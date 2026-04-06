@@ -31,6 +31,10 @@ spec:
               {{- else }}
               command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/", "/destination/"]
               {{- end }}
+              {{- if .securityContext }}
+              securityContext:
+                {{- toYaml .securityContext | nindent 16 }}
+              {{- end }}
               volumeMounts:
                 - name: source-volume
                   mountPath: /source
@@ -63,6 +67,10 @@ spec:
           containers:
             - name: rclone
               image: {{ $rcloneImage }}
+              {{- if .securityContext }}
+              securityContext:
+                {{- toYaml .securityContext | nindent 16 }}
+              {{- end }}
               args:
                 - sync
                 - /source

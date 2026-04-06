@@ -2,7 +2,7 @@ apiVersion: v2
 name: homelab-common
 description: Shared Helm chart for common Kubernetes resources (ExternalSecrets, HTTPRoutes, apps, PVCs, CronJobs, RBAC, NetworkPolicies, LimitRanges)
 type: application
-version: 1.4.1
+version: 1.5.0
 kubeVersion: ">=1.28.0"
 keywords:
   - homelab
