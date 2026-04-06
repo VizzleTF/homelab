@@ -60,31 +60,16 @@ spec:
                 path: {{ printf "%s%s" $nfs.basePath .destination.path }}
           {{- else if eq .type "rclone" }}
           {{- $remoteName := .destination.remote | splitList ":" | first | upper }}
-          {{- $remote := .destination.remote }}
-          {{- $rcloneArgsList := .rcloneArgs | default list }}
-          {{- $preDelete := .preDeletePaths | default list }}
           containers:
             - name: rclone
               image: {{ $rcloneImage }}
-              {{- if $preDelete }}
-              command:
-                - sh
-                - -c
-              args:
-                - |-
-                  {{ range $preDelete -}}
-                  rclone deletefile {{ $remote }}/{{ . }} || true
-                  {{ end -}}
-                  rclone sync /source {{ $remote }}{{ range $rcloneArgsList }} "{{ . }}"{{ end }}
-              {{- else }}
               args:
                 - sync
                 - /source
-                - {{ $remote }}
-                {{- range $rcloneArgsList }}
+                - {{ .destination.remote }}
+                {{- range .rcloneArgs }}
                 - {{ . | quote }}
                 {{- end }}
-              {{- end }}
               env:
                 - name: RCLONE_CONFIG_{{ $remoteName }}_TYPE
                   value: "webdav"
