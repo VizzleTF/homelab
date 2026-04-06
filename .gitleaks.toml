@@ -1,0 +1,26 @@
+title = "Gitleaks config — home_proxmox"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Helm chart templates contain Go template placeholders"
+paths = ['''charts/.*/templates/.*''']
+
+[[allowlists]]
+description = "Example and documentation files"
+paths = [
+  '''.*\.example\.(yaml|yml|toml|env)$''',
+  '''README.*''',
+]
+
+[[allowlists]]
+description = "Common placeholder values in configs"
+regexes = [
+  '''(?i)(CHANGEME|your[-_]?(password|token|secret|api[-_]?key)|<TOKEN>|<SECRET>|placeholder)''',
+  '''(?i)example[-_]?(password|token|secret)''',
+]
+
+[[allowlists]]
+description = "Terraform example files"
+paths = ['''terraform_proxmox/.*\.tf\.example''']
