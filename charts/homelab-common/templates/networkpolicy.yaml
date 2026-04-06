@@ -21,6 +21,9 @@ spec:
             - port: {{ $np.appPort | quote }}
               protocol: TCP
     {{- end }}
+    {{- if $np.customIngress }}
+    {{- toYaml $np.customIngress | nindent 4 }}
+    {{- end }}
   egress:
     {{- if $np.allowDNS }}
     - toEndpoints:
@@ -31,6 +34,8 @@ spec:
         - ports:
             - port: "53"
               protocol: UDP
+            - port: "53"
+              protocol: TCP
     {{- end }}
     {{- if $np.allowIntraNamespace }}
     - toEndpoints:
