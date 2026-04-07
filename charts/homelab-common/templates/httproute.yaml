@@ -39,7 +39,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: {{ .pathPrefix | default "/" }}
       backendRefs:
         - name: {{ .service.name }}
           port: {{ .service.port }}
@@ -69,7 +69,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: {{ .pathPrefix | default "/" }}
       backendRefs:
         - name: {{ .service.name }}
           port: {{ .service.port }}
