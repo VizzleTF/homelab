@@ -21,7 +21,7 @@ spec:
     # CNPG cluster для БД
     - repoURL: https://cloudnative-pg.github.io/charts
       chart: cluster
-      targetRevision: "0.4.0"
+      targetRevision: "0.6.0"
       helm:
         valueFiles:
           - $values/values/applications/cnpg-immich-db.yaml
