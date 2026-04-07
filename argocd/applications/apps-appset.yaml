@@ -13,7 +13,7 @@ spec:
             chart: cluster
             repoURL: https://cloudnative-pg.github.io/charts
             wave: "1"
-            targetRevision: "0.4.0"
+            targetRevision: "*"
           - name: lampac
             repoURL: https://vizzletf.github.io/lampac_helm
             wave: "2"
