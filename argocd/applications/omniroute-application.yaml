@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: omniroute
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: applications
+  sources:
+    # Общие ресурсы через homelab-common (нет отдельного Helm chart)
+    - repoURL: https://github.com/VizzleTF/home_proxmox.git
+      path: charts/homelab-common
+      targetRevision: HEAD
+      helm:
+        valueFiles:
+          - $values/values/shared/global.yaml
+          - $values/values/applications/omniroute.yaml
+
+    # Values репозиторий
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: omniroute
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
