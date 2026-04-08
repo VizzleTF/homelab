@@ -15,10 +15,10 @@ spec:
         valueFiles:
           - $values/values/applications/linkwarden.yaml
           - $values/values/shared/global.yaml
-    - repoURL: 'https://gitea.vaka.work/vizzle/home-proxmox-values.git'
+    - repoURL: 'https://github.com/VizzleTF/home-proxmox-values.git'
       targetRevision: HEAD
       ref: values
-    - repoURL: 'https://gitea.vaka.work/vizzle/home-proxmox-values.git'
+    - repoURL: 'https://github.com/VizzleTF/home-proxmox-values.git'
       targetRevision: HEAD
       path: manifests/applications/linkwarden
   destination:
