@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: authentik
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: applications
+  sources:
+    # Authentik IdP chart
+    - repoURL: https://charts.goauthentik.io/
+      chart: authentik
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/values/applications/authentik.yaml
+
+    # CNPG PostgreSQL cluster
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: cluster
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/values/applications/cnpg-authentik-db.yaml
+
+    # Shared resources: HTTPRoute + ExternalSecrets
+    - repoURL: https://github.com/VizzleTF/home_proxmox.git
+      path: charts/homelab-common
+      targetRevision: HEAD
+      helm:
+        valueFiles:
+          - $values/values/shared/global.yaml
+          - $values/values/applications/authentik.yaml
+
+    # Values repository
+    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: authentik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
