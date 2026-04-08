@@ -20,16 +20,12 @@ spec:
       helm:
         valueFiles:
           - $values/values/applications/cnpg-linkwarden-db.yaml
-    - repoURL: 'https://github.com/VizzleTF/home_proxmox.git'
-      path: charts/homelab-common
-      targetRevision: HEAD
-      helm:
-        valueFiles:
-          - $values/values/shared/global.yaml
-          - $values/values/applications/linkwarden.yaml
     - repoURL: 'git@github.com:VizzleTF/home-proxmox-values.git'
       targetRevision: HEAD
       ref: values
+    - repoURL: 'git@github.com:VizzleTF/home-proxmox-values.git'
+      targetRevision: HEAD
+      path: manifests/applications/linkwarden
   destination:
     server: https://kubernetes.default.svc
     namespace: linkwarden
