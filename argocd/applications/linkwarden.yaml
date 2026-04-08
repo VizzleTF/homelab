@@ -14,6 +14,12 @@ spec:
       helm:
         valueFiles:
           - $values/values/applications/linkwarden.yaml
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: cluster
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/values/applications/cnpg-linkwarden-db.yaml
     - repoURL: 'https://github.com/VizzleTF/home_proxmox.git'
       path: charts/homelab-common
       targetRevision: HEAD
