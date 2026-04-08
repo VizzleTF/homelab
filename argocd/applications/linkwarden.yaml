@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkwarden
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.derwitt.dev
+      chart: linkwarden
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/values/applications/linkwarden.yaml
+          - $values/values/shared/global.yaml
+    - repoURL: 'https://gitea.vaka.work/vizzle/home-proxmox-values.git'
+      targetRevision: HEAD
+      ref: values
+    - repoURL: 'https://gitea.vaka.work/vizzle/home-proxmox-values.git'
+      targetRevision: HEAD
+      path: manifests/applications/linkwarden
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: linkwarden
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
