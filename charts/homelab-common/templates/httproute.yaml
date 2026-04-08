@@ -40,6 +40,10 @@ spec:
         - path:
             type: PathPrefix
             value: {{ .pathPrefix | default "/" }}
+      {{- if .filters }}
+      filters:
+        {{- toYaml .filters | nindent 8 }}
+      {{- end }}
       backendRefs:
         - name: {{ .service.name }}
           port: {{ .service.port }}
@@ -70,6 +74,10 @@ spec:
         - path:
             type: PathPrefix
             value: {{ .pathPrefix | default "/" }}
+      {{- if .filters }}
+      filters:
+        {{- toYaml .filters | nindent 8 }}
+      {{- end }}
       backendRefs:
         - name: {{ .service.name }}
           port: {{ .service.port }}
