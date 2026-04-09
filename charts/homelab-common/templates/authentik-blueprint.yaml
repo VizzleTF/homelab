@@ -21,7 +21,7 @@ metadata:
 data:
   {{- range $filename, $content := .blueprints }}
   {{ $filename }}: |
-    {{- $content | nindent 4 }}
+{{ $content | indent 4 }}
   {{- end }}
 {{- end }}
 {{- end }}
