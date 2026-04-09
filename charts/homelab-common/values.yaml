@@ -133,3 +133,36 @@ homelab-common:
 
   # PVC definitions
   persistentVolumeClaims: []
+
+  # Authentik Blueprints (ConfigMaps for declarative OIDC providers)
+  authentikBlueprints: []
+  # Example:
+  # - name: authentik-blueprint-myapp
+  #   namespace: authentik
+  #   enabled: true
+  #   blueprints:
+  #     myapp-oidc.yaml: |
+  #       version: 1
+  #       metadata:
+  #         name: MyApp OIDC Integration
+  #       entries:
+  #         - model: authentik_providers_oauth2.oauth2provider
+  #           id: myapp-provider
+  #           identifiers:
+  #             name: MyApp OIDC
+  #           attrs:
+  #             name: MyApp OIDC
+  #             client_type: confidential
+  #             client_id: myapp
+  #             authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+  #             redirect_uris: https://myapp.example.com/oauth/callback
+  #             signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+  #         - model: authentik_core.application
+  #           id: myapp-app
+  #           identifiers:
+  #             slug: myapp
+  #           attrs:
+  #             name: MyApp
+  #             slug: myapp
+  #             provider: !KeyOf myapp-provider
+  #             launch_url: https://myapp.example.com
