@@ -1,0 +1,27 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $blueprints := $hc.authentikBlueprints | default list }}
+{{- range $blueprints }}
+{{- if (.enabled | default true) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace | default "authentik" }}
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/part-of: authentik
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $filename, $content := .blueprints }}
+  {{ $filename }}: |
+    {{- $content | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
