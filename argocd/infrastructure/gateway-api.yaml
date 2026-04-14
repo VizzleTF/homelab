@@ -9,7 +9,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
-  project: default
+  project: infrastructure
   source:
     repoURL: https://github.com/kubernetes-sigs/gateway-api.git
     targetRevision: HEAD
