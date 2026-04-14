@@ -18,6 +18,7 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
+    external-dns.alpha.kubernetes.io/internal-dns: "true"
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
