@@ -1,0 +1,24 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- range $hc.certificates | default list }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  secretName: {{ .secretName | default .name }}
+  issuerRef:
+    kind: {{ .issuerRef.kind | default "ClusterIssuer" }}
+    name: {{ .issuerRef.name }}
+  dnsNames:
+    {{- range .dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- if .duration }}
+  duration: {{ .duration }}
+  {{- end }}
+  {{- if .renewBefore }}
+  renewBefore: {{ .renewBefore }}
+  {{- end }}
+{{- end }}
