@@ -1,0 +1,33 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $g := .Values.global | default dict }}
+{{- $gwTls := $g.gateway | default dict | dig "tls" dict }}
+{{- $gwTlsName := $gwTls.name | default "cilium-gateway-tls" }}
+{{- $gwTlsNs := $gwTls.namespace | default "kube-system" }}
+{{- $domain := $g.dns | default dict | dig "domain" "vaka.work" }}
+{{- $routes := $hc.tlsRoutes | default list }}
+{{- range $routes }}
+{{- $hostname := .hostname }}
+{{- if not (contains "." $hostname) }}
+{{- $hostname = printf "%s.%s" $hostname $domain }}
+{{- end }}
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ $gwTlsName }}
+      namespace: {{ $gwTlsNs }}
+  hostnames:
+    - {{ $hostname }}
+  rules:
+    - backendRefs:
+        - name: {{ .service.name }}
+          port: {{ .service.port | int }}
+{{- end }}
