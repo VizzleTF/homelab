@@ -8,7 +8,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
-  project: default
+  project: infrastructure
   sources:
     - repoURL: https://argoproj.github.io/argo-helm
       chart: argo-cd
