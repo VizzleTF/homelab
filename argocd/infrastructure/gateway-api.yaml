@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+    argocd.argoproj.io/sync-options: PruneLast=true
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/background
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kubernetes-sigs/gateway-api.git
+    targetRevision: HEAD
+    path: config/crd/standard
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+    syncOptions:
+      - CreateNamespace=false
+      - Replace=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: httproutes.gateway.networking.k8s.io
+      jsonPointers:
+        - /metadata/annotations
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: tlsroutes.gateway.networking.k8s.io
+      jqPathExpressions:
+        - .spec.versions[] | select(.name == "v1alpha2" or .name == "v1alpha3")
+    - group: admissionregistration.k8s.io
+      kind: ValidatingAdmissionPolicy
+      name: safe-upgrades.gateway.networking.k8s.io
+      jsonPointers:
+        - /spec
+    - group: admissionregistration.k8s.io
+      kind: ValidatingAdmissionPolicyBinding
+      name: safe-upgrades.gateway.networking.k8s.io
+      jsonPointers:
+        - /spec
