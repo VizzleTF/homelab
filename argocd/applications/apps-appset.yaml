@@ -30,6 +30,28 @@ spec:
             repoURL: https://guerzon.github.io/vaultwarden
             wave: "2"
             homelabValuesFile: values/applications/vaultwarden.homelab.yaml
+          - name: immich
+            repoURL: https://immich-app.github.io/immich-charts
+            wave: "2"
+            cnpgValuesFile: values/applications/cnpg-immich-db.yaml
+          - name: authentik
+            repoURL: https://charts.goauthentik.io/
+            wave: "2"
+            cnpgValuesFile: values/applications/cnpg-authentik-db.yaml
+          - name: linkwarden
+            repoURL: https://charts.derwitt.dev
+            wave: "2"
+            cnpgValuesFile: values/applications/cnpg-linkwarden-db.yaml
+          - name: may
+            homelabOnly: "true"
+            wave: "2"
+          - name: omniroute
+            homelabOnly: "true"
+            wave: "2"
+          - name: rss-to-telegram-bot
+            homelabOnly: "true"
+            wave: "2"
+            namespace: rsstt
   template:
     metadata:
       name: "{{.name}}"
@@ -50,12 +72,22 @@ spec:
         - resources-finalizer.argocd.argoproj.io/background
     spec:
       sources:
+        {{- if not (index . "homelabOnly") }}
         - repoURL: "{{.repoURL}}"
           chart: "{{ dig "chart" .name . }}"
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
               - "$values/{{ index . "valuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
+        {{- end }}
+        {{- if index . "cnpgValuesFile" }}
+        - repoURL: https://cloudnative-pg.github.io/charts
+          chart: cluster
+          targetRevision: "*"
+          helm:
+            valueFiles:
+              - "$values/{{ .cnpgValuesFile }}"
+        {{- end }}
         - repoURL: https://github.com/VizzleTF/home_proxmox.git
           path: charts/homelab-common
           targetRevision: HEAD
