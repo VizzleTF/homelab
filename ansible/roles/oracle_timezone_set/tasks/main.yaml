@@ -1,2 +1,0 @@
-- name: Set timezone
-  command: timedatectl set-timezone Europe/Moscow

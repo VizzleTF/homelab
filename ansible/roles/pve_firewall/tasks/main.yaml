@@ -1,0 +1,50 @@
+---
+# /etc/pve/firewall/cluster.fw — общий для всего кластера (pmxcfs-синхронизация).
+# Редактируем только на одной ноде (firewall_manager_host), чтобы не гонять один и тот же
+# файл через pmxcfs шесть раз.
+- name: Write cluster.fw on manager host
+  when: inventory_hostname == firewall_manager_host
+  block:
+    - name: Render cluster.fw
+      ansible.builtin.copy:
+        dest: /etc/pve/firewall/cluster.fw
+        mode: "0640"
+        owner: root
+        group: www-data
+        content: |
+          # Managed by Ansible (roles/pve_firewall).
+          [OPTIONS]
+          enable: 1
+          policy_in: DROP
+          policy_out: ACCEPT
+          log_ratelimit: enable=1,rate=1/second,burst=5
+
+          [ALIASES]
+          {% for cidr in trusted_cidrs %}
+          trusted{{ loop.index }} {{ cidr }}
+          {% endfor %}
+
+          [RULES]
+          # Разрешаем ICMP echo внутри кластера (healthchecks).
+          IN ACCEPT -p icmp -log nolog
+          {% for cidr in trusted_cidrs %}
+          # Доверенная сеть {{ cidr }}: SSH, PVE UI, SPICE, VNC
+          IN ACCEPT -source {{ cidr }} -p tcp -dport 22 -log nolog
+          IN ACCEPT -source {{ cidr }} -p tcp -dport 8006 -log nolog
+          IN ACCEPT -source {{ cidr }} -p tcp -dport 3128 -log nolog
+          IN ACCEPT -source {{ cidr }} -p tcp -dport 5900:5999 -log nolog
+          {% endfor %}
+          # Всё остальное логируем и дропаем (policy_in: DROP покроет неявно, но логируем явно).
+          IN DROP -log info
+
+- name: Validate firewall ruleset (compile test)
+  ansible.builtin.command: pve-firewall compile
+  register: fw_compile
+  changed_when: false
+  failed_when: fw_compile.rc != 0
+
+- name: Enable pve-firewall service
+  ansible.builtin.systemd:
+    name: pve-firewall
+    state: started
+    enabled: true

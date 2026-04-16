@@ -1,3 +1,0 @@
----
-# Default variables for PostgreSQL installation
-psql_version: 16 
