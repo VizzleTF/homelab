@@ -78,22 +78,27 @@ homelab-common:
   #     runAsNonRoot: true
   #     runAsUser: 65534
 
-  # RBAC resources
-  rbac:
-    serviceAccount: null
-    # Example:
-    # serviceAccount:
-    #   name: myapp
-    #   create: true
-
-    clusterRole: null
-    # Example:
-    # clusterRole:
-    #   name: myapp-readonly
-    #   rules:
-    #     - apiGroups: [""]
-    #       resources: ["pods"]
-    #       verbs: ["get", "list"]
+  # RBAC resources (single object or list of objects)
+  rbac: null
+  # Example (single):
+  # rbac:
+  #   serviceAccount:
+  #     name: myapp
+  #     create: true
+  #   clusterRole:
+  #     name: myapp-readonly
+  #     rules:
+  #       - apiGroups: [""]
+  #         resources: ["pods"]
+  #         verbs: ["get", "list"]
+  # Example (list):
+  # rbac:
+  #   - serviceAccount:
+  #       name: myapp
+  #       create: true
+  #     clusterRole:
+  #       name: myapp-readonly
+  #       rules: [...]
 
   # CiliumNetworkPolicy
   networkPolicy: null

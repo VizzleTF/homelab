@@ -5,7 +5,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ .name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ .namespace | default $.Release.Namespace }}
 spec:
   secretName: {{ .secretName | default .name }}
   issuerRef:

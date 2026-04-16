@@ -1,6 +1,14 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
-{{- $rbac := $hc.rbac }}
-{{- if $rbac }}
+{{- $rbacRaw := $hc.rbac }}
+{{- if $rbacRaw }}
+{{- $rbacList := list }}
+{{- if kindIs "slice" $rbacRaw }}
+{{- $rbacList = $rbacRaw }}
+{{- else }}
+{{- $rbacList = list $rbacRaw }}
+{{- end }}
+{{- range $rbac := $rbacList }}
+
 {{- if $rbac.serviceAccount }}
 {{- if $rbac.serviceAccount.create }}
 ---
@@ -9,6 +17,13 @@ kind: ServiceAccount
 metadata:
   name: {{ $rbac.serviceAccount.name | default $.Release.Name }}
   namespace: {{ $.Release.Namespace }}
+  {{- with $rbac.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- if hasKey $rbac.serviceAccount "automountServiceAccountToken" }}
+automountServiceAccountToken: {{ $rbac.serviceAccount.automountServiceAccountToken }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -27,7 +42,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ $rbac.clusterRole.name }}
+  name: {{ dig "clusterRoleBinding" "name" $rbac.clusterRole.name $rbac }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -38,4 +53,5 @@ subjects:
     namespace: {{ $.Release.Namespace }}
 {{- end }}
 
+{{- end }}
 {{- end }}
