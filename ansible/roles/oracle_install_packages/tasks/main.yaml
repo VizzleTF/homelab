@@ -1,2 +1,0 @@
-- name: Installing list of packages
-  package: name="{{ packages }}" state=present

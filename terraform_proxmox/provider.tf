@@ -4,6 +4,9 @@ terraform {
     proxmox = {
       source = "bpg/proxmox"
     }
+    vault = {
+      source = "hashicorp/vault"
+    }
   }
 }
 
@@ -13,3 +16,6 @@ provider "proxmox" {
   username = var.proxmox_username
   password = var.main_password
 }
+
+# Аутентификация — через переменные окружения VAULT_ADDR + VAULT_TOKEN.
+provider "vault" {}
