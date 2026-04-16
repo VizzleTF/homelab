@@ -10,22 +10,17 @@ homelab-common:
   externalSecrets:
     - name: pve-exporter-auth
       vaultPath: victoria-metrics/pve-exporter
-      # Имена ключей фиксированы чартом: env.pveUser=user, env.pveTokenName=tokenName,
-      # env.pveTokenValue=tokenValue → секрет должен содержать user / tokenName / tokenValue.
+      # Чарт читает только tokenName/tokenValue из секрета — pveUser при этом кладётся
+      # env.pveUser как ЗНАЧЕНИЕ (не ключ секрета). Потому в секрете только 2 поля.
       data:
-        - secretKey: user
-          property: user
         - secretKey: tokenName
           property: token_name
         - secretKey: tokenValue
           property: token_value
-      templateData:
-        user: "{{ .user }}"
-        tokenName: "{{ .tokenName }}"
-        tokenValue: "{{ .tokenValue }}"
 
 env:
   pveAuthType: token
+  pveUser: exporter@pve
   pveExistingSecretName: pve-exporter-auth
   pveVerifySsl: false
 
