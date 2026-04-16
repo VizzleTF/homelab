@@ -13,6 +13,13 @@ resource "proxmox_virtual_environment_user" "exporter" {
   user_id = var.exporter_user_id
   comment = "prometheus-pve-exporter (managed by terraform)"
   enabled = true
+
+  # ACL задан отдельным ресурсом proxmox_virtual_environment_acl.exporter_auditor.
+  # Провайдер bpg читает ACL обратно в nested-атрибут user'а — без ignore_changes
+  # каждый plan хочет "обнулить" этот список, и экспортёр всё время "обновляется".
+  lifecycle {
+    ignore_changes = [acl]
+  }
 }
 
 resource "proxmox_virtual_environment_user_token" "exporter" {
