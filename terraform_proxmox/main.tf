@@ -52,3 +52,7 @@ module "ansible_inventory" {
 module "pve_rbac" {
   source = "./modules/pve_rbac"
 }
+
+module "pve_terraform_token" {
+  source = "./modules/pve_terraform_token"
+}
