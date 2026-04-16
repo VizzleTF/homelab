@@ -86,6 +86,11 @@ spec:
           - name: node-feature-discovery
             repoURL: https://kubernetes-sigs.github.io/node-feature-discovery/charts
             wave: "-1"
+          - name: pve-exporter
+            chart: prometheus-pve-exporter
+            repoURL: https://charts.christianhuth.de
+            namespace: victoria-metrics
+            wave: "0"
           - name: vault-autounseal
             repoURL: https://pytoshka.github.io/vault-autounseal
             namespace: vault

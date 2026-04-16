@@ -1,2 +1,0 @@
-- name: Installing list of packages
-  package: name="{{ okd_service_node.packages }}" state=present
