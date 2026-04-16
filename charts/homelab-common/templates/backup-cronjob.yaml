@@ -1,8 +1,11 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
 {{- $jobs := $hc.backupCronJobs | default list }}
-{{- $nfs := (.Values.global).backup | default dict | dig "nfs" dict }}
-{{- $webdav := (.Values.global).backup | default dict | dig "webdav" dict }}
-{{- $rcloneImage := (.Values.global).backup | default dict | dig "rcloneImage" "rclone/rclone:1.69" }}
+{{- $backup := (.Values.global).backup | default dict }}
+{{- $nfs := $backup | dig "nfs" dict }}
+{{- $webdav := $backup | dig "webdav" dict }}
+{{- $rcloneImage := $backup | dig "rcloneImage" "rclone/rclone:1.69" }}
+{{- $rcloneDefaultArgs := $backup | dig "rcloneDefaultArgs" (list "--verbose") }}
+{{- $defaultSecCtx := dict "allowPrivilegeEscalation" false "readOnlyRootFilesystem" true "capabilities" (dict "drop" (list "ALL")) }}
 {{- range $jobs }}
 ---
 apiVersion: batch/v1
@@ -31,10 +34,8 @@ spec:
               {{- else }}
               command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "/source/", "/destination/"]
               {{- end }}
-              {{- if .securityContext }}
               securityContext:
-                {{- toYaml .securityContext | nindent 16 }}
-              {{- end }}
+                {{- toYaml (.securityContext | default $defaultSecCtx) | nindent 16 }}
               volumeMounts:
                 - name: source-volume
                   mountPath: /source
@@ -67,15 +68,13 @@ spec:
           containers:
             - name: rclone
               image: {{ $rcloneImage }}
-              {{- if .securityContext }}
               securityContext:
-                {{- toYaml .securityContext | nindent 16 }}
-              {{- end }}
+                {{- toYaml (.securityContext | default $defaultSecCtx) | nindent 16 }}
               args:
                 - sync
                 - /source
                 - {{ .destination.remote }}
-                {{- range .rcloneArgs }}
+                {{- range (.rcloneArgs | default $rcloneDefaultArgs) }}
                 - {{ . | quote }}
                 {{- end }}
               env:

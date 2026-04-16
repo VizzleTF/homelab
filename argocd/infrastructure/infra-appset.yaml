@@ -14,6 +14,27 @@ spec:
             wave: "-5"
             extraManifests: true
             homelabValuesFile: values/infrastructure/cert-manager.homelab.yaml
+          - name: cilium
+            repoURL: https://helm.cilium.io/
+            namespace: kube-system
+            wave: "-5"
+            extraManifests: true
+            ignoreDiff: |
+              - group: ""
+                kind: Secret
+                name: cilium-ca
+                jqPathExpressions:
+                  - .data
+              - group: ""
+                kind: Secret
+                name: hubble-relay-client-certs
+                jqPathExpressions:
+                  - .data
+              - group: ""
+                kind: Secret
+                name: hubble-server-certs
+                jqPathExpressions:
+                  - .data
           - name: cloudflared
             repoURL: https://community-charts.github.io/helm-charts
             wave: "0"
@@ -54,6 +75,11 @@ spec:
             repoURL: https://intel.github.io/helm-charts/
             namespace: kube-system
             wave: "0"
+          - name: longhorn
+            repoURL: https://charts.longhorn.io
+            namespace: longhorn-system
+            wave: "-4"
+            extraManifests: true
           - name: metrics-server
             repoURL: https://kubernetes-sigs.github.io/metrics-server/
             namespace: kube-system
@@ -65,6 +91,18 @@ spec:
             repoURL: https://pytoshka.github.io/vault-autounseal
             namespace: vault
             wave: "1"
+          - name: victoria-metrics-k8s-stack
+            chart: victoria-metrics-k8s-stack
+            repoURL: https://victoriametrics.github.io/helm-charts/
+            namespace: victoria-metrics
+            wave: "-2"
+            extraManifests: true
+            ignoreDiff: |
+              - group: ""
+                kind: Secret
+                name: victoria-metrics-k8s-stack-victoria-metrics-operator-validation
+                jsonPointers:
+                  - /data
           - name: vpa
             repoURL: https://charts.fairwinds.com/stable
             wave: "0"
@@ -109,6 +147,10 @@ spec:
           targetRevision: HEAD
           path: "manifests/infrastructure/{{.name}}"
         {{- end }}
+      {{- if index . "ignoreDiff" }}
+      ignoreDifferences:
+      {{- .ignoreDiff | nindent 4 }}
+      {{- end }}
       syncPolicy:
         automated:
           prune: true
@@ -116,6 +158,9 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          {{- if index . "ignoreDiff" }}
+          - RespectIgnoreDifferences=true
+          {{- end }}
         retry:
           limit: 5
           backoff:

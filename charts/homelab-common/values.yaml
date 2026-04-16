@@ -28,6 +28,8 @@ global:
   # Backup: без реальных хостов в публичном репозитории — задайте в private global или в values релиза
   backup:
     rcloneImage: rclone/rclone:1.69
+    rcloneDefaultArgs:
+      - --verbose
     webdav:
       url: ""
       user: ""
