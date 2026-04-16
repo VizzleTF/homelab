@@ -8,9 +8,9 @@
     - name: Render cluster.fw
       ansible.builtin.copy:
         dest: /etc/pve/firewall/cluster.fw
-        mode: "0640"
-        owner: root
-        group: www-data
+        # pmxcfs (FUSE) не умеет атомарный rename и не даёт chown/chmod —
+        # unsafe_writes=true пишет файл напрямую, ownership/mode выставляет сама pmxcfs.
+        unsafe_writes: true
         content: |
           # Managed by Ansible (roles/pve_firewall).
           [OPTIONS]
