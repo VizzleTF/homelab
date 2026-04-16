@@ -19,13 +19,15 @@ resource "proxmox_virtual_environment_user_token" "exporter" {
   user_id               = proxmox_virtual_environment_user.exporter.user_id
   token_name            = var.exporter_token_name
   comment               = "prometheus-pve-exporter (managed by terraform)"
-  privileges_separation = true
+  # privsep=false: токен наследует права юзера. Провайдер bpg/proxmox v0.x
+  # не добавляет префикс `token:` в /etc/pve/user.cfg при ACL на token_id,
+  # из-за чего privsep=true + ACL на токен → эффективные права пусты.
+  # Для readonly PVEAuditor-экспортёра потеря token/user boundary приемлема.
+  privileges_separation = false
 }
 
-# С privsep=true ACL привязывается к токену, а не к юзеру —
-# иначе токен остаётся без привилегий, сколько бы ни было ACL на юзере.
 resource "proxmox_virtual_environment_acl" "exporter_auditor" {
-  token_id  = proxmox_virtual_environment_user_token.exporter.id
+  user_id   = proxmox_virtual_environment_user.exporter.user_id
   role_id   = "PVEAuditor"
   path      = "/"
   propagate = true
