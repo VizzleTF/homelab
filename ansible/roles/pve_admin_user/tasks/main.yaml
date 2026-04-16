@@ -1,4 +1,13 @@
 ---
+# На голом Proxmox VE пакета sudo нет — образ Debian-minimal + pveum для привилегий.
+# Устанавливаем, раз уж заводим linux-админа с NOPASSWD-sudo.
+- name: Ensure sudo is installed
+  ansible.builtin.apt:
+    name: sudo
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Ensure linux admin group exists
   ansible.builtin.group:
     name: "{{ admin_user }}"
@@ -48,7 +57,17 @@
   ansible.builtin.command: pveum user add {{ admin_user }}@pam --comment "Homelab admin (managed by Ansible)"
   when: not pve_admin_exists
 
+- name: Check current ACL for admin@pam on /
+  ansible.builtin.command: pveum acl list --output-format json
+  register: pveum_acl_list
+  changed_when: false
+  check_mode: false
+
 - name: Grant Administrator role to admin@pam on /
   ansible.builtin.command: pveum acl modify / --users {{ admin_user }}@pam --roles Administrator
-  register: pveum_acl
-  changed_when: "'Update' in pveum_acl.stdout or pveum_acl.rc == 0"
+  when: >
+    (pveum_acl_list.stdout | from_json)
+    | selectattr('path', 'equalto', '/')
+    | selectattr('ugid', 'equalto', admin_user ~ '@pam')
+    | selectattr('roleid', 'equalto', 'Administrator')
+    | list | length == 0
