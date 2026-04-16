@@ -13,6 +13,11 @@ resource "proxmox_virtual_environment_user" "tf" {
   user_id = var.user_id
   comment = "terraform provider (managed by terraform)"
   enabled = true
+
+  # ACL — в отдельном ресурсе, см. комментарий в pve_rbac.
+  lifecycle {
+    ignore_changes = [acl]
+  }
 }
 
 resource "proxmox_virtual_environment_user_token" "tf" {
