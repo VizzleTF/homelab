@@ -1,0 +1,25 @@
+# Source of truth для PVE management-уровня.
+# Используется terraform modules/ansible_inventory для генерации ansible/inventory
+# и terraform modules/pve_exporter_targets для values/infrastructure/pve-exporter.yaml.
+
+hosts:
+  pve1: 10.11.11.11
+  pve2: 10.11.11.12
+  pve3: 10.11.11.13
+  pve4: 10.11.11.14
+  pve5: 10.11.11.15
+  pve6: 10.11.11.16
+
+admin:
+  # Linux-пользователь для Ansible-управления, также зеркалируется в pveum как admin@pam.
+  user: admin
+  groups:
+    - sudo
+
+# Подсети, из которых Proxmox datacenter firewall пропускает SSH/PVE UI/SPICE/VNC.
+trusted_cidrs:
+  - 10.11.11.0/24
+  - 10.11.12.0/24
+
+# cluster.fw синхронизируется через pmxcfs — Ansible редактирует его только на одной ноде.
+firewall_manager_host: pve1

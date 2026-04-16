@@ -1,0 +1,58 @@
+---
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Deploy fail2ban homelab jail
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/homelab.local
+    mode: "0644"
+    owner: root
+    group: root
+    content: |
+      # Managed by Ansible (roles/pve_fail2ban).
+      [DEFAULT]
+      bantime  = 1h
+      findtime = 10m
+      maxretry = 5
+      backend  = systemd
+      ignoreip = 127.0.0.1/8 ::1 {{ trusted_cidrs | join(' ') }}
+
+      [sshd]
+      enabled = true
+      mode    = aggressive
+
+      [proxmox]
+      enabled  = true
+      port     = https,http,8006
+      filter   = proxmox
+      logpath  = /var/log/daemon.log
+      maxretry = 3
+      bantime  = 1h
+  notify: Restart fail2ban
+
+- name: Deploy fail2ban proxmox filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/proxmox.conf
+    mode: "0644"
+    owner: root
+    group: root
+    content: |
+      # Managed by Ansible. Matches pveproxy auth failure log lines.
+      [Definition]
+      failregex = pvedaemon\[.*authentication failure; rhost=<HOST> user=.* msg=.*
+      ignoreregex =
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true
+  # В --check пакет не установлен, service-юнита ещё нет — пропускаем, иначе
+  # модуль падает с "Could not find the requested service". В реальном прогоне
+  # apt-шаг установит пакет до этой задачи, и условие тривиально истинно.
+  when: not ansible_check_mode
