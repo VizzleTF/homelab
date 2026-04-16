@@ -35,9 +35,11 @@ resources:
     cpu: 200m
     memory: 256Mi
 
+# ServiceMonitor отключён — у нас нет prometheus-operator CRD, только victoria-metrics.
+# Вместо этого VMServiceScrape задаётся в manifests/infrastructure/pve-exporter/
+# (см. extraManifests: true в argocd/infrastructure/infra-appset.yaml).
 serviceMonitor:
-  enabled: true
-  interval: 60s
+  enabled: false
   pveTargets:
 %{ for host, ip in hosts ~}
     - ${ip}

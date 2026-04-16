@@ -91,6 +91,7 @@ spec:
             repoURL: https://charts.christianhuth.de
             namespace: victoria-metrics
             wave: "0"
+            extraManifests: true
           - name: vault-autounseal
             repoURL: https://pytoshka.github.io/vault-autounseal
             namespace: vault
