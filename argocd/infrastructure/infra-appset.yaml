@@ -116,6 +116,7 @@ spec:
           - name: renovate
             repoURL: https://docs.renovatebot.com/helm-charts
             wave: "2"
+            extraManifests: true
           - name: vault-autounseal
             repoURL: https://pytoshka.github.io/vault-autounseal
             namespace: vault
