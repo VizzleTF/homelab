@@ -8,11 +8,12 @@
   ],
   "timezone": "UTC",
   "schedule": ["before 6am on monday"],
+  "automergeSchedule": ["at any time"],
   "prConcurrentLimit": 10,
   "prHourlyLimit": 4,
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
-  "rebaseWhen": "conflicted",
+  "rebaseWhen": "auto",
   "packageRules": [
     {
       "matchUpdateTypes": ["major"],
@@ -31,11 +32,44 @@
       "description": "Auto-merge patch and pin updates once PR is mergeable"
     },
     {
-      "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor"],
       "automerge": true,
       "addLabels": ["automerge"],
-      "description": "Auto-merge minor GitHub Actions bumps (low blast radius)"
+      "description": "Auto-merge minor updates across the repo"
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "matchDepNames": [
+        "cilium",
+        "vault",
+        "cert-manager",
+        "longhorn",
+        "argo-cd",
+        "victoria-metrics-k8s-stack"
+      ],
+      "automerge": false,
+      "addLabels": ["critical-infra", "manual-review"],
+      "description": "Critical infra — minor still requires manual review"
+    },
+    {
+      "matchFileNames": ["terraform_proxmox/**"],
+      "groupName": "terraform-providers",
+      "description": "Group Terraform provider bumps"
+    },
+    {
+      "matchFileNames": ["charts/**"],
+      "groupName": "homelab-common",
+      "description": "Group charts/ updates (rclone, etc.)"
+    },
+    {
+      "matchFileNames": [".github/workflows/**"],
+      "groupName": "github-actions",
+      "description": "Group GitHub Actions workflow bumps"
+    },
+    {
+      "matchFileNames": ["argocd/**"],
+      "groupName": "argocd-charts",
+      "description": "Group Helm targetRevision bumps in ArgoCD specs"
     }
   ],
   "customManagers": [
