@@ -10,12 +10,6 @@ hosts:
   pve5: 10.11.11.15
   pve6: 10.11.11.16
 
-admin:
-  # Linux-пользователь для Ansible-управления, также зеркалируется в pveum как admin@pam.
-  user: admin
-  groups:
-    - sudo
-
 # Подсети, из которых Proxmox datacenter firewall пропускает SSH/PVE UI/SPICE/VNC.
 trusted_cidrs:
   - 10.11.11.0/24

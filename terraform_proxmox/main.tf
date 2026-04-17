@@ -43,7 +43,6 @@ module "ansible_inventory" {
   source = "./modules/ansible_inventory"
 
   pve_hosts_config = local.pve_hosts_config
-  admin_ssh_pubkey = var.pc_public_key
 }
 
 module "pve_rbac" {

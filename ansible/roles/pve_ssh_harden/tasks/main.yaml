@@ -13,7 +13,7 @@
       ChallengeResponseAuthentication no
       KbdInteractiveAuthentication no
       UsePAM yes
-      AllowUsers {{ admin_user }} root
+      AllowUsers root
       ClientAliveInterval 300
       ClientAliveCountMax 2
       LoginGraceTime 30
