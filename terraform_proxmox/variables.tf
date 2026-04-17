@@ -14,12 +14,6 @@ variable "main_password" {
   sensitive   = true
 }
 
-variable "pc_public_key" {
-  description = "Public key for SSH access"
-  type        = string
-  sensitive   = true
-}
-
 variable "vm_password" {
   description = "Password for the VM"
   type        = string
