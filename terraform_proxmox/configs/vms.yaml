@@ -7,7 +7,7 @@ global:
   ram: 2048
   disk_size: 20
   pool_id: null
-  boot_order: ["sata0"]
+  boot_order: ["scsi0"]
   startup_order: 2
   startup_up_delay: 5
   cpu_type: "x86-64-v3"
