@@ -7,8 +7,8 @@
     group: root
     content: |
       # Managed by Ansible (roles/pve_ssh_harden).
-      PermitRootLogin prohibit-password
-      PasswordAuthentication no
+      PermitRootLogin yes
+      PasswordAuthentication yes
       PubkeyAuthentication yes
       ChallengeResponseAuthentication no
       KbdInteractiveAuthentication no
