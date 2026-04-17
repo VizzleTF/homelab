@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":pinDependencies"
+  ],
+  "github-actions": {
+    "enabled": false
+  },
+  "timezone": "UTC",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 4,
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "chore(deps):",
+  "rebaseWhen": "conflicted",
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/argocd/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "repoURL:\\s+(?<registryUrl>https?://[^\\s]+)\\s+chart:\\s+(?<depName>[^\\s]+)\\s+targetRevision:\\s+[\"']?(?<currentValue>[0-9][^\\s\"']*)[\"']?"
+      ],
+      "datasourceTemplate": "helm"
+    }
+  ]
+}
