@@ -1,18 +1,16 @@
 ---
 # Полный harden Proxmox-хостов. Runbook: docs/pve-hardening.md.
+# Доступ к хостам — только root по SSH-ключу (ключ раскатан через cloud-init/ручную установку).
 # Порядок ролей намеренный:
-#   1. admin_user  — создаём фолбэк-доступ до того, как закрутим SSH
-#   2. ssh_harden  — затягиваем sshd (handler перезапустит в конце play)
-#   3. sysctl      — безопасные сетевые параметры (независимо от остального)
-#   4. fail2ban    — подключаем защиту от brute-force
-#   5. firewall    — последним: если что-то сломается, admin уже на хосте
+#   1. ssh_harden  — затягиваем sshd (handler перезапустит в конце play)
+#   2. sysctl      — безопасные сетевые параметры (независимо от остального)
+#   3. fail2ban    — подключаем защиту от brute-force
+#   4. firewall    — последним: если что-то сломается, SSH ещё открыт
 - name: Proxmox hosts hardening
   hosts: pve
   become: true
   gather_facts: true
   roles:
-    - role: pve_admin_user
-      tags: [admin_user]
     - role: pve_ssh_harden
       tags: [ssh]
     - role: pve_sysctl
