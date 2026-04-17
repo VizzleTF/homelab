@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  description: Root App-of-Apps — manages only ArgoCD Applications/AppSets/AppProjects
+  sourceRepos:
+    - https://github.com/VizzleTF/home_proxmox.git
+  destinations:
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: argoproj.io
+      kind: Application
+    - group: argoproj.io
+      kind: ApplicationSet
+    - group: argoproj.io
+      kind: AppProject
