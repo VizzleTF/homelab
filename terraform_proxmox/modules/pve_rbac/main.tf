@@ -14,7 +14,7 @@ resource "proxmox_virtual_environment_user" "exporter" {
   comment = "prometheus-pve-exporter (managed by terraform)"
   enabled = true
 
-  # ACL задан отдельным ресурсом proxmox_virtual_environment_acl.exporter_auditor.
+  # ACL задан отдельным ресурсом proxmox_acl.exporter_auditor.
   # Провайдер bpg читает ACL обратно в nested-атрибут user'а — без ignore_changes
   # каждый plan хочет "обнулить" этот список, и экспортёр всё время "обновляется".
   lifecycle {
@@ -22,10 +22,10 @@ resource "proxmox_virtual_environment_user" "exporter" {
   }
 }
 
-resource "proxmox_virtual_environment_user_token" "exporter" {
-  user_id               = proxmox_virtual_environment_user.exporter.user_id
-  token_name            = var.exporter_token_name
-  comment               = "prometheus-pve-exporter (managed by terraform)"
+resource "proxmox_user_token" "exporter" {
+  user_id    = proxmox_virtual_environment_user.exporter.user_id
+  token_name = var.exporter_token_name
+  comment    = "prometheus-pve-exporter (managed by terraform)"
   # privsep=false: токен наследует права юзера. Провайдер bpg/proxmox v0.x
   # не добавляет префикс `token:` в /etc/pve/user.cfg при ACL на token_id,
   # из-за чего privsep=true + ACL на токен → эффективные права пусты.
@@ -33,7 +33,7 @@ resource "proxmox_virtual_environment_user_token" "exporter" {
   privileges_separation = false
 }
 
-resource "proxmox_virtual_environment_acl" "exporter_auditor" {
+resource "proxmox_acl" "exporter_auditor" {
   user_id   = proxmox_virtual_environment_user.exporter.user_id
   role_id   = "PVEAuditor"
   path      = "/"
@@ -43,7 +43,7 @@ resource "proxmox_virtual_environment_acl" "exporter_auditor" {
 locals {
   # bpg/proxmox отдаёт value в формате "user@realm!name=UUID".
   # prometheus-pve-exporter ждёт в token_value только сам UUID.
-  exporter_token_uuid = regex("=([0-9a-f-]+)$", proxmox_virtual_environment_user_token.exporter.value)[0]
+  exporter_token_uuid = regex("=([0-9a-f-]+)$", proxmox_user_token.exporter.value)[0]
 }
 
 resource "vault_kv_secret_v2" "exporter" {
@@ -51,7 +51,7 @@ resource "vault_kv_secret_v2" "exporter" {
   name  = var.vault_exporter_path
   data_json = jsonencode({
     user        = proxmox_virtual_environment_user.exporter.user_id
-    token_name  = proxmox_virtual_environment_user_token.exporter.token_name
+    token_name  = proxmox_user_token.exporter.token_name
     token_value = local.exporter_token_uuid
   })
 }

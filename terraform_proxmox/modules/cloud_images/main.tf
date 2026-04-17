@@ -13,7 +13,7 @@ locals {
   }
 }
 
-resource "proxmox_virtual_environment_download_file" "cloud_images" {
+resource "proxmox_download_file" "cloud_images" {
   for_each = local.enabled_images
 
   # Use image-specific settings with fallback to global settings
@@ -28,5 +28,5 @@ resource "proxmox_virtual_environment_download_file" "cloud_images" {
   checksum_algorithm = each.value.checksum_algorithm
 
   upload_timeout = coalesce(each.value.upload_timeout, var.images_config.global.upload_timeout)
-  overwrite             = coalesce(each.value.overwrite, var.images_config.global.overwrite)
+  overwrite      = coalesce(each.value.overwrite, var.images_config.global.overwrite)
 }

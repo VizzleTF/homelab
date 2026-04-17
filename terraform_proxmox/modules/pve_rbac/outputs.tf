@@ -1,6 +1,6 @@
 output "exporter_token_id" {
   description = "Идентификатор токена в формате `user@realm!name` — удобно для ручной верификации."
-  value       = proxmox_virtual_environment_user_token.exporter.id
+  value       = proxmox_user_token.exporter.id
 }
 
 output "vault_exporter_path" {
