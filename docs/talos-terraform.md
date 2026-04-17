@@ -13,15 +13,15 @@
 
 ```
 modules/talos/
-├── provider.tf       # siderolabs/talos = 0.11.0-beta.2, hashicorp/time ~> 0.12
-├── variables.tf      # cluster_name, cluster_endpoint, nodes map, versions, install image, vip, certSANs
+├── provider.tf       # required_version >=1.11, siderolabs/talos = 0.11.0-beta.2, hashicorp/time ~> 0.12
+├── variables.tf      # cluster_name, cluster_endpoint, nodes map, talos_version (schema) + talos_release (tag), install_schematic_id, install_disk, vip, certSANs
 ├── secrets.tf        # talos_machine_secrets (импортирован из _out/secrets.yaml)
-├── configs.tf        # data.talos_machine_configuration × 2 (cp + worker) с common/controlplane/node patches
+├── configs.tf        # data.talos_image_factory_urls для installer URL + data.talos_machine_configuration × 2 (cp + worker) с common/controlplane/node patches
 ├── apply.tf          # time_sleep(75s) + talos_machine_configuration_apply × N для managed-нод
 ├── bootstrap.tf      # talos_machine_bootstrap (импортирован no-op, prevent_destroy=true)
 ├── outputs.tf        # client_configuration + rescue machineconfigs
 └── patches/
-    ├── common.yaml.tftpl           # CNI=none, kube-proxy disabled, extraHostEntries, sysctls, kernel modules, features, install, kubelet extraMounts для Longhorn
+    ├── common.yaml.tftpl           # CNI=none, kube-proxy disabled, extraHostEntries, sysctls, kernel modules, features, install.disk/image, kubelet extraMounts для Longhorn
     ├── controlplane.yaml.tftpl     # VIP, apiServer certSANs, PodSecurity admission, allowSchedulingOnControlPlanes
     └── node.yaml.tftpl             # hostname — multi-doc: machine.features.stableHostname=false + v1alpha1 HostnameConfig (v1.13 schema, см. Gotchas)
 ```
@@ -44,10 +44,16 @@ Top-level `main.tf` собирает map нод для модуля из `config
 | `cluster_name` | `talos-proxmox-cluster` |
 | `cluster_endpoint` | `https://10.11.11.100:6443` (VIP, анонсируется CP-нодами) |
 | `vip` | `10.11.11.100` (анонсируется CP-нодами через eth0) |
-| `kubernetes_version` | `v1.36.0-beta.0` |
-| `talos_version` (schema) | `v1.13` (соответствует install image) |
-| `install_image` | `factory.talos.dev/nocloud-installer/<schematic>:v1.13.0-beta.1` |
+| `kubernetes_version` | `v1.36.0-rc.1` |
+| `talos_version` (schema) | `v1.13` — для `data.talos_machine_configuration` |
+| `talos_release` (tag) | `v1.13.0-rc.0` — для `data.talos_image_factory_urls` |
+| `install_schematic_id` | `eed1860a28ccc6fdb77f1f41ab0ae2a20c19bc6101618d416d5d72ec919bf679` |
+| `install_image` (derived) | `factory.talos.dev/nocloud-installer/<schematic>:<talos_release>` |
+| `install_disk` | `/dev/sda` (по умолчанию, `var.install_disk`) |
 | `apiserver_cert_sans` | `k8s.vakaf.space` + IP всех CP + VIP (автогенерация) |
+
+Чтобы обновить Talos, достаточно поменять `talos_release` (и `talos_version` при смене минорной
+схемы); URL installer'а пересобирается автоматически через `talos_image_factory_urls`.
 
 Секреты: `talos_machine_secrets` + `talos_machine_bootstrap` — импортированы
 одноразово из существующего кластера, хранятся в TF-state (бэкенд — S3 Yandex Cloud).
@@ -304,12 +310,73 @@ pod'а остаются до рестарта. Rolling restart форсит св
 
 Память: `feedback_talos_secrets_sa_token_cascade.md`.
 
+## Upgrade Talos / Kubernetes
+
+**Разделение ответственности** (проверено на v1.13.0-beta.1 → v1.13.0-rc.0, 2026-04-17):
+
+| Что меняется | Через TF apply | Нужен ручной шаг |
+|---|---|---|
+| `kubernetes_version` | ✅ kubelet рестартует, нода получает новый binary | нет |
+| `talos_release` / `install_image` | ❌ только записывает новый `machine.install.image` в config (это образ для **следующего** `talosctl upgrade`, не триггер) | `talosctl upgrade --image <URL>` на каждой ноде |
+
+Причина — [siderolabs/terraform-provider-talos#140](https://github.com/siderolabs/terraform-provider-talos/issues/140):
+`talos_machine_configuration_apply` не умеет triggerить OS-level upgrade, это управляется
+отдельной operation в Talos API (`MachineService.Upgrade`). Провайдер этой RPC не умеет.
+
+### K8s upgrade (через TF) — работает полностью
+
+```bash
+# 1. Предусловия: etcd backup ≤ 24ч, ArgoCD Healthy/Synced, нет firing alerts
+
+# 2. Edit main.tf → module.talos → kubernetes_version = "vA.B.C"
+
+# 3. parallelism=1 чтобы kubelet'ы не рестартовали одновременно на всех CP
+cd home_proxmox/terraform_proxmox
+terraform apply -parallelism=1
+
+# 4. Мониторить:
+watch 'kubectl get nodes -o wide'
+```
+
+### Talos OS upgrade — руками через talosctl
+
+Последовательность на каждую ноду (CP сначала, по одной; workers после):
+
+```bash
+# Получить target image — из data source, уже отрендерен провайдером:
+URL=$(terraform output -raw talos_install_image 2>/dev/null || \
+      echo "factory.talos.dev/nocloud-installer/<schematic>:<release>")
+
+# Для каждой ноды последовательно:
+for IP in 10.11.11.101 10.11.11.102 10.11.11.103 10.11.11.111 10.11.11.112 10.11.11.113; do
+  NODE=$(kubectl get node -o json | jq -r ".items[] | select(.status.addresses[].address==\"$IP\") | .metadata.name")
+  echo "=== Upgrading $NODE ($IP) ==="
+  kubectl cordon "$NODE"
+  kubectl drain "$NODE" --ignore-daemonsets --delete-emptydir-data --force --timeout=5m || true
+  talosctl -n "$IP" upgrade --image "$URL" --preserve  # --preserve для CP (сохраняет etcd data)
+  # talosctl дожидается пока нода reboot'нется и вернётся online
+  kubectl uncordon "$NODE"
+  kubectl wait --for=condition=Ready node/"$NODE" --timeout=5m
+done
+```
+
+- `--preserve` обязателен для CP (etcd member data) и worker'ов с Longhorn (`/var/lib/longhorn/`).
+- CP обновлять по одному (двойной ребут → API down); workers тоже по одному — Longhorn replica
+  должна успеть синкнуться обратно до следующей ноды.
+- После всех — `kubectl get nodes -o wide` должен показать новую Talos OS-IMAGE везде.
+
 ## Open questions (не в scope)
 
-- **Talos OS upgrade через провайдер**: вне TF — см. issue
-  [siderolabs/terraform-provider-talos#140](https://github.com/siderolabs/terraform-provider-talos/issues/140).
-  Сейчас — руками через `talosctl upgrade`.
-- **K8s upgrade**: `talosctl upgrade-k8s`, вне TF.
 - **Секреты из state → Vault / ephemeral**: TF ≥ 1.11 + provider v0.11+ поддерживают
-  `ephemeral` ресурсы; пока `talos_machine_secrets`/`talos_machine_bootstrap` в S3 state
-  (Yandex Cloud) — приемлемо, но перевод уберёт секреты из state целиком.
+  `ephemeral` ресурсы и `_wo` (write-only) аттрибуты. `talos_machine_secrets`/
+  `talos_machine_bootstrap` сейчас в S3 state (Yandex Cloud). Миграция:
+  1. Записать существующие секреты в Vault (`home/homelab/talos/<cluster_name>`) через
+     `vault_kv_secret_v2` с `data_json_wo`.
+  2. Переключить `talos_machine_configuration_apply` на `machine_configuration_input_wo` с
+     `ephemeral "talos_machine_configuration"` + `ephemeral "vault_kv_secret_v2"`.
+  3. `terraform state rm module.talos.talos_machine_secrets.this`.
+
+  Требует stable `siderolabs/talos` (сейчас `0.11.0-beta.2` — он же latest на registry).
+  Полный рецепт — в провайдерском guide `Using Ephemeral Resources`.
+- **Provider stable**: `0.11.0-beta.2` остаётся latest на момент этого документа; перед
+  миграцией на ephemeral дождаться выхода `0.11.0` stable.

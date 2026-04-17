@@ -14,14 +14,37 @@ variable "kubernetes_version" {
 }
 
 variable "talos_version" {
-  description = "Talos schema version (vX.Y), not install image version"
+  description = "Talos schema version (vX.Y, no patch) — passed to talos_machine_configuration."
   type        = string
-  default     = "v1.11"
+}
+
+variable "talos_release" {
+  description = "Full Talos release tag (vX.Y.Z[-rc.N]) — used to resolve installer URL via image factory."
+  type        = string
 }
 
 variable "install_image" {
-  description = "Full Talos installer image reference (factory.talos.dev/...)"
+  description = "Explicit installer image override. If empty, derived from talos_release + install_schematic_id."
   type        = string
+  default     = ""
+}
+
+variable "install_schematic_id" {
+  description = "Talos image factory schematic ID for installer URL generation when install_image is empty."
+  type        = string
+  default     = ""
+}
+
+variable "install_platform" {
+  description = "Talos image factory platform (nocloud for Proxmox qcow2 import)."
+  type        = string
+  default     = "nocloud"
+}
+
+variable "install_disk" {
+  description = "Block device Talos installer writes to."
+  type        = string
+  default     = "/dev/sda"
 }
 
 variable "vip" {
@@ -33,16 +56,6 @@ variable "apiserver_cert_sans" {
   description = "Additional SANs for kube-apiserver cert (external DNS, etc.)"
   type        = list(string)
   default     = []
-}
-
-variable "pod_subnets" {
-  type    = list(string)
-  default = ["10.244.0.0/16"]
-}
-
-variable "service_subnets" {
-  type    = list(string)
-  default = ["10.96.0.0/12"]
 }
 
 variable "nodes" {
