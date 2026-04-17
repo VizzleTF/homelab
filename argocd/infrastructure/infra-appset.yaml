@@ -89,12 +89,20 @@ spec:
           - name: node-feature-discovery
             repoURL: https://kubernetes-sigs.github.io/node-feature-discovery/charts
             wave: "-1"
+          - name: tetragon
+            repoURL: https://helm.cilium.io/
+            namespace: tetragon
+            wave: "-3"
+            extraManifests: true
           - name: pve-exporter
             chart: prometheus-pve-exporter
             repoURL: https://charts.christianhuth.de
             namespace: victoria-metrics
             wave: "0"
             extraManifests: true
+          - name: renovate
+            repoURL: https://docs.renovatebot.com/helm-charts
+            wave: "2"
           - name: vault-autounseal
             repoURL: https://pytoshka.github.io/vault-autounseal
             namespace: vault
