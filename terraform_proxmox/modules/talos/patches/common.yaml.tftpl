@@ -19,12 +19,10 @@ machine:
 %{ for e in host_entries ~}
       - ip: ${e.ip}
         aliases:
-%{ for a in e.aliases ~}
-          - ${a}
-%{ endfor ~}
+          - ${e.hostname}
 %{ endfor ~}
   install:
-    disk: /dev/sda
+    disk: ${install_disk}
     image: ${install_image}
     wipe: false
   features:
@@ -56,4 +54,3 @@ cluster:
     registries:
       kubernetes:
         disabled: true
-      service: {}

@@ -19,3 +19,8 @@ output "talos_client_configuration" {
   value       = module.talos.client_configuration
   sensitive   = true
 }
+
+output "talos_install_image" {
+  description = "Talos installer URL for `talosctl upgrade --image <URL>` (see docs/talos-terraform.md → Upgrade section)"
+  value       = module.talos.install_image
+}

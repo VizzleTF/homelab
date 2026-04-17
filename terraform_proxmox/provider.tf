@@ -1,5 +1,7 @@
 # https://registry.terraform.io/providers/bpg/proxmox/latest/docs
 terraform {
+  required_version = ">= 1.11"
+
   required_providers {
     proxmox = {
       source = "bpg/proxmox"
