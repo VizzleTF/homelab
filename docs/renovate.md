@@ -34,16 +34,20 @@ The Kubernetes object is a `CronJob` in namespace `renovate` — one-shot pod th
 4. ArgoCD (`syncPolicy.automated`) picks up the commit on `main` and reconciles.
 5. Any failures trigger ArgoCD health alerts through the Victoria Metrics / Alertmanager → Telegram chain.
 
-### Automation Roadmap
+### Automation Rules (live)
 
-| Stage | What is automated | Who decides |
-| --- | --- | --- |
-| v1 (current) | Nothing. All PRs are manually reviewed and merged. | You |
-| v2 | `patch` + Docker digest updates auto-merge after CI passes. | Renovate `packageRules` + GitHub branch protection |
-| v3 | `minor` updates for user-facing apps (Immich, Nextcloud, Vaultwarden) auto-merge on weekly schedule. | Renovate `packageRules` matching `path:values/applications/**` |
-| Always manual | `major` updates, all infra (Cilium, Vault, cert-manager, ArgoCD), Talos / Kubernetes version bumps. | You |
+| Scope | Automation |
+| --- | --- |
+| `patch` + `pin` updates (both repos) | Auto-merged by Renovate once the PR is mergeable |
+| `minor` GitHub Actions bumps (`home_proxmox`) | Auto-merged (low blast radius) |
+| `minor` updates for user-facing apps (`home-proxmox-values:values/applications/**`) | Auto-merged |
+| `minor` updates for infra Helm charts | Manual review |
+| `major` anything | Manual — requires Dependency Dashboard approval (`dependencyDashboardApproval: true`) |
+| Docker `digest` pin updates | Disabled (too noisy) |
 
-Move to v2 after watching v1 output for at least two weekly cycles.
+**Merge strategy:** Renovate performs the merge itself via its PAT (`automerge: true`, `platformAutomerge: false`) so the flow works identically on the public (`home_proxmox`) and private (`home-proxmox-values`) repos — GitHub's native auto-merge is not available on private repos without a paid plan.
+
+To push the envelope later: add grouping (`groupName` per ecosystem) or relax infra-minor to automerge after a few weeks of confidence.
 
 ## Operations
 
@@ -63,11 +67,9 @@ kubectl -n renovate get events --sort-by=.lastTimestamp
 
 ### Rotate the GitHub token
 
-**Current state (v1):** the token in Vault is the `gh` CLI OAuth token (`gho_…`) with scopes `repo, read:org, gist, admin:public_key`. This covers Renovate's PR workflow but **not** `workflow` scope — so the `github-actions` manager is disabled in `renovate.json`. Renovate will not update `.github/workflows/*` files.
+Current token is a classic PAT (`ghp_…`) with `repo, workflow` scopes. Rotation steps:
 
-**To enable GitHub Actions updates or rotate:**
-
-1. Create a classic PAT in GitHub → Settings → Developer settings → Personal access tokens (classic). Scopes: `repo`, `workflow`. Expiry: 1 year. Set a calendar reminder.
+1. Create a new classic PAT in GitHub → Settings → Developer settings → Personal access tokens (classic). Scopes: `repo`, `workflow`. Expiry: 1 year. Set a calendar reminder.
 2. Put it in Vault:
    ```bash
    vault kv put home/homelab/k8s/renovate/github-token token=<new-pat>
@@ -76,14 +78,8 @@ kubectl -n renovate get events --sort-by=.lastTimestamp
    ```bash
    kubectl -n renovate annotate externalsecret renovate-github-token force-sync=$(date +%s) --overwrite
    ```
-4. Remove `"github-actions": { "enabled": false }` from `renovate.json` in both repos, commit, push.
-5. Next cron run picks up the new token automatically — CronJob creates a fresh pod each run.
-
-**Quick re-use of `gh` token after `gh auth refresh`:**
-
-```bash
-vault kv put home/homelab/k8s/renovate/github-token token="$(gh auth token)"
-```
+4. Next cron run picks up the new token automatically — CronJob creates a fresh pod each run.
+5. Revoke the old PAT in GitHub after confirming a successful cron run.
 
 ### Change the schedule
 
