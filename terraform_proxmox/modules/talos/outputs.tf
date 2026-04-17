@@ -19,3 +19,8 @@ output "worker_machine_configuration" {
   value       = data.talos_machine_configuration.worker.machine_configuration
   sensitive   = true
 }
+
+output "install_image" {
+  description = "Effective Talos installer URL — use for `talosctl upgrade --image <URL>` (provider issue #140: config apply does NOT trigger OS upgrade)"
+  value       = local.effective_install_image
+}
