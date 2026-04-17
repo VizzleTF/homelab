@@ -25,6 +25,8 @@ resource "proxmox_virtual_environment_vm" "vms" {
   description = coalesce(each.value.description, try(var.vms_config.global.description, null))
   machine     = coalesce(each.value.machine, try(var.vms_config.global.machine, null))
 
+  scsi_hardware = "virtio-scsi-single"
+
   pool_id = try(coalesce(each.value.pool_id, var.vms_config.global.pool_id), null)
 
   agent { enabled = true }
@@ -46,8 +48,13 @@ resource "proxmox_virtual_environment_vm" "vms" {
   disk {
     datastore_id = coalesce(each.value.datastore_id, var.vms_config.global.datastore_id)
     file_id      = coalesce(each.value.image_file, try(var.vms_config.global.image_file, null)) != null ? var.image_file_ids[coalesce(each.value.image_file, var.vms_config.global.image_file)] : null
-    interface    = "sata0"
+    interface    = "scsi0"
     size         = coalesce(each.value.disk_size, var.vms_config.global.disk_size)
+    iothread     = true
+    aio          = "io_uring"
+    cache        = "none"
+    ssd          = true
+    discard      = "on"
   }
 
   initialization {
