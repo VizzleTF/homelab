@@ -17,13 +17,25 @@ eBPF-based process/file/network observability + TracingPolicy enforcement. Daemo
 3. Export: JSON в stdout sidecar (`export-stdout` container) + Prometheus metrics (port 2112).
 4. TracingPolicy CRD → operator генерирует BPF-программы на лету.
 
-## Фаза 1 (сейчас) — observation-only
+## Фаза 1 — observation-only (done)
 
 - Базовые process exec/exit events в stdout
 - Prometheus scrape через VMServiceScrape
 - VMRule алерты в Telegram через существующий Alertmanager
 - TracingPolicies: `suspicious-exec` (nc/nmap/socat/tcpdump/strace), `secrets-access` (чтение `/var/run/secrets/…`, `/etc/shadow`, `/root/.ssh/`)
 - **Enforcement отключён** — только `Post` (лог + метрика), никаких `Sigkill`
+
+## Фаза 2 (сейчас) — extended coverage + observability
+
+- **Grafana dashboard** "Tetragon Runtime Security" в папке Security — event rate, top pods/binaries, policy matches, ringbuf loss
+- **Алерты переведены на `tetragon_policy_events_total{policy=...}`** (policy-specific метрика вместо `type="PROCESS_LSM"` шумящего матча на всё LSM)
+- **TetragonEventBurst** — threshold пересчитан с 500/s до 100/s **per-node** после baseline'а
+- **Новые TracingPolicies**:
+  - `tcp-connect-external` — kprobe `tcp_connect`, фильтр `NotDAddr` RFC1918/loopback/link-local
+  - `kernel-module-load` — kprobe `do_init_module`, critical alert (Talos грузит модули только на boot через extensions)
+  - `privileged-syscalls` — kprobes `sys_ptrace` / `sys_setuid` / `sys_setgid`
+- **Новые алерты**: TetragonShellExecInCriticalNs (shell в vault/argocd/cnpg/eso/cert-manager), TetragonExternalTCPConnectFromApp, TetragonKernelModuleLoad, TetragonPrivilegedSyscall
+- `/usr/bin/nfd-worker` добавлен в NotIn `secrets-access` — NFD легитимно читает SA-токены, генерил 22 baseline event'а
 
 ## Что смотреть
 
@@ -57,10 +69,10 @@ kubectl run -it --rm test --image=alpine -- sh -c 'apk add --no-cache netcat-ope
 - С TracingPolicy: +50–100 MB RAM / +1–2% CPU
 - Event volume: ~10–50 events/s на кластер при baseline
 
-## Фаза 2+ (отдельные задачи)
+## Фаза 3+ (отдельные задачи)
 
 - **VictoriaLogs + Vector** — полный audit-trail JSON-событий (сейчас события только в `kubectl logs`, rotation через экспортер)
-- **Enforcement mode** — Sigkill для явных lateral-movement tools после 1–2 недель обкатки
+- **Enforcement mode** — Sigkill для явных lateral-movement tools после 1–2 недель обкатки Фазы 2
 - **Namespace-scoped TracingPolicies** — разные правила для разных приложений (Immich vs infra)
 
 ## Файлы
@@ -70,6 +82,10 @@ kubectl run -it --rm test --image=alpine -- sh -c 'apk add --no-cache netcat-ope
 | `home_proxmox/argocd/infrastructure/infra-appset.yaml` | Entry в list generator |
 | `home-proxmox-values/values/infrastructure/tetragon.yaml` | Helm values |
 | `home-proxmox-values/manifests/infrastructure/tetragon/vmservicescrape.yaml` | Метрики для VMAgent |
-| `home-proxmox-values/manifests/infrastructure/tetragon/tracingpolicy-suspicious-exec.yaml` | TracingPolicy |
-| `home-proxmox-values/manifests/infrastructure/tetragon/tracingpolicy-secrets-access.yaml` | TracingPolicy |
-| `home-proxmox-values/manifests/infrastructure/tetragon/vmrule.yaml` | Telegram алерты |
+| `home-proxmox-values/manifests/infrastructure/tetragon/tracingpolicy-suspicious-exec.yaml` | TracingPolicy: exec nc/nmap/socat/tcpdump/strace |
+| `home-proxmox-values/manifests/infrastructure/tetragon/tracingpolicy-secrets-access.yaml` | TracingPolicy: LSM file_open на credential-путях |
+| `home-proxmox-values/manifests/infrastructure/tetragon/tracingpolicy-tcp-connect.yaml` | TracingPolicy: egress в интернет (не-RFC1918) |
+| `home-proxmox-values/manifests/infrastructure/tetragon/tracingpolicy-module-load.yaml` | TracingPolicy: kernel module load |
+| `home-proxmox-values/manifests/infrastructure/tetragon/tracingpolicy-privileged-syscalls.yaml` | TracingPolicy: ptrace/setuid/setgid |
+| `home-proxmox-values/manifests/infrastructure/tetragon/vmrule.yaml` | Telegram алерты (policy-specific + общие) |
+| `home-proxmox-values/manifests/infrastructure/tetragon/grafana-dashboard.yaml` | Dashboard ConfigMap (sidecar-discovered) |
