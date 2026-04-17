@@ -71,6 +71,33 @@ Updates are bundled into one PR per directory group to cut noise. The group name
 
 Rebase strategy: `rebaseWhen: "auto"` — Renovate rebases PRs as needed, so branches never go stale.
 
+### Daily Telegram Digest
+
+A second CronJob `renovate-notify` runs every day at **08:00 UTC** (after the 02:00 scan finishes) and posts a summary to the same Telegram channel as VictoriaMetrics alerts.
+
+| Piece | Where |
+| --- | --- |
+| CronJob | `renovate-notify` in namespace `renovate` |
+| Script | `ConfigMap/renovate-notify-script` (`digest.sh`), sourced from `manifests/infrastructure/renovate/notify-cronjob.yaml` |
+| Image | `badouralix/curl-jq:latest` (non-root, minimal) |
+| GitHub auth | reuses `Secret/renovate-github-token` |
+| Telegram bot | shared with alerts — Vault KV at `homelab/k8s/telegram/victoria-metrics-bot` (`token`, `chat_id`) |
+
+Digest content per repo:
+
+- ✅ merged PRs in last 24h (successes — shows Renovate is working)
+- ❌ closed-without-merge PRs in last 24h
+- 📥 open dependency PRs with full list (links to each)
+- ⚠️ PRs labelled `manual-review` (actionable — critical-infra minor that needs your eyes)
+- 🔘 Dependency Dashboard counters: pending approval (major — tick a checkbox to greenlight) + awaiting schedule
+
+Manual run (don't wait for 08:00):
+
+```bash
+kubectl -n renovate create job --from=cronjob/renovate-notify notify-$(date +%s)
+kubectl -n renovate logs -l job-name=notify-* --tail=20
+```
+
 ## Operations
 
 ### Manual run (do not wait for cron)
