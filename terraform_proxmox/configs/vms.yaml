@@ -26,7 +26,7 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "cp-01"
+    talos_managed: true
     vlan_id: "11"
     cores: 3
     ram: 12288
@@ -47,7 +47,7 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "cp-02"
+    talos_managed: true
     vlan_id: "11"
     cores: 3
     ram: 12288
@@ -68,7 +68,7 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "cp-03"
+    talos_managed: true
     vlan_id: "11"
     cores: 3
     ram: 12288
@@ -89,7 +89,7 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "worker-01"
+    talos_managed: true
     vlan_id: "11"
     cores: 3
     ram: 12288
@@ -110,7 +110,7 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "worker-02"
+    talos_managed: true
     vlan_id: "11"
     cores: 3
     ram: 6144
@@ -125,7 +125,7 @@ vms:
     tags: ["talos", "kubernetes"]
     description: "Talos Linux VM for Kubernetes cluster"
     image_file: "talos-nocloud"
-    talos_config: "worker-03"
+    talos_managed: true
     vlan_id: "11"
     cores: 4
     ram: 12288

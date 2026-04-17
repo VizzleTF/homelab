@@ -1,8 +1,8 @@
 variable "pve_hosts_config" {
   description = "Parsed content of configs/pve_hosts.yaml (hosts/admin/trusted_cidrs/firewall_manager_host)"
   type = object({
-    hosts                 = map(string)
-    admin                 = object({
+    hosts = map(string)
+    admin = object({
       user   = string
       groups = list(string)
     })

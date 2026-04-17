@@ -1,0 +1,43 @@
+machine:
+  certSANs:
+%{ for ip in cp_node_ips ~}
+    - ${ip}
+%{ endfor ~}
+  network:
+    interfaces:
+      - interface: eth0
+        vip:
+          ip: ${vip}
+  nodeLabels:
+    node.kubernetes.io/exclude-from-external-load-balancers: ""
+cluster:
+  apiServer:
+    certSANs:
+%{ for s in apiserver_cert_sans ~}
+      - ${s}
+%{ endfor ~}
+%{ for ip in cp_node_ips ~}
+      - ${ip}
+%{ endfor ~}
+    disablePodSecurityPolicy: true
+    admissionControl:
+      - name: PodSecurity
+        configuration:
+          apiVersion: pod-security.admission.config.k8s.io/v1alpha1
+          defaults:
+            audit: restricted
+            audit-version: latest
+            enforce: privileged
+            enforce-version: latest
+            warn: restricted
+            warn-version: latest
+          # exemptions omitted — Talos already defaults to namespaces:[kube-system];
+          # listing it here causes strategic-merge list-append → duplicate entry →
+          # kube-apiserver fails with "exemptions.namespaces[1]: Duplicate value".
+          kind: PodSecurityConfiguration
+    auditPolicy:
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      rules:
+        - level: Metadata
+  allowSchedulingOnControlPlanes: true
