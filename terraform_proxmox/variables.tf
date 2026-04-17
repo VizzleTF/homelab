@@ -3,24 +3,15 @@ variable "endpoint" {
   type        = string
 }
 
-variable "proxmox_api_token" {
-  description = "Полный API-токен для PVE в формате `user@realm!name=UUID`. Читается из Vault: home/homelab/terraform/proxmox-api-token field=api_token. Если задан — приоритет над username/password."
-  type        = string
-  sensitive   = true
-  default     = null
-}
-
 variable "proxmox_username" {
-  description = "Proxmox API username (bootstrap, когда токена ещё нет)."
+  description = "Proxmox API username."
   type        = string
-  default     = null
 }
 
 variable "main_password" {
-  description = "Proxmox API password (bootstrap, когда токена ещё нет)."
+  description = "Proxmox API password."
   type        = string
   sensitive   = true
-  default     = null
 }
 
 variable "pc_public_key" {
