@@ -15,10 +15,10 @@ variable "images_config" {
       checksum           = optional(string)
       checksum_algorithm = optional(string)
       # Allow overriding global settings per image
-      node_name          = optional(string)
-      datastore_id       = optional(string)
-      upload_timeout     = optional(number)
-      overwrite          = optional(bool)
+      node_name      = optional(string)
+      datastore_id   = optional(string)
+      upload_timeout = optional(number)
+      overwrite      = optional(bool)
     }))
   })
 }

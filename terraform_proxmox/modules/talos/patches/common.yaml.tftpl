@@ -1,0 +1,59 @@
+machine:
+  kubelet:
+    defaultRuntimeSeccompProfileEnabled: true
+    disableManifestsDirectory: true
+    extraArgs:
+      rotate-server-certificates: "true"
+    extraMounts:
+      - destination: /var/lib/longhorn
+        type: bind
+        source: /var/lib/longhorn
+        options:
+          - bind
+          - rshared
+          - rw
+    extraConfig:
+      serverTLSBootstrap: true
+  network:
+    extraHostEntries:
+%{ for e in host_entries ~}
+      - ip: ${e.ip}
+        aliases:
+%{ for a in e.aliases ~}
+          - ${a}
+%{ endfor ~}
+%{ endfor ~}
+  install:
+    disk: /dev/sda
+    image: ${install_image}
+    wipe: false
+  features:
+    rbac: true
+    stableHostname: true
+    apidCheckExtKeyUsage: true
+    diskQuotaSupport: true
+    kubePrism:
+      enabled: true
+      port: 7445
+    hostDNS:
+      enabled: true
+      forwardKubeDNSToHost: true
+  sysctls:
+    vm.nr_hugepages: "1024"
+  kernel:
+    modules:
+      - name: nvme_tcp
+      - name: vfio_pci
+      - name: ublk_drv
+cluster:
+  network:
+    cni:
+      name: none
+  proxy:
+    disabled: true
+  discovery:
+    enabled: true
+    registries:
+      kubernetes:
+        disabled: true
+      service: {}
