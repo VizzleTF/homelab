@@ -22,7 +22,9 @@ Renovate fixes this by:
 | GitHub PAT | Vault KV at `homelab/k8s/renovate/github-token`, field `token` |
 | Bot-level config | Inline JSON under `renovate.config` in the values file |
 | Per-repo config | `renovate.json` in the root of each repo |
-| Schedule | Every Monday 02:00 UTC (`0 2 * * 1`) |
+| Scan schedule | Daily 02:00 UTC (`0 2 * * *`) — refreshes Dependency Dashboard every day |
+| PR creation window | Monday 00:00–06:00 UTC (per-repo `schedule: before 6am on monday`) |
+| Automerge window | Any time (`automergeSchedule: at any time`) — PRs can auto-merge on any day once CI passes |
 
 The Kubernetes object is a `CronJob` in namespace `renovate` — one-shot pod that runs through every listed repository, opens/updates PRs, then exits. No long-running service.
 
@@ -39,15 +41,35 @@ The Kubernetes object is a `CronJob` in namespace `renovate` — one-shot pod th
 | Scope | Automation |
 | --- | --- |
 | `patch` + `pin` updates (both repos) | Auto-merged by Renovate once the PR is mergeable |
-| `minor` GitHub Actions bumps (`home_proxmox`) | Auto-merged (low blast radius) |
-| `minor` updates for user-facing apps (`home-proxmox-values:values/applications/**`) | Auto-merged |
-| `minor` updates for infra Helm charts | Manual review |
+| `minor` updates (everything else) | Auto-merged |
+| `minor` updates for critical infra (`cilium`, `vault`, `cert-manager`, `longhorn`, `argo-cd`, `victoria-metrics-k8s-stack`) | Manual — label `critical-infra` + `manual-review` |
 | `major` anything | Manual — requires Dependency Dashboard approval (`dependencyDashboardApproval: true`) |
 | Docker `digest` pin updates | Disabled (too noisy) |
 
 **Merge strategy:** Renovate performs the merge itself via its PAT (`automerge: true`, `platformAutomerge: false`) so the flow works identically on the public (`home_proxmox`) and private (`home-proxmox-values`) repos — GitHub's native auto-merge is not available on private repos without a paid plan.
 
-To push the envelope later: add grouping (`groupName` per ecosystem) or relax infra-minor to automerge after a few weeks of confidence.
+### Grouping (one PR per directory bundle)
+
+Updates are bundled into one PR per directory group to cut noise. The group name becomes the branch prefix (`renovate/<group>`).
+
+**`home_proxmox`:**
+
+| Path glob | Group |
+| --- | --- |
+| `terraform_proxmox/**` | `terraform-providers` |
+| `charts/**` | `homelab-common` |
+| `.github/workflows/**` | `github-actions` |
+| `argocd/**` (Helm `targetRevision`) | `argocd-charts` |
+
+**`home-proxmox-values`:**
+
+| Path glob | Group |
+| --- | --- |
+| `values/applications/**` | `applications` |
+| `values/infrastructure/**` | `infrastructure` |
+| `manifests/**` | `manifests` |
+
+Rebase strategy: `rebaseWhen: "auto"` — Renovate rebases PRs as needed, so branches never go stale.
 
 ## Operations
 
