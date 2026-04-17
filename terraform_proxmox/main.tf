@@ -20,12 +20,16 @@ module "vms" {
 module "talos" {
   source = "./modules/talos"
 
-  cluster_name       = "talos-proxmox-cluster"
-  cluster_endpoint   = "https://10.11.11.100:6443" # VIP, не IP одной CP
-  vip                = "10.11.11.100"
-  kubernetes_version = "v1.36.0-beta.0"
-  talos_version      = "v1.13"
-  install_image      = "factory.talos.dev/nocloud-installer/eed1860a28ccc6fdb77f1f41ab0ae2a20c19bc6101618d416d5d72ec919bf679:v1.13.0-beta.1"
+  cluster_name     = "talos-proxmox-cluster"
+  cluster_endpoint = "https://10.11.11.100:6443" # VIP, не IP одной CP
+  vip              = "10.11.11.100"
+
+  # Installer URL рендерится модулем: factory.talos.dev/<platform>-installer/<schematic>:<talos_release>.
+  # talos_version — schema (vX.Y), talos_release — конкретный тег релиза.
+  kubernetes_version   = "v1.36.0-rc.1"
+  talos_version        = "v1.13"
+  talos_release        = "v1.13.0-rc.0"
+  install_schematic_id = "eed1860a28ccc6fdb77f1f41ab0ae2a20c19bc6101618d416d5d72ec919bf679"
 
   # cluster_endpoint host (VIP) автоматически попадает в apiserver certSANs — дублировать не нужно
   apiserver_cert_sans = ["k8s.internal.example"]
@@ -34,7 +38,7 @@ module "talos" {
     for name, vm in local.vms_config.vms : name => {
       address       = split("/", vm.address)[0]
       role          = startswith(name, "talos-cp") ? "controlplane" : "worker"
-      talos_managed = coalesce(try(vm.talos_managed, false), false)
+      talos_managed = try(vm.talos_managed, false)
     } if vm.enabled && contains(coalesce(vm.tags, []), "talos")
   }
 }
