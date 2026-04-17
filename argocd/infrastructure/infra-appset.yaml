@@ -94,6 +94,19 @@ spec:
             namespace: tetragon
             wave: "-3"
             extraManifests: true
+            ignoreDiff: |
+              - group: cilium.io
+                kind: TracingPolicy
+                jqPathExpressions:
+                  - .spec.kprobes[]?.args[]?.maxData
+                  - .spec.kprobes[]?.args[]?.resolve
+                  - .spec.kprobes[]?.args[]?.returnCopy
+                  - .spec.kprobes[]?.return
+                  - .spec.kprobes[]?.selectors[]?.matchBinaries[]?.followChildren
+                  - .spec.lsmhooks[]?.args[]?.maxData
+                  - .spec.lsmhooks[]?.args[]?.resolve
+                  - .spec.lsmhooks[]?.args[]?.returnCopy
+                  - .spec.lsmhooks[]?.selectors[]?.matchBinaries[]?.followChildren
           - name: pve-exporter
             chart: prometheus-pve-exporter
             repoURL: https://charts.christianhuth.de
