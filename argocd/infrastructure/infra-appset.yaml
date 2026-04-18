@@ -55,6 +55,7 @@ spec:
             repoURL: https://kubernetes-sigs.github.io/descheduler/
             targetRevision: "0.35.1"
             wave: "0"
+            extraManifests: true
           - name: vault
             repoURL: https://helm.releases.hashicorp.com
             targetRevision: "0.32.0"
