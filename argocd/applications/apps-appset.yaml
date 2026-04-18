@@ -63,6 +63,10 @@ spec:
             homelabOnly: "true"
             wave: "2"
             namespace: rsstt
+          - name: netbootxyz
+            homelabOnly: "true"
+            wave: "2"
+            namespace: netboot
   template:
     metadata:
       name: "{{.name}}"
