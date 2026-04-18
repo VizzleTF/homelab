@@ -138,6 +138,22 @@ Edit `cronjob.schedule` in `values/infrastructure/renovate.yaml` and push. ArgoC
 
 Set `cronjob.suspend: true` in the values file, commit, push. ArgoCD reconciles, future runs skip. Revert to re-enable.
 
+## Helm Chart Pinning (ArgoCD)
+
+All ArgoCD Helm sources are pinned to explicit versions — no `targetRevision: "*"` on Helm charts (Git-source `HEAD` is still used where appropriate). Renovate detects updates via three regex matchers in `renovate.json` (`customManagers`), scoped to `argocd/**/*.yaml`.
+
+| # | Matches | Example file / structure |
+|---|---|---|
+| 1 | ApplicationSet list entry **with** `chart:` field (chart name differs from entry name) | `infra-appset.yaml` → `cnpg-operator` (chart `cloudnative-pg`), `pve-exporter` (chart `prometheus-pve-exporter`) |
+| 2 | ApplicationSet list entry **without** `chart:` (entry name == chart name) | `infra-appset.yaml` → `cert-manager`, `vault`, `cilium`, ... |
+| 3 | Standalone Application `sources[].chart` block | `argocd-application.yaml`, inline cnpg-cluster 2nd source in `apps-appset.yaml` templatePatch |
+
+Regex #2 does **not** match entries with `chart:` because `\s+...\s+repoURL:` requires pure whitespace between name and repoURL — a `chart:` line breaks the pattern. Re2 has no lookahead, so we cannot safely handle partial pinning: **every entry must carry an explicit `targetRevision:`**. A missing `targetRevision:` falls back to the `"*"` safety net in templatePatch — Renovate won't see those entries.
+
+**Where to edit versions manually** — just change the `targetRevision:` string in the entry. Renovate will match the new value and propose upstream updates on the next cron run.
+
+**Safety net:** `templatePatch` in both `infra-appset.yaml` and `apps-appset.yaml` keeps `{{ dig "targetRevision" "*" . }}` as the fallback for any new entry added without a pin. Prefer pinning from day one.
+
 ## Configuration Split
 
 **Bot-level config** (in `values/infrastructure/renovate.yaml` under `renovate.config`): platform, token source, repository list, `autodiscover: false`, `onboarding: false`, `requireConfig: required`, bot git identity.
