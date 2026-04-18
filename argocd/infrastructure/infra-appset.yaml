@@ -116,6 +116,12 @@ spec:
             targetRevision: "46.118.0"
             wave: "2"
             extraManifests: true
+          - name: robusta
+            repoURL: https://robusta-charts.storage.googleapis.com
+            targetRevision: "0.35.0"
+            wave: "1"
+            extraManifests: true
+            homelabValuesFile: values/infrastructure/robusta.homelab.yaml
           - name: vault-autounseal
             repoURL: https://pytoshka.github.io/vault-autounseal
             targetRevision: "0.5.3"
