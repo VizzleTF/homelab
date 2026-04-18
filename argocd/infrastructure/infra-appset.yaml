@@ -56,11 +56,6 @@ spec:
             targetRevision: "0.35.1"
             wave: "0"
             extraManifests: true
-          - name: fluent-bit
-            repoURL: https://fluent.github.io/helm-charts
-            targetRevision: "*"
-            wave: "0"
-            extraManifests: true
           - name: vault
             repoURL: https://helm.releases.hashicorp.com
             targetRevision: "0.32.0"
