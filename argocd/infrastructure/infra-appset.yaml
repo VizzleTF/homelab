@@ -51,6 +51,10 @@ spec:
             targetRevision: "0.28.0"
             namespace: cnpg-system
             wave: "-2"
+          - name: descheduler
+            repoURL: https://kubernetes-sigs.github.io/descheduler/
+            targetRevision: "0.35.1"
+            wave: "0"
           - name: vault
             repoURL: https://helm.releases.hashicorp.com
             targetRevision: "0.32.0"
