@@ -7,8 +7,15 @@
     "helpers:pinGitHubActionDigests"
   ],
   "timezone": "UTC",
-  "schedule": ["before 6am on monday"],
-  "automergeSchedule": ["at any time"],
+  "configMigration": true,
+  "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "addLabels": ["security"],
+    "minimumReleaseAge": null,
+    "automerge": true
+  },
   "prConcurrentLimit": 10,
   "prHourlyLimit": 4,
   "labels": ["dependencies"],
@@ -26,16 +33,9 @@
       "enabled": false
     },
     {
-      "matchUpdateTypes": ["patch", "pin"],
+      "matchUpdateTypes": ["patch", "pin", "minor"],
       "automerge": true,
-      "addLabels": ["automerge"],
-      "description": "Auto-merge patch and pin updates once PR is mergeable"
-    },
-    {
-      "matchUpdateTypes": ["minor"],
-      "automerge": true,
-      "addLabels": ["automerge"],
-      "description": "Auto-merge minor updates across the repo"
+      "addLabels": ["automerge"]
     },
     {
       "matchUpdateTypes": ["minor"],
@@ -48,36 +48,29 @@
         "victoria-metrics-k8s-stack"
       ],
       "automerge": false,
-      "addLabels": ["critical-infra", "manual-review"],
-      "description": "Critical infra — minor still requires manual review"
+      "addLabels": ["critical-infra", "manual-review"]
     },
     {
       "matchFileNames": ["terraform_proxmox/**"],
-      "groupName": "terraform-providers",
-      "description": "Group Terraform provider bumps"
+      "groupName": "terraform-providers"
     },
     {
       "matchFileNames": ["charts/**"],
-      "groupName": "homelab-common",
-      "description": "Group charts/ updates (rclone, etc.)"
+      "groupName": "homelab-common"
     },
     {
       "matchFileNames": [".github/workflows/**"],
-      "groupName": "github-actions",
-      "description": "Group GitHub Actions workflow bumps"
+      "groupName": "github-actions"
     },
     {
       "matchFileNames": ["argocd/**"],
-      "groupName": "argocd-charts",
-      "description": "Group Helm targetRevision bumps in ArgoCD specs"
+      "groupName": "argocd-charts"
     }
   ],
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": [
-        "/argocd/.+\\.ya?ml$/"
-      ],
+      "managerFilePatterns": ["/argocd/.+\\.ya?ml$/"],
       "datasourceTemplate": "helm",
       "matchStrings": [
         "- name:\\s+[\\w-]+\\s+chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?",
