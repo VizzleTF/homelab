@@ -10,7 +10,6 @@ Shared Helm chart (`Chart.yaml`: `type: application`) для общих Kubernet
 - **HTTPRoutes** — Gateway API маршруты (external/internal/both)
 - **Backup CronJobs** — rsync и rclone бэкапы
 - **RBAC** — ServiceAccount, ClusterRole, ClusterRoleBinding
-- **CiliumNetworkPolicy** — сетевые политики
 - **LimitRange** — дефолтные лимиты ресурсов
 - **CNPG Database** — CloudNativePG Database манифесты
 

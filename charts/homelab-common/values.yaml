@@ -100,20 +100,6 @@ homelab-common:
   #       name: myapp-readonly
   #       rules: [...]
 
-  # CiliumNetworkPolicy
-  networkPolicy: null
-  # Example:
-  # networkPolicy:
-  #   enabled: true
-  #   appLabel: myapp  # Matches app.kubernetes.io/name
-  #   appPort: "8080"
-  #   allowIngress: true   # From Cilium gateway (ingress entity)
-  #   allowDNS: true       # Egress to kube-dns on port 53 UDP+TCP
-  #   allowIntraNamespace: true
-  #   allowWorld: true
-  #   customIngress: []    # Extra ingress rules (raw Cilium format)
-  #   customEgress: []     # Extra egress rules (raw Cilium format)
-
   # LimitRange
   limitRange: null
   # Example:
