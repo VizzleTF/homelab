@@ -2,7 +2,7 @@
 
 ## ✅ Что сделано
 
-1. **Создан shared Helm chart** (`type: application` в Chart.yaml) для общих ресурсов (ExternalSecrets, HTTPRoutes, Backups, RBAC, NetworkPolicy, LimitRange, CNPG Database)
+1. **Создан shared Helm chart** (`type: application` в Chart.yaml) для общих ресурсов (ExternalSecrets, HTTPRoutes, Backups, RBAC, LimitRange, CNPG Database)
 
 2. **Один values файл** — секция `homelab-common` в основном values файле приложения
 
@@ -21,7 +21,6 @@ home_proxmox/charts/homelab-common/
 │   ├── httproute.yaml ✅
 │   ├── backup-cronjob.yaml ✅
 │   ├── cnpg-database.yaml ✅
-│   ├── networkpolicy.yaml ✅
 │   ├── limitrange.yaml ✅
 │   └── rbac.yaml ✅
 ├── examples/
