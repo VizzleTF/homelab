@@ -105,25 +105,6 @@ homelab-common:
       - name: cube
       - name: earthdistance
 
-  # CiliumNetworkPolicy (опционально)
-  networkPolicy:
-    enabled: false  # Включите при необходимости
-    appLabel: immich-server
-    appPort: 2283
-    allowIngress: true
-    allowDNS: true
-    allowWorld: true
-    allowIntraNamespace: true
-    customEgress:
-      # Allow access to ML service
-      - toEndpoints:
-          - matchLabels:
-              app.kubernetes.io/name: immich-machine-learning
-        toPorts:
-          - ports:
-              - port: "3003"
-                protocol: TCP
-
 # Дополнительные ресурсы (не из homelab-common)
 # PVC для библиотеки фото/видео
 additionalResources:
