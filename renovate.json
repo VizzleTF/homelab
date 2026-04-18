@@ -78,10 +78,12 @@
       "managerFilePatterns": [
         "/argocd/.+\\.ya?ml$/"
       ],
+      "datasourceTemplate": "helm",
       "matchStrings": [
-        "repoURL:\\s+(?<registryUrl>https?://[^\\s]+)\\s+chart:\\s+(?<depName>[^\\s]+)\\s+targetRevision:\\s+[\"']?(?<currentValue>[0-9][^\\s\"']*)[\"']?"
-      ],
-      "datasourceTemplate": "helm"
+        "- name:\\s+[\\w-]+\\s+chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?",
+        "- name:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?",
+        "repoURL:\\s+(?<registryUrl>https?://\\S+)\\s+chart:\\s+(?<depName>[\\w-]+)\\s+targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+      ]
     }
   ]
 }
