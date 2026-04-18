@@ -56,6 +56,11 @@ spec:
             targetRevision: "0.35.1"
             wave: "0"
             extraManifests: true
+          - name: fluent-bit
+            repoURL: https://fluent.github.io/helm-charts
+            targetRevision: "*"
+            wave: "0"
+            extraManifests: true
           - name: vault
             repoURL: https://helm.releases.hashicorp.com
             targetRevision: "0.32.0"
@@ -145,6 +150,12 @@ spec:
                 name: victoria-metrics-k8s-stack-victoria-metrics-operator-validation
                 jsonPointers:
                   - /data
+          - name: victoria-logs
+            chart: victoria-logs-single
+            repoURL: https://victoriametrics.github.io/helm-charts/
+            targetRevision: "*"
+            wave: "-1"
+            extraManifests: true
           - name: vpa
             repoURL: https://charts.fairwinds.com/stable
             targetRevision: "4.11.0"
