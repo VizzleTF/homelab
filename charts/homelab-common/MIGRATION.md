@@ -106,7 +106,6 @@ sources:
 - [ ] Перенести HTTPRoutes
 - [ ] Перенести Backup CronJobs
 - [ ] Перенести RBAC (если есть)
-- [ ] Перенести NetworkPolicy (если есть)
 - [ ] Перенести LimitRange (если есть)
 - [ ] Перенести CNPG Database (если есть)
 - [ ] Обновить ArgoCD Application (добавить homelab-common source)
