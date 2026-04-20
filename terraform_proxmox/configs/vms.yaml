@@ -128,7 +128,7 @@ vms:
     talos_managed: true
     vlan_id: "11"
     cores: 4
-    ram: 12288
+    ram: 10240
     disk_size: 100
     machine: "q35"
     cpu_type: "host"
@@ -138,3 +138,21 @@ vms:
         pcie: true
         rombar: false
         xvga: false
+
+  claude-dev-01:
+    node_name: "pve6"
+    enabled: true
+    vm_id: 101
+    address: "10.11.11.120/24"
+    tags: ["devbox", "claude"]
+    description: "Claude Code Remote Control devbox (Debian minimal)"
+    image_file: "debian-13-genericcloud"
+    talos_managed: false
+    vlan_id: "11"
+    cores: 2
+    ram: 2048
+    disk_size: 20
+    machine: "q35"
+    cpu_type: "x86-64-v3"
+    pc_public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCdwxojfBI3ubhX3fFrDBlcwfSaToZMp/pM3M8H+TFcjMzdDZAz8cvdLXVJpkw5ES1++vRw2N2hms9UNYYxCjlLEj2cs0r9+uW9Gef6bTfL36+IFcfTK+yJ8FVeTGyAwgWFicd/1jOZco8Ybes2jlFNUyAojV2Bqsfp66YGtQtOhoObCL3uafFUIKkG6f7UH1SRFqwwKH49Agi/2vBCPZl8ZSvlGeudBIBS1LaWh7KPneBZAYfbBnvKJBHIt2ZzGXL3o4aL7bmKHYMw6qosoTmQwSV/RgtFjX2bfL7JgKds8bEpk31pGuUD61KqHa+B8juCSH1dDn4ifkdnrOWxhgOHUj+b4pdOo8kqyjGW/I7W/loaDT44UFTAvgAoI3/i8YhmnyeD5ysfuJYFX3KG7RnEbs3sy2ILBcmLrdP80cclWQM/S+I1Uxqf8Y1MhYNOYfCq/79H//IuW+L+kTKeAftvki+Zw/ZQeVwxF/NYSja3joY+L4rUa6QMbGLV+WevNnU= ivan@macbook"
+    user_data_file_id: null
