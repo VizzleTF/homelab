@@ -31,7 +31,7 @@ spec:
             wave: "2"
           - name: valkey
             repoURL: https://charts.bitnami.com/bitnami
-            targetRevision: "5.4.11"
+            targetRevision: "5.4.12"
             wave: "1"
           - name: vaultwarden
             repoURL: https://guerzon.github.io/vaultwarden
