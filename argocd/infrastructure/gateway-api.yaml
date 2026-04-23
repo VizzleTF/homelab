@@ -37,18 +37,3 @@ spec:
       name: httproutes.gateway.networking.k8s.io
       jsonPointers:
         - /metadata/annotations
-    - group: apiextensions.k8s.io
-      kind: CustomResourceDefinition
-      name: tlsroutes.gateway.networking.k8s.io
-      jqPathExpressions:
-        - .spec.versions[] | select(.name == "v1alpha2" or .name == "v1alpha3")
-    - group: admissionregistration.k8s.io
-      kind: ValidatingAdmissionPolicy
-      name: safe-upgrades.gateway.networking.k8s.io
-      jsonPointers:
-        - /spec
-    - group: admissionregistration.k8s.io
-      kind: ValidatingAdmissionPolicyBinding
-      name: safe-upgrades.gateway.networking.k8s.io
-      jsonPointers:
-        - /spec
