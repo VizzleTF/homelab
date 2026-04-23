@@ -12,7 +12,7 @@ spec:
   project: infrastructure
   source:
     repoURL: https://github.com/kubernetes-sigs/gateway-api.git
-    targetRevision: HEAD
+    targetRevision: v1.5.1
     path: config/crd/standard
   destination:
     server: https://kubernetes.default.svc
