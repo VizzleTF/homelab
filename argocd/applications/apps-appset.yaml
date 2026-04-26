@@ -57,9 +57,6 @@ spec:
             homelabOnly: "true"
             wave: "2"
             namespace: netboot
-          - name: actual
-            homelabOnly: "true"
-            wave: "2"
   template:
     metadata:
       name: "{{.name}}"
