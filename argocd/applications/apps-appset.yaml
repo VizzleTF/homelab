@@ -25,10 +25,6 @@ spec:
             repoURL: https://nextcloud.github.io/helm
             targetRevision: "9.0.5"
             wave: "2"
-          - name: openclaw
-            repoURL: https://serhanekicii.github.io/openclaw-helm
-            targetRevision: "1.5.21"
-            wave: "2"
           - name: valkey
             repoURL: https://charts.bitnami.com/bitnami
             targetRevision: "5.4.12"
