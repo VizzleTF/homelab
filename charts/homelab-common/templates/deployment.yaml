@@ -22,7 +22,8 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- toYaml .spec | nindent 2 }}
+  {{- $defaultedSpec := merge (dict "revisionHistoryLimit" 2) .spec }}
+  {{- toYaml $defaultedSpec | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end }}
