@@ -43,7 +43,6 @@ spec:
             repoURL: https://charts.goauthentik.io/
             targetRevision: "2026.2.2"
             wave: "2"
-            cnpgValuesFile: values/applications/cnpg-authentik-db.yaml
           - name: may
             homelabOnly: "true"
             wave: "2"
