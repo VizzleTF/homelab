@@ -76,10 +76,6 @@ spec:
             repoURL: https://kubernetes-sigs.github.io/external-dns/
             targetRevision: "1.20.0"
             wave: "-2"
-          - name: goldilocks
-            repoURL: https://charts.fairwinds.com/stable
-            targetRevision: "10.3.0"
-            wave: "0"
           - name: kubelet-csr-approver
             repoURL: https://postfinance.github.io/kubelet-csr-approver
             targetRevision: "1.2.14"
