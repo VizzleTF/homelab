@@ -147,10 +147,6 @@ spec:
             targetRevision: "*"
             wave: "-1"
             extraManifests: true
-          - name: vpa
-            repoURL: https://charts.fairwinds.com/stable
-            targetRevision: "4.11.0"
-            wave: "0"
   template:
     metadata:
       name: "{{.name}}"
