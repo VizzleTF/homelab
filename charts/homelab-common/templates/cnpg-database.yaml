@@ -1,6 +1,12 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
-{{- $db := $hc.cnpgDatabase }}
-{{- if $db }}
+{{- $dbs := list }}
+{{- if $hc.cnpgDatabase }}
+{{-   $dbs = append $dbs $hc.cnpgDatabase }}
+{{- end }}
+{{- if $hc.cnpgDatabases }}
+{{-   $dbs = concat $dbs $hc.cnpgDatabases }}
+{{- end }}
+{{- range $db := $dbs }}
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
