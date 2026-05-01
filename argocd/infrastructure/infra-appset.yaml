@@ -119,7 +119,7 @@ spec:
             extraManifests: true
           - name: robusta
             repoURL: https://robusta-charts.storage.googleapis.com
-            targetRevision: "0.36.0"
+            targetRevision: "0.37.0"
             wave: "1"
             extraManifests: true
             homelabValuesFile: values/infrastructure/robusta.homelab.yaml
