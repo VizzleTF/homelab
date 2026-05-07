@@ -124,6 +124,28 @@ homelab-common:
   # apps: опционально secret / configMap / deployment / service
   apps: []
 
+  # Generic CronJobs (pass-through spec). Для произвольного образа/команды;
+  # backupCronJobs выше — только для rsync/rclone-сценариев.
+  cronJobs: []
+  # Example:
+  # - name: spotify-backup
+  #   metadata:
+  #     labels:
+  #       app: spotify-backup
+  #   spec:
+  #     schedule: "0 4 * * *"
+  #     concurrencyPolicy: Forbid
+  #     successfulJobsHistoryLimit: 1
+  #     failedJobsHistoryLimit: 3
+  #     jobTemplate:
+  #       spec:
+  #         backoffLimit: 2
+  #         template:
+  #           spec:
+  #             restartPolicy: OnFailure
+  #             containers: [...]
+  #             volumes: [...]
+
   # PVC definitions
   persistentVolumeClaims: []
 
