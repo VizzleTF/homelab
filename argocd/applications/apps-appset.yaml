@@ -23,7 +23,7 @@ spec:
             wave: "2"
           - name: nextcloud
             repoURL: https://nextcloud.github.io/helm
-            targetRevision: "9.0.5"
+            targetRevision: "9.0.6"
             wave: "2"
           - name: valkey
             repoURL: https://charts.bitnami.com/bitnami
@@ -31,7 +31,7 @@ spec:
             wave: "1"
           - name: vaultwarden
             repoURL: https://guerzon.github.io/vaultwarden
-            targetRevision: "0.36.2"
+            targetRevision: "0.36.3"
             wave: "2"
             homelabValuesFile: values/applications/vaultwarden.homelab.yaml
           - name: immich
