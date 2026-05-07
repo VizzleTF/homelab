@@ -8,10 +8,10 @@ metadata:
 spec:
   project: root
   sources:
-    - repoURL: https://github.com/VizzleTF/home_proxmox.git
+    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
       targetRevision: HEAD
       path: argocd/infrastructure
-    - repoURL: https://github.com/VizzleTF/home_proxmox.git
+    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
       targetRevision: HEAD
       path: argocd/applications
   destination:

@@ -1,0 +1,17 @@
+extends: default
+
+ignore:
+  - charts/*/templates/
+  - charts/*/charts/
+  - .git/
+
+rules:
+  truthy: disable
+  line-length: disable
+  document-start: disable
+  comments-indentation: disable
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+  empty-lines:
+    max: 2
