@@ -10,7 +10,7 @@ metadata:
 spec:
   project: infrastructure
   source:
-    repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+    repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home-proxmox-values.git
     targetRevision: HEAD
     path: manifests/infrastructure/talos-etcd-backup
   destination:
