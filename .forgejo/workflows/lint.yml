@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install yamllint
-        run: pip install --quiet yamllint
+        run: pip install --quiet --break-system-packages yamllint
       - name: Lint
         run: yamllint .
 
