@@ -48,6 +48,13 @@ spec:
             targetRevision: "17.0.1"
             wave: "2"
             homelabValuesFile: values/applications/forgejo.homelab.yaml
+          - name: forgejo-runner
+            chart: forgejo-runner
+            repoURL: code.forgejo.org/forgejo-helm
+            targetRevision: "0.7.5"
+            wave: "3"
+            namespace: forgejo
+            homelabValuesFile: values/applications/forgejo-runner.homelab.yaml
           - name: may
             homelabOnly: "true"
             wave: "2"
