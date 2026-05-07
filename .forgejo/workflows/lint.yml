@@ -1,0 +1,34 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  yamllint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install yamllint
+        run: pip install --quiet yamllint
+      - name: Lint
+        run: yamllint -s .
+
+  helm-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install helm
+        run: |
+          set -eu
+          VERSION=v3.16.4
+          curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
+          install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version --short
+      - name: Lint homelab-common
+        run: helm lint charts/homelab-common
+      - name: Template homelab-common (smoke)
+        run: helm template smoke charts/homelab-common --debug >/dev/null

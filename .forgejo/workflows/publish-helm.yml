@@ -1,0 +1,33 @@
+name: Publish Helm chart
+
+on:
+  push:
+    tags:
+      - 'homelab-common-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install helm
+        run: |
+          set -eu
+          VERSION=v3.16.4
+          curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
+          install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version --short
+      - name: Login to Forgejo OCI
+        run: |
+          echo "$PUBLISHER_TOKEN" | helm registry login --username "$PUBLISHER_USER" --password-stdin git.example.com
+        env:
+          PUBLISHER_USER: ${{ secrets.PUBLISHER_USER }}
+          PUBLISHER_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
+      - name: Package
+        run: helm package charts/homelab-common
+      - name: Push
+        run: helm push homelab-common-*.tgz oci://git.example.com/vizzle

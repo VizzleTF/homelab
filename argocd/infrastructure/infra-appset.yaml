@@ -173,18 +173,18 @@ spec:
           helm:
             valueFiles:
               - "$values/{{ index . "valuesFile" | default (printf "values/infrastructure/%s.yaml" .name) }}"
-        - repoURL: https://github.com/VizzleTF/home_proxmox.git
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
           path: charts/homelab-common
           targetRevision: HEAD
           helm:
             valueFiles:
               - "$values/values/shared/global.yaml"
               - "$values/{{ index . "homelabValuesFile" | default (printf "values/infrastructure/%s.yaml" .name) }}"
-        - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home-proxmox-values.git
           targetRevision: HEAD
           ref: values
         {{- if index . "extraManifests" }}
-        - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home-proxmox-values.git
           targetRevision: HEAD
           path: "manifests/infrastructure/{{.name}}"
         {{- end }}
