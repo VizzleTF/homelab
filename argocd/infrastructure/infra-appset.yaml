@@ -64,17 +64,17 @@ spec:
             extraManifests: true
           - name: external-secrets
             repoURL: https://charts.external-secrets.io
-            targetRevision: "2.4.0"
+            targetRevision: "2.4.1"
             namespace: external-secrets-system
             wave: "-2"
           - name: external-dns
             repoURL: https://kubernetes-sigs.github.io/external-dns/
-            targetRevision: "1.20.0"
+            targetRevision: "1.21.1"
             wave: "-2"
           - name: external-dns-openwrt
             chart: external-dns
             repoURL: https://kubernetes-sigs.github.io/external-dns/
-            targetRevision: "1.20.0"
+            targetRevision: "1.21.1"
             wave: "-2"
           - name: kubelet-csr-approver
             repoURL: https://postfinance.github.io/kubelet-csr-approver
@@ -108,13 +108,13 @@ spec:
           - name: pve-exporter
             chart: prometheus-pve-exporter
             repoURL: https://charts.christianhuth.de
-            targetRevision: "2.6.3"
+            targetRevision: "2.7.1"
             namespace: victoria-metrics
             wave: "0"
             extraManifests: true
           - name: renovate
             repoURL: https://docs.renovatebot.com/helm-charts
-            targetRevision: "46.130.5"
+            targetRevision: "46.141.5"
             wave: "2"
             extraManifests: true
           - name: robusta
@@ -131,7 +131,7 @@ spec:
           - name: victoria-metrics-k8s-stack
             chart: victoria-metrics-k8s-stack
             repoURL: https://victoriametrics.github.io/helm-charts/
-            targetRevision: "0.74.1"
+            targetRevision: "0.77.0"
             namespace: victoria-metrics
             wave: "-2"
             extraManifests: true
