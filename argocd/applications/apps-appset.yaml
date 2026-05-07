@@ -50,8 +50,8 @@ spec:
             homelabValuesFile: values/applications/forgejo.homelab.yaml
           - name: forgejo-runner
             chart: forgejo-runner
-            repoURL: code.forgejo.org/forgejo-helm
-            targetRevision: "0.7.5"
+            repoURL: codeberg.org/wrenix/helm-charts
+            targetRevision: "0.7.6"
             wave: "3"
             namespace: forgejo
             homelabValuesFile: values/applications/forgejo-runner.homelab.yaml
