@@ -62,6 +62,9 @@ spec:
             homelabOnly: "true"
             wave: "2"
             namespace: netboot
+          - name: spotify-backup
+            homelabOnly: "true"
+            wave: "2"
   template:
     metadata:
       name: "{{.name}}"
