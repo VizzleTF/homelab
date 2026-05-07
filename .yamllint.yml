@@ -4,14 +4,27 @@ ignore:
   - charts/*/templates/
   - charts/*/charts/
   - .git/
+  - terraform_proxmox/.terraform/
 
 rules:
   truthy: disable
   line-length: disable
   document-start: disable
   comments-indentation: disable
+  trailing-spaces:
+    level: warning
+  new-line-at-end-of-file:
+    level: warning
+  empty-lines:
+    level: warning
+    max: 2
   indentation:
+    level: warning
     spaces: 2
     indent-sequences: consistent
-  empty-lines:
-    max: 2
+  comments:
+    level: warning
+  brackets:
+    level: warning
+  braces:
+    level: warning

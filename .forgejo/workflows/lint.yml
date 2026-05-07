@@ -15,7 +15,7 @@ jobs:
       - name: Install yamllint
         run: pip install --quiet yamllint
       - name: Lint
-        run: yamllint -s .
+        run: yamllint .
 
   helm-lint:
     runs-on: ubuntu-22.04
