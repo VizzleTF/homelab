@@ -21,13 +21,21 @@ jobs:
           curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
           install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
           helm version --short
-      - name: Login to Forgejo OCI
+      - name: Package
+        run: helm package charts/homelab-common -d /tmp/
+      # Use Forgejo's Helm Chart Museum API endpoint (POST /api/packages/{owner}/helm/api/charts)
+      # so the package appears under "Helm" type in the UI rather than "Container".
+      - name: Push to Forgejo Helm registry
         run: |
-          echo "$PUBLISHER_TOKEN" | helm registry login --username "$PUBLISHER_USER" --password-stdin git.example.com
+          set -eu
+          PKG=$(ls /tmp/homelab-common-*.tgz | head -1)
+          echo "Pushing $PKG"
+          curl -sS --fail-with-body \
+            -u "${PUBLISHER_USER}:${PUBLISHER_TOKEN}" \
+            -X POST \
+            --data-binary "@${PKG}" \
+            -H 'Content-Type: application/x-tar' \
+            https://git.example.com/api/packages/vizzle/helm/api/charts
         env:
           PUBLISHER_USER: ${{ secrets.PUBLISHER_USER }}
           PUBLISHER_TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
-      - name: Package
-        run: helm package charts/homelab-common
-      - name: Push
-        run: helm push homelab-common-*.tgz oci://git.example.com/vizzle
