@@ -25,4 +25,4 @@ jobs:
           gitleaks version
 
       - name: Scan
-        run: gitleaks detect --source . --redact --verbose --no-banner
+        run: gitleaks detect --source . --redact --verbose --no-banner --platform=gitea
