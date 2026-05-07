@@ -44,7 +44,7 @@ spec:
             targetRevision: "2026.2.2"
             wave: "2"
           - name: forgejo
-            repoURL: https://code.forgejo.org/api/packages/forgejo-helm/helm
+            repoURL: code.forgejo.org/forgejo-helm
             targetRevision: "17.0.1"
             wave: "2"
             homelabValuesFile: values/applications/forgejo.homelab.yaml
