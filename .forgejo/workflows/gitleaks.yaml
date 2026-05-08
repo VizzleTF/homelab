@@ -73,19 +73,39 @@ jobs:
     needs: gitleaks
     if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Push to GitHub mirror
+      - name: Install git-filter-repo
+        run: |
+          set -euo pipefail
+          apt-get update -qq
+          apt-get install -y -qq python3-pip
+          pip install --quiet --break-system-packages git-filter-repo==2.47.0
+
+      - name: Sanitize history for GitHub mirror
+        env:
+          SANITIZE_RULES: ${{ secrets.MIRROR_SANITIZE_RULES }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SANITIZE_RULES:-}" ]; then
+            echo "::error::MIRROR_SANITIZE_RULES secret is empty or unset"
+            exit 1
+          fi
+          printf '%s\n' "$SANITIZE_RULES" > /tmp/replacements.txt
+          git filter-repo --replace-text /tmp/replacements.txt --force
+          rm -f /tmp/replacements.txt
+
+      - name: Push sanitized to GitHub mirror
         env:
           GH_PAT: ${{ secrets.GH_MIRROR_PAT }}
         run: |
           set -euo pipefail
           GH_REPO="VizzleTF/${{ github.event.repository.name }}"
-          git push "https://VizzleTF:${GH_PAT}@github.com/${GH_REPO}.git" HEAD:main
+          git push --force "https://VizzleTF:${GH_PAT}@github.com/${GH_REPO}.git" HEAD:main
 
   notify-failure:
     needs: [gitleaks, mirror-to-github]
