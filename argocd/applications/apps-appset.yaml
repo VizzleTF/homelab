@@ -31,7 +31,7 @@ spec:
             wave: "1"
           - name: vaultwarden
             repoURL: https://guerzon.github.io/vaultwarden
-            targetRevision: "0.36.3"
+            targetRevision: "0.36.4"
             wave: "2"
             homelabValuesFile: values/applications/vaultwarden.homelab.yaml
           - name: immich
