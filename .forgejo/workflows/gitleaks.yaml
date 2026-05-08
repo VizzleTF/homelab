@@ -1,10 +1,11 @@
-name: Secret Scan (Gitleaks)
+name: Secret Scan + Mirror to GitHub
 
 on:
   push:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -28,3 +29,41 @@ jobs:
 
       - name: Scan
         run: gitleaks detect --source . --redact --verbose --no-banner --platform=gitea
+
+  mirror-to-github:
+    needs: gitleaks
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Push to GitHub mirror
+        env:
+          GH_PAT: ${{ secrets.GITHUB_MIRROR_PAT }}
+        run: |
+          set -euo pipefail
+          GH_REPO="VizzleTF/${{ github.event.repository.name }}"
+          git remote add github "https://x-access-token:${GH_PAT}@github.com/${GH_REPO}.git"
+          git push github HEAD:main
+
+  notify-failure:
+    needs: [gitleaks, mirror-to-github]
+    if: always() && (needs.gitleaks.result == 'failure' || needs.mirror-to-github.result == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Telegram
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT:  ${{ secrets.TELEGRAM_CHAT_ID }}
+          GL_RES:   ${{ needs.gitleaks.result }}
+          MR_RES:   ${{ needs.mirror-to-github.result }}
+        run: |
+          set -euo pipefail
+          TEXT="<b>❌ ${GITHUB_REPOSITORY}</b>%0Agitleaks: <b>${GL_RES}</b> | mirror: <b>${MR_RES}</b>%0Acommit: <code>${GITHUB_SHA::8}</code> ref: <code>${GITHUB_REF_NAME}</code>%0A<a href=\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\">Run #${GITHUB_RUN_NUMBER}</a>"
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d "chat_id=${TG_CHAT}" \
+            -d "parse_mode=HTML" \
+            -d "disable_web_page_preview=true" \
+            -d "text=${TEXT}"
