@@ -45,8 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           GH_REPO="VizzleTF/${{ github.event.repository.name }}"
-          git -c "http.extraheader=Authorization: Bearer ${GH_PAT}" \
-            push "https://github.com/${GH_REPO}.git" HEAD:main
+          git push "https://VizzleTF:${GH_PAT}@github.com/${GH_REPO}.git" HEAD:main
 
   notify-failure:
     needs: [gitleaks, mirror-to-github]
@@ -56,9 +55,9 @@ jobs:
       - name: Notify Telegram
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TG_CHAT:  ${{ secrets.TELEGRAM_CHAT_ID }}
-          GL_RES:   ${{ needs.gitleaks.result }}
-          MR_RES:   ${{ needs.mirror-to-github.result }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GL_RES: ${{ needs.gitleaks.result }}
+          MR_RES: ${{ needs.mirror-to-github.result }}
         run: |
           set -euo pipefail
           TEXT="<b>❌ ${GITHUB_REPOSITORY}</b>%0Agitleaks: <b>${GL_RES}</b> | mirror: <b>${MR_RES}</b>%0Acommit: <code>${GITHUB_SHA::8}</code> ref: <code>${GITHUB_REF_NAME}</code>%0A<a href=\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\">Run #${GITHUB_RUN_NUMBER}</a>"
