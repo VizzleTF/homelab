@@ -13,7 +13,7 @@
 ## 📁 Структура
 
 ```
-home_proxmox/charts/homelab-common/
+charts/homelab-common/
 ├── Chart.yaml (type: application — отдельный ArgoCD source, не Helm library chart)
 ├── values.yaml (defaults)
 ├── templates/
