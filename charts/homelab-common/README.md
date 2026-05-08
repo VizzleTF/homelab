@@ -33,10 +33,10 @@ spec:
         valueFiles:
           - $values/values/applications/immich.yaml
     
-    # homelab-common для общих ресурсов
-    - repoURL: https://github.com/VizzleTF/home_proxmox.git
-      path: charts/homelab-common
-      targetRevision: HEAD
+    # homelab-common для общих ресурсов (опубликован в Forgejo Helm registry)
+    - repoURL: https://git.example.com/api/packages/vizzle/helm
+      chart: homelab-common
+      targetRevision: "1.7.1"
       helm:
         valueFiles:
           - $values/values/shared/global.yaml
