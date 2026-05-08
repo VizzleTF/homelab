@@ -19,7 +19,7 @@ set -euo pipefail
 : "${FORGEJO_TOKEN:?FORGEJO_TOKEN must be set}"
 FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
 BRANCH="${BRANCH:-main}"
-STATUS_CHECK="${STATUS_CHECK:-gitleaks}"
+STATUS_CHECK="${STATUS_CHECK:-Secret Scan + Mirror to GitHub / gitleaks (pull_request)}"
 
 if [ "$#" -eq 0 ]; then
   echo "Usage: $0 <owner>/<repo> [<owner>/<repo> ...]" >&2
