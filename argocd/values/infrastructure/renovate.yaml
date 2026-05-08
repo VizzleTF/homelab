@@ -8,6 +8,14 @@ homelab-common:
           property: token
       templateData:
         RENOVATE_TOKEN: "{{ .token }}"
+    - name: renovate-github-token
+      templateEngineVersion: v2
+      vaultPath: renovate/github-token
+      data:
+        - secretKey: token
+          property: token
+      templateData:
+        GITHUB_COM_TOKEN: "{{ .token }}"
     - name: renovate-notify-telegram
       templateEngineVersion: v2
       vaultPath: telegram/victoria-metrics-bot
@@ -43,6 +51,8 @@ cronjob:
 envFrom:
   - secretRef:
       name: renovate-forgejo-token
+  - secretRef:
+      name: renovate-github-token
 
 env:
   LOG_LEVEL: info
