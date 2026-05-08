@@ -1,5 +1,13 @@
 repos:
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.3
+    rev: v8.30.1
     hooks:
       - id: gitleaks
+  - repo: local
+    hooks:
+      - id: filename-blocklist
+        name: Filename blocklist (mirror of CI)
+        entry: .git-hooks/blocklist.sh
+        language: script
+        pass_filenames: false
+        always_run: true

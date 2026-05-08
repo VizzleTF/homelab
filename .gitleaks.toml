@@ -3,6 +3,31 @@ title = "Gitleaks config — home_proxmox"
 [extend]
 useDefault = true
 
+[[rules]]
+id = "vault-token-hvs"
+description = "HashiCorp Vault token (hvs.* format)"
+regex = '''hvs\.[A-Za-z0-9_-]{90,}'''
+keywords = ["hvs."]
+
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram Bot API token"
+regex = '''\b[0-9]{8,10}:[A-Za-z0-9_-]{35}\b'''
+keywords = [":AA", ":BA", ":CA", ":DA", ":EA"]
+
+[[rules]]
+id = "cloudflare-api-token-ctx"
+description = "Cloudflare API token in env/yaml context"
+regex = '''(?i)(?:cf[_-]?api[_-]?token|cloudflare[_-]?(?:api[_-]?)?token)["'\s:=]+([A-Za-z0-9_-]{40})'''
+keywords = ["cloudflare", "cf_api_token", "cf-api-token"]
+secretGroup = 1
+
+[[rules]]
+id = "argocd-jwt"
+description = "ArgoCD JWT (HS256)"
+regex = '''eyJhbGciOiJIUzI1NiI[A-Za-z0-9_-]{50,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'''
+keywords = ["eyJhbGciOiJIUzI1NiI"]
+
 [[allowlists]]
 description = "Helm chart templates contain Go template placeholders"
 paths = ['''charts/.*/templates/.*''']
