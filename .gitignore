@@ -49,3 +49,16 @@ Thumbs.db
 # Symlinks
 .cursor
 .trae
+
+# Workspace-only artefacts (not part of the home_proxmox repo)
+/CLAUDE.md
+/.claudeignore
+/.editorconfig
+/.claude/
+/.kiro/
+/.qwen/
+/.vscode/
+/obsidian
+/docs/
+/scripts/setup-proxmox-oidc.sh
+# vault_secrets_backup.yaml is matched by *secret*.yaml above + .git-hooks/blocklist.sh
