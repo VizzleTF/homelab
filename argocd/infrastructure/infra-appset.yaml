@@ -114,7 +114,7 @@ spec:
             extraManifests: true
           - name: renovate
             repoURL: https://docs.renovatebot.com/helm-charts
-            targetRevision: "46.141.5"
+            targetRevision: "46.142.0"
             wave: "2"
             extraManifests: true
           - name: robusta
