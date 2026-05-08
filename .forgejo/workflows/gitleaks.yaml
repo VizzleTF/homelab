@@ -45,8 +45,8 @@ jobs:
         run: |
           set -euo pipefail
           GH_REPO="VizzleTF/${{ github.event.repository.name }}"
-          git remote add github "https://x-access-token:${GH_PAT}@github.com/${GH_REPO}.git"
-          git push github HEAD:main
+          git -c "http.extraheader=Authorization: Bearer ${GH_PAT}" \
+            push "https://github.com/${GH_REPO}.git" HEAD:main
 
   notify-failure:
     needs: [gitleaks, mirror-to-github]
