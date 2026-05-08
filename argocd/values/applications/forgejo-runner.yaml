@@ -30,6 +30,7 @@ runner:
         env_file: .env
         labels:
           - ubuntu-latest:docker://node:20-bookworm
+          - ubuntu-24.04:docker://node:22-bookworm
           - ubuntu-22.04:docker://node:22-bookworm
           - ubuntu-20.04:docker://node:20-bookworm
       cache:
