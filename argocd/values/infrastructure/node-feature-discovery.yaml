@@ -1,0 +1,43 @@
+# Node Feature Discovery
+# Detects hardware features (PCI devices, CPU, kernel modules) and labels nodes automatically.
+# Intel GPU Device Plugin uses NFD NodeFeatureRule to label GPU nodes with
+# intel.feature.node.kubernetes.io/gpu=true — no manual node labeling needed.
+
+master:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+worker:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  config:
+    core:
+      # Suppress noisy default labels that no workload selects on
+      # (cpu-cpuid.*, kernel-config.*, kernel-version.*, system-os_release.*,
+      # storage-nonrotationaldisk, cpu-hardware_multithreading, cpu-model.*,
+      # cpu-security.*). Whitelist keeps only what we actually need:
+      #   - pci-* (drives intel-dp-gpu-device NodeFeatureRule -> intel.feature.node.kubernetes.io/gpu)
+      # Other prefixes (intel.feature.node.kubernetes.io/*, gpu.intel.com/*) are
+      # produced by NodeFeatureRule and pass extraLabelNs filter, not labelWhiteList.
+      labelWhiteList: '^pci-'
+      # Hardware does not change at runtime — increase from default 60s.
+      sleepInterval: 5m
+    sources:
+      pci:
+        deviceClassWhitelist:
+          - "03"    # Display controllers (GPU)
+          - "0300"
+          - "0302"
+        deviceLabelFields:
+          - vendor

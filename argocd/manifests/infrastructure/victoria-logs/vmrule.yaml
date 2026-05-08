@@ -1,0 +1,69 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: victoria-logs
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: victoria-logs
+      rules:
+        - alert: VictoriaLogsDown
+          expr: absent(up{job=~".*victoria-logs.*"}) == 1 or up{job=~".*victoria-logs.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "VictoriaLogs недоступен"
+            description: |
+              Хранилище логов не отвечает 5+ минут. Vector буферизует на диск
+              (dataDir /vector-data-dir), но при длительном downtime начнутся потери.
+              kubectl -n victoria-logs get pods
+              kubectl -n victoria-logs logs sts/victoria-logs-server
+
+        - alert: VictoriaLogsDiskUsageHigh
+          expr: |
+            vl_data_size_bytes / vl_free_disk_space_bytes > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VictoriaLogs: диск заполнен более чем на 80%"
+            description: |
+              Текущий объём {{ $value | humanizePercentage }} от доступного места.
+              Опции: увеличить PVC, снизить retentionPeriod (сейчас 7d), сузить
+              retentionDiskSpaceUsage (сейчас 9GiB).
+
+        - alert: VictoriaLogsRowsDropped
+          expr: increase(vl_rows_dropped_total[10m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VictoriaLogs роняет записи"
+            description: |
+              За 10 минут сброшено {{ $value }} записей. Обычно — невалидный JSON
+              или выход за лимиты полей/размера. Проверить Vector sink-логи.
+
+        - alert: VectorDown
+          expr: absent(up{job=~".*vector.*"}) == 1 or up{job=~".*vector.*"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vector не собирает логи"
+            description: |
+              DaemonSet vector не отдаёт метрики 5+ минут на части узлов.
+              Сбор логов остановлен — исторические логи будут с gap-ом.
+              kubectl -n victoria-logs get ds
+              kubectl -n victoria-logs logs ds/victoria-logs-vector --tail=100
+
+        - alert: VectorSinkErrors
+          expr: rate(vector_component_errors_total{component_kind="sink"}[5m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Vector: ошибки отправки логов"
+            description: |
+              Rate ошибок sink {{ $value | humanize }}/s за 5m, сохраняется 10m+.
+              Обычно — VictoriaLogs недоступен или перегружен.

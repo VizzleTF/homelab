@@ -1,0 +1,144 @@
+# Cilium CNI values
+# Non-default values used in the cluster
+
+homelab-common:
+  httpRoutes:
+    - name: hubble-ui-route
+      hostname: hubble
+      gateway: internal
+      service:
+        name: hubble-ui
+        port: 80
+
+# Cilium-agent resources (DaemonSet, 4 pods)
+resources:
+  requests:
+    memory: 320Mi
+    cpu: 96m
+  limits:
+    memory: 512Mi
+    cpu: 400m
+
+# GOMEMLIMIT — chart auto-injects via downward API from limits.memory; do NOT
+# add via extraEnv (causes "duplicate entries for key" SSA failure).
+
+envoy:
+  resources:
+    requests:
+      memory: 32Mi
+      cpu: 10m
+    limits:
+      memory: 128Mi
+      cpu: 200m
+
+operator:
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 25m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+  extraEnv:
+    - name: GOMEMLIMIT
+      value: "220MiB"
+
+# IP Address Management (IPAM) configuration
+ipam:
+  mode: kubernetes
+
+# Security context capabilities
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Cgroup configuration
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# Gateway API support
+gatewayAPI:
+  enabled: true
+  enableAlpn: true
+  enableAppProtocol: true
+
+# Native routing (all nodes on same L2: 10.11.11.x)
+routingMode: native
+autoDirectNodeRoutes: true
+ipv4NativeRoutingCIDR: "10.244.0.0/16"
+
+# WireGuard transparent encryption (pod-to-pod, cross-node)
+encryption:
+  enabled: true
+  type: wireguard
+
+# eBPF masquerade instead of IPTables
+bpf:
+  masquerade: true
+
+# Hubble observability platform
+hubble:
+  relay:
+    enabled: true
+    resources:
+      requests:
+        memory: 32Mi
+        cpu: 10m
+      limits:
+        memory: 128Mi
+        cpu: 200m
+  ui:
+    enabled: true
+    backend:
+      resources:
+        requests:
+          memory: 64Mi
+          cpu: 24m
+        limits:
+          memory: 128Mi
+          cpu: 100m
+    frontend:
+      resources:
+        requests:
+          memory: 32Mi
+          cpu: 10m
+        limits:
+          memory: 64Mi
+          cpu: 50m
+    service:
+      type: ClusterIP
+
+# Kubernetes API server configuration
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+# Replace kube-proxy with Cilium's eBPF implementation
+kubeProxyReplacement: true
+
+# Enable L7 proxy for Ingress Controller support
+l7Proxy: true
+
+# Enable L2 announcements
+l2announcements:
+  enabled: true
+
+# Ingress Controller — disabled, Gateway API used exclusively
+ingressController:
+  enabled: false

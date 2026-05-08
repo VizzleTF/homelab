@@ -1,0 +1,132 @@
+homelab-common:
+  externalSecrets:
+    - name: omniroute-app-secrets
+      vaultPath: omniroute/app-secrets
+      data:
+        - secretKey: jwt_secret
+          property: JWT_SECRET
+        - secretKey: api_key_secret
+          property: API_KEY_SECRET
+        - secretKey: storage_encryption_key
+          property: STORAGE_ENCRYPTION_KEY
+        - secretKey: initial_password
+          property: INITIAL_PASSWORD
+      templateData:
+        JWT_SECRET: "{{ .jwt_secret }}"
+        API_KEY_SECRET: "{{ .api_key_secret }}"
+        STORAGE_ENCRYPTION_KEY: "{{ .storage_encryption_key }}"
+        INITIAL_PASSWORD: "{{ .initial_password }}"
+
+  persistentVolumeClaims:
+    - name: omniroute-data
+      storageClassName: longhorn
+      accessModes:
+        - ReadWriteOnce
+      size: 5Gi
+      volumeName: pvc-150eeade-365f-465b-8076-6c136efeec5e
+
+  httpRoutes:
+    - name: omniroute
+      hostname: omniroute
+      gateway: internal
+      service:
+        name: omniroute
+        port: 20128
+    - name: omniroute-api
+      hostname: omniroute
+      gateway: external
+      pathPrefix: /v1
+      service:
+        name: omniroute
+        port: 20128
+
+  apps:
+    - name: omniroute
+      deployment:
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: omniroute
+          template:
+            metadata:
+              labels:
+                app.kubernetes.io/name: omniroute
+            spec:
+              containers:
+                - name: omniroute
+                  image: ghcr.io/diegosouzapw/omniroute:latest
+                  ports:
+                    - containerPort: 20128
+                  env:
+                    - name: PORT
+                      value: "20128"
+                    - name: NODE_ENV
+                      value: production
+                    - name: DATA_DIR
+                      value: /var/lib/omniroute
+                    - name: STORAGE_DRIVER
+                      value: sqlite
+                    - name: BASE_URL
+                      value: https://omniroute.example.com
+                    - name: NEXT_PUBLIC_BASE_URL
+                      value: https://omniroute.example.com
+                    - name: AUTH_COOKIE_SECURE
+                      value: "true"
+                    - name: DISABLE_SQLITE_AUTO_BACKUP
+                      value: "true"
+                    - name: JWT_SECRET
+                      valueFrom:
+                        secretKeyRef:
+                          name: omniroute-app-secrets
+                          key: JWT_SECRET
+                    - name: API_KEY_SECRET
+                      valueFrom:
+                        secretKeyRef:
+                          name: omniroute-app-secrets
+                          key: API_KEY_SECRET
+                    - name: STORAGE_ENCRYPTION_KEY
+                      valueFrom:
+                        secretKeyRef:
+                          name: omniroute-app-secrets
+                          key: STORAGE_ENCRYPTION_KEY
+                    - name: INITIAL_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: omniroute-app-secrets
+                          key: INITIAL_PASSWORD
+                  volumeMounts:
+                    - name: data
+                      mountPath: /var/lib/omniroute
+                  livenessProbe:
+                    httpGet:
+                      path: /
+                      port: 20128
+                    initialDelaySeconds: 30
+                    periodSeconds: 30
+                  readinessProbe:
+                    httpGet:
+                      path: /
+                      port: 20128
+                    initialDelaySeconds: 15
+                    periodSeconds: 10
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 256Mi
+                    limits:
+                      cpu: 500m
+                      memory: 512Mi
+              volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: omniroute-data
+      service:
+        spec:
+          selector:
+            app.kubernetes.io/name: omniroute
+          ports:
+            - port: 20128
+              targetPort: 20128
+              protocol: TCP
+          type: ClusterIP

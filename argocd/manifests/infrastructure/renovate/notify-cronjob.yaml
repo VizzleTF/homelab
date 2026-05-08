@@ -1,0 +1,134 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: renovate-notify-script
+  namespace: renovate
+data:
+  digest.sh: |
+    #!/bin/sh
+    set -eu
+
+    : "${RENOVATE_TOKEN:?RENOVATE_TOKEN must be set}"
+    : "${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}"
+    : "${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID must be set}"
+
+    TG_API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
+    FG_API="https://git.example.com/api/v1"
+    FG_WEB="https://git.example.com"
+    YESTERDAY=$(date -u -d "@$(($(date -u +%s) - 86400))" +%Y-%m-%dT%H:%M:%SZ)
+
+    fg_get() {
+      curl -sSf \
+        -H "Authorization: token ${RENOVATE_TOKEN}" \
+        -H "Accept: application/json" \
+        "${FG_API}/$1"
+    }
+
+    render_repo() {
+      repo="$1"
+      dash_body=$(fg_get "repos/${repo}/issues/1" | jq -r '.body // ""')
+      pending=$(printf '%s\n' "$dash_body" | grep -c '^ *- \[ \] <!-- approve-branch' || true)
+      awaiting=$(printf '%s\n' "$dash_body" | grep -c '^ *- \[ \] <!-- unschedule-branch' || true)
+
+      open_prs=$(fg_get "repos/${repo}/pulls?state=open&limit=50")
+      open_count=$(printf '%s' "$open_prs" | jq '[.[] | select(.labels | map(.name) | index("dependencies"))] | length')
+      open_list=$(printf '%s' "$open_prs" | jq -r '[.[] | select(.labels | map(.name) | index("dependencies"))] | .[] | "• <a href=\"\(.html_url)\">#\(.number)</a> \(.title | gsub("<";"&lt;") | gsub(">";"&gt;"))"')
+      needs_review=$(printf '%s' "$open_prs" | jq '[.[] | select(.labels | map(.name) | index("manual-review"))] | length')
+
+      closed=$(fg_get "repos/${repo}/pulls?state=closed&sort=newest&limit=50")
+      merged=$(printf '%s' "$closed" | jq --arg s "$YESTERDAY" '[.[] | select(.labels | map(.name) | index("dependencies")) | select(.merged_at != null) | select(.merged_at > $s)] | length')
+      rejected=$(printf '%s' "$closed" | jq --arg s "$YESTERDAY" '[.[] | select(.labels | map(.name) | index("dependencies")) | select(.merged_at == null) | select(.closed_at > $s)] | length')
+
+      printf '<b>📦 <a href="%s/%s">%s</a></b>\n' "$FG_WEB" "$repo" "$repo"
+      printf '✅ Merged (24h): %s   ❌ Closed (24h): %s\n' "$merged" "$rejected"
+      printf '📥 Open PRs: %s   ⚠️ Needs review: %s\n' "$open_count" "$needs_review"
+      printf '🔘 Dashboard: %s pending approval, %s awaiting schedule\n' "$pending" "$awaiting"
+      if [ -n "$open_list" ]; then
+        printf '\n%s\n' "$open_list"
+      fi
+      printf '\n'
+    }
+
+    {
+      printf '<b>🤖 Renovate Daily Digest</b>\n'
+      printf '<i>%s UTC</i>\n\n' "$(date -u +'%Y-%m-%d %H:%M')"
+      render_repo "vizzle/home_proxmox"
+    } > /tmp/message.txt
+
+    # Telegram caps at 4096 chars
+    if [ "$(wc -c < /tmp/message.txt)" -gt 4000 ]; then
+      head -c 3900 /tmp/message.txt > /tmp/message.trunc
+      printf '\n…truncated…' >> /tmp/message.trunc
+      mv /tmp/message.trunc /tmp/message.txt
+    fi
+
+    curl -sSf -X POST "${TG_API}/sendMessage" \
+      --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text@/tmp/message.txt" \
+      -d "parse_mode=HTML" \
+      -d "disable_web_page_preview=true" \
+      -o /tmp/tg-resp.json
+
+    printf 'digest sent, telegram response: %s\n' "$(jq -r '.ok' /tmp/tg-resp.json)"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: renovate-notify
+  namespace: renovate
+spec:
+  schedule: "0 8 * * *"
+  timeZone: UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: notify
+              image: badouralix/curl-jq:latest@sha256:3670578737d1d2019b10a4f9e607284101feb9fdd6b0478e78ea87bf61d96145
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/digest.sh"]
+              envFrom:
+                - secretRef:
+                    name: renovate-forgejo-token
+                - secretRef:
+                    name: renovate-notify-telegram
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                name: renovate-notify-script
+                defaultMode: 0755
+            - name: tmp
+              emptyDir: {}

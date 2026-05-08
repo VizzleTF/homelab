@@ -1,0 +1,46 @@
+# Cloudflared (upstream chart) — только ключи чарта; homelab-common в cloudflared.homelab.yaml
+# Use existing secrets from External Secrets
+tunnelSecrets:
+  existingConfigJsonFileSecret:
+    name: "cloudflared-secrets"
+    key: "credentials.json"
+  # Modern tunnels don't use cert.pem, but chart requires this to be set
+  # to skip validation. We set a dummy value to satisfy the template logic.
+  existingPemFileSecret:
+    name: "not-used"
+    key: "cert.pem"
+
+# Tunnel configuration
+tunnelConfig:
+  name: "home"
+  metricsUpdateFrequency: 5s
+  autoUpdateFrequency: 24h
+  noAutoUpdate: false
+  gracePeriod: 30s
+  retries: 5
+  protocol: auto
+  logLevel: info
+  transportLogLevel: warn
+  connectTimeout: 30s
+  warpRouting: false
+
+ingress:
+  - service: http://cilium-gateway-cilium-gateway.kube-system.svc.cluster.local:80
+
+# Resource limits for HomeLab
+resources:
+  limits:
+    cpu: 100m
+    memory: 160Mi
+  requests:
+    cpu: 15m
+    memory: 64Mi
+
+# Run only on control-plane nodes
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+# Tolerations to run on all nodes
+tolerations:
+  - effect: NoSchedule
+    operator: Exists

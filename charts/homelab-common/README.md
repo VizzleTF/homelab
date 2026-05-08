@@ -31,7 +31,7 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/values/applications/immich.yaml
+          - $values/argocd/values/applications/immich.yaml
     
     # homelab-common для общих ресурсов (опубликован в Forgejo Helm registry)
     - repoURL: https://git.example.com/api/packages/vizzle/helm
@@ -39,11 +39,11 @@ spec:
       targetRevision: "1.7.1"
       helm:
         valueFiles:
-          - $values/values/shared/global.yaml
-          - $values/values/applications/immich.yaml
+          - $values/argocd/values/shared/global.yaml
+          - $values/argocd/values/applications/immich.yaml
     
-    # Values репозиторий
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+    # Values reference (тот же монорепо)
+    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
       targetRevision: HEAD
       ref: values
 ```
@@ -51,7 +51,7 @@ spec:
 ### Values файл
 
 ```yaml
-# values/applications/immich.yaml
+# argocd/values/applications/immich.yaml
 
 # Секция для homelab-common
 homelab-common:

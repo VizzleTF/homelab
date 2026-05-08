@@ -1,0 +1,4 @@
+# Intel Device Plugins Operator — manages GpuDevicePlugin CRD
+manager:
+  devices:
+    gpu: true

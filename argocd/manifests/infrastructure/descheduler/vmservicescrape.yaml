@@ -1,0 +1,23 @@
+# Chart 0.35.1 рендерит Service "descheduler" в ns descheduler с labels
+# app.kubernetes.io/name=descheduler, app.kubernetes.io/instance=descheduler,
+# порт http-metrics/tcp/10258, scheme=HTTPS (self-signed).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: descheduler
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - descheduler
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: descheduler
+      app.kubernetes.io/instance: descheduler
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      scheme: https
+      interval: 30s
+      tlsConfig:
+        insecureSkipVerify: true

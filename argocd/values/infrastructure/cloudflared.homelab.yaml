@@ -1,0 +1,20 @@
+# Только homelab-common (второй источник ApplicationSet). Не смешивать с cloudflared.yaml — у upstream-чарта строгая values schema.
+homelab-common:
+  externalSecrets:
+    - name: cloudflared-secrets
+      vaultPath: cloudflared/cloudflared
+      data:
+        - secretKey: credentialsjson
+          property: credentials.json
+      templateData:
+        "credentials.json": "{{ .credentialsjson }}"
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 200m
+      memory: 128Mi
+    defaultRequests:
+      cpu: 10m
+      memory: 32Mi

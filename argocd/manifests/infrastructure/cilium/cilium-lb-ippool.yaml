@@ -1,0 +1,10 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: homelab-pool
+  namespace: kube-system
+spec:
+  blocks:
+    - cidr: 10.11.11.128/25
+  allowFirstLastIPs: "No"

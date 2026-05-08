@@ -1,0 +1,12 @@
+architecture: standalone
+
+auth:
+  enabled: false
+
+primary:
+  resourcesPreset: nano
+  persistence:
+    storageClass: longhorn
+    size: 1Gi
+    annotations:
+      helm.sh/resource-policy: keep

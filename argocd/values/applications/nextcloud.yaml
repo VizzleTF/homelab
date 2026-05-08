@@ -1,0 +1,314 @@
+# Nextcloud - Self-hosted Cloud Storage
+# Configuration for HomeLab deployment with CNPG PostgreSQL and Valkey
+
+# Общие ресурсы через homelab-common
+homelab-common:
+  externalSecrets:
+    - name: nextcloud-app-credentials
+      vaultPath: nextcloud/app-credentials
+      data:
+        - secretKey: admin_username
+          property: admin_username
+        - secretKey: admin_password
+          property: admin_password
+      templateData:
+        nextcloud-username: "{{ .admin_username }}"
+        nextcloud-password: "{{ .admin_password }}"
+    
+    - name: nextcloud-db-credentials
+      vaultPath: nextcloud/nextcloud
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+    
+    - name: collabora-credentials
+      vaultPath: nextcloud/collabora
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+    
+    - name: nextcloud-webdav-credentials
+      vaultPath: shared/webdav-backup
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
+
+    - name: nextcloud-postgresql-credentials
+      vaultPath: nextcloud/postgresql
+      data:
+        - secretKey: user_password
+          property: user_password
+        - secretKey: postgres_password
+          property: postgres_password
+      templateData:
+        password: "{{ .user_password }}"
+        postgres-password: "{{ .postgres_password }}"
+
+    - name: nextcloud-redis-credentials
+      vaultPath: nextcloud/redis
+      data:
+        - secretKey: redis_password
+          property: redis_password
+      templateData:
+        redis-password: "{{ .redis_password }}"
+
+    - name: nextcloud-oidc-credentials
+      vaultPath: nextcloud/oidc
+      data:
+        - secretKey: client_id
+          property: client_id
+        - secretKey: client_secret
+          property: client_secret
+      templateData:
+        OIDC_CLIENT_ID: "{{ .client_id }}"
+        OIDC_CLIENT_SECRET: "{{ .client_secret }}"
+  
+  httpRoutes:
+    - name: nextcloud
+      hostname: nc
+      gateway: external
+      service:
+        name: nextcloud
+        port: 8080
+    
+    - name: collabora
+      hostname: collabora
+      gateway: external
+      service:
+        name: nextcloud-collabora
+        port: 9980
+  
+  backupCronJobs:
+    - name: backup-nfs
+      schedule: "0 0 * * *"
+      type: rsync
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
+      command:
+        - rsync
+        - -avz
+        - --no-owner
+        - --no-group
+        - --no-times
+        - --delete
+        - /source/config/config.php
+        - /source/data/ivan/files
+        - /destination/
+      source:
+        pvc: nextcloud-nextcloud
+      destination:
+        type: nfs
+        path: /nc
+      resources:
+        requests:
+          memory: 64Mi
+          cpu: 50m
+        limits:
+          memory: 256Mi
+          cpu: 500m
+    
+    - name: webdav-backup-nextcloud
+      schedule: "30 6 * * *"
+      type: rclone
+      source:
+        pvc: nextcloud-nextcloud
+      destination:
+        type: webdav
+        remote: mailru:/backup/nextcloud
+        secretName: nextcloud-webdav-credentials
+      rcloneArgs:
+        - --transfers=4
+        - --checkers=8
+        - --verbose
+        - --include=config/config.php
+        - --include=data/ivan/files/**
+        - --exclude=*
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+  
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi
+
+nextcloud:
+  host: nc.example.com
+  existingSecret:
+    enabled: true
+    secretName: nextcloud-app-credentials
+    usernameKey: nextcloud-username
+    passwordKey: nextcloud-password
+  trustedDomains:
+    - nc.example.com
+    - nextcloud.nextcloud.svc.cluster.local
+
+  extraEnv:
+    - name: OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-oidc-credentials
+          key: OIDC_CLIENT_ID
+    - name: OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: nextcloud-oidc-credentials
+          key: OIDC_CLIENT_SECRET
+
+  configs:
+    logging.config.php: |-
+      <?php
+      $CONFIG = array (
+        'loglevel' => 2,
+        'log_rotate_size' => 10485760,
+      );
+    office.config.php: |-
+      <?php
+      $CONFIG = array(
+        'allow_local_remote_servers' => true,
+      );
+
+  hooks:
+    post-installation: |
+      # Install and configure Collabora
+      php /var/www/html/occ app:install richdocuments || true
+      php /var/www/html/occ app:disable richdocumentscode || true
+      php /var/www/html/occ config:app:set richdocuments wopi_url \
+        --value='https://collabora.example.com'
+
+      # Configure OIDC
+      php /var/www/html/occ app:enable user_oidc
+      php /var/www/html/occ user_oidc:provider Authentik \
+        --clientid="$OIDC_CLIENT_ID" \
+        --clientsecret="$OIDC_CLIENT_SECRET" \
+        --discoveryuri="https://authentik.example.com/application/o/nextcloud/.well-known/openid-configuration" \
+        --scope="openid email profile" \
+        --mapping-uid="preferred_username" \
+        --mapping-display-name="name" \
+        --mapping-email="email"
+
+    post-upgrade: |
+      # Update Collabora
+      php /var/www/html/occ app:update richdocuments || true
+      php /var/www/html/occ app:disable richdocumentscode || true
+      php /var/www/html/occ config:app:set richdocuments wopi_url \
+        --value='https://collabora.example.com'
+
+      # Update OIDC configuration
+      php /var/www/html/occ app:enable user_oidc
+      php /var/www/html/occ user_oidc:provider Authentik \
+        --clientid="$OIDC_CLIENT_ID" \
+        --clientsecret="$OIDC_CLIENT_SECRET" \
+        --discoveryuri="https://authentik.example.com/application/o/nextcloud/.well-known/openid-configuration" \
+        --scope="openid email profile" \
+        --mapping-uid="preferred_username" \
+        --mapping-display-name="name" \
+        --mapping-email="email"
+
+replicaCount: 1
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+resources:
+  limits:
+    cpu: 4
+    memory: 4Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+
+persistence:
+  enabled: true
+  storageClass: longhorn
+  accessMode: ReadWriteMany
+  size: 10Gi
+  annotations:
+    helm.sh/resource-policy: keep
+
+ingress:
+  enabled: false
+
+postgresql:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  type: postgresql
+  host: cnpg-cluster-rw.cnpg.svc.cluster.local
+  database: nextcloud
+  existingSecret:
+    enabled: true
+    secretName: nextcloud-db-credentials
+    usernameKey: username
+    passwordKey: password
+
+redis:
+  enabled: false
+
+externalRedis:
+  enabled: true
+  host: valkey-primary.valkey.svc.cluster.local
+  port: "6379"
+
+internalDatabase:
+  enabled: false
+
+collabora:
+  enabled: true
+  collabora:
+    aliasgroups:
+      - host: "https://nc.example.com:443"
+    extra_params: --o:ssl.enable=false --o:ssl.termination=true
+    server_name: collabora.example.com
+    existingSecret:
+      enabled: true
+      secretName: collabora-credentials
+      usernameKey: username
+      passwordKey: password
+  ingress:
+    enabled: false
+  resources:
+    requests:
+      cpu: 15m
+      memory: 800Mi
+    limits:
+      cpu: 2
+      memory: 2Gi
+
+cronjob:
+  enabled: false
+
+# FOR UPGRADE: extended startup probe due to RWX volume initialization delay
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 100
+  successThreshold: 1

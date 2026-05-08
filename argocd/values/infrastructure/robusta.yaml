@@ -1,0 +1,208 @@
+# Robusta — единый alert hub (enrichment + K8s-native + change tracking + digest).
+# Chart: robusta/robusta 0.37.0
+# Namespace: robusta
+# Ключи и схема сверялись с `helm show values robusta/robusta --version 0.37.0`.
+
+clusterName: "homelab"
+
+# Отключаем SaaS / встроенный kube-prometheus-stack / HolmesGPT.
+# HolmesGPT (AI root-cause) был включён 2026-04-24, отключён 2026-04-26 —
+# его playbook `AutoInvestigateAlerts` шёл отдельным сообщением поверх каждого
+# Prometheus-алерта (holmes_chat создаёт независимый finding). Цель: ровно 1
+# сообщение на алерт от Robusta (вложения через enricher'ы — OK).
+enablePlatformPlaybooks: false
+enableHolmesGPT: false
+enablePrometheusStack: false
+
+grafanaRenderer:
+  enableContainer: false
+
+# Offline-режим: account_id пусто → SaaS не используется.
+# signing_key обязателен даже в offline — приходит из ExternalSecret через env.
+# ВАЖНО: Robusta использует {{ env.VAR }} Jinja-синтаксис, НЕ $(VAR) (K8s env-ref).
+globalConfig:
+  signing_key: "{{ env.SIGNING_KEY }}"
+  account_id: ""
+  check_prometheus_flags: false
+  prometheus_url: "http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc.cluster.local:8428"
+  grafana_url: "https://grafana.example.com"
+
+runner:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1024Mi
+  log_level: INFO
+  sendAdditionalTelemetry: false
+  # Read-only root FS — security++. Volumes для записи чарт монтирует сам.
+  hardenedFs: true
+  # Расширяет RBAC runner-а на CNPG Cluster CRD → enrichment в алертах
+  # типа "CNPG cluster degraded" получает spec/status кластера.
+  # Чарт поддерживает только предопределённые ключи: StrimziPodSet, CNPGCluster, ExecutionContext.
+  customCRD:
+    - "CNPGCluster"
+  serviceMonitor:
+    path: /metrics
+  additional_env_vars:
+    - name: SIGNING_KEY
+      valueFrom:
+        secretKeyRef:
+          name: robusta-telegram
+          key: signing_key
+    - name: TG_BOT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: robusta-telegram
+          key: bot_token
+    # chat_id хардкодим числом ниже: Robusta ожидает int и валидирует до
+    # env-substitution, поэтому даже {{ env.VAR }} не помогает. chat_id без
+    # bot_token бесполезен, поэтому держать его в private-repo безопасно.
+
+kubewatch:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  config:
+    resource:
+      pod: true
+      deployment: true
+      daemonset: true
+      statefulset: true
+      job: true
+      node: true
+      event: true
+      ingress: true
+      # Шумные ресурсы выключаем.
+      configmap: false
+      secret: false
+      serviceaccount: false
+      namespace: false
+
+# Telegram sink-и: alerts (default) + changes (для WorkloadChangeTracking).
+# Один бот, один chat_id. `default: false` у changes — без него default-sink
+# c тем же chat_id получал бы копию каждого алерта (дубль в Telegram).
+sinksConfig:
+  - telegram_sink:
+      name: telegram_alerts
+      bot_token: "{{ env.TG_BOT_TOKEN }}"
+      chat_id: 0000000000
+      send_files: true
+  - telegram_sink:
+      name: telegram_changes
+      bot_token: "{{ env.TG_BOT_TOKEN }}"
+      chat_id: 0000000000
+      send_files: false
+      default: false
+
+# Custom playbooks: auto-remediation + change tracking + digest.
+# Built-in playbooks (KubePodCrashLooping, KubeNodeNotReady и т.д.)
+# работают из коробки — ничего дополнительно не настраиваем.
+#
+# NB про auto-remediation в 0.35:
+#   - Evicted pods — покрывается штатным on_pod_evicted (ниже).
+#   - Stuck Terminating — в 0.35 нет триггера по age/phase, пропускаем.
+#   - Cleanup старых Jobs — делается нативно K8s через
+#     .spec.ttlSecondsAfterFinished у Job/CronJob, без Robusta.
+customPlaybooks:
+
+  # 1. Auto-delete Evicted pods.
+  - name: "DeleteEvictedPods"
+    triggers:
+      - on_pod_evicted: {}
+    actions:
+      - delete_pod: {}
+      - create_finding:
+          aggregation_key: "AutoDeleteEvicted"
+          title: "Auto-deleted evicted pod $name"
+    sinks: [telegram_alerts]
+
+  # 2. Rollout restart при повторяющихся OOMKill.
+  # Сообщение про сам OOM (с logs+memory graph) шлёт built-in PodOOMKill;
+  # тут мы ТОЛЬКО рестартим — без `create_finding`, чтобы не плодить второе
+  # сообщение. Сам факт rollout-restart всё равно поедет в telegram_changes
+  # через WorkloadChangeTracking.
+  # rate_limit выровнен с built-in (3600s), чтобы не было рассинхрона
+  # «6 рестартов за час vs 1 enriched сообщение».
+  - name: "RestartOnMemoryLeak"
+    triggers:
+      - on_pod_oom_killed:
+          rate_limit: 3600
+    actions:
+      - rollout_restart: {}
+
+  # 3. Change tracking — Deployment/DS/SS/Ingress → отдельный канал.
+  - name: "WorkloadChangeTracking"
+    triggers:
+      - on_kubernetes_resource_operation:
+          resources: ["deployment", "daemonset", "statefulset", "ingress"]
+    actions:
+      - resource_babysitter: {}
+    sinks: [telegram_changes]
+
+  # 4. K8s Warning Events report (замена event-exporter).
+  # NB: `exclude` матчит и reason, и message (case-insensitive) — можно
+  # давить по тексту сообщения, если reason слишком общий.
+  - name: "K8sWarningEvents"
+    triggers:
+      - on_kubernetes_warning_event_create:
+          exclude:
+            - "NodeSysctlChange"
+            - "ReconciliationSucceeded"
+            - "Synced"
+            # Longhorn emit'ит reason=Update на Snapshot CR при markRemoved
+            # cleanup после успешного бэкапа (штатный жизненный цикл).
+            # Reason `Update` у Longhorn слишком общий (используется для real
+            # warnings тоже), поэтому давим по уникальной подстроке message.
+            - "snapshot becomes not ready to use"
+    actions:
+      - warning_events_report:
+          warning_event_groups:
+            - aggregation_key: PodLifecycleWarning
+              matchers: [FailedCreatePodSandBox, BackOff, FailedDaemonPod, Evicted]
+            - aggregation_key: NodeHealthWarning
+              matchers: [NodeNotReady, OOMKilling, SystemOOM, NodeShutdown, FreeDiskSpaceFailed]
+            - aggregation_key: ProbeFailure
+              matchers: [Unhealthy, ProbeError]
+            - aggregation_key: SchedulingWarning
+              matchers: [FailedScheduling]
+            - aggregation_key: VolumeWarning
+              matchers: [FailedMount, FailedAttachVolume, VolumeFailedDelete]
+    sinks: [telegram_alerts]
+
+  # 5. Job failure с обогащением (info + events + pod logs).
+  - name: "JobFailureEnrichment"
+    triggers:
+      - on_job_failure: {}
+    actions:
+      - create_finding:
+          aggregation_key: "JobFailure"
+          title: "Job $name in namespace $namespace failed"
+      - job_info_enricher: {}
+      - job_events_enricher: {}
+      - job_pod_enricher: {}
+    sinks: [telegram_alerts]
+
+  # 6. Cleanup завершившихся Robusta-job pods. Раз в час, hours_back=1 —
+  # держим ns robusta чистым на случай если что-то всё же создаст job.
+  # KRR/Popeye scheduled scans ВЫКЛЮЧЕНЫ полностью (см. disabledPlaybooks
+  # ниже + удалены DailyDigest/WeeklyPopeyeScan) — создавали 2-4 pod-а каждое
+  # выполнение и не давали ценности через Telegram.
+  - name: "CleanupRobustaPods"
+    triggers:
+      - on_schedule:
+          cron_schedule_repeat:
+            cron_expression: "0 */1 * * *"
+    actions:
+      - cleanup_robusta_pods:
+          hours_back: 1
+
+# Чартовые built-in playbooks с расписанием шлют в robusta_ui_sink
+# (которого у нас нет) и плодят completed jobs впустую.
+disabledPlaybooks:
+  - WeeklyKRRScan
+  - RobustaMaintenance

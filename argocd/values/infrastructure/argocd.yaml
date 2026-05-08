@@ -1,0 +1,340 @@
+homelab-common:
+  certificates:
+    - name: argocd-server-tls
+      secretName: argocd-server-tls
+      issuerRef:
+        kind: ClusterIssuer
+        name: cloudflare-issuer
+      dnsNames:
+        - "*.example.com"
+
+  tlsRoutes:
+    - name: argocd
+      hostname: argocd
+      service:
+        name: argocd-server
+        port: 443
+
+  apps:
+    - name: oci-helm
+      fullnameOverride: helm-oci-ghcr-suse-coder
+      secret:
+        metadata:
+          labels:
+            argocd.argoproj.io/secret-type: repository
+        type: Opaque
+        stringData:
+          type: helm
+          name: suse-coder-helm-charts
+          url: ghcr.io/suse-coder/helm-charts
+          enableOCI: "true"
+
+    - name: oci-helm-forgejo
+      fullnameOverride: helm-oci-forgejo
+      secret:
+        metadata:
+          labels:
+            argocd.argoproj.io/secret-type: repository
+        type: Opaque
+        stringData:
+          type: helm
+          name: forgejo-helm
+          url: code.forgejo.org/forgejo-helm
+          enableOCI: "true"
+
+    - name: redis
+      fullnameOverride: argocd-redis
+      secret:
+        type: Opaque
+        stringData:
+          auth: ""
+
+  externalSecrets:
+    - name: argocd-oidc-secret
+      vaultPath: argocd/argocd/oidc
+      targetName: argocd-secret
+      creationPolicy: Merge
+      data:
+        - secretKey: oidc.argocd.clientSecret
+          property: client_secret
+
+    - name: argocd-notifications-secret
+      vaultPath: argocd/notifications
+      data:
+        - secretKey: telegram-token
+          property: telegram-token
+        - secretKey: telegram-chatID
+          property: telegram-chat-id
+
+    # Forgejo SSH access — отдельная ed25519 keypair для argocd-bot user в Forgejo.
+    # Cluster-internal endpoint: forgejo-ssh.forgejo.svc:22 (containerPort 2222 за service port 22).
+    - name: argocd-repo-ssh-forgejo-default
+      vaultPath: argocd/repo-ssh-forgejo
+      templateMetadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      templateData:
+        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git"
+        type: git
+        project: default
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+      data:
+        - secretKey: sshPrivateKey
+          property: sshPrivateKey
+
+    - name: argocd-repo-ssh-forgejo-applications
+      vaultPath: argocd/repo-ssh-forgejo
+      templateMetadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      templateData:
+        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git"
+        type: git
+        project: applications
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+      data:
+        - secretKey: sshPrivateKey
+          property: sshPrivateKey
+
+    - name: argocd-repo-ssh-forgejo-infrastructure
+      vaultPath: argocd/repo-ssh-forgejo
+      templateMetadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      templateData:
+        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git"
+        type: git
+        project: infrastructure
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+      data:
+        - secretKey: sshPrivateKey
+          property: sshPrivateKey
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi
+
+applicationSet:
+  enabled: true
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 15m
+      memory: 64Mi
+
+controller:
+  env:
+    - name: ARGOCD_APPLICATION_CONTROLLER_APP_RESYNC
+      value: "3600"
+    - name: GOMEMLIMIT
+      value: "1700MiB"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 2Gi
+    requests:
+      cpu: 128m
+      memory: 896Mi
+
+configs:
+  ssh:
+    extraHosts: |
+      forgejo-ssh.forgejo.svc.cluster.local ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDBXme0XrIiYwFilxI26jKrTeaei+1yJQ0999nO73xKT3ZMaLq76zUrvuPobeZ6UJcFWEOSLKVAzExYdrtLK/TXAJ8YMS+GQTQRaBHBW9svxyif4G/tmD2OwjqOJXGZsjVfCffxGmmorv5D2/h8sv6/VbF2L7BugvKtWLN3nimgdRffjxlaWYR8+ouvrZ27QMe7eW6jTP+zJ78tJT5ebjZzmkTAa35sps9ldPf6kE3kt11yfAJPD4kZ73keeSy3h8W1XC5/Lo9piiEO/vRB3GRjowKQdxsQlP2Go2MYnfb09dZfmezzTla0lyXjGBREQDh84LE2fzXfK5ML1I7LPX0Wx2V6NB8sxSg4fWvSMB5P/cZakmIFM/lwe65r8DPs9xlo3cM7noLD7RM1zXj9uiJ60beqD8e3CxH4KQN2YOVRQohqcJXtRnF7X/6LMg6Apcwzwq4lfr1I93zc91GoJihRG4bKyd/RiFy/VJJAMC5BYYQ8oVSsivIi0bHBveoUDGEJyvWlgEUn6fxF0lJ1E1rRsw2SISEI9U0Gi9CeStLAFXeqQuj5mgb5N6qeDQ6JdZOw/Kc/zdPfruoJKFt5cATzCAQpKegNbXQaKzyuoTpMCbGNpZqTe2zdWES+LAFR8tzlOvIwfsqpUoQY2NzngsSWdR2SnDnijdnUWVXBfAPi6Q==
+  params:
+    # Cap concurrent manifest generations on repo-server. Default unlimited
+    # → each gen 100-500 MiB. Bump to 4 if argocd_repo_pending_request_total
+    # stays elevated.
+    reposerver.parallelism.limit: "2"
+  cm:
+    server.sessionMaxTokenAge: "720h"
+    accounts.mcp: apiKey
+    resource.exclusions: |
+      - apiGroups:
+          - ""
+        kinds:
+          - Endpoints
+        clusters:
+          - "*"
+    oidc.config: |
+      name: Authentik
+      issuer: https://authentik.example.com/application/o/argocd/
+      clientID: argocd
+      clientSecret: $oidc.argocd.clientSecret
+      requestedScopes: ["openid", "profile", "email", "groups"]
+    resource.customizations.ignoreDifferences.gateway.networking.k8s.io_HTTPRoute: |
+      jqPathExpressions:
+        - '.spec.rules[]?.backendRefs[]?.group'
+        - '.spec.rules[]?.backendRefs[]?.kind'
+        - '.spec.rules[]?.backendRefs[]?.weight'
+        - '.spec.rules[]?.filters[]?.type'
+        - '.spec.parentRefs[]?.group'
+        - '.spec.parentRefs[]?.kind'
+    resource.customizations.ignoreDifferences.gateway.networking.k8s.io_TLSRoute: |
+      jqPathExpressions:
+        - '.spec.rules[]?.backendRefs[]?.group'
+        - '.spec.rules[]?.backendRefs[]?.kind'
+        - '.spec.rules[]?.backendRefs[]?.weight'
+        - '.spec.parentRefs[]?.group'
+        - '.spec.parentRefs[]?.kind'
+    resource.customizations.ignoreDifferences.gateway.networking.k8s.io_Gateway: |
+      jqPathExpressions:
+        - '.spec.addresses'
+        - '.spec.listeners[]?.tls?.certificateRefs[]?.group'
+        - '.spec.listeners[]?.allowedRoutes?.kinds[]?.group'
+    resource.customizations.ignoreDifferences._Service: |
+      jqPathExpressions:
+        - '.spec.ports[]?.nodePort'
+    resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+      jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
+    resource.customizations.ignoreDifferences.discovery.k8s.io_EndpointSlice: |
+      jqPathExpressions:
+        - '.endpoints[]?.conditions'
+    resource.customizations.ignoreDifferences.postgresql.cnpg.io_Cluster: |
+      jqPathExpressions:
+        - '.spec.managed.roles[]?.connectionLimit'
+        - '.spec.managed.roles[]?.inherit'
+    resource.customizations.ignoreDifferences.external-secrets.io_ExternalSecret: |
+      jqPathExpressions:
+        - '.spec.data[]?.remoteRef.conversionStrategy'
+        - '.spec.data[]?.remoteRef.decodingStrategy'
+        - '.spec.data[]?.remoteRef.metadataPolicy'
+        - '.spec.data[]?.remoteRef.nullBytePolicy'
+    resource.customizations.ignoreDifferences.apps_StatefulSet: |
+      jqPathExpressions:
+        - '.spec.volumeClaimTemplates[]?.apiVersion'
+        - '.spec.volumeClaimTemplates[]?.kind'
+    resource.customizations.health.gateway.networking.k8s.io_HTTPRoute: |
+      hs = {}
+      if obj.status ~= nil and obj.status.parents ~= nil then
+        for _, parent in ipairs(obj.status.parents) do
+          for _, cond in ipairs(parent.conditions or {}) do
+            if cond.type == "Accepted" and cond.status == "False" then
+              hs.status = "Degraded"
+              hs.message = cond.message
+              return hs
+            end
+          end
+        end
+      end
+      hs.status = "Healthy"
+      hs.message = "Route accepted"
+      return hs
+    resource.customizations.health.gateway.networking.k8s.io_Gateway: |
+      hs = {}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for _, cond in ipairs(obj.status.conditions) do
+          if cond.type == "Ready" and cond.status == "False" then
+            hs.status = "Degraded"
+            hs.message = cond.message
+            return hs
+          end
+          if cond.type == "Programmed" and cond.status == "False" then
+            hs.status = "Progressing"
+            hs.message = cond.message
+            return hs
+          end
+        end
+      end
+      hs.status = "Healthy"
+      hs.message = "Gateway ready"
+      return hs
+
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      g, ArgoCD Admins, role:admin
+      g, mcp, role:admin
+
+crds:
+  install: true
+
+dex:
+  enabled: false
+
+global:
+  domain: argocd.example.com
+
+notifications:
+  enabled: true
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 15m
+      memory: 64Mi
+  notifiers:
+    service.telegram: |
+      token: $telegram-token
+  triggers:
+    trigger.on-sync-failed: |
+      - send: [app-sync-failed]
+        when: app.status.operationState.phase in ['Error', 'Failed']
+    trigger.on-health-degraded: |
+      - send: [app-health-degraded]
+        when: app.status.health.status == 'Degraded'
+  templates:
+    template.app-sync-failed: |
+      message: |
+        ❌ *{{.app.metadata.name}}* — sync failed
+        Phase: {{.app.status.operationState.phase}}
+        {{if .app.status.operationState.syncResult.resources}}
+        {{range .app.status.operationState.syncResult.resources -}}
+        - {{.name}}: {{.message}}
+        {{end}}{{end}}
+    template.app-health-degraded: |
+      message: |
+        ⚠️ *{{.app.metadata.name}}* — health degraded
+        Status: {{.app.status.health.status}}
+  subscriptions:
+    - recipients:
+        - telegram:$telegram-chatID
+      triggers:
+        - on-sync-failed
+        - on-health-degraded
+
+redis:
+  enabled: false
+
+externalRedis:
+  host: valkey-primary.valkey.svc.cluster.local
+
+redisSecretInit:
+  enabled: false
+
+repoServer:
+  env:
+    - name: GOMEMLIMIT
+      value: "1700MiB"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 2Gi
+    requests:
+      cpu: 50m
+      memory: 512Mi
+
+server:
+  env:
+    - name: GOMEMLIMIT
+      value: "220MiB"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 256Mi
+    requests:
+      cpu: 15m
+      memory: 64Mi
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false

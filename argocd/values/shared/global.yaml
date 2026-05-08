@@ -1,0 +1,43 @@
+# Общие top-level defaults для Helm (homelab-common и соглашения по кластеру).
+# Подключается первым в valueFiles ArgoCD у source homelab-common — дальше идут файлы приложения.
+global:
+  vault:
+    secretStore: vault-backend-cluster
+    secretStoreKind: ClusterSecretStore
+    refreshInterval: 1h
+    pathPrefix: homelab/k8s
+
+  dns:
+    domain: example.com
+    cloudflareProxied: "true"
+
+  gateway:
+    external:
+      name: cilium-gateway
+      namespace: kube-system
+    internal:
+      name: cilium-gateway-internal
+      namespace: kube-system
+      ip: 10.11.11.138
+    tls:
+      name: cilium-gateway-tls
+      namespace: kube-system
+      ip: 10.11.11.139
+
+  storage:
+    defaultStorageClass: longhorn
+
+  backup:
+    rcloneImage: rclone/rclone:latest
+    rcloneDefaultArgs:
+      - --transfers=4
+      - --checkers=8
+      - --verbose
+    webdav:
+      url: "https://webdav.cloud.mail.ru"
+      user: "backup@example.com"
+      vendor: "other"
+      vaultPath: homelab/k8s/shared/webdav-backup
+    nfs:
+      server: 10.11.12.237
+      basePath: /volume5/k8s_svc

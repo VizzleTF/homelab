@@ -17,7 +17,7 @@ spec:
             targetRevision: "v1.20.2"
             wave: "-5"
             extraManifests: true
-            homelabValuesFile: values/infrastructure/cert-manager.homelab.yaml
+            homelabValuesFile: argocd/values/infrastructure/cert-manager.homelab.yaml
           - name: cilium
             repoURL: https://helm.cilium.io/
             targetRevision: "1.19.3"
@@ -44,7 +44,7 @@ spec:
             repoURL: https://community-charts.github.io/helm-charts
             targetRevision: "2.2.7"
             wave: "0"
-            homelabValuesFile: values/infrastructure/cloudflared.homelab.yaml
+            homelabValuesFile: argocd/values/infrastructure/cloudflared.homelab.yaml
           - name: cnpg-operator
             chart: cloudnative-pg
             repoURL: https://cloudnative-pg.github.io/charts
@@ -122,7 +122,7 @@ spec:
             targetRevision: "0.37.0"
             wave: "1"
             extraManifests: true
-            homelabValuesFile: values/infrastructure/robusta.homelab.yaml
+            homelabValuesFile: argocd/values/infrastructure/robusta.homelab.yaml
           - name: vault-autounseal
             repoURL: https://pytoshka.github.io/vault-autounseal
             targetRevision: "0.5.3"
@@ -172,21 +172,21 @@ spec:
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
-              - "$values/{{ index . "valuesFile" | default (printf "values/infrastructure/%s.yaml" .name) }}"
+              - "$values/{{ index . "valuesFile" | default (printf "argocd/values/infrastructure/%s.yaml" .name) }}"
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
           targetRevision: "1.7.1"
           helm:
             valueFiles:
-              - "$values/values/shared/global.yaml"
-              - "$values/{{ index . "homelabValuesFile" | default (printf "values/infrastructure/%s.yaml" .name) }}"
-        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home-proxmox-values.git
+              - "$values/argocd/values/shared/global.yaml"
+              - "$values/{{ index . "homelabValuesFile" | default (printf "argocd/values/infrastructure/%s.yaml" .name) }}"
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
           targetRevision: HEAD
           ref: values
         {{- if index . "extraManifests" }}
-        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home-proxmox-values.git
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
           targetRevision: HEAD
-          path: "manifests/infrastructure/{{.name}}"
+          path: "argocd/manifests/infrastructure/{{.name}}"
         {{- end }}
       {{- if index . "ignoreDiff" }}
       ignoreDifferences:

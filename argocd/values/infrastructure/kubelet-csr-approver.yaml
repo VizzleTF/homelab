@@ -1,0 +1,16 @@
+providerRegex: "^talos-"
+providerIpPrefixes:
+  - 10.11.11.0/24
+bypassDnsResolution: true
+
+replicas: 1
+leaderElection: false
+
+# Chart defaults are 64Mi/128Mi; live usage ~11Mi. Tightened.
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi

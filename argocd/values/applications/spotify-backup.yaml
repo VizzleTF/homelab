@@ -1,0 +1,183 @@
+# Spotify "Liked Songs" backup — homelab-common cronJobs.
+#
+# Один CronJob `spotify-backup-saved-tracks` дампит /me/tracks (Liked Songs)
+# целиком в /backup/saved_tracks.json раз в сутки. Скрипт inline на spotipy,
+# никакого upstream-инструмента не используется.
+#
+# Vault layout (создать вручную перед первой синхронизацией):
+#   home/data/homelab/k8s/spotify-backup/spotify-backup
+#     client_id     = <Spotify Developer App Client ID>
+#     client_secret = <Spotify Developer App Client Secret>
+#     token_cache   = <содержимое $XDG_CONFIG_HOME/spotify-backup, полученное
+#                      локальным OAuth-флоу один раз>
+#
+# Spotify Developer App:
+#   Redirect URI = http://127.0.0.1:8080/callback
+#   (с 2025-04-09 plain http://localhost запрещён, нужен loopback IP)
+#
+# Локальная инициализация (получить token_cache; scope = user-library-read):
+#   docker run --rm -it -v "$PWD/cache:/config" \
+#     -e SPOTIPY_CLIENT_ID=... -e SPOTIPY_CLIENT_SECRET=... \
+#     -e SPOTIPY_REDIRECT_URI=http://127.0.0.1:8080/callback \
+#     -e XDG_CONFIG_HOME=/config \
+#     python:3.12-alpine sh -c '
+#       pip install --quiet spotipy
+#       python -c "
+#       import os
+#       from spotipy.oauth2 import SpotifyOAuth
+#       SpotifyOAuth(scope=\"user-library-read\",
+#                    cache_path=\"/config/spotify-backup\",
+#                    open_browser=False).get_access_token(as_dict=False)
+#       "
+#     '
+#   # Spotipy выведет URL → открой в браузере → авторизуйся → копируй URL из адресной
+#   # строки (он не загрузится, connection refused — это нормально) → вставь в stdin
+#   # контейнера. После этого:
+#   cat cache/spotify-backup  # → этот JSON в Vault как поле token_cache
+
+homelab-common:
+  externalSecrets:
+    - name: spotify-backup-creds
+      vaultPath: spotify-backup/spotify-backup
+      data:
+        - secretKey: SPOTIPY_CLIENT_ID
+          property: client_id
+        - secretKey: SPOTIPY_CLIENT_SECRET
+          property: client_secret
+
+    - name: spotify-backup-token
+      vaultPath: spotify-backup/spotify-backup
+      data:
+        # Spotipy CacheFileHandler читает файл по пути
+        # Path(XDG_CONFIG_HOME, "spotify-backup"). Имя ключа должно быть
+        # "spotify-backup", чтобы initContainer-копия легла под этим именем.
+        - secretKey: spotify-backup
+          property: token_cache
+
+  persistentVolumeClaims: []
+
+  cronJobs:
+    - name: saved-tracks
+      spec:
+        schedule: "0 4 * * *"
+        timeZone: UTC
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 3
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            activeDeadlineSeconds: 600
+            template:
+              metadata:
+                labels:
+                  app.kubernetes.io/name: spotify-backup
+              spec:
+                restartPolicy: OnFailure
+                # NFS-экспорт 10.11.12.237:/volume5/k8s_svc не разрешает запись
+                # для non-root uid'ов. Работаем root-ом — squashing остаётся
+                # задачей NFS-сервера. Caps дропнуты, root-FS writable нужен
+                # для pip install и записи скрипта в /work.
+                securityContext:
+                  seccompProfile:
+                    type: RuntimeDefault
+                initContainers:
+                  - name: prep-cache
+                    image: busybox:1.37
+                    command: [sh, -c]
+                    args:
+                      - |
+                        set -eu
+                        cp /token/spotify-backup /cache/spotify-backup
+                        chmod 0600 /cache/spotify-backup
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - {name: token, mountPath: /token, readOnly: true}
+                      - {name: cache, mountPath: /cache}
+                    resources:
+                      requests: {cpu: 10m, memory: 16Mi}
+                      limits: {cpu: 100m, memory: 32Mi}
+                containers:
+                  - name: backup
+                    image: python:3.12-alpine
+                    command: [sh, -c]
+                    args:
+                      - |
+                        set -eu
+                        pip install --quiet --no-cache-dir --disable-pip-version-check --root-user-action=ignore spotipy
+                        cat <<'PY' > /work/backup.py
+                        import json
+                        import os
+                        from pathlib import Path
+                        import spotipy
+                        from spotipy.oauth2 import SpotifyOAuth
+
+                        auth = SpotifyOAuth(
+                            client_id=os.environ["SPOTIPY_CLIENT_ID"],
+                            client_secret=os.environ["SPOTIPY_CLIENT_SECRET"],
+                            redirect_uri=os.environ["SPOTIPY_REDIRECT_URI"],
+                            scope="user-library-read",
+                            cache_path=os.path.join(os.environ["XDG_CONFIG_HOME"], "spotify-backup"),
+                            open_browser=False,
+                        )
+                        sp = spotipy.Spotify(auth_manager=auth, requests_timeout=30, retries=5)
+
+                        out = Path("/backup/saved_tracks.json")
+                        out.parent.mkdir(parents=True, exist_ok=True)
+
+                        items = []
+                        offset = 0
+                        while True:
+                            page = sp.current_user_saved_tracks(limit=50, offset=offset)
+                            chunk = page.get("items", [])
+                            if not chunk:
+                                break
+                            items.extend(chunk)
+                            if not page.get("next"):
+                                break
+                            offset += 50
+
+                        tmp = out.with_name(out.name + ".tmp")
+                        with tmp.open("w", encoding="utf-8") as f:
+                            json.dump(items, f, ensure_ascii=False, indent=2)
+                        tmp.replace(out)
+                        print(f"Saved {len(items)} liked tracks to {out}")
+                        PY
+                        python /work/backup.py
+                    env:
+                      - {name: HOME, value: /work}
+                      - {name: XDG_CONFIG_HOME, value: /config}
+                      - {name: SPOTIPY_REDIRECT_URI, value: "http://127.0.0.1:8080/callback"}
+                    envFrom:
+                      - secretRef:
+                          name: spotify-backup-creds
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: false
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - {name: cache, mountPath: /config}
+                      - {name: backup, mountPath: /backup}
+                      - {name: work, mountPath: /work}
+                    resources:
+                      requests: {cpu: 100m, memory: 128Mi}
+                      limits: {cpu: 500m, memory: 256Mi}
+                volumes:
+                  - name: token
+                    secret:
+                      secretName: spotify-backup-token
+                      items:
+                        - {key: spotify-backup, path: spotify-backup, mode: 0400}
+                  - name: cache
+                    emptyDir: {}
+                  - name: work
+                    emptyDir: {}
+                  - name: backup
+                    nfs:
+                      server: 10.11.12.237
+                      path: /volume5/k8s_svc/spotify-backup

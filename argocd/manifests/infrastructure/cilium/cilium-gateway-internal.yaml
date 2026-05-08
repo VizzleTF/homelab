@@ -1,0 +1,35 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cilium-gateway-internal
+  namespace: kube-system
+  annotations:
+    external-dns.alpha.kubernetes.io/target: 10.11.11.138
+spec:
+  addresses:
+    - type: IPAddress
+      value: 10.11.11.138
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      lbipam.cilium.io/sharing-key: "internal-shared"
+      lbipam.cilium.io/sharing-cross-namespace: "*"
+  listeners:
+    - allowedRoutes:
+        namespaces:
+          from: All
+      name: http
+      port: 80
+      protocol: HTTP
+    - allowedRoutes:
+        namespaces:
+          from: All
+      name: https
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: wildcard-tls
+            namespace: kube-system

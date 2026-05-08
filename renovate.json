@@ -59,23 +59,47 @@
       "groupName": "homelab-common"
     },
     {
-      "matchFileNames": [".github/workflows/**"],
-      "groupName": "github-actions"
+      "matchFileNames": [".github/workflows/**", ".forgejo/workflows/**"],
+      "groupName": "ci-actions"
     },
     {
-      "matchFileNames": ["argocd/**"],
+      "matchFileNames": ["argocd/applications/**", "argocd/infrastructure/**"],
       "groupName": "argocd-charts"
+    },
+    {
+      "matchFileNames": ["argocd/values/applications/**"],
+      "groupName": "applications"
+    },
+    {
+      "matchFileNames": ["argocd/values/infrastructure/**"],
+      "groupName": "infrastructure"
+    },
+    {
+      "matchFileNames": ["argocd/manifests/**"],
+      "groupName": "manifests"
     }
   ],
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/argocd/.+\\.ya?ml$/"],
+      "managerFilePatterns": ["/argocd/(applications|infrastructure)/.+\\.ya?ml$/"],
       "datasourceTemplate": "helm",
       "matchStrings": [
         "- name:\\s+[\\w-]+\\s+chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?",
         "- name:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?",
         "repoURL:\\s+(?<registryUrl>https?://\\S+)\\s+chart:\\s+(?<depName>[\\w-]+)\\s+targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/argocd/values/.+\\.ya?ml$/",
+        "/argocd/manifests/.+\\.ya?ml$/"
+      ],
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "#\\s*renovate:\\s*image=(?<depName>[^\\s]+)\\s*\\n\\s*image:\\s+[\"']?(?<currentValue>[^\"'\\s]+)[\"']?",
+        "#\\s*renovate:\\s*datasource=(?<datasourceTemplate>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n.*?[\"']?(?<currentValue>v?[0-9][^\"'\\s]*)[\"']?"
       ]
     }
   ]

@@ -1,0 +1,156 @@
+# Forgejo (forgejo-helm chart) — only chart keys; homelab-common in forgejo.homelab.yaml.
+# External CNPG postgres (shared cnpg-cluster), Authentik OIDC, Cilium Gateway via homelab-common.
+
+replicaCount: 1
+
+strategy:
+  type: Recreate
+
+image:
+  rootless: true
+
+persistence:
+  enabled: true
+  create: true
+  mount: true
+  claimName: forgejo-data
+  size: 20Gi
+  accessModes:
+    - ReadWriteMany
+  storageClass: longhorn
+  annotations:
+    helm.sh/resource-policy: keep
+
+service:
+  http:
+    type: ClusterIP
+    port: 3000
+  ssh:
+    type: LoadBalancer
+    port: 22
+    annotations:
+      lbipam.cilium.io/sharing-key: "internal-shared"
+      lbipam.cilium.io/sharing-cross-namespace: "*"
+      io.cilium/lb-ipam-ips: "10.11.11.138"
+
+ingress:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi
+
+deployment:
+  env:
+    - name: FORGEJO__database__PASSWD
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-db-credentials
+          key: password
+    # Garage S3 credentials for the [packages] section (Forgejo Packages OCI registry).
+    - name: FORGEJO__packages__MINIO_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-garage-s3
+          key: accessKey
+    - name: FORGEJO__packages__MINIO_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-garage-s3
+          key: secretKey
+
+gitea:
+  admin:
+    existingSecret: forgejo-admin-credentials
+
+  config:
+    APP_NAME: "Forgejo — example.com"
+    server:
+      DOMAIN: git.example.com
+      ROOT_URL: https://git.example.com/
+      SSH_DOMAIN: git.example.com
+      START_SSH_SERVER: true
+      SSH_LISTEN_PORT: 2222
+      SSH_PORT: 22
+      LANDING_PAGE: login
+      OFFLINE_MODE: true
+    database:
+      DB_TYPE: postgres
+      HOST: cnpg-cluster-rw.cnpg.svc.cluster.local:5432
+      NAME: forgejo
+      USER: forgejo
+      SSL_MODE: require
+    service:
+      DISABLE_REGISTRATION: true
+      ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+      SHOW_REGISTRATION_BUTTON: false
+      ENABLE_NOTIFY_MAIL: false
+    openid:
+      ENABLE_OPENID_SIGNIN: false
+      ENABLE_OPENID_SIGNUP: true
+    oauth2_client:
+      ENABLE_AUTO_REGISTRATION: true
+      ACCOUNT_LINKING: auto
+      USERNAME: preferred_username
+      UPDATE_AVATAR: true
+    repository:
+      DEFAULT_PRIVATE: private
+      DISABLE_HTTP_GIT: false
+    actions:
+      ENABLED: true
+      DEFAULT_ACTIONS_URL: github
+    indexer:
+      REPO_INDEXER_ENABLED: true
+      ISSUE_INDEXER_TYPE: bleve
+    metrics:
+      ENABLED: true
+    log:
+      LEVEL: Info
+    # Forgejo Packages OCI registry on Garage S3.
+    # Use the [packages] subsystem section, NOT [storage.packages]:
+    # the latter triggers a 30s timeout on bucket init against Garage.
+    # Access keys come from FORGEJO__packages__MINIO_*KEY_ID env vars
+    # injected from the forgejo-garage-s3 ExternalSecret.
+    packages:
+      ENABLED: true
+      STORAGE_TYPE: minio
+      MINIO_ENDPOINT: s3.example.com
+      MINIO_BUCKET: forgejo-packages
+      MINIO_LOCATION: garage
+      MINIO_USE_SSL: true
+      MINIO_BUCKET_LOOKUP: path
+      MINIO_BASE_PATH: packages/
+
+  oauth:
+    - name: Authentik
+      provider: openidConnect
+      existingSecret: forgejo-oidc-credentials
+      autoDiscoverUrl: https://authentik.example.com/application/o/forgejo/.well-known/openid-configuration
+      iconUrl: https://authentik.example.com/static/dist/assets/icons/icon.png
+      scopes: openid profile email
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+
+# Subcharts removed in chart v14+ — must be disabled / external.
+postgresql:
+  enabled: false
+postgresql-ha:
+  enabled: false
+redis:
+  enabled: false
+redis-cluster:
+  enabled: false
+valkey:
+  enabled: false
+valkey-cluster:
+  enabled: false
+
+signing:
+  enabled: false

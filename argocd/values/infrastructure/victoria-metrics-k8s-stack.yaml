@@ -1,0 +1,409 @@
+# VictoriaMetrics K8s Stack configuration for ArgoCD
+
+homelab-common:
+  httpRoutes:
+    - name: grafana
+      hostname: grafana
+      gateway: internal
+      service:
+        name: victoria-metrics-k8s-stack-grafana
+        port: 80
+
+  externalSecrets:
+    - name: grafana-admin-secret
+      vaultPath: victoria-metrics/grafana
+      data:
+        - secretKey: admin_user
+          property: admin_user
+        - secretKey: admin_password
+          property: admin_password
+      templateData:
+        admin-user: "{{ .admin_user }}"
+        admin-password: "{{ .admin_password }}"
+
+    - name: grafana-oidc-secret
+      vaultPath: victoria-metrics/grafana/oidc
+      data:
+        - secretKey: client_id
+          property: client_id
+        - secretKey: client_secret
+          property: client_secret
+      templateData:
+        client-id: "{{ .client_id }}"
+        client-secret: "{{ .client_secret }}"
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 200m
+      memory: 256Mi
+    defaultRequests:
+      cpu: 20m
+      memory: 64Mi
+
+# Override release name for ArgoCD compatibility
+argocdReleaseOverride: victoria-metrics-k8s-stack
+
+# VictoriaMetrics Operator
+victoria-metrics-operator:
+  enabled: true
+  operator:
+    # operator v0.69+ требует prometheus-operator CRDs (PrometheusRule/ServiceMonitor/etc)
+    # на startup, иначе CrashLoop. У нас prometheus-operator не установлен,
+    # все мониторинговые ресурсы уже native VM (VMRule/VMServiceScrape) → converter не нужен.
+    disable_prometheus_converter: true
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  # Webhook certificate management via cert-manager
+  admissionWebhooks:
+    enabled: true
+    certManager:
+      enabled: true
+      # Operator will create self-signed Issuer automatically
+      # Certificates will be rotated automatically by cert-manager
+
+# Default dashboards
+defaultDashboards:
+  enabled: true
+  defaultTimezone: Asia/Nicosia
+
+# Default monitoring rules
+defaultRules:
+  create: true
+  rules:
+    Watchdog:
+      create: false
+    InfoInhibitor:
+      create: false
+    # Alertmanager cluster rules — single replica, cluster rules are useless
+    AlertmanagerClusterCrashlooping:
+      create: false
+    AlertmanagerClusterDown:
+      create: false
+    AlertmanagerClusterFailedToSendAlerts:
+      create: false
+    AlertmanagerConfigInconsistent:
+      create: false
+    AlertmanagerMembersInconsistent:
+      create: false
+    # SLO burn-rate — KubeAPIDown is sufficient for homelab
+    KubeAPIErrorBudgetBurn:
+      create: false
+    # KSM sharding — not used
+    KubeStateMetricsShardingMismatch:
+      create: false
+    KubeStateMetricsShardsMissing:
+      create: false
+    # HPA — not used
+    KubeHpaMaxedOut:
+      create: false
+    KubeHpaReplicasMismatch:
+      create: false
+    # PDB — not used
+    KubePdbNotEnoughHealthyPods:
+      create: false
+    # ResourceQuota — not used
+    KubeCPUQuotaOvercommit:
+      create: false
+    KubeMemoryQuotaOvercommit:
+      create: false
+    KubeQuotaAlmostFull:
+      create: false
+    KubeQuotaExceeded:
+      create: false
+    KubeQuotaFullyUsed:
+      create: false
+    # CPU throttling — node-feature-discovery worker constantly triggers, not actionable
+    CPUThrottlingHigh:
+      create: false
+    # Kubelet info-level — noisy, not actionable
+    KubeNodeEviction:
+      create: false
+    KubeletPodStartUpLatencyHigh:
+      create: false
+    KubeletTooManyPods:
+      create: false
+    # Node exporter — not applicable (Talos, no bonding/RAID/systemd)
+    NodeBondingDegraded:
+      create: false
+    NodeCPUHighUsage:
+      create: false
+    NodeRAIDDegraded:
+      create: false
+    NodeRAIDDiskFailure:
+      create: false
+    NodeSystemdServiceCrashlooping:
+      create: false
+    NodeSystemdServiceFailed:
+      create: false
+    NodeTextFileCollectorScrapeError:
+      create: false
+    # VMAgent — unused features
+    RemoteWriteConnectionIsSaturated:
+      create: false
+    SeriesLimitDayReached:
+      create: false
+    SeriesLimitHourReached:
+      create: false
+    StreamAggrDedupFlushTimeout:
+      create: false
+    StreamAggrFlushTimeout:
+      create: false
+    # VMAlert — noisy info
+    RecordingRulesNoData:
+      create: false
+  groups:
+    # Disable etcd rules if not using it
+    etcd:
+      create: false
+    # vmcluster disabled — using vmsingle
+    vmcluster:
+      create: false
+
+# VMSingle - single node storage
+vmsingle:
+  enabled: true
+  spec:
+    retentionPeriod: "14d"
+    replicaCount: 1
+    storageMetadata:
+      annotations:
+        helm.sh/resource-policy: keep
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    extraEnvs:
+      - name: GOMEMLIMIT
+        value: "1700MiB"
+    storage:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 30Gi
+      storageClassName: longhorn
+
+# VMCluster - disabled for homelab
+vmcluster:
+  enabled: false
+
+# VMAlert - alerting component
+vmalert:
+  enabled: true
+  spec:
+    replicaCount: 1
+    notifier:
+      url: "http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093"
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# VMAgent - metrics scraper
+vmagent:
+  enabled: true
+  spec:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+    extraEnvs:
+      - name: GOMEMLIMIT
+        value: "430MiB"
+    extraArgs:
+      promscrape.streamParse: "true"
+      # Default queues = GOMAXPROCS; one remote-write target → one queue.
+      remoteWrite.queues: "1"
+    scrapeInterval: 30s
+
+# Alertmanager
+alertmanager:
+  enabled: true
+  spec:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    configSecret: alertmanager-config
+
+# Grafana
+grafana:
+  enabled: true
+
+  plugins:
+    - victoriametrics-metrics-datasource
+    - victoriametrics-logs-datasource
+
+  # Recreate strategy required for ReadWriteOnce PVC
+  deploymentStrategy:
+    type: Recreate
+
+  # Reverse proxy config — required for HTTPS gateway → HTTP Grafana
+  grafana.ini:
+    server:
+      root_url: "https://grafana.example.com"
+
+    # Authentik OIDC integration
+    auth.generic_oauth:
+      enabled: true
+      name: Authentik
+      client_id: $__file{/etc/secrets/grafana-oidc/client-id}
+      client_secret: $__file{/etc/secrets/grafana-oidc/client-secret}
+      scopes: openid profile email
+      auth_url: https://authentik.example.com/application/o/authorize/
+      token_url: https://authentik.example.com/application/o/token/
+      api_url: https://authentik.example.com/application/o/userinfo/
+      allow_sign_up: true
+      role_attribute_path: contains(groups[*], 'Grafana Admins') && 'Admin' || contains(groups[*], 'Grafana Editors') && 'Editor' || 'Viewer'
+
+  # Admin credentials from ExternalSecret
+  admin:
+    existingSecret: grafana-admin-secret
+    userKey: admin-user
+    passwordKey: admin-password
+
+  # Mount OIDC credentials secret
+  extraSecretMounts:
+    - name: grafana-oidc-secret
+      secretName: grafana-oidc-secret
+      defaultMode: 0440
+      mountPath: /etc/secrets/grafana-oidc
+      readOnly: true
+
+  # Resources
+  resources:
+    requests:
+      cpu: 15m
+      memory: 320Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+  # Persistence
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: longhorn
+    annotations:
+      helm.sh/resource-policy: keep
+
+  # Sidecar for dashboards and datasources
+  sidecar:
+    datasources:
+      enabled: true
+      label: grafana_datasource
+      labelValue: "1"
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      defaultFolderName: default
+
+# Prometheus Node Exporter
+prometheus-node-exporter:
+  enabled: true
+  resources:
+    requests:
+      cpu: 15m
+      memory: 105Mi
+    limits:
+      cpu: 200m
+      memory: 105Mi
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|erofs|sysfs|tracefs)$
+
+# Kube State Metrics
+kube-state-metrics:
+  enabled: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Kubelet scraping
+kubelet:
+  enabled: true
+  vmScrapes:
+    cadvisor:
+      enabled: true
+    probes:
+      enabled: true
+  # Override relabelConfigs: replace labelmap(__meta_kubernetes_node_label_(.+)) which
+  # copies ALL node labels including 65 NFD feature labels from Talos → 87 labels/metric,
+  # exceeding VMSingle default maxLabelsPerTimeseries=30 → all cadvisor metrics dropped.
+  # Keep only standard k8s labels useful for monitoring.
+  vmScrape:
+    spec:
+      relabelConfigs:
+        - sourceLabels: [__meta_kubernetes_node_name]
+          targetLabel: node
+        # Standard Kubernetes labels: kubernetes.io/arch, kubernetes.io/os, kubernetes.io/hostname
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(kubernetes_io_.+)
+        # Deprecated but still used by some dashboards: beta.kubernetes.io/arch, beta.kubernetes.io/os
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(beta_kubernetes_io_.+)
+        # Node roles: node-role.kubernetes.io/control-plane, worker, etc.
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(node_role_kubernetes_io_.+)
+        # node.kubernetes.io labels
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(node_kubernetes_io_.+)
+        - sourceLabels: [__metrics_path__]
+          targetLabel: metrics_path
+        - targetLabel: job
+          replacement: kubelet
+
+# API Server scraping
+kubeApiServer:
+  enabled: true
+
+# CoreDNS scraping
+coreDns:
+  enabled: true
+  vmScrape:
+    enabled: true
+
+# Kube Controller Manager scraping
+kubeControllerManager:
+  enabled: false  # Usually not accessible in managed clusters
+
+# Kube Scheduler scraping
+kubeScheduler:
+  enabled: false  # Usually not accessible in managed clusters
+
+# Kube Proxy scraping
+kubeProxy:
+  enabled: false
+  vmScrape:
+    enabled: false
+
+# Kube Etcd scraping
+kubeEtcd:
+  enabled: false  # Disable if not using etcd

@@ -14,7 +14,7 @@ variable "inventory_dir" {
 }
 
 variable "pve_exporter_values_path" {
-  description = "Путь к values/infrastructure/pve-exporter.yaml в private репозитории (home-proxmox-values)."
+  description = "Путь к argocd/values/infrastructure/pve-exporter.yaml в репозитории."
   type        = string
-  default     = "../../home-proxmox-values/values/infrastructure/pve-exporter.yaml"
+  default     = "../argocd/values/infrastructure/pve-exporter.yaml"
 }
