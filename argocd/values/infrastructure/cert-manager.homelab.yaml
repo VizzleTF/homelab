@@ -1,0 +1,24 @@
+# Только homelab-common (второй источник ApplicationSet). Не смешивать с cert-manager.yaml — у чарта jetstack строгая values schema.
+homelab-common:
+  certificates:
+    - name: wildcard-tls
+      namespace: kube-system
+      secretName: wildcard-tls
+      issuerRef:
+        name: cloudflare-issuer
+        kind: ClusterIssuer
+      dnsNames:
+        - "*.example.com"
+        - "example.com"
+        - "*.internal.example"
+        - "internal.example"
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 200m
+      memory: 128Mi
+    defaultRequests:
+      cpu: 10m
+      memory: 32Mi

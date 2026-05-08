@@ -116,23 +116,27 @@ Terraform configurations for Proxmox infrastructure:
 
 ## GitOps Workflow
 
-This repository works in conjunction with [home-proxmox-values](https://github.com/VizzleTF/home-proxmox-values) repository:
-- **home_proxmox**: ArgoCD Application definitions and infrastructure code (this repo)
-- **home-proxmox-values**: Helm values, additional manifests, and service documentation
+Single monorepo. Previously split into `home_proxmox` (public) and `home-proxmox-values` (private), merged 2026-05-08.
 
 **Repository Structure:**
 ```
-home-proxmox-values/
+argocd/
+├── applications/        # ApplicationSet + standalone apps
+├── infrastructure/      # ApplicationSet + standalone apps
 ├── values/
 │   ├── applications/    # Helm values for applications
-│   └── infrastructure/  # Helm values for infrastructure
-├── manifests/
-│   ├── applications/    # HTTPRoutes, External Secrets, CronJobs
-│   └── infrastructure/  # ClusterIssuers, StorageClasses, CiliumL2Pools
-└── README/              # Service documentation
+│   ├── infrastructure/  # Helm values for infrastructure
+│   └── shared/          # global.yaml ($values reference target)
+└── manifests/
+    ├── applications/    # HTTPRoutes, ExternalSecrets, CronJobs
+    └── infrastructure/  # ClusterIssuers, Gateway, recurring jobs, etc.
+charts/                  # Custom Helm charts (homelab-common)
+ansible/                 # Playbooks + inventory
+terraform_proxmox/       # Proxmox VM provisioning
+scripts/                 # Utility scripts
 ```
 
-Applications are automatically synchronized via ArgoCD when changes are pushed to the values repository.
+Applications are automatically synchronized via ArgoCD when changes are pushed to `main`.
 
 ## Networking
 

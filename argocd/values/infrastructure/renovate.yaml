@@ -1,0 +1,89 @@
+homelab-common:
+  externalSecrets:
+    - name: renovate-forgejo-token
+      templateEngineVersion: v2
+      vaultPath: renovate/forgejo-token
+      data:
+        - secretKey: token
+          property: token
+      templateData:
+        RENOVATE_TOKEN: "{{ .token }}"
+    - name: renovate-notify-telegram
+      templateEngineVersion: v2
+      vaultPath: telegram/victoria-metrics-bot
+      data:
+        - secretKey: token
+          property: token
+        - secretKey: chat_id
+          property: chat_id
+      templateData:
+        TELEGRAM_BOT_TOKEN: "{{ .token }}"
+        TELEGRAM_CHAT_ID: "{{ .chat_id }}"
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 1000m
+      memory: 1Gi
+    defaultRequests:
+      cpu: 50m
+      memory: 128Mi
+
+cronjob:
+  schedule: "0 6 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  ttlSecondsAfterFinished: 86400
+  jobBackoffLimit: 2
+  activeDeadlineSeconds: 3600
+
+envFrom:
+  - secretRef:
+      name: renovate-forgejo-token
+
+env:
+  LOG_LEVEL: info
+  RENOVATE_PLATFORM: gitea
+  RENOVATE_ENDPOINT: https://git.example.com/api/v1/
+  RENOVATE_AUTODISCOVER: "false"
+  RENOVATE_REPOSITORY_CACHE: "enabled"
+  NODE_OPTIONS: "--max-old-space-size=1024"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    # Bumped 1536→2048Mi: first-attempt OOM observed during full repo scan
+    # (Node.js heap 1024 + child processes for cargo/yarn/github-actions
+    # extractors). Renovate runs ~10-15 min/day, +512Mi peak fits within
+    # talos-worker-02 5.7GiB headroom (was 79% used at 06:00 UTC, +9%).
+    memory: 2048Mi
+
+serviceAccount:
+  create: true
+  name: renovate
+
+renovate:
+  persistence:
+    cache:
+      enabled: true
+      storageClass: longhorn
+      storageSize: 2Gi
+  config: |
+    {
+      "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+      "platform": "gitea",
+      "endpoint": "https://git.example.com/api/v1/",
+      "onboarding": false,
+      "requireConfig": "required",
+      "autodiscover": false,
+      "repositories": [
+        "vizzle/home_proxmox"
+      ],
+      "gitAuthor": "Renovate Bot <renovate@example.com>"
+    }

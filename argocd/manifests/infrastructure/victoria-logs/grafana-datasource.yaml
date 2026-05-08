@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-victoria-logs
+  namespace: victoria-metrics
+  labels:
+    grafana_datasource: "1"
+data:
+  victoria-logs.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: VictoriaLogs
+        type: victoriametrics-logs-datasource
+        access: proxy
+        url: http://victoria-logs-server.victoria-logs.svc.cluster.local:9428
+        isDefault: false
+        editable: false
+        jsonData:
+          maxLines: 1000

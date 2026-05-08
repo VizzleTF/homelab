@@ -1,0 +1,60 @@
+homelab-common:
+  externalSecrets:
+    - name: cloudflare-api-token
+      targetName: external-dns-cloudflare
+      deletionPolicy: Retain
+      templateEngineVersion: v2
+      vaultPath: externaldns
+      data:
+        - secretKey: cloudflare_api_token
+          property: cloudflare_api_token
+      templateData:
+        api-token: "{{ .cloudflare_api_token }}"
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 200m
+      memory: 128Mi
+    defaultRequests:
+      cpu: 10m
+      memory: 32Mi
+
+provider:
+  name: cloudflare
+
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: external-dns-cloudflare
+        key: api-token
+  - name: GOMEMLIMIT
+    value: "135MiB"
+
+interval: 5m
+
+extraArgs:
+  - --cloudflare-proxied
+  - --cloudflare-dns-records-per-page=5000
+
+annotationFilter: "external-dns.alpha.kubernetes.io/cloudflare-proxied in (true)"
+
+sources:
+  - gateway-httproute
+
+policy: sync
+
+txtOwnerId: homelab-cloudflare
+
+domainFilters:
+  - example.com
+
+resources:
+  limits:
+    memory: 160Mi
+    cpu: 100m
+  requests:
+    cpu: 15m
+    memory: 64Mi

@@ -1,0 +1,17 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: vector
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - victoria-logs
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vector
+      app.kubernetes.io/instance: victoria-logs
+  podMetricsEndpoints:
+    - port: prom-exporter
+      path: /metrics
+      interval: 30s

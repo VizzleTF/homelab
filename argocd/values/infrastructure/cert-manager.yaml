@@ -1,0 +1,52 @@
+# Cert-Manager (jetstack) — только ключи чарта; homelab-common вынесен в cert-manager.homelab.yaml из-за values.schema.json
+crds:
+  enabled: true
+  keep: true
+
+resources:
+  requests:
+    memory: 32Mi
+    cpu: 10m
+  limits:
+    memory: 128Mi
+    cpu: 200m
+
+extraEnv:
+  - name: GOMEMLIMIT
+    value: "110MiB"
+
+webhook:
+  resources:
+    requests:
+      memory: 16Mi
+      cpu: 10m
+    limits:
+      memory: 64Mi
+      cpu: 100m
+
+cainjector:
+  resources:
+    requests:
+      memory: 32Mi
+      cpu: 10m
+    limits:
+      memory: 128Mi
+      cpu: 200m
+  extraEnv:
+    - name: GOMEMLIMIT
+      value: "110MiB"
+  # No CRD or APIService in cluster uses cert-manager injection annotations
+  # (only ValidatingWebhook/MutatingWebhook). Disabling those caches drops
+  # cainjector RSS by ~200 MiB. Webhook injection stays enabled.
+  extraArgs:
+    - --enable-customresourcedefinitions-injectable=false
+    - --enable-apiservices-injectable=false
+
+startupapicheck:
+  resources:
+    requests:
+      memory: 16Mi
+      cpu: 10m
+    limits:
+      memory: 64Mi
+      cpu: 100m

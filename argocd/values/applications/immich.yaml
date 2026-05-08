@@ -1,0 +1,240 @@
+# Immich Self-hosted Photo and Video Backup Solution
+# Configuration for HomeLab deployment with CNPG PostgreSQL
+
+# Общие ресурсы через homelab-common chart
+homelab-common:
+  persistentVolumeClaims:
+    - name: immich-library-pvc
+      accessModes:
+        - ReadWriteMany
+      storageClassName: longhorn
+      size: 185Gi
+      volumeName: pvc-2cc76030-39eb-4309-933d-7bcd4dab47b1
+
+  externalSecrets:
+    - name: immich-app-secrets
+      vaultPath: immich/app-secrets
+      data:
+        - secretKey: db_password
+          property: password
+          vaultPath: immich/main-database
+        - secretKey: jwt_secret
+          property: jwt_secret
+        - secretKey: typesense_api_key
+          property: typesense_api_key
+      templateData:
+        DB_PASSWORD: "{{ .db_password }}"
+        JWT_SECRET: "{{ .jwt_secret }}"
+        TYPESENSE_API_KEY: "{{ .typesense_api_key }}"
+    
+    - name: immich-db-credentials
+      vaultPath: immich/main-database
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+    
+    - name: immich-main-user-credentials
+      vaultPath: immich/main-database
+      templateType: kubernetes.io/basic-auth
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+    
+    - name: immich-webdav-credentials
+      vaultPath: shared/webdav-backup
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
+
+    - name: cnpg-s3-backup
+      vaultPath: shared/s3-cnpg-backup
+      data:
+        - secretKey: ACCESS_KEY_ID
+          property: ACCESS_KEY_ID
+        - secretKey: ACCESS_SECRET_KEY
+          property: ACCESS_SECRET_KEY
+
+    - name: immich-oidc-secret
+      vaultPath: immich/oidc
+      data:
+        - secretKey: client_id
+          property: client_id
+        - secretKey: client_secret
+          property: client_secret
+      templateData:
+        immich-config.json: |
+          {
+            "oauth": {
+              "enabled": true,
+              "issuerUrl": "https://authentik.example.com/application/o/immich/",
+              "clientId": "{{ .client_id }}",
+              "clientSecret": "{{ .client_secret }}",
+              "scope": "openid email profile",
+              "autoRegister": true,
+              "autoLaunch": false,
+              "buttonText": "Login with Authentik"
+            }
+          }
+  
+  httpRoutes:
+    - name: immich
+      hostname: immich
+      gateway: both
+      service:
+        name: immich-server
+        port: 2283
+  
+  backupCronJobs:
+    - name: backup-immich-library
+      schedule: "30 1 * * *"
+      type: rsync
+      command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "--exclude=.nfs*", "/source/", "/destination/"]
+      source:
+        pvc: immich-library-pvc
+      destination:
+        type: nfs
+        path: /immich
+    
+    - name: webdav-backup-immich
+      schedule: "45 5 * * *"
+      type: rclone
+      source:
+        pvc: immich-library-pvc
+      destination:
+        type: webdav
+        remote: mailru:/backup/immich
+        secretName: immich-webdav-credentials
+  cnpgDatabase:
+    name: immich
+    owner: immich_user
+    clusterName: immich-cluster
+    extensions:
+      - name: vector
+      - name: cube
+      - name: earthdistance
+
+_shared_config:
+  hostname: &hostname immich.example.com
+  url: &url https://immich.example.com
+  version: &version "v2.7.5"
+  ml_tag: &ml_tag "v2.7.5-openvino"
+
+# Pod-level securityContext for the server component
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+
+# Controllers configuration for new chart structure
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          tag: *version
+        resources:
+          requests:
+            cpu: 15m
+            memory: 2400Mi
+          limits:
+            cpu: 1000m
+            memory: 5Gi
+        env:
+          # PostgreSQL connection via CNPG
+          DB_HOSTNAME: "immich-cluster-rw"
+          DB_PORT: "5432"
+          DB_DATABASE_NAME: "immich"
+          DB_USERNAME:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: username
+          DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: password
+          # Valkey connection — shared instance (ns valkey), Immich on DB index 1 to isolate from argocd/authentik/nextcloud (DB 0)
+          REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
+          REDIS_DBINDEX: "1"
+          # Machine Learning service URL
+          IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
+          # Server URL
+          IMMICH_SERVER_URL: *url
+          PUBLIC_IMMICH_SERVER_URL: *url
+          # OAuth / Authentik — v2.x uses config file, not env vars
+          IMMICH_CONFIG_FILE: "/config/immich-config.json"
+
+# Immich configuration
+immich:
+  persistence:
+    # Main library storage for photos and videos
+    library:
+      existingClaim: "immich-library-pvc"
+
+# Machine Learning component — OpenVINO image with Intel Iris Xe GPU (N100)
+# GPU passthrough: Proxmox → talos-c0p-fxe, i915 Talos extension installed
+# Intel GPU Device Plugin advertises gpu.intel.com/i915 and sets cgroup permissions
+machine-learning:
+  defaultPodOptions:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+  controllers:
+    main:
+      containers:
+        main:
+          image:
+            tag: *ml_tag
+          env:
+            MACHINE_LEARNING_DEVICE: GPU
+            MACHINE_LEARNING_PRELOAD__CLIP: ViT-B-16-SigLIP2__webli
+            MACHINE_LEARNING_WORKERS: "1"
+            MACHINE_LEARNING_WORKER_TIMEOUT: "0"
+          resources:
+            requests:
+              cpu: 15m
+              memory: 3200Mi
+            limits:
+              cpu: 2000m
+              memory: 8Gi
+              gpu.intel.com/i915: "1"
+  persistence:
+    cache:
+      enabled: true
+      size: 15Gi
+      type: persistentVolumeClaim
+      storageClass: "longhorn"
+      accessMode: ReadWriteMany
+      retain: true
+
+# Valkey: используем shared valkey-primary в ns `valkey` (DB index 1)
+valkey:
+  enabled: false
+
+persistence:
+  immich-config:
+    type: secret
+    name: immich-oidc-secret
+    advancedMounts:
+      main:
+        main:
+          - path: /config
+            readOnly: true
+
+# Service configuration - ClusterIP since we use HTTPRoute via Gateway API
+service:
+  main:
+    type: ClusterIP

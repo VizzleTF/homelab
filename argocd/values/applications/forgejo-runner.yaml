@@ -1,0 +1,77 @@
+# Forgejo Runner (act_runner) — chart values; homelab-common in forgejo-runner.homelab.yaml.
+# Регистрация: ESO secret forgejo-runner-init {CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME}
+# из Vault home/homelab/k8s/forgejo/runner — pre-install hook job регистрирует runner и
+# сохраняет .runner JWT в Secret forgejo-runner-config (resource-policy: keep).
+
+# wrenix's chart 0.7.x is the last release on codeberg — guard requires explicit ack.
+knownLastVersion: true
+
+replicaCount: 1
+
+runner:
+  config:
+    create: true
+    existingInitSecret: forgejo-runner-init
+    file:
+      log:
+        level: info
+        job_level: info
+      runner:
+        file: ".runner"
+        capacity: 1
+        timeout: 3h
+        insecure: false
+        fetch_timeout: 5s
+        fetch_interval: 2s
+        # Dummy envs из чарт-defaults — не убираем, чтобы соответствовать схеме.
+        envs:
+          A_TEST_ENV_NAME_1: a_test_env_value_1
+          A_TEST_ENV_NAME_2: a_test_env_value_2
+        env_file: .env
+        labels:
+          - ubuntu-latest:docker://node:20-bookworm
+          - ubuntu-22.04:docker://node:22-bookworm
+          - ubuntu-20.04:docker://node:20-bookworm
+      cache:
+        enabled: true
+        dir: ""
+        host: ""
+        port: 0
+        external_server: ""
+      container:
+        network: ""
+        enable_ipv6: false
+        privileged: true
+        options:
+        workdir_parent:
+        valid_volumes:
+          - "**"
+        docker_host: "-"
+        force_pull: false
+      host:
+        workdir_parent:
+
+# DinD — sidecar для исполнения jobs.
+dind:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+securityContext:
+  privileged: true
+
+serviceAccount:
+  create: true
+  automount: true

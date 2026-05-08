@@ -1,0 +1,48 @@
+# Vaultwarden (guerzon chart) — только ключи чарта; homelab-common в vaultwarden.homelab.yaml
+
+storage:
+  data:
+    name: "vaultwarden-data"
+    size: "2Gi"
+    class: "longhorn"
+    accessMode: "ReadWriteMany"
+    keepPvc: true
+
+domain: "https://pass.example.com"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    memory: 32Mi
+    cpu: 10m
+  limits:
+    memory: 128Mi
+    cpu: 100m
+
+ingress:
+  enabled: false
+
+initContainers:
+  - name: fix-permissions
+    image: busybox:latest
+    command: ["chown", "-R", "1001:1001", "/data"]
+    securityContext:
+      runAsUser: 0
+      runAsNonRoot: false
+      allowPrivilegeEscalation: false
+    volumeMounts:
+      - name: vaultwarden-data
+        mountPath: /data

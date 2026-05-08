@@ -1,0 +1,68 @@
+# CloudNativePG Immich Cluster Configuration
+# Dedicated cluster for Immich application with vector support
+
+mode: standalone
+
+cluster:
+  annotations:
+    helm.sh/resource-policy: keep
+  instances: 1
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:17-0.4.3
+
+  env:
+    - name: AWS_DEFAULT_REGION
+      value: garage
+
+  storage:
+    size: "10Gi"
+    storageClass: "longhorn"
+
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "100m"
+    limits:
+      memory: "4Gi"
+      cpu: "2"
+
+  roles:
+    - name: immich_user
+      ensure: present
+      comment: "Immich application user for database access"
+      login: true
+      superuser: true
+      inherit: true
+      connectionLimit: -1
+      passwordSecret:
+        name: immich-db-credentials
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "512MB"
+      effective_cache_size: "2GB"
+      work_mem: "16MB"
+      maintenance_work_mem: "256MB"
+    shared_preload_libraries:
+      - "vchord.so"
+
+  initdb:
+    database: immich
+    owner: immich_user
+    postInitSQL:
+      - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
+
+backups:
+  enabled: true
+  endpointURL: "https://s3.example.com"
+  destinationPath: "s3://cnpg-backups/immich-cluster"
+  provider: s3
+  secret:
+    create: false
+    name: cnpg-s3-backup
+  retentionPolicy: "7d"
+  scheduledBackups:
+    - name: daily-backup
+      schedule: "0 30 4 * * *"
+      backupOwnerReference: self
+      method: barmanObjectStore

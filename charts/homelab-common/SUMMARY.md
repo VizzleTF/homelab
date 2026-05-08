@@ -33,7 +33,7 @@ home_proxmox/charts/homelab-common/
 ### 1. Добавить секцию в values файл
 
 ```yaml
-# home-proxmox-values/values/applications/myapp.yaml
+# argocd/values/applications/myapp.yaml
 
 homelab-common:
   externalSecrets:

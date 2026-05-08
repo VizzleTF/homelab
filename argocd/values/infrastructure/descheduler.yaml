@@ -1,0 +1,144 @@
+# Descheduler — Phase 3 (full policy).
+# Активные плагины:
+#   balance:    RemoveDuplicates, RemovePodsViolatingTopologySpreadConstraint,
+#               LowNodeUtilization (real metrics via KubernetesMetrics).
+#   deschedule: RemovePodsViolatingNodeTaints, RemovePodsHavingTooManyRestarts,
+#               RemovePodsViolatingNodeAffinity,
+#               RemovePodsViolatingInterPodAntiAffinity.
+# Alerts в manifests/infrastructure/descheduler/vmrule.yaml.
+
+kind: Deployment
+deschedulingInterval: 5m
+
+replicas: 1
+
+# Phase 2+: leaderElection включён. Phase 1 требовал false из-за --dry-run
+# (upstream не совместим с dry-run + leader election).
+leaderElection:
+  enabled: true
+
+cmdOptions:
+  v: 4
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+service:
+  enabled: true
+
+# В кластере нет Prometheus-operator ServiceMonitor CRD — используем VMServiceScrape
+# из manifests/infrastructure/descheduler/ (подключается через extraManifests: true).
+serviceMonitor:
+  enabled: false
+
+deschedulerPolicyAPIVersion: "descheduler/v1alpha2"
+
+# Anchor для per-plugin namespace exclusions.
+# В descheduler v1alpha2 DefaultEvictor не принимает namespacedBy.exclude —
+# каждый балансовый/deschedule-плагин задаёт свой args.namespaces.exclude.
+_excludedNamespaces: &excludedNamespaces
+  exclude:
+    # Системные и storage-критичные
+    - kube-system
+    - longhorn-system
+    - cnpg-system
+    # Secrets / auth / identity
+    - vault
+    - external-secrets-system
+    - cert-manager
+    # Observability / GitOps control-plane (single-replica STS)
+    - victoria-metrics
+    - argocd
+
+deschedulerPolicy:
+  # Жёсткие лимиты: защита от каскадного вытеснения при перекосе метрик.
+  maxNoOfPodsToEvictPerNode: 5
+  maxNoOfPodsToEvictPerNamespace: 10
+
+  # Metrics-server как источник реальных cpu/memory для LowNodeUtilization.
+  # Chart автоматически добавляет правило на metrics.k8s.io в ClusterRole
+  # при наличии metricsProviders.
+  metricsProviders:
+    - source: KubernetesMetrics
+
+  profiles:
+    - name: default
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            evictSystemCriticalPods: false
+            nodeFit: true
+            podProtections:
+              defaultDisabled:
+                - PodsWithLocalStorage
+              extraEnabled:
+                - PodsWithPVC
+
+        # --- balance-плагины ---
+        - name: RemoveDuplicates
+          args:
+            namespaces: *excludedNamespaces
+
+        - name: RemovePodsViolatingTopologySpreadConstraint
+          args:
+            namespaces: *excludedNamespaces
+
+        - name: LowNodeUtilization
+          args:
+            # LowNodeUtilization использует evictableNamespaces (не namespaces):
+            # применяется прямо перед eviction, когда нода уже выбрана для
+            # балансировки. Формат include/exclude — тот же.
+            evictableNamespaces: *excludedNamespaces
+            # Реальные метрики с metrics-server (memory pressure важнее requests
+            # в homelab, где многие поды запрашивают 128Mi, а тратят 1Gi).
+            metricsUtilization:
+              source: KubernetesMetrics
+            thresholds:
+              cpu: 30
+              memory: 40
+              pods: 30
+            targetThresholds:
+              cpu: 60
+              memory: 70
+              pods: 50
+
+        # --- deschedule-плагины ---
+        - name: RemovePodsHavingTooManyRestarts
+          args:
+            namespaces: *excludedNamespaces
+            # Порог 50 vs дефолт 100 — в homelab crash-loop ≥50 рестартов обычно
+            # означает проблему с нодой, а не с приложением.
+            podRestartThreshold: 50
+            includingInitContainers: true
+
+        - name: RemovePodsViolatingNodeAffinity
+          args:
+            namespaces: *excludedNamespaces
+            nodeAffinityType:
+              - requiredDuringSchedulingIgnoredDuringExecution
+
+        - name: RemovePodsViolatingNodeTaints
+          args:
+            namespaces: *excludedNamespaces
+
+        - name: RemovePodsViolatingInterPodAntiAffinity
+          args:
+            namespaces: *excludedNamespaces
+
+      plugins:
+        balance:
+          enabled:
+            - RemoveDuplicates
+            - RemovePodsViolatingTopologySpreadConstraint
+            - LowNodeUtilization
+        deschedule:
+          enabled:
+            - RemovePodsViolatingNodeTaints
+            - RemovePodsHavingTooManyRestarts
+            - RemovePodsViolatingNodeAffinity
+            - RemovePodsViolatingInterPodAntiAffinity

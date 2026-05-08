@@ -1,0 +1,166 @@
+# homelab-common для Forgejo — параллельный source ApplicationSet.
+# Чартовые ключи живут в forgejo.yaml (отдельный файл из-за strict values schema у форджа).
+
+homelab-common:
+  externalSecrets:
+    # DB-пароль для самого Forgejo (берём из того же Vault path, что и в cnpg.yaml).
+    - name: forgejo-db-credentials
+      vaultPath: forgejo/forgejo
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        username: forgejo
+        password: "{{ .password }}"
+
+    # Admin user первого входа — chart требует ключи username/password/email.
+    - name: forgejo-admin-credentials
+      vaultPath: forgejo/admin
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+        - secretKey: email
+          property: email
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+        email: "{{ .email }}"
+
+    # OIDC credentials — chart oauth[].existingSecret требует ключи key/secret.
+    - name: forgejo-oidc-credentials
+      vaultPath: forgejo/oidc
+      data:
+        - secretKey: key
+          property: client_id
+        - secretKey: secret
+          property: client_secret
+      templateData:
+        key: "{{ .key }}"
+        secret: "{{ .secret }}"
+
+    # WebDAV для off-site бэкапов (тот же shared path, что у nextcloud/vaultwarden).
+    - name: forgejo-webdav-credentials
+      vaultPath: shared/webdav-backup
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
+
+    # Garage S3 credentials for [packages] section (Forgejo Packages OCI registry).
+    - name: forgejo-garage-s3
+      vaultPath: forgejo/garage-s3
+      data:
+        - secretKey: accessKey
+          property: accessKey
+        - secretKey: secretKey
+          property: secretKey
+
+  httpRoutes:
+    - name: forgejo
+      hostname: git
+      gateway: internal
+      service:
+        name: forgejo-http
+        port: 3000
+
+  backupCronJobs:
+    - name: backup-forgejo-nfs
+      schedule: "0 2 * * *"
+      type: rsync
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 2
+      command:
+        - rsync
+        - -avz
+        - --no-owner
+        - --no-group
+        - --no-times
+        - --delete
+        - /source/git/gitea-repositories
+        - /source/gitea/conf
+        - /destination/
+      source:
+        pvc: forgejo-data
+      destination:
+        type: nfs
+        path: /forgejo
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+    - name: webdav-backup-forgejo
+      schedule: "0 8 * * *"
+      type: rclone
+      source:
+        pvc: forgejo-data
+      destination:
+        type: webdav
+        remote: mailru:/backup/forgejo
+        secretName: forgejo-webdav-credentials
+      rcloneArgs:
+        - --transfers=4
+        - --checkers=8
+        - --verbose
+        - --include=git/gitea-repositories/**
+        - --include=gitea/conf/**
+        - --exclude=*
+
+  # Декларативный provisioning OIDC application/provider в Authentik.
+  # FORGEJO_OIDC_CLIENT_SECRET резолвится через !Env из authentik-config secret
+  # (см. authentik.yaml: добавлен в externalSecrets и templateData).
+  authentikBlueprints:
+    - name: authentik-blueprint-forgejo
+      namespace: authentik
+      enabled: true
+      blueprints:
+        forgejo-oidc.yaml: |
+          version: 1
+          metadata:
+            name: Forgejo OIDC Integration
+          entries:
+            - model: authentik_providers_oauth2.oauth2provider
+              identifiers:
+                name: Forgejo OIDC
+              attrs:
+                name: Forgejo OIDC
+                client_type: confidential
+                client_id: forgejo
+                client_secret: !Env FORGEJO_OIDC_CLIENT_SECRET
+                authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+                invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+                redirect_uris:
+                  - matching_mode: strict
+                    url: https://git.example.com/user/oauth2/Authentik/callback
+                signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+                property_mappings:
+                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+            - model: authentik_core.application
+              identifiers:
+                slug: forgejo
+              attrs:
+                name: Forgejo
+                slug: forgejo
+                provider: !Find [authentik_providers_oauth2.oauth2provider, [name, Forgejo OIDC]]
+                meta_launch_url: https://git.example.com/
+                policy_engine_mode: any
+                group: Homelab
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi

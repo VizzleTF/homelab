@@ -1,0 +1,37 @@
+# Метки и имена портов соответствуют тому, что рендерит chart 0.35.0
+# (см. helm template ... services):
+#   runner:    labels app=robusta-runner, port http
+#   forwarder: labels app=robusta-forwarder, port forwarder-metrics
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: robusta-runner
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - robusta
+  selector:
+    matchLabels:
+      app: robusta-runner
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: robusta-kubewatch
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - robusta
+  selector:
+    matchLabels:
+      app: robusta-forwarder
+  endpoints:
+    - port: forwarder-metrics
+      path: /metrics
+      interval: 60s

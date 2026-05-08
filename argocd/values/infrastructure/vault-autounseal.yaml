@@ -1,0 +1,55 @@
+# Vault Auto-Unseal Configuration
+# Based on https://github.com/pyToshka/vault-autounseal
+
+# Image configuration
+image:
+  repository: opennix/vault-autounseal
+  tag: latest
+  pullPolicy: Always
+
+# Deployment configuration
+replicaCount: 1
+
+# Settings for vault-autounseal (required by Helm chart)
+settings:
+  vault_url: "http://vault.vault:8200"
+  vault_secret_shares: 3
+  vault_secret_threshold: 3
+  vault_root_token_secret: "vault-root-token"
+  vault_keys_secret: "vault-keys"
+  scan_delay: 5
+  vault_label_selector: "app.kubernetes.io/instance=vault,component=server"
+
+# Resources
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 15m
+    memory: 100Mi
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+podSecurityContext:
+  fsGroup: 1000
+
+# Service account
+serviceAccount:
+  create: true
+  name: vault-autounseal
+
+# Node selector for scheduling
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Logging level
+logLevel: INFO

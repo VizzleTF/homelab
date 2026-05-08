@@ -1,0 +1,193 @@
+# Vault - Secrets Management
+# HA deployment with Raft storage
+
+# Общие ресурсы через homelab-common
+homelab-common:
+  externalSecrets:
+    - name: vault-approle-credentials
+      vaultPath: vault/approle
+      targetName: vault-snapshot-agent-token
+      deletionPolicy: Retain
+      templateEngineVersion: v2
+      data:
+        - secretKey: role_id
+          property: role_id
+        - secretKey: secret_id
+          property: secret_id
+      templateData:
+        role-id: "{{ .role_id }}"
+        secret-id: "{{ .secret_id }}"
+    
+    - name: vault-webdav-credentials
+      vaultPath: shared/webdav-backup
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
+  
+  httpRoutes:
+    - name: vault
+      hostname: vault
+      gateway: internal
+      service:
+        name: vault-active
+        port: 8200
+  
+  backupCronJobs:
+    - name: backup-vault
+      schedule: "0 1 * * *"
+      type: rsync
+      source:
+        pvc: data-vault-0
+      destination:
+        type: nfs
+        path: /vault
+    
+    - name: webdav-backup-vault
+      schedule: "0 7 * * *"
+      type: rclone
+      source:
+        pvc: data-vault-0
+      destination:
+        type: webdav
+        remote: mailru:/backup/vault
+        secretName: vault-webdav-credentials
+  rbac:
+    - serviceAccount:
+        name: vault
+        create: false
+      clusterRole:
+        name: vault-server
+        rules:
+          - apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get", "list", "watch"]
+
+    - serviceAccount:
+        name: vault-auth
+        create: true
+        annotations:
+          vault.hashicorp.com/agent-inject: "false"
+        automountServiceAccountToken: true
+      clusterRole:
+        name: vault-auth-delegator
+        rules:
+          - apiGroups: [""]
+            resources: ["serviceaccounts/token"]
+            verbs: ["create"]
+          - apiGroups: [""]
+            resources: ["serviceaccounts"]
+            verbs: ["get"]
+          - apiGroups: ["authentication.k8s.io"]
+            resources: ["tokenreviews"]
+            verbs: ["create"]
+          - apiGroups: ["authorization.k8s.io"]
+            resources: ["subjectaccessreviews"]
+            verbs: ["create"]
+      clusterRoleBinding:
+        name: vault-auth-delegator-vault
+  
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 250m
+      memory: 256Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi
+
+server:
+  resources:
+    requests:
+      memory: 250Mi
+      cpu: 80m
+    limits:
+      memory: 540Mi
+      cpu: 200m
+
+  # GOMEMLIMIT keeps Go GC predictable; ~85% of limit. Bump if Raft snapshots OOM.
+  extraEnvironmentVars:
+    GOMEMLIMIT: "460MiB"
+
+  dataStorage:
+    size: 2Gi
+    storageClass: longhorn
+    accessMode: ReadWriteMany
+    annotations:
+      helm.sh/resource-policy: keep
+
+  auditStorage:
+    enabled: true
+    size: 1Gi
+    storageClass: longhorn
+    accessMode: ReadWriteMany
+    annotations:
+      helm.sh/resource-policy: keep
+
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+
+        # Integrated storage (Raft) loads BoltDB into mmap; with mlock enabled
+        # the OS pins all of it into RSS. Required-off for Raft per Vault docs.
+        disable_mlock = true
+
+        # Default 131072 — drop to 32768 for KV with <500 secrets.
+        cache {
+          size = "32768"
+        }
+
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+
+        storage "raft" {
+          path = "/vault/data"
+
+          retry_join {
+            leader_api_addr = "http://vault-0.vault-internal:8200"
+          }
+
+          retry_join {
+            leader_api_addr = "http://vault-1.vault-internal:8200"
+          }
+
+          retry_join {
+            leader_api_addr = "http://vault-2.vault-internal:8200"
+          }
+        }
+
+        service_registration "kubernetes" {}
+
+  securityContext:
+    pod:
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+        add:
+          - IPC_LOCK
+
+injector:
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 15m
+    limits:
+      memory: 192Mi
+      cpu: 100m
+
+ui:
+  enabled: true

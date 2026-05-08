@@ -1,0 +1,91 @@
+# May — homelab-common.apps + persistentVolumeClaims (pvc.yaml)
+homelab-common:
+  externalSecrets:
+    - name: may-app-secrets
+      vaultPath: may/app-secrets
+      data:
+        - secretKey: admin_password
+          property: admin_password
+        - secretKey: secret_key
+          property: secret_key
+      templateData:
+        ADMIN_PASSWORD: "{{ .admin_password }}"
+        SECRET_KEY: "{{ .secret_key }}"
+
+  httpRoutes:
+    - name: may
+      hostname: may
+      gateway: both
+      service:
+        name: may
+        port: 5050
+
+  persistentVolumeClaims:
+    - name: may
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 5Gi
+      labels:
+        app: may
+
+  apps:
+    - name: may
+      deployment:
+        metadata:
+          labels:
+            app: may
+        spec:
+          replicas: 1
+          strategy:
+            type: Recreate
+          selector:
+            matchLabels:
+              app: may
+          template:
+            metadata:
+              labels:
+                app: may
+            spec:
+              securityContext:
+                fsGroup: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              containers:
+                - name: may
+                  image: ghcr.io/dannymcc/may:latest
+                  imagePullPolicy: IfNotPresent
+                  ports:
+                    - name: http
+                      containerPort: 5050
+                      protocol: TCP
+                  envFrom:
+                    - secretRef:
+                        name: may-app-secrets
+                  resources:
+                    limits:
+                      cpu: 200m
+                      memory: 350Mi
+                    requests:
+                      cpu: 15m
+                      memory: 200Mi
+                  volumeMounts:
+                    - name: data
+                      mountPath: /app/data
+              volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: may
+      service:
+        metadata:
+          labels:
+            app: may
+        spec:
+          type: ClusterIP
+          ports:
+            - port: 5050
+              targetPort: http
+              protocol: TCP
+              name: http
+          selector:
+            app: may

@@ -1,0 +1,18 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: victoria-logs
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - victoria-logs
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: victoria-logs-single
+      app.kubernetes.io/instance: victoria-logs
+      app.kubernetes.io/component: server
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

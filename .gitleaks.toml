@@ -49,3 +49,17 @@ regexes = [
 [[allowlists]]
 description = "Terraform example files"
 paths = ['''terraform_proxmox/.*\.tf\.example''']
+
+[[allowlists]]
+description = "Vault path references in values files (not actual secrets)"
+regexes = [
+  '''vault:[a-zA-Z0-9/_-]+''',
+  '''\$\{[^}]+\}''',
+]
+
+[[allowlists]]
+description = "ExternalSecret remoteRef paths look like secrets but are just Vault path references"
+paths = ['''argocd/manifests/.*''', '''argocd/values/.*''']
+regexes = [
+  '''homelab/k8s/[a-zA-Z0-9/_-]+''',
+]

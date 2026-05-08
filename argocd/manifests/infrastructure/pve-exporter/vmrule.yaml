@@ -1,0 +1,114 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: pve-exporter
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: pve-exporter
+      rules:
+        - alert: PveExporterDown
+          expr: up{job="pve-exporter"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "pve-exporter недоступен ({{ $labels.instance }})"
+            description: |
+              vmagent не может скрейпить pve-exporter target {{ $labels.instance }} 5 минут.
+              Метрики Proxmox не поступают — дашборд и алерты слепые.
+
+        - alert: PveNodeDown
+          expr: pve_up{id=~"node/.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Proxmox-нода {{ $labels.id }} down"
+            description: |
+              PVE сообщает {{ $labels.id }} как недоступную (instance {{ $labels.instance }}).
+              Проверить SSH/IPMI на физическом хосте.
+
+        - alert: PveGuestDown
+          expr: |
+            (pve_up{id=~"qemu/.+|lxc/.+"} == 0)
+              and on (id, instance) (pve_guest_info{template!="1"})
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Гость {{ $labels.id }} ({{ $labels.name }}) down на {{ $labels.instance }}"
+            description: |
+              VM/LXC {{ $labels.name }} ({{ $labels.id }}) числится running, но pve_up=0
+              уже 10 минут. Проверить `qm status {{ $labels.id }}` / `pct status {{ $labels.id }}`.
+
+        # Хосты обычно идут ~93% (PVE считает used+cache, плюс плотная утилизация
+        # после фикса WiFi-latency: VMs 12GB на 15.7GB hosts). Алертим только на
+        # действительно опасный диапазон, иначе вечный firing.
+        - alert: PveNodeMemoryHigh
+          expr: |
+            (pve_memory_usage_bytes / pve_memory_size_bytes)
+              * on (id, instance) group_left pve_node_info
+              > 0.95
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVE node {{ $labels.instance }}: память >95%"
+            description: |
+              Использование памяти на ноде {{ $labels.instance }} = {{ $value | humanizePercentage }}
+              за последние 30 минут. Risk: kswapd / OOM на гостях
+              (см. WiFi-latency инцидент 503/504).
+
+        - alert: PveStorageFull
+          expr: |
+            (pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"})
+              * on (id, instance) group_left(storage) pve_storage_info
+              > 0.85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVE storage {{ $labels.storage }} >85% ({{ $labels.instance }})"
+            description: |
+              Хранилище {{ $labels.storage }} на {{ $labels.instance }} заполнено
+              на {{ $value | humanizePercentage }}. Расчистить бэкапы / iso / templates.
+
+        - alert: PveStorageCritical
+          expr: |
+            (pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"})
+              * on (id, instance) group_left(storage) pve_storage_info
+              > 0.95
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PVE storage {{ $labels.storage }} >95% — critical"
+            description: |
+              Хранилище {{ $labels.storage }} ({{ $labels.instance }}) заполнено
+              на {{ $value | humanizePercentage }}. Бэкапы и снапшоты вот-вот начнут падать.
+
+        - alert: PveLxcDiskFull
+          expr: |
+            (pve_disk_usage_bytes{id=~"lxc/.+"} / pve_disk_size_bytes{id=~"lxc/.+"})
+              * on (id, instance) group_left(name) pve_guest_info{type="lxc"}
+              > 0.9
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "LXC {{ $labels.name }} ({{ $labels.id }}): rootfs >90%"
+            description: |
+              Контейнер {{ $labels.name }} на {{ $labels.instance }} использует
+              {{ $value | humanizePercentage }} rootfs.
+
+        - alert: PveHaServiceError
+          expr: pve_ha_state{state="error"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PVE HA: сервис {{ $labels.id }} в state=error"
+            description: |
+              HA менеджер на {{ $labels.instance }} пометил {{ $labels.id }} как error.
+              Требуется ручное вмешательство (`ha-manager set <sid> --state ...`).

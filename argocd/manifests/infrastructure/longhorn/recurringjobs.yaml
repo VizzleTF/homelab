@@ -1,0 +1,17 @@
+---
+# Offsite backup на Garage S3 каждый день в 03:30 UTC, retain 2.
+# Окно бекапов: 01:30 immich-rsync → 03:30 longhorn → 04:15 etcd → 04:30-05:30 CNPG → 05:45+ webdav
+# groups=[backup-daily]: opt-in через StorageClass "longhorn-backup" (recurringJobSelector)
+# либо вручную label'ом recurring-job-group.longhorn.io/backup-daily=enabled на Volume/PVC.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: backup-daily
+  namespace: longhorn-system
+spec:
+  cron: "30 3 * * *"
+  task: backup
+  groups:
+    - backup-daily
+  retain: 2
+  concurrency: 2

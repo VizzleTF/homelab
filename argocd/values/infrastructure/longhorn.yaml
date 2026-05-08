@@ -1,0 +1,59 @@
+homelab-common:
+  httpRoutes:
+    - name: longhorn
+      hostname: longhorn
+      gateway: internal
+      service:
+        name: longhorn-frontend
+        port: 80
+
+service:
+  ui:
+    type: LoadBalancer
+  manager:
+    type: LoadBalancer
+metrics:
+  serviceMonitor:
+    enabled: false
+persistence:
+  # Default SC `longhorn` управляется longhorn-manager'ом через ConfigMap
+  # `longhorn-storageclass` (он перезапишет любой внешний manifest по
+  # аннотации longhorn.io/last-applied-configmap). Чарт не даёт прокинуть
+  # replicaAutoBalance в parameters — для новых volume'ов на этом SC
+  # балансер останется "ignored" по умолчанию. Для apps, требующих
+  # авто-балансировки реплик, использовать longhorn-backup или
+  # longhorn-retain (replicaAutoBalance=best-effort выставлен в их parameters).
+  defaultClass: true
+  defaultClassReplicaCount: 2
+  reclaimPolicy: Retain
+defaultSettings:
+  # Backup target — Garage S3 on Synology (s3.example.com)
+  # credentials are in Secret longhorn-backup-secret (ExternalSecret from Vault)
+  backupTarget: "s3://longhorn-backups@garage/"
+  backupTargetCredentialSecret: "longhorn-backup-secret"
+  storageMinimalAvailablePercentage: "5"
+  defaultReplicaCount: "2"
+  replicaAutoBalance: "best-effort"
+  # CPU для instance-manager: было 2 CPU (2000m), реальное 65m → ставим 100m
+  guaranteedInstanceManagerCPU: '{"v1":"0.1","v2":"0.1"}'
+  # Отключаем ревизионные счетчики для снижения нагрузки
+  disableRevisionCounter: '{"v1":"true","v2":"true"}'
+  # Автоочистка системных снапшотов
+  autoCleanupSystemGeneratedSnapshot: "true"
+  # Лимит одновременных rebuild операций
+  concurrentReplicaRebuildPerNodeLimit: "3"
+  # CPU оптимизация CSI компонентов (реальное потребление + 25%)
+  # Поддерживаемые компоненты: csi-attacher, csi-provisioner, csi-resizer, csi-snapshotter,
+  # longhorn-csi-plugin, node-driver-registrar, longhorn-liveness-probe
+  # Снижение CPU requests: с 250m → 10m для каждого компонента (реальное потребление 1-2m)
+  systemManagedCSIComponentsResourceLimits: '{"csi-attacher":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"csi-provisioner":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"csi-resizer":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"csi-snapshotter":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"longhorn-csi-plugin":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"node-driver-registrar":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"longhorn-liveness-probe":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}}}'
+
+longhornManager:
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 35m
+    limits:
+      memory: 512Mi
+      cpu: 250m
+

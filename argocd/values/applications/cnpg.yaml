@@ -1,0 +1,158 @@
+# CloudNativePG CNPG Configuration
+# For HomeLab environment with minimal resources
+
+homelab-common:
+  externalSecrets:
+    - name: postgres-credentials
+      vaultPath: cnpg/postgres
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+        postgres-password: "{{ .password }}"
+
+    - name: nextcloud-db-credentials
+      vaultPath: nextcloud/nextcloud
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+
+    # CNPG-side credentials for shared cluster roles. Apps continue to read their
+    # own secrets from their namespaces; these copies live in ns cnpg so the
+    # Cluster CR can reference them via roles[].passwordSecret. CNPG expects a
+    # `kubernetes.io/basic-auth` secret with `username` and `password` keys
+    # matching the role name.
+    - name: authentik-db-credentials
+      templateType: kubernetes.io/basic-auth
+      data:
+        - secretKey: password
+          vaultPath: authentik/authentik
+          property: db_password
+      templateData:
+        username: authentik
+        password: "{{ .password }}"
+
+    - name: forgejo-db-credentials
+      templateType: kubernetes.io/basic-auth
+      data:
+        - secretKey: password
+          vaultPath: forgejo/forgejo
+          property: password
+      templateData:
+        username: forgejo
+        password: "{{ .password }}"
+
+    - name: cnpg-s3-backup
+      vaultPath: shared/s3-cnpg-backup
+      data:
+        - secretKey: ACCESS_KEY_ID
+          property: ACCESS_KEY_ID
+        - secretKey: ACCESS_SECRET_KEY
+          property: ACCESS_SECRET_KEY
+
+  cnpgDatabase:
+    name: nextcloud
+    owner: nextcloud
+    clusterName: cnpg-cluster
+
+  cnpgDatabases:
+    - name: forgejo
+      owner: forgejo
+      clusterName: cnpg-cluster
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi
+
+mode: standalone
+
+cluster:
+  annotations:
+    helm.sh/resource-policy: keep
+  instances: 3
+  # Full image (not -minimal) — barman-cloud-backup binaries needed for S3 backup
+  imageName: "ghcr.io/cloudnative-pg/postgresql:17-bookworm"
+
+  # Garage S3 требует region (HeadBucket 400 без него); chart v0.6.0 не
+  # прокидывает s3Credentials.region, поэтому передаём через env контейнера postgres.
+  env:
+    - name: AWS_DEFAULT_REGION
+      value: garage
+
+  storage:
+    size: "5Gi"
+    storageClass: "longhorn"
+
+  monitoring:
+    enabled: false
+
+  postgresql:
+    parameters:
+      max_connections: "150"
+      shared_buffers: "128MB"
+      effective_cache_size: "512MB"
+      work_mem: "4MB"
+      maintenance_work_mem: "64MB"
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "50m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  roles:
+    - name: nextcloud
+      ensure: present
+      login: true
+      createdb: true
+      passwordSecret:
+        name: nextcloud-db-credentials
+    - name: authentik
+      ensure: present
+      login: true
+      passwordSecret:
+        name: authentik-db-credentials
+    - name: forgejo
+      ensure: present
+      login: true
+      createdb: true
+      passwordSecret:
+        name: forgejo-db-credentials
+
+backups:
+  enabled: true
+  endpointURL: "https://s3.example.com"
+  destinationPath: "s3://cnpg-backups/cnpg-cluster"
+  provider: s3
+  secret:
+    create: false
+    name: cnpg-s3-backup
+  retentionPolicy: "7d"
+  scheduledBackups:
+    - name: daily-backup
+      schedule: "0 15 5 * * *"
+      backupOwnerReference: self
+      method: barmanObjectStore
+
+poolers: []
+
+imageCatalog:
+  create: false
+  images: []

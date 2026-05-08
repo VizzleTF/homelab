@@ -1,0 +1,45 @@
+# CloudNativePG Operator Configuration
+# Minimal configuration for HomeLab environment
+
+# Resource limits for operator
+resources:
+  limits:
+    cpu: 100m
+    memory: 160Mi
+  requests:
+    cpu: 15m
+    memory: 64Mi
+
+additionalEnv:
+  - name: GOMEMLIMIT
+    value: "135MiB"
+
+# Enable CRDs installation
+crds:
+  create: true
+
+# Webhook configuration
+webhook:
+  port: 9443
+  mutating:
+    create: true
+    failurePolicy: Fail
+  validating:
+    create: true
+    failurePolicy: Fail
+
+# Operator configuration
+config:
+  create: true
+  name: cnpg-controller-manager-config
+  secret: false
+  clusterWide: true
+  # Reduce concurrent reconciles for HomeLab
+  maxConcurrentReconciles: 5
+
+# Service account
+serviceAccount:
+  create: true
+  name: cnpg-manager
+
+replicaCount: 2

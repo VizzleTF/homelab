@@ -1,0 +1,30 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: renovate
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: renovate
+      rules:
+        - alert: RenovateCronJobFailing
+          expr: kube_job_failed{namespace="renovate"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Renovate job {{ $labels.job_name }} failed
+            description: |
+              CronJob in namespace `renovate` failed. Check logs:
+              `kubectl -n renovate logs -l job-name={{ $labels.job_name }}`.
+        - alert: RenovateScanMissing
+          expr: |
+            (time() - max(kube_job_status_completion_time{namespace="renovate", job_name=~"renovate-.*"})) > 172800
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: No successful Renovate scan in the last 48h
+            description: |
+              Daily scan CronJob has not completed successfully for >48h.
+              Likely causes: PAT expired, Vault/ESO sync broken, pod OOM.

@@ -1,0 +1,71 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-config
+  namespace: victoria-metrics
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend-cluster
+    kind: ClusterSecretStore
+  target:
+    name: alertmanager-config
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      data:
+        alertmanager.yaml: |
+          global:
+            resolve_timeout: 5m
+
+          route:
+            group_by: ['alertname', 'cluster', 'service']
+            group_wait: 10s
+            group_interval: 10s
+            repeat_interval: 12h
+            receiver: 'robusta'
+            routes:
+              # Алерты про саму Robusta/Alertmanager идут напрямую в Telegram,
+              # минуя Robusta — иначе мы не узнаем что Robusta лежит.
+              - receiver: telegram-fallback
+                match_re:
+                  alertname: "RobustaRunnerDown|AlertmanagerDown"
+                continue: false
+
+          receivers:
+            - name: 'robusta'
+              webhook_configs:
+                - url: http://robusta-runner.robusta.svc.cluster.local/api/alerts
+                  send_resolved: true
+
+            - name: 'telegram-fallback'
+              telegram_configs:
+                - bot_token: '{{ .token }}'
+                  chat_id: {{ .chat_id }}
+                  parse_mode: 'HTML'
+                  message: |
+                    {{ "{{" }} if .Alerts.Firing -{{ "}}" }}
+                    🔥 <b>FIRING</b> · {{ "{{" }} len .Alerts.Firing {{ "}}" }} alert{{ "{{" }} if gt (len .Alerts.Firing) 1 {{ "}}" }}s{{ "{{" }} end {{ "}}" }}
+                    {{ "{{" }} range $i, $a := .Alerts.Firing {{ "}}" }}{{ "{{" }} if lt $i 5 {{ "}}" }}
+                    {{ "{{" }} if eq $a.Labels.severity "critical" {{ "}}" }}🔴{{ "{{" }} else if eq $a.Labels.severity "warning" {{ "}}" }}🟡{{ "{{" }} else if eq $a.Labels.severity "info" {{ "}}" }}🔵{{ "{{" }} else {{ "}}" }}⚪{{ "{{" }} end {{ "}}" }} <b>{{ "{{" }} $a.Labels.alertname {{ "}}" }}</b>
+                    {{ "{{" }} if $a.Labels.namespace {{ "}}" }}📦 <code>{{ "{{" }} $a.Labels.namespace {{ "}}" }}</code>{{ "{{" }} if $a.Labels.pod {{ "}}" }} / <code>{{ "{{" }} $a.Labels.pod {{ "}}" }}</code>{{ "{{" }} end {{ "}}" }}{{ "{{" }} if $a.Labels.container {{ "}}" }} / <code>{{ "{{" }} $a.Labels.container {{ "}}" }}</code>{{ "{{" }} end {{ "}}" }}
+                    {{ "{{" }} end {{ "}}" }}{{ "{{" }} if $a.Labels.node {{ "}}" }}🖥 <code>{{ "{{" }} $a.Labels.node {{ "}}" }}</code>{{ "{{" }} else if $a.Labels.instance {{ "}}" }}🖥 <code>{{ "{{" }} $a.Labels.instance {{ "}}" }}</code>{{ "{{" }} end {{ "}}" }}
+                    {{ "{{" }} if $a.Annotations.summary {{ "}}" }}💬 {{ "{{" }} printf "%.150s" $a.Annotations.summary {{ "}}" }}{{ "{{" }} end {{ "}}" }}
+                    {{ "{{" }} if $a.Annotations.description {{ "}}" }}📝 {{ "{{" }} printf "%.120s" $a.Annotations.description {{ "}}" }}{{ "{{" }} end {{ "}}" }}
+                    🕐 {{ "{{" }} $a.StartsAt.Format "02 Jan 15:04" {{ "}}" }}
+                    {{ "{{" }} end {{ "}}" }}{{ "{{" }} end {{ "}}" }}{{ "{{" }} if gt (len .Alerts.Firing) 5 {{ "}}" }}
+                    ⚠️ … показано 5 из {{ "{{" }} len .Alerts.Firing {{ "}}" }}{{ "{{" }} end {{ "}}" }}{{ "{{" }} end {{ "}}" }}{{ "{{" }} if .Alerts.Resolved -{{ "}}" }}
+                    ✅ <b>RESOLVED</b> · {{ "{{" }} len .Alerts.Resolved {{ "}}" }}
+                    {{ "{{" }} if le (len .Alerts.Resolved) 10 {{ "}}" }}{{ "{{" }} range .Alerts.Resolved {{ "}}" }}• <b>{{ "{{" }} .Labels.alertname {{ "}}" }}</b>{{ "{{" }} if .Labels.namespace {{ "}}" }} — <code>{{ "{{" }} .Labels.namespace {{ "}}" }}</code>{{ "{{" }} end {{ "}}" }}
+                    {{ "{{" }} end {{ "}}" }}{{ "{{" }} end {{ "}}" }}{{ "{{" }} end {{ "}}" }}
+  data:
+    - secretKey: token
+      remoteRef:
+        key: home/data/homelab/k8s/telegram/victoria-metrics-bot
+        property: token
+    - secretKey: chat_id
+      remoteRef:
+        key: home/data/homelab/k8s/telegram/victoria-metrics-bot
+        property: chat_id

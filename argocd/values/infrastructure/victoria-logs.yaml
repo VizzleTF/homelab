@@ -1,0 +1,94 @@
+# VictoriaLogs single — хранилище логов кластера + Vector (DaemonSet) — коллектор.
+# Vector — sub-chart, DaemonSet на всех узлах, kubernetes_logs source → Elasticsearch bulk → VL.
+# Просмотр: Grafana plugin victoriametrics-logs-datasource, dashboard 22759 (Vector-schema).
+
+fullnameOverride: victoria-logs
+
+server:
+  retentionPeriod: "7d"
+  # Страховка от PVC-переполнения при log storm — упираемся раньше VolumeAlmostFull.
+  retentionDiskSpaceUsage: "9GiB"
+
+  persistentVolume:
+    enabled: true
+    storageClassName: longhorn
+    size: 10Gi
+    accessModes:
+      - ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+  env:
+    - name: GOMEMLIMIT
+      value: "860MiB"
+
+  # Метрики — через VMServiceScrape (manifests/infrastructure/victoria-logs/vmservicescrape.yaml).
+  serviceMonitor:
+    enabled: false
+
+  verticalPodAutoscaler:
+    enabled: true
+    updatePolicy:
+      updateMode: Auto
+
+# Vector-коллектор (sub-chart). Собирает /var/log/pods на всех узлах, включая CP.
+# Поды Vector-а исключают сами себя через label vector.dev/exclude=true — нет петли логов.
+vector:
+  enabled: true
+
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      # 512Mi → OOM на старте (burst чтения существующих /var/log/pods/* с начала
+      # плюс 70+ NFD-лейблов на событие до drop-фильтра node_labels).
+      memory: 1Gi
+
+  # Метрики prom-exporter :9090 — через VMPodScrape (vmpodscrape-vector.yaml).
+  # Service не нужен — скрейпим pod'ы напрямую.
+  service:
+    enabled: false
+
+  # Отсекаем шум CP-компонент на уровне коллектора — дешевле, чем фильтровать на VL.
+  # VM-чарт сам добавляет sinks.vlogs с автогенерированным endpoint'ом и VL-* headers,
+  # здесь только diff: новая transform filter_noise + переключаем parser на её выход.
+  customConfig:
+    sources:
+      k8s:
+        type: kubernetes_logs
+        # Drop тяжёлые NFD-лейблы узла (feature.node.kubernetes.io/*) и annotations —
+        # 70+ полей на событие. Пустая строка отключает поле полностью.
+        node_annotation_fields:
+          node_labels: ""
+        pod_annotation_fields:
+          pod_annotations: ""
+        namespace_annotation_fields:
+          namespace_labels: ""
+    transforms:
+      filter_noise:
+        type: filter
+        inputs: [k8s]
+        condition: |
+          cn = to_string(.kubernetes.container_name) ?? ""
+          m  = to_string(.message) ?? ""
+          apiserver_noise = cn == "kube-apiserver" && (match(m, r'/(healthz|readyz|livez)') || match(m, r'trace\.go.*Trace'))
+          etcd_noise = cn == "etcd" && match(m, r'read-only range request')
+          ctrl_noise = cn == "kube-controller-manager" && match(m, r'Event occurred.*SuccessfulCreate')
+          !(apiserver_noise || etcd_noise || ctrl_noise)
+      parser:
+        type: remap
+        inputs: [filter_noise]
+        source: |
+          .log = parse_json(.message) ?? .message
+          del(.message)

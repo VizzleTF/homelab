@@ -1,0 +1,13 @@
+# Intel GPU Device Plugin — Intel Iris Xe (N100)
+# Advertises gpu.intel.com/i915 resource and sets cgroup device permissions
+# NFD detects GPU via PCI class 03xx; NodeFeatureRule labels nodes with
+# intel.feature.node.kubernetes.io/gpu=true — DaemonSet targets those nodes automatically
+
+# CR/DS name override: chart default `gpudeviceplugin-sample` → `gpu`
+# DaemonSet becomes `intel-gpu-plugin-gpu` (вместо `-gpudeviceplugin-sample`).
+name: gpu
+
+sharedDevNum: 1
+logLevel: 2
+enableMonitoring: true
+nodeFeatureRule: true

@@ -1,0 +1,126 @@
+homelab-common:
+  externalSecrets:
+    - name: openwrt-credentials
+      vaultPath: openwrt
+      data:
+        - secretKey: host
+          property: host
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+
+  limitRange:
+    enabled: true
+    name: external-dns-openwrt-limits
+    defaults:
+      cpu: 100m
+      memory: 128Mi
+    defaultRequests:
+      cpu: 25m
+      memory: 64Mi
+
+namespace: external-dns-openwrt
+
+provider:
+  name: webhook
+  webhook:
+    image:
+      repository: renanqts/external-dns-openwrt-webhook
+      tag: "v0.1.0"
+      pullPolicy: IfNotPresent
+
+    livenessProbe:
+      httpGet:
+        path: /ping
+        port: 8888
+      initialDelaySeconds: 10
+      timeoutSeconds: 5
+
+    readinessProbe:
+      httpGet:
+        path: /ping
+        port: 8888
+      initialDelaySeconds: 10
+      timeoutSeconds: 5
+
+    env:
+      - name: PROVIDER_OPENWRT_LUCIRPC_HOSTNAME
+        valueFrom:
+          secretKeyRef:
+            name: openwrt-credentials
+            key: host
+      - name: PROVIDER_OPENWRT_LUCIRPC_AUTH_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: openwrt-credentials
+            key: username
+      - name: PROVIDER_OPENWRT_LUCIRPC_AUTH_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: openwrt-credentials
+            key: password
+      - name: PROVIDER_OPENWRT_LUCIRPC_SSL
+        value: "false"
+      - name: PROVIDER_OPENWRT_LUCIRPC_PORT
+        value: "80"
+      - name: LOG_LEVEL
+        value: info
+      - name: PROVIDER_OPENWRT_LUCIRPC_INSECURE_SKIP_VERIFY
+        value: "true"
+
+    resources:
+      limits:
+        cpu: 50m
+        memory: 80Mi
+      requests:
+        cpu: 12m
+        memory: 32Mi
+
+annotationFilter: "external-dns.alpha.kubernetes.io/internal-dns in (true)"
+
+sources:
+  - gateway-httproute
+  - gateway-tlsroute
+  - service
+
+policy: sync
+
+interval: 5m
+
+txtOwnerId: homelab-openwrt
+
+domainFilters:
+  - example.com
+  - local
+
+env:
+  - name: GOMEMLIMIT
+    value: "68MiB"
+
+resources:
+  limits:
+    cpu: 50m
+    memory: 80Mi
+  requests:
+    cpu: 12m
+    memory: 32Mi
+
+serviceAccount:
+  create: true
+  name: external-dns-openwrt
+
+rbac:
+  create: true
+
+podSecurityContext:
+  fsGroup: 65534
+  runAsNonRoot: true
+  runAsUser: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

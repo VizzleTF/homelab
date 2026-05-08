@@ -4,7 +4,7 @@
 
 ### 1. Добавьте секцию homelab-common в values файл
 
-Откройте `home-proxmox-values/values/applications/{app}.yaml` и добавьте в начало:
+Откройте `argocd/values/applications/{app}.yaml` и добавьте в начало:
 
 ```yaml
 # Общие ресурсы через homelab-common
@@ -22,7 +22,7 @@ image:
 
 ### 2. Обновите ArgoCD Application
 
-Добавьте homelab-common как дополнительный source. В `helm.valueFiles` **только у этого source** укажите сначала `$values/values/shared/global.yaml`, затем файл приложения (upstream chart оставьте без `global.yaml`, если у чарта строгая values schema).
+Добавьте homelab-common как дополнительный source. В `helm.valueFiles` **только у этого source** укажите сначала `$values/argocd/values/shared/global.yaml`, затем файл приложения (upstream chart оставьте без `global.yaml`, если у чарта строгая values schema).
 
 ```yaml
 spec:
@@ -33,7 +33,7 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/values/applications/myapp.yaml
+          - $values/argocd/values/applications/myapp.yaml
     
     # НОВОЕ: Общие ресурсы через homelab-common (Forgejo Helm registry)
     - repoURL: https://git.example.com/api/packages/vizzle/helm
@@ -41,11 +41,11 @@ spec:
       targetRevision: "1.7.1"
       helm:
         valueFiles:
-          - $values/values/shared/global.yaml
-          - $values/values/applications/myapp.yaml
+          - $values/argocd/values/shared/global.yaml
+          - $values/argocd/values/applications/myapp.yaml
     
-    # Values репозиторий (существующий)
-    - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
+    # Values reference (тот же монорепо)
+    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
       targetRevision: HEAD
       ref: values
 ```
@@ -53,9 +53,9 @@ spec:
 ### 3. Удалите старые манифесты
 
 После успешного деплоя удалите:
-- `home-proxmox-values/manifests/applications/{app}/external-secret.yaml`
-- `home-proxmox-values/manifests/applications/{app}/httproute*.yaml`
-- `home-proxmox-values/manifests/applications/{app}/backup-cronjob.yaml`
+- `argocd/manifests/applications/{app}/external-secret.yaml`
+- `argocd/manifests/applications/{app}/httproute*.yaml`
+- `argocd/manifests/applications/{app}/backup-cronjob.yaml`
 - и т.д.
 
 Оставьте только специфичные для приложения манифесты (если есть).
@@ -72,9 +72,9 @@ sources:
     chart: immich
     helm:
       valueFiles:
-        - $values/values/applications/immich.yaml
-  - repoURL: git@github.com:VizzleTF/home-proxmox-values.git
-    path: manifests/applications/immich  # Отдельные манифесты
+        - $values/argocd/values/applications/immich.yaml
+  - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
+    path: argocd/manifests/applications/immich  # Отдельные манифесты
 ```
 
 **После:**
@@ -85,13 +85,13 @@ sources:
     chart: immich
     helm:
       valueFiles:
-        - $values/values/applications/immich.yaml
+        - $values/argocd/values/applications/immich.yaml
   - repoURL: https://git.example.com/api/packages/vizzle/helm
     chart: homelab-common  # Forgejo Helm registry
     targetRevision: "1.7.1"
     helm:
       valueFiles:
-        - $values/values/applications/immich.yaml  # Тот же файл
+        - $values/argocd/values/applications/immich.yaml  # Тот же файл
 ```
 
 ### May (workload в homelab-common)

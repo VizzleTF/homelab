@@ -1,0 +1,45 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: robusta
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: robusta
+      rules:
+        - alert: RobustaRunnerDown
+          expr: absent(up{job=~".*robusta-runner.*"}) == 1 or up{job=~".*robusta-runner.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Robusta Runner недоступен — алерты не доставляются"
+            description: |
+              Robusta Runner не отвечает 5 минут. VMAlertmanager продолжает слать webhook-и,
+              но они не обрабатываются. Алерты про сам Runner будут доставлены через
+              telegram-fallback, остальные — потеряются до восстановления.
+
+        # Sink errors не имеют отдельной метрики в Robusta 0.35 —
+        # ошибки отправки в Telegram попадают в общий playbooks_errors_total.
+
+        - alert: RobustaPlaybookErrors
+          expr: increase(playbooks_errors_total[30m]) > 10
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Robusta: ошибки исполнения playbooks"
+            description: |
+              За 30 минут {{ $value }} ошибок playbook-ов (включая sink delivery).
+              Проверить логи: kubectl -n robusta logs deploy/robusta-runner
+
+        - alert: RobustaDiscoveryErrors
+          expr: increase(discovery_errors_total[30m]) > 5
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Robusta: ошибки discovery K8s ресурсов"
+            description: |
+              За 30 минут {{ $value }} ошибок discovery (kubewatch ↔ K8s API).
+              Проверить логи: kubectl -n robusta logs deploy/robusta-forwarder

@@ -33,12 +33,12 @@ spec:
             repoURL: https://guerzon.github.io/vaultwarden
             targetRevision: "0.36.4"
             wave: "2"
-            homelabValuesFile: values/applications/vaultwarden.homelab.yaml
+            homelabValuesFile: argocd/values/applications/vaultwarden.homelab.yaml
           - name: immich
             repoURL: https://immich-app.github.io/immich-charts
             targetRevision: "0.11.1"
             wave: "2"
-            cnpgValuesFile: values/applications/cnpg-immich-db.yaml
+            cnpgValuesFile: argocd/values/applications/cnpg-immich-db.yaml
           - name: authentik
             repoURL: https://charts.goauthentik.io/
             targetRevision: "2026.2.2"
@@ -47,14 +47,14 @@ spec:
             repoURL: code.forgejo.org/forgejo-helm
             targetRevision: "17.0.1"
             wave: "2"
-            homelabValuesFile: values/applications/forgejo.homelab.yaml
+            homelabValuesFile: argocd/values/applications/forgejo.homelab.yaml
           - name: forgejo-runner
             chart: forgejo-runner
             repoURL: codeberg.org/wrenix/helm-charts
             targetRevision: "0.7.6"
             wave: "3"
             namespace: forgejo
-            homelabValuesFile: values/applications/forgejo-runner.homelab.yaml
+            homelabValuesFile: argocd/values/applications/forgejo-runner.homelab.yaml
           - name: may
             homelabOnly: "true"
             wave: "2"
@@ -98,7 +98,7 @@ spec:
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
-              - "$values/{{ index . "valuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
+              - "$values/{{ index . "valuesFile" | default (printf "argocd/values/applications/%s.yaml" .name) }}"
         {{- end }}
         {{- if index . "cnpgValuesFile" }}
         - repoURL: https://cloudnative-pg.github.io/charts
@@ -113,9 +113,9 @@ spec:
           targetRevision: "1.7.1"
           helm:
             valueFiles:
-              - "$values/values/shared/global.yaml"
-              - "$values/{{ index . "homelabValuesFile" | default (printf "values/applications/%s.yaml" .name) }}"
-        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home-proxmox-values.git
+              - "$values/argocd/values/shared/global.yaml"
+              - "$values/{{ index . "homelabValuesFile" | default (printf "argocd/values/applications/%s.yaml" .name) }}"
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
           targetRevision: HEAD
           ref: values
       syncPolicy:

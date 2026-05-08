@@ -15,15 +15,15 @@ spec:
       targetRevision: "9.5.11"
       helm:
         valueFiles:
-          - $values/values/infrastructure/argocd.yaml
+          - $values/argocd/values/infrastructure/argocd.yaml
     - repoURL: https://git.example.com/api/packages/vizzle/helm
       chart: homelab-common
       targetRevision: "1.7.1"
       helm:
         valueFiles:
-          - $values/values/shared/global.yaml
-          - $values/values/infrastructure/argocd.yaml
-    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home-proxmox-values.git
+          - $values/argocd/values/shared/global.yaml
+          - $values/argocd/values/infrastructure/argocd.yaml
+    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
       targetRevision: HEAD
       ref: values
   destination:

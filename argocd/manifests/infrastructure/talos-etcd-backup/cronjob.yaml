@@ -1,0 +1,120 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos-etcd-backup
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: talos-etcd-backup
+    app.kubernetes.io/part-of: infrastructure
+spec:
+  schedule: "15 4 * * *"
+  timeZone: UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: talos-etcd-backup
+        spec:
+          restartPolicy: OnFailure
+          # NFS-экспорт 10.11.12.237:/volume5/k8s_svc не разрешает запись для
+          # UID 65534 (nobody). Работаем root-ом — squashing остаётся задачей
+          # NFS-сервера. Капабилити полностью дропнуты, FS read-only.
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: fetch-talosctl
+              image: curlimages/curl:8.11.0
+              command: [sh, -c]
+              args:
+                - |
+                  set -eu
+                  version="v1.13.0-beta.1"
+                  url="https://github.com/siderolabs/talos/releases/download/${version}/talosctl-linux-amd64"
+                  echo "Downloading talosctl ${version}"
+                  curl -fsSL "$url" -o /tools/talosctl
+                  chmod +x /tools/talosctl
+                  /tools/talosctl version --client
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+          containers:
+            - name: snapshot
+              image: alpine:3.20
+              command: [sh, -c]
+              args:
+                - |
+                  set -euo pipefail
+                  ts=$(date -u +%Y-%m-%dT%H%M)
+                  dest="/backup/etcd-${ts}.snapshot"
+                  # talosctl etcd snapshot не работает с несколькими --nodes; берём первый
+                  # доступный control-plane (etcd реплицирован, снапшот с любой ноды валиден).
+                  endpoints="10.11.11.101,10.11.11.102,10.11.11.103"
+                  for node in 10.11.11.101 10.11.11.102 10.11.11.103; do
+                    echo "Trying etcd snapshot from $node"
+                    if /tools/talosctl --talosconfig=/config/config \
+                        --nodes "$node" --endpoints "$endpoints" \
+                        etcd snapshot "$dest"; then
+                      echo "Snapshot OK from $node"
+                      break
+                    fi
+                    echo "Failed on $node, trying next"
+                  done
+                  test -s "$dest" || { echo "ERROR: snapshot not created"; exit 1; }
+                  echo "Snapshot size:"
+                  ls -lh "$dest"
+                  echo "Cleaning snapshots older than 7 days"
+                  find /backup -maxdepth 1 -name 'etcd-*.snapshot' -mtime +7 -print -delete
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+                  readOnly: true
+                - name: talos-config
+                  mountPath: /config
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: tools
+              emptyDir: {}
+            - name: talos-config
+              secret:
+                secretName: talos-etcd-backup
+                items:
+                  - key: config
+                    path: config
+                    mode: 0400
+            - name: backup
+              nfs:
+                server: 10.11.12.237
+                path: /volume5/k8s_svc/etcd-backup
