@@ -41,7 +41,7 @@ jobs:
 
       - name: Push to GitHub mirror
         env:
-          GH_PAT: ${{ secrets.GITHUB_MIRROR_PAT }}
+          GH_PAT: ${{ secrets.GH_MIRROR_PAT }}
         run: |
           set -euo pipefail
           GH_REPO="VizzleTF/${{ github.event.repository.name }}"
