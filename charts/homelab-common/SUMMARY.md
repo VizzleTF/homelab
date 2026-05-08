@@ -68,10 +68,10 @@ spec:
         valueFiles:
           - $values/values/applications/myapp.yaml
     
-    # Добавить homelab-common
-    - repoURL: https://github.com/VizzleTF/home_proxmox.git
-      path: charts/homelab-common
-      targetRevision: HEAD
+    # Добавить homelab-common (опубликован в Forgejo Helm registry)
+    - repoURL: https://git.example.com/api/packages/vizzle/helm
+      chart: homelab-common
+      targetRevision: "1.7.1"
       helm:
         valueFiles:
           - $values/values/applications/myapp.yaml  # Тот же файл!
