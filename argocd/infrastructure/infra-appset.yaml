@@ -114,12 +114,12 @@ spec:
             extraManifests: true
           - name: renovate
             repoURL: https://docs.renovatebot.com/helm-charts
-            targetRevision: "46.142.0"
+            targetRevision: "46.145.10"
             wave: "2"
             extraManifests: true
           - name: robusta
             repoURL: https://robusta-charts.storage.googleapis.com
-            targetRevision: "0.37.0"
+            targetRevision: "0.38.0"
             wave: "1"
             extraManifests: true
             homelabValuesFile: argocd/values/infrastructure/robusta.homelab.yaml
