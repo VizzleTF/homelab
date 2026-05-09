@@ -1,4 +1,4 @@
-name: Secret Scan + Mirror to GitHub
+name: CI
 
 on:
   push:
@@ -11,10 +11,37 @@ permissions:
   contents: read
 
 concurrency:
-  group: main-mirror-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  yamllint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Install yamllint
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends yamllint
+      - name: Lint
+        run: yamllint .
+
+  helm-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Install helm
+        run: |
+          set -eu
+          VERSION=v3.16.4
+          curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
+          install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version --short
+      - name: Lint homelab-common
+        run: helm lint charts/homelab-common
+      - name: Template homelab-common (smoke)
+        run: helm template smoke charts/homelab-common --debug >/dev/null
+
   gitleaks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
