@@ -63,6 +63,15 @@
       "groupName": "ci-actions"
     },
     {
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": [
+        "actions/upload-artifact",
+        "actions/download-artifact"
+      ],
+      "allowedVersions": "<3.2.0",
+      "description": "Forgejo runner supports only @actions/artifact v1.x (v1/v3 protocol). v3.2.x is a security backport that bumped @actions/artifact to v2 (v4 protocol) and fails with GHESNotSupportedError. v4.x is the same. Pin <3.2.0."
+    },
+    {
       "matchFileNames": ["argocd/applications/**", "argocd/infrastructure/**"],
       "groupName": "argocd-charts"
     },
