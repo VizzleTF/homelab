@@ -230,6 +230,10 @@ vmagent:
         value: "430MiB"
     extraArgs:
       promscrape.streamParse: "true"
+      # apiserver /metrics on cp-02 = 16.9 MB (16 MiB default limit) — bumped to 64 MiB.
+      # High-cardinality apiserver_request_*_bucket histograms are used by default SLO rules,
+      # so drop-relabel is intentionally avoided here.
+      promscrape.maxScrapeSize: "64MB"
       # Default queues = GOMAXPROCS; one remote-write target → one queue.
       remoteWrite.queues: "1"
     scrapeInterval: 30s
