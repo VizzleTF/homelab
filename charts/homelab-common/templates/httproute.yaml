@@ -46,6 +46,9 @@ spec:
       {{- end }}
       backendRefs:
         - name: {{ .service.name }}
+          {{- if .service.namespace }}
+          namespace: {{ .service.namespace }}
+          {{- end }}
           port: {{ .service.port }}
 {{- end }}
 
@@ -80,6 +83,9 @@ spec:
       {{- end }}
       backendRefs:
         - name: {{ .service.name }}
+          {{- if .service.namespace }}
+          namespace: {{ .service.namespace }}
+          {{- end }}
           port: {{ .service.port }}
 {{- end }}
 
