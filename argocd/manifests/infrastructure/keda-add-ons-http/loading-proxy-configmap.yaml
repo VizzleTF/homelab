@@ -1,0 +1,135 @@
+---
+# Loading proxy nginx config + inline loading.html.
+# Renders a Russian "service is starting..." page during KEDA cold-start.
+# Browser path:
+#   GET / → proxy to interceptor (proxy_read_timeout 5s)
+#     - pod up: response in <500ms, passed through
+#     - pod down: KEDA holds, nginx times out at 5s → 504 → @loading
+#   @loading → 200 with HTML; JS in HTML calls /__loading_proxy_wake__
+#   /__loading_proxy_wake__ → proxy to interceptor (proxy_read_timeout 180s)
+#     - waits for actual scale-up → resolves → JS reloads page → step 1 hits warm pod
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keda-loading-proxy-config
+  namespace: keda
+  labels:
+    app.kubernetes.io/name: keda-loading-proxy
+    app.kubernetes.io/part-of: infrastructure
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+    events {
+      worker_connections 1024;
+    }
+    http {
+      log_format main '$remote_addr "$request" $status us=$upstream_response_time host=$host';
+      access_log /dev/stdout main;
+
+      # WebSocket upgrade support
+      map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+      }
+
+      # nginx alpine needs writable paths for client_body / proxy temp files
+      client_body_temp_path /tmp/client_body;
+      proxy_temp_path       /tmp/proxy;
+      fastcgi_temp_path     /tmp/fastcgi;
+      uwsgi_temp_path       /tmp/uwsgi;
+      scgi_temp_path        /tmp/scgi;
+
+      upstream keda_interceptor {
+        server keda-add-ons-http-interceptor-proxy.keda.svc.cluster.local:8080;
+        keepalive 32;
+      }
+
+      server {
+        listen 8080;
+        server_name _;
+
+        # Health probe — internal only by virtue of being unroutable from outside.
+        location = /__health__ {
+          access_log off;
+          add_header Content-Type "text/plain" always;
+          return 200 "ok\n";
+        }
+
+        # Wake endpoint — long-poll, hit by the loading page JS.
+        # Holds open until KEDA confirms pod is ready (or 180s pass).
+        location = /__loading_proxy_wake__ {
+          proxy_pass http://keda_interceptor;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          proxy_buffering off;
+          proxy_read_timeout 180s;
+        }
+
+        # Main pass-through. Short proxy_read_timeout to detect cold-start
+        # (KEDA interceptor sends no bytes while holding the request).
+        location / {
+          proxy_pass http://keda_interceptor;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_buffering off;
+          proxy_request_buffering off;
+          client_max_body_size 50m;
+          proxy_connect_timeout 2s;
+          proxy_read_timeout 5s;
+          proxy_intercept_errors on;
+          error_page 502 504 = @loading;
+        }
+
+        location @loading {
+          default_type "text/html; charset=utf-8";
+          add_header Cache-Control "no-store" always;
+          add_header X-Loading-Proxy "1" always;
+          root /var/www;
+          try_files /loading.html =500;
+        }
+      }
+    }
+  loading.html: |
+    <!doctype html>
+    <html lang="ru">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Запуск сервиса</title>
+      <style>
+        html,body{height:100%;margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0f1419;color:#e6e6e6}
+        .wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:1rem;box-sizing:border-box}
+        .spin{width:48px;height:48px;border:4px solid #2a3340;border-top-color:#7aa2f7;border-radius:50%;animation:s 1s linear infinite;margin-bottom:1.5rem}
+        @keyframes s{to{transform:rotate(360deg)}}
+        h1{font-size:1.25rem;font-weight:500;margin:0 0 .5rem}
+        p{font-size:.95rem;color:#9aa5b1;margin:.25rem 0;max-width:32rem;line-height:1.4}
+        .host{color:#7aa2f7;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+      </style>
+    </head>
+    <body>
+      <div class="wrap">
+        <div class="spin"></div>
+        <h1>Сервис запускается</h1>
+        <p>Поднимаем <span class="host" id="h"></span>. Это занимает 30–90 секунд.</p>
+        <p>Страница обновится автоматически.</p>
+      </div>
+      <script>
+        document.getElementById("h").textContent = location.hostname;
+        fetch("/__loading_proxy_wake__", {cache: "no-store"})
+          .then(function(r){ if (r.ok) location.reload(); })
+          .catch(function(){ setTimeout(function(){ location.reload(); }, 5000); });
+        setTimeout(function(){ location.reload(); }, 90000);
+      </script>
+    </body>
+    </html>
