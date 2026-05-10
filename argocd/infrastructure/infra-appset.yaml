@@ -76,6 +76,18 @@ spec:
             repoURL: https://kubernetes-sigs.github.io/external-dns/
             targetRevision: "1.21.1"
             wave: "-2"
+          - name: keda
+            chart: keda
+            repoURL: https://kedacore.github.io/charts
+            targetRevision: "2.19.0"
+            namespace: keda
+            wave: "-2"
+          - name: keda-add-ons-http
+            chart: keda-add-ons-http
+            repoURL: https://kedacore.github.io/charts
+            targetRevision: "0.14.1"
+            namespace: keda
+            wave: "-1"
           - name: kubelet-csr-approver
             repoURL: https://postfinance.github.io/kubelet-csr-approver
             targetRevision: "1.2.14"
