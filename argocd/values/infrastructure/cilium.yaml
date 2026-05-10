@@ -1,15 +1,6 @@
 # Cilium CNI values
 # Non-default values used in the cluster
 
-homelab-common:
-  httpRoutes:
-    - name: hubble-ui-route
-      hostname: hubble
-      gateway: internal
-      service:
-        name: hubble-ui
-        port: 80
-
 # Cilium-agent resources (DaemonSet, 4 pods)
 resources:
   requests:
@@ -105,25 +96,7 @@ hubble:
         memory: 128Mi
         cpu: 200m
   ui:
-    enabled: true
-    backend:
-      resources:
-        requests:
-          memory: 64Mi
-          cpu: 24m
-        limits:
-          memory: 128Mi
-          cpu: 100m
-    frontend:
-      resources:
-        requests:
-          memory: 32Mi
-          cpu: 10m
-        limits:
-          memory: 64Mi
-          cpu: 50m
-    service:
-      type: ClusterIP
+    enabled: false
 
 # Kubernetes API server configuration
 k8sServiceHost: localhost

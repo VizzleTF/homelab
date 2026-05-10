@@ -21,6 +21,11 @@ worker:
     limits:
       cpu: 100m
       memory: 128Mi
+  # CPs не имеют GPU — единственный потребитель NFD labels (intel-gpu-plugin)
+  # живёт только на worker-нодах. Исключаем CPs из DaemonSet чтобы не тратить RAM.
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
+  tolerations: []
   config:
     core:
       # Suppress noisy default labels that no workload selects on

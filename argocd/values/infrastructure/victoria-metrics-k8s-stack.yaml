@@ -171,7 +171,7 @@ defaultRules:
 vmsingle:
   enabled: true
   spec:
-    retentionPeriod: "14d"
+    retentionPeriod: "7d"
     replicaCount: 1
     storageMetadata:
       annotations:
