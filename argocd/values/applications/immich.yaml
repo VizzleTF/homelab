@@ -203,8 +203,9 @@ machine-learning:
             - matchExpressions:
                 - key: node-role.kubernetes.io/worker
                   operator: Exists
-                - key: gpu.intel.com/i915
-                  operator: Exists
+                - key: intel.feature.node.kubernetes.io/gpu
+                  operator: In
+                  values: ["true"]
   controllers:
     main:
       containers:
