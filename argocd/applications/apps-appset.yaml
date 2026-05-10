@@ -122,7 +122,7 @@ spec:
         {{- end }}
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
-          targetRevision: "1.7.2"
+          targetRevision: "1.7.3"
           helm:
             valueFiles:
               - "$values/argocd/values/shared/global.yaml"
