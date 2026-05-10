@@ -192,6 +192,19 @@ machine-learning:
     securityContext:
       seccompProfile:
         type: RuntimeDefault
+    # Pin to worker нodes с Intel GPU. ML pod = 2.5 GiB RES,
+    # на CP-03 он перегружал мастера (85% RAM).
+    # GPU есть на cp-01..03, worker-01, worker-03 → required=worker + has-GPU
+    # → worker-01 (~5 GiB free) или worker-03.
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/worker
+                  operator: Exists
+                - key: gpu.intel.com/i915
+                  operator: Exists
   controllers:
     main:
       containers:
