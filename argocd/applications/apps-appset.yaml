@@ -22,6 +22,11 @@ spec:
             targetRevision: "0.1.10"
             wave: "2"
             extraManifests: true
+            ignoreDiff: |
+              - group: apps
+                kind: Deployment
+                jsonPointers:
+                  - /spec/replicas
           - name: nextcloud
             repoURL: https://nextcloud.github.io/helm
             targetRevision: "9.0.6"
@@ -63,6 +68,11 @@ spec:
             homelabOnly: "true"
             wave: "2"
             extraManifests: true
+            ignoreDiff: |
+              - group: apps
+                kind: Deployment
+                jsonPointers:
+                  - /spec/replicas
           - name: rss-to-telegram-bot
             homelabOnly: "true"
             wave: "2"
@@ -125,6 +135,10 @@ spec:
           targetRevision: HEAD
           path: "argocd/manifests/applications/{{.name}}"
         {{- end }}
+      {{- if index . "ignoreDiff" }}
+      ignoreDifferences:
+      {{- .ignoreDiff | nindent 4 }}
+      {{- end }}
       syncPolicy:
         automated:
           prune: true
@@ -132,6 +146,9 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          {{- if index . "ignoreDiff" }}
+          - RespectIgnoreDifferences=true
+          {{- end }}
         retry:
           limit: 5
           backoff:
