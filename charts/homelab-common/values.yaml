@@ -61,6 +61,15 @@ homelab-common:
   #     name: myapp
   #     port: 8080
   #   cloudflareProxied: "true"  # Optional, defaults to global.dns.cloudflareProxied
+  #
+  # Shortcut for KEDA HTTP scale-to-zero apps — routes via keda-loading-proxy
+  # in ns keda (renders a Russian "service is starting" page during cold-start).
+  # Backend service.{name,namespace,port} are auto-filled, so you can omit the
+  # service block entirely:
+  # - name: myapp
+  #   hostname: myapp
+  #   gateway: internal
+  #   kedaColdStartLoadingPage: true
 
   # CronJobs for backups
   backupCronJobs: []
