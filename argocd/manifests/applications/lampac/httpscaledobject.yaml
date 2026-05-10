@@ -1,0 +1,24 @@
+---
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: lampac
+  namespace: lampac
+spec:
+  hosts:
+    - lampac.example.com
+  scaleTargetRef:
+    name: lampac
+    kind: Deployment
+    apiVersion: apps/v1
+    service: lampac
+    port: 9118
+  replicas:
+    min: 0
+    max: 1
+  scaledownPeriod: 21600  # 6h без запросов → scale to 0
+  scalingMetric:
+    requestRate:
+      granularity: 1s
+      targetValue: 100
+      window: 1m

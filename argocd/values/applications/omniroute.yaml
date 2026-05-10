@@ -26,19 +26,24 @@ homelab-common:
       volumeName: pvc-150eeade-365f-465b-8076-6c136efeec5e
 
   httpRoutes:
+    # Через KEDA HTTP add-on interceptor для on-demand scale-to-zero.
+    # См. argocd/manifests/applications/omniroute/httpscaledobject.yaml.
+    # backendRef.namespace требует homelab-common >= 1.7.2 + ReferenceGrant в keda ns.
     - name: omniroute
       hostname: omniroute
       gateway: internal
       service:
-        name: omniroute
-        port: 20128
+        name: keda-add-ons-http-interceptor-proxy
+        namespace: keda
+        port: 8080
     - name: omniroute-api
       hostname: omniroute
       gateway: external
       pathPrefix: /v1
       service:
-        name: omniroute
-        port: 20128
+        name: keda-add-ons-http-interceptor-proxy
+        namespace: keda
+        port: 8080
 
   apps:
     - name: omniroute

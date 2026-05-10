@@ -88,6 +88,7 @@ spec:
             targetRevision: "0.14.1"
             namespace: keda
             wave: "-1"
+            extraManifests: true
           - name: kubelet-csr-approver
             repoURL: https://postfinance.github.io/kubelet-csr-approver
             targetRevision: "1.2.14"

@@ -16,9 +16,24 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
+# Service type: ClusterIP — доступ через cilium-gateway-internal HTTPRoute,
+# фронтнэндом служит KEDA HTTP add-on interceptor (для on-demand scale-to-zero).
+# Раньше LB IP 10.11.11.133 — теперь lampac.example.com через homelab-common.httpRoutes ниже.
 service:
-  type: LoadBalancer
+  type: ClusterIP
   port: 9118
+
+homelab-common:
+  httpRoutes:
+    # KEDA-fronted (см. argocd/manifests/applications/lampac/httpscaledobject.yaml).
+    # Cross-namespace backendRef требует homelab-common >= 1.7.2 + ReferenceGrant в keda ns.
+    - name: lampac
+      hostname: lampac
+      gateway: internal
+      service:
+        name: keda-add-ons-http-interceptor-proxy
+        namespace: keda
+        port: 8080
 
 resources:
   requests:
