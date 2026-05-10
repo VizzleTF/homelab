@@ -58,8 +58,11 @@ data:
         }
 
         # Wake endpoint — long-poll, hit by the loading page JS.
+        # Rewrites path to "/" so the app gets its homepage request, not
+        # a literal "/__loading_proxy_wake__" (which would 404 on the app).
         # Holds open until KEDA confirms pod is ready (or 180s pass).
         location = /__loading_proxy_wake__ {
+          rewrite ^ / break;
           proxy_pass http://keda_interceptor;
           proxy_set_header Host $host;
           proxy_set_header X-Real-IP $remote_addr;
@@ -126,10 +129,20 @@ data:
       </div>
       <script>
         document.getElementById("h").textContent = location.hostname;
-        fetch("/__loading_proxy_wake__", {cache: "no-store"})
-          .then(function(r){ if (r.ok) location.reload(); })
+        // Wake endpoint resolves when KEDA finishes scale-up and the app
+        // responds (any status — 2xx/3xx/4xx all mean pod is reachable).
+        // Only network errors or 5xx loop via setTimeout fallback.
+        fetch("/__loading_proxy_wake__", {cache: "no-store", redirect: "manual"})
+          .then(function(r){
+            if (r.status === 0 || r.status >= 500) {
+              setTimeout(function(){ location.reload(); }, 5000);
+            } else {
+              location.reload();
+            }
+          })
           .catch(function(){ setTimeout(function(){ location.reload(); }, 5000); });
-        setTimeout(function(){ location.reload(); }, 90000);
+        // Hard fallback if neither branch fires (e.g., browser drops fetch)
+        setTimeout(function(){ location.reload(); }, 30000);
       </script>
     </body>
     </html>
