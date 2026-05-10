@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keda-loading-proxy
+  namespace: keda
+  labels:
+    app.kubernetes.io/name: keda-loading-proxy
+    app.kubernetes.io/part-of: infrastructure
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: keda-loading-proxy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

@@ -25,11 +25,16 @@ service:
 
 homelab-common:
   httpRoutes:
-    # KEDA-fronted (см. argocd/manifests/applications/lampac/httpscaledobject.yaml).
-    # Cross-namespace backendRef требует homelab-common >= 1.7.2 + ReferenceGrant в keda ns.
+    # KEDA-fronted scale-to-zero (см. argocd/manifests/applications/lampac/httpscaledobject.yaml).
+    # `kedaColdStartLoadingPage: true` (homelab-common >= 1.7.3) переключает backend
+    # на keda-loading-proxy → во время cold-start пользователь видит "сервис запускается".
+    # `service:` оставлен fallback для v1.7.2 (флаг игнорируется на старом чарте).
+    # Cross-namespace backendRef требует ReferenceGrant в keda ns
+    # (argocd/manifests/infrastructure/keda-add-ons-http/referencegrant.yaml).
     - name: lampac
       hostname: lampac
       gateway: internal
+      kedaColdStartLoadingPage: true
       service:
         name: keda-add-ons-http-interceptor-proxy
         namespace: keda
