@@ -26,17 +26,6 @@ homelab-common:
         username: "{{ .username }}"
         password: "{{ .password }}"
     
-    - name: collabora-credentials
-      vaultPath: nextcloud/collabora
-      data:
-        - secretKey: username
-          property: username
-        - secretKey: password
-          property: password
-      templateData:
-        username: "{{ .username }}"
-        password: "{{ .password }}"
-    
     - name: nextcloud-webdav-credentials
       vaultPath: shared/webdav-backup
       data:
@@ -83,13 +72,6 @@ homelab-common:
         name: nextcloud
         port: 8080
     
-    - name: collabora
-      hostname: collabora
-      gateway: external
-      service:
-        name: nextcloud-collabora
-        port: 9980
-  
   backupCronJobs:
     - name: backup-nfs
       schedule: "0 0 * * *"
@@ -191,12 +173,6 @@ nextcloud:
 
   hooks:
     post-installation: |
-      # Install and configure Collabora
-      php /var/www/html/occ app:install richdocuments || true
-      php /var/www/html/occ app:disable richdocumentscode || true
-      php /var/www/html/occ config:app:set richdocuments wopi_url \
-        --value='https://collabora.example.com'
-
       # Configure OIDC
       php /var/www/html/occ app:enable user_oidc
       php /var/www/html/occ user_oidc:provider Authentik \
@@ -209,12 +185,6 @@ nextcloud:
         --mapping-email="email"
 
     post-upgrade: |
-      # Update Collabora
-      php /var/www/html/occ app:update richdocuments || true
-      php /var/www/html/occ app:disable richdocumentscode || true
-      php /var/www/html/occ config:app:set richdocuments wopi_url \
-        --value='https://collabora.example.com'
-
       # Update OIDC configuration
       php /var/www/html/occ app:enable user_oidc
       php /var/www/html/occ user_oidc:provider Authentik \
@@ -280,26 +250,7 @@ internalDatabase:
   enabled: false
 
 collabora:
-  enabled: true
-  collabora:
-    aliasgroups:
-      - host: "https://nc.example.com:443"
-    extra_params: --o:ssl.enable=false --o:ssl.termination=true
-    server_name: collabora.example.com
-    existingSecret:
-      enabled: true
-      secretName: collabora-credentials
-      usernameKey: username
-      passwordKey: password
-  ingress:
-    enabled: false
-  resources:
-    requests:
-      cpu: 15m
-      memory: 800Mi
-    limits:
-      cpu: 2
-      memory: 2Gi
+  enabled: false
 
 cronjob:
   enabled: false
