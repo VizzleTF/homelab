@@ -1,0 +1,34 @@
+# KEDA core operator + metrics-apiserver + admission webhooks.
+# Defaults уже скромные (3 pods × 100 Mi request) — pinning для ясности.
+
+operator:
+  replicaCount: 1
+
+metricsServer:
+  replicaCount: 1
+
+webhooks:
+  enabled: true
+
+resources:
+  operator:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 1
+      memory: 1000Mi
+  metricServer:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 1
+      memory: 1000Mi
+  webhooks:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 1
+      memory: 1000Mi
