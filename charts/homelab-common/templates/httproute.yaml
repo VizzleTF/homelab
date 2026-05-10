@@ -16,6 +16,20 @@
 {{- $hostname = printf "%s.%s" $hostname $domain }}
 {{- end }}
 
+{{/* kedaColdStartLoadingPage: shortcut that routes via the keda-loading-proxy
+     nginx front-door instead of the bare interceptor. Renders a Russian
+     "service is starting" loading page during scale-from-zero.
+     See argocd/manifests/infrastructure/keda-add-ons-http/loading-proxy-*.yaml */}}
+{{- $svc := .service | default dict }}
+{{- $svcName := $svc.name }}
+{{- $svcNs   := $svc.namespace }}
+{{- $svcPort := $svc.port }}
+{{- if .kedaColdStartLoadingPage }}
+{{- $svcName = "keda-loading-proxy" }}
+{{- $svcNs   = "keda" }}
+{{- $svcPort = 8080 }}
+{{- end }}
+
 {{- if or (eq $gateway "external") (eq $gateway "both") }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -45,11 +59,11 @@ spec:
         {{- toYaml .filters | nindent 8 }}
       {{- end }}
       backendRefs:
-        - name: {{ .service.name }}
-          {{- if .service.namespace }}
-          namespace: {{ .service.namespace }}
+        - name: {{ $svcName }}
+          {{- if $svcNs }}
+          namespace: {{ $svcNs }}
           {{- end }}
-          port: {{ .service.port }}
+          port: {{ $svcPort }}
 {{- end }}
 
 {{- if or (eq $gateway "internal") (eq $gateway "both") }}
@@ -82,11 +96,11 @@ spec:
         {{- toYaml .filters | nindent 8 }}
       {{- end }}
       backendRefs:
-        - name: {{ .service.name }}
-          {{- if .service.namespace }}
-          namespace: {{ .service.namespace }}
+        - name: {{ $svcName }}
+          {{- if $svcNs }}
+          namespace: {{ $svcNs }}
           {{- end }}
-          port: {{ .service.port }}
+          port: {{ $svcPort }}
 {{- end }}
 
 {{- end }}

@@ -1,6 +1,9 @@
 ---
-# Allows HTTPRoutes in omniroute/lampac namespaces to reference the
-# KEDA HTTP add-on interceptor proxy Service in the keda namespace as a backendRef.
+# Allows HTTPRoutes in omniroute/lampac namespaces to reference Services in the
+# keda namespace as backendRefs:
+#   - keda-add-ons-http-interceptor-proxy — direct interceptor (legacy / no loading page)
+#   - keda-loading-proxy                  — nginx front-door that renders a Russian
+#                                            "service is starting" page during cold-start
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
 metadata:
@@ -18,3 +21,6 @@ spec:
     - group: ""
       kind: Service
       name: keda-add-ons-http-interceptor-proxy
+    - group: ""
+      kind: Service
+      name: keda-loading-proxy

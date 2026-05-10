@@ -26,12 +26,16 @@ homelab-common:
       volumeName: pvc-150eeade-365f-465b-8076-6c136efeec5e
 
   httpRoutes:
-    # Через KEDA HTTP add-on interceptor для on-demand scale-to-zero.
-    # См. argocd/manifests/applications/omniroute/httpscaledobject.yaml.
-    # backendRef.namespace требует homelab-common >= 1.7.2 + ReferenceGrant в keda ns.
+    # KEDA-fronted scale-to-zero (см. argocd/manifests/applications/omniroute/httpscaledobject.yaml).
+    # `kedaColdStartLoadingPage: true` (homelab-common >= 1.7.3) переключает backend
+    # на keda-loading-proxy → во время cold-start пользователь видит "сервис запускается".
+    # `service:` оставлен fallback для v1.7.2 (флаг игнорируется на старом чарте).
+    # Cross-namespace backendRef требует ReferenceGrant в keda ns
+    # (argocd/manifests/infrastructure/keda-add-ons-http/referencegrant.yaml).
     - name: omniroute
       hostname: omniroute
       gateway: internal
+      kedaColdStartLoadingPage: true
       service:
         name: keda-add-ons-http-interceptor-proxy
         namespace: keda
@@ -40,6 +44,7 @@ homelab-common:
       hostname: omniroute
       gateway: external
       pathPrefix: /v1
+      kedaColdStartLoadingPage: true
       service:
         name: keda-add-ons-http-interceptor-proxy
         namespace: keda
