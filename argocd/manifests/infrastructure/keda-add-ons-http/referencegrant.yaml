@@ -1,0 +1,20 @@
+---
+# Allows HTTPRoutes in omniroute/lampac namespaces to reference the
+# KEDA HTTP add-on interceptor proxy Service in the keda namespace as a backendRef.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: keda-interceptor-from-apps
+  namespace: keda
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: omniroute
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: lampac
+  to:
+    - group: ""
+      kind: Service
+      name: keda-add-ons-http-interceptor-proxy

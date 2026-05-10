@@ -21,6 +21,7 @@ spec:
             repoURL: https://vizzletf.github.io/lampac_helm
             targetRevision: "0.1.10"
             wave: "2"
+            extraManifests: true
           - name: nextcloud
             repoURL: https://nextcloud.github.io/helm
             targetRevision: "9.0.6"
@@ -61,6 +62,7 @@ spec:
           - name: omniroute
             homelabOnly: "true"
             wave: "2"
+            extraManifests: true
           - name: rss-to-telegram-bot
             homelabOnly: "true"
             wave: "2"
@@ -118,6 +120,11 @@ spec:
         - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
           targetRevision: HEAD
           ref: values
+        {{- if index . "extraManifests" }}
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
+          targetRevision: HEAD
+          path: "argocd/manifests/applications/{{.name}}"
+        {{- end }}
       syncPolicy:
         automated:
           prune: true
