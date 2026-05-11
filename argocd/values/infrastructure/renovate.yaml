@@ -93,7 +93,7 @@ renovate:
       "requireConfig": "required",
       "autodiscover": false,
       "repositories": [
-        "vizzle/home_proxmox"
+        "vizzle/homelab"
       ],
       "gitAuthor": "Renovate Bot <renovate@example.com>"
     }

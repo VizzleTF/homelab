@@ -74,7 +74,7 @@ homelab-common:
         labels:
           argocd.argoproj.io/secret-type: repository
       templateData:
-        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git"
+        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git"
         type: git
         project: default
         sshPrivateKey: "{{ .sshPrivateKey }}"
@@ -88,7 +88,7 @@ homelab-common:
         labels:
           argocd.argoproj.io/secret-type: repository
       templateData:
-        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git"
+        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git"
         type: git
         project: applications
         sshPrivateKey: "{{ .sshPrivateKey }}"
@@ -102,7 +102,7 @@ homelab-common:
         labels:
           argocd.argoproj.io/secret-type: repository
       templateData:
-        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git"
+        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git"
         type: git
         project: infrastructure
         sshPrivateKey: "{{ .sshPrivateKey }}"
