@@ -6,7 +6,7 @@ metadata:
 spec:
   description: Root App-of-Apps — manages only ArgoCD Applications/AppSets/AppProjects
   sourceRepos:
-    - ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
+    - ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
   destinations:
     - namespace: argocd
       server: https://kubernetes.default.svc

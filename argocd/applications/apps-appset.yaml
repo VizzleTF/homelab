@@ -132,11 +132,11 @@ spec:
             valueFiles:
               - "$values/argocd/values/shared/global.yaml"
               - "$values/{{ index . "homelabValuesFile" | default (printf "argocd/values/applications/%s.yaml" .name) }}"
-        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
           targetRevision: HEAD
           ref: values
         {{- if index . "extraManifests" }}
-        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
+        - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
           targetRevision: HEAD
           path: "argocd/manifests/applications/{{.name}}"
         {{- end }}
