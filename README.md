@@ -1,5 +1,5 @@
-# [Proxmox Home Lab — Talos + ArgoCD](https://github.com/VizzleTF/home_proxmox)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/home_proxmox)
+# [Proxmox Home Lab — Talos + ArgoCD](https://github.com/VizzleTF/homelab)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/homelab)
 
 Single-user homelab managed as a monorepo: Proxmox VE hosts → Terraform-provisioned **Talos Linux** VMs → Kubernetes cluster reconciled by **ArgoCD** (GitOps, App-of-Apps + ApplicationSets).
 
@@ -84,7 +84,7 @@ CNPG cluster (shared PG17 — Nextcloud, Authentik, Umami) · CNPG cluster (Immi
 
 ## Forgejo-First Workflow
 
-Origin lives at `git.example.com/vizzle/home_proxmox`; GitHub is read-only.
+Origin lives at `git.example.com/vizzle/homelab`; GitHub is read-only.
 
 ```
 local branch ──push──▶ Forgejo  ──PR + gitleaks check──▶ squash-merge ──┐

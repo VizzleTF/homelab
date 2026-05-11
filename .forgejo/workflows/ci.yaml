@@ -113,6 +113,14 @@ jobs:
           apt-get install -y -qq python3-pip
           pip install --quiet --break-system-packages git-filter-repo==2.47.0
 
+      - name: Strip workspace-only paths for GitHub mirror
+        run: |
+          set -euo pipefail
+          git filter-repo --force \
+            --invert-paths \
+            --path CLAUDE.md \
+            --path .claude/
+
       - name: Sanitize history for GitHub mirror
         env:
           SANITIZE_RULES: ${{ secrets.MIRROR_SANITIZE_RULES }}
