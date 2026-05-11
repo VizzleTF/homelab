@@ -52,7 +52,7 @@ data:
     {
       printf '<b>🤖 Renovate Daily Digest</b>\n'
       printf '<i>%s UTC</i>\n\n' "$(date -u +'%Y-%m-%d %H:%M')"
-      render_repo "vizzle/home_proxmox"
+      render_repo "vizzle/homelab"
     } > /tmp/message.txt
 
     # Telegram caps at 4096 chars
