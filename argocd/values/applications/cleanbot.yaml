@@ -1,0 +1,47 @@
+# Cleanbot — Telegram-бот, удаляющий старые сообщения в форумных топиках.
+# Chart:  https://git.example.com/api/packages/vizzle/helm  cleanbot 0.1.0
+# Source: https://git.example.com/vizzle/cleanbot
+# Vault:  homelab/k8s/cleanbot/app-secrets  (bot_token, webhook_header_secret, webhook_path_secret)
+
+# --- Values для upstream-чарта cleanbot ---
+
+image:
+  repository: git.example.com/vizzle/cleanbot
+  tag: "latest"
+  pullPolicy: Always
+
+bot:
+  # ESO материализует Secret cleanbot-secrets из Vault (см. homelab-common.externalSecrets ниже).
+  existingSecret: cleanbot-secrets
+  webhookBaseUrl: "https://cleanbot.example.com"
+
+# Чартный Ingress отключаем — фронт через Cilium HTTPRoute (homelab-common.httpRoutes ниже).
+ingress:
+  enabled: false
+
+persistence:
+  enabled: true
+  storageClass: longhorn
+  size: 1Gi
+
+# --- Values для homelab-common ---
+
+homelab-common:
+  externalSecrets:
+    - name: cleanbot-secrets
+      vaultPath: cleanbot/app-secrets
+      data:
+        - secretKey: BOT_TOKEN
+          property: bot_token
+        - secretKey: WEBHOOK_HEADER_SECRET
+          property: webhook_header_secret
+        - secretKey: WEBHOOK_PATH_SECRET
+          property: webhook_path_secret
+
+  httpRoutes:
+    - name: cleanbot
+      hostname: cleanbot
+      gateway: external
+      service:
+        name: cleanbot
+        port: 8080
