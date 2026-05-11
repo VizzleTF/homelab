@@ -49,6 +49,11 @@ spec:
             repoURL: https://charts.goauthentik.io/
             targetRevision: "2026.2.2"
             wave: "2"
+          - name: cleanbot
+            chart: cleanbot
+            repoURL: https://git.example.com/api/packages/vizzle/helm
+            targetRevision: "0.1.0"
+            wave: "2"
           - name: forgejo
             repoURL: code.forgejo.org/forgejo-helm
             targetRevision: "17.0.1"
