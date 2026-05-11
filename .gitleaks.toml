@@ -1,4 +1,4 @@
-title = "Gitleaks config — home_proxmox"
+title = "Gitleaks config — homelab"
 
 [extend]
 useDefault = true

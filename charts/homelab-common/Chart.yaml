@@ -10,8 +10,8 @@ keywords:
   - gateway-api
   - backup
   - cnpg
-home: https://github.com/VizzleTF/home_proxmox
+home: https://github.com/VizzleTF/homelab
 sources:
-  - https://github.com/VizzleTF/home_proxmox
+  - https://github.com/VizzleTF/homelab
 maintainers:
   - name: VizzleTF

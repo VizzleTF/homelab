@@ -43,7 +43,7 @@ spec:
           - $values/argocd/values/applications/immich.yaml
     
     # Values reference (тот же монорепо)
-    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/home_proxmox.git
+    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
       targetRevision: HEAD
       ref: values
 ```
