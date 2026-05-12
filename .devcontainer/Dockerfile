@@ -80,19 +80,20 @@ RUN arch="$(dpkg --print-architecture)" \
       "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-${arch}" \
  && chmod +x /usr/local/bin/talosctl
 
-# terraform
+# terraform — zip ships LICENSE.txt next to binary; extract only the binary
+# so successive HashiCorp installs don't fight over LICENSE.txt in /usr/local/bin.
 RUN arch="$(dpkg --print-architecture)" \
  && curl -fsSL -o /tmp/terraform.zip \
       "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${arch}.zip" \
- && unzip -d /usr/local/bin /tmp/terraform.zip \
+ && unzip -j -o /tmp/terraform.zip terraform -d /usr/local/bin \
  && chmod +x /usr/local/bin/terraform \
  && rm /tmp/terraform.zip
 
-# vault
+# vault — same LICENSE.txt collision; extract only the binary.
 RUN arch="$(dpkg --print-architecture)" \
  && curl -fsSL -o /tmp/vault.zip \
       "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_${arch}.zip" \
- && unzip -d /usr/local/bin /tmp/vault.zip \
+ && unzip -j -o /tmp/vault.zip vault -d /usr/local/bin \
  && chmod +x /usr/local/bin/vault \
  && rm /tmp/vault.zip
 
