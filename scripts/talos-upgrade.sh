@@ -115,6 +115,31 @@ node_kubelet_version() {
   kubectl get node "$1" -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null
 }
 
+# Check whether ghcr.io/siderolabs/kubelet:<tag> exists. Talos builds its
+# own kubelet image and publishes it alongside Talos patch releases — so
+# upstream k8s v1.36.1 can exist days/weeks before the matching kubelet
+# image. talosctl upgrade-k8s pre-pulls this image and aborts on NotFound,
+# so we gate on it before suggesting/running an upgrade.
+# Returns: 0=exists, 1=not found, 2=unknown (couldn't reach registry).
+kubelet_image_exists() {
+  local tag="$1" token code
+  command -v curl >/dev/null 2>&1 || return 2
+  command -v jq   >/dev/null 2>&1 || return 2
+  token=$(curl -fsSL --max-time 10 \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:siderolabs/kubelet:pull" 2>/dev/null \
+          | jq -r '.token // empty' 2>/dev/null)
+  [ -n "$token" ] || return 2
+  code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' \
+           -H "Authorization: Bearer $token" \
+           -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' \
+           "https://ghcr.io/v2/siderolabs/kubelet/manifests/$tag" 2>/dev/null)
+  case "$code" in
+    200) return 0 ;;
+    404) return 1 ;;
+    *)   return 2 ;;
+  esac
+}
+
 # Talos OS version reported by the node, e.g. "v1.13.0"
 node_talos_version() {
   local ip="$1"
@@ -196,7 +221,17 @@ cmd_check() {
     printf '  ! Talos upgrade available: %s -> %s\n' "$first_node_tver" "$talos_latest"
   fi
   if [ "$first_node_kver" != "$k8s_latest" ] && [ "$k8s_latest" != "?" ]; then
-    printf '  ! Kubernetes upgrade available: %s -> %s\n' "$first_node_kver" "$k8s_latest"
+    if kubelet_image_exists "$k8s_latest"; then
+      printf '  ! Kubernetes upgrade available: %s -> %s\n' "$first_node_kver" "$k8s_latest"
+    else
+      local rc=$?
+      if [ "$rc" = "1" ]; then
+        printf '  - Kubernetes %s released upstream, but ghcr.io/siderolabs/kubelet:%s\n' "$k8s_latest" "$k8s_latest"
+        printf '    not published yet — wait for next Talos patch release.\n'
+      else
+        printf '  ? Kubernetes %s released upstream — could not verify kubelet image availability\n' "$k8s_latest"
+      fi
+    fi
   fi
 }
 
@@ -240,7 +275,17 @@ cmd_plan() {
     if [ "$cur" = "$k8s_target" ]; then
       echo "    SKIP — kubelet already at $cur"
     else
-      echo "    talosctl upgrade-k8s --to $k8s_target   (Talos rolls the cluster)"
+      if kubelet_image_exists "$k8s_target"; then
+        echo "    talosctl upgrade-k8s --to $k8s_target   (Talos rolls the cluster)"
+      else
+        local rc=$?
+        if [ "$rc" = "1" ]; then
+          echo "    BLOCKED — ghcr.io/siderolabs/kubelet:$k8s_target not published yet."
+          echo "    Talos builds its own kubelet; wait for next Talos patch release."
+        else
+          echo "    WARNING — could not verify ghcr.io/siderolabs/kubelet:$k8s_target availability."
+        fi
+      fi
     fi
   fi
   echo
@@ -335,6 +380,22 @@ cmd_upgrade_k8s() {
   require kubectl
   require talosctl
 
+  echo "=== Pre-flight: kubelet image published ==="
+  if kubelet_image_exists "$target"; then
+    echo "  ghcr.io/siderolabs/kubelet:$target OK"
+  else
+    local rc=$?
+    if [ "$rc" = "1" ]; then
+      echo "  ghcr.io/siderolabs/kubelet:$target NOT FOUND" >&2
+      echo "  Talos builds its own kubelet image; upstream k8s $target may be released" >&2
+      echo "  before the matching Talos patch. Wait for the next Talos release." >&2
+      exit 1
+    else
+      echo "  could not verify ghcr.io/siderolabs/kubelet:$target — proceeding anyway" >&2
+    fi
+  fi
+
+  echo
   echo "=== Pre-flight: all nodes Ready ==="
   local not_ready
   not_ready=$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}={.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
