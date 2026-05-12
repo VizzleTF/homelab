@@ -1,0 +1,437 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "homelab-common values",
+  "description": "Strict schema for the global.* and homelab-common.* sections. Root level is intentionally permissive so the same values file can hold both an upstream chart's values and this chart's values when used multi-source.",
+  "type": "object",
+  "properties": {
+    "global": { "$ref": "#/$defs/Global" },
+    "homelab-common": { "$ref": "#/$defs/HomelabCommon" }
+  },
+  "$defs": {
+    "Global": {
+      "type": "object",
+      "description": "Root is permissive because Helm 'global.*' is shared with upstream charts that may add their own keys (e.g. argo-cd global.domain, authentik global.securityContext). Strict validation applies to our known sub-objects only.",
+      "properties": {
+        "vault": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "secretStore": { "type": "string" },
+            "secretStoreKind": {
+              "type": "string",
+              "enum": ["ClusterSecretStore", "SecretStore"]
+            },
+            "refreshInterval": { "type": "string" },
+            "pathPrefix": { "type": "string" }
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "external": { "$ref": "#/$defs/GatewayRef" },
+            "internal": { "$ref": "#/$defs/GatewayRefWithIP" },
+            "tls":      { "$ref": "#/$defs/GatewayRefWithIP" }
+          }
+        },
+        "dns": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "domain": { "type": "string" },
+            "cloudflareProxied": { "type": "string", "enum": ["true", "false"] }
+          }
+        },
+        "backup": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rcloneImage": { "type": "string" },
+            "rcloneDefaultArgs": { "type": "array", "items": { "type": "string" } },
+            "webdav": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": { "type": "string" },
+                "user": { "type": "string" },
+                "vendor": { "type": "string" },
+                "vaultPath": { "type": "string" }
+              }
+            },
+            "nfs": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "server":   { "type": "string" },
+                "basePath": { "type": "string" }
+              }
+            }
+          }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "defaultStorageClass": { "type": "string" }
+          }
+        }
+      }
+    },
+    "GatewayRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name":      { "type": "string" },
+        "namespace": { "type": "string" }
+      }
+    },
+    "GatewayRefWithIP": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name":      { "type": "string" },
+        "namespace": { "type": "string" },
+        "ip":        { "type": "string" }
+      }
+    },
+
+    "HomelabCommon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "externalSecrets":        { "type": "array", "items": { "$ref": "#/$defs/ExternalSecretSpec" } },
+        "httpRoutes":             { "type": "array", "items": { "$ref": "#/$defs/HTTPRouteSpec" } },
+        "tlsRoutes":              { "type": "array", "items": { "$ref": "#/$defs/TLSRouteSpec" } },
+        "certificates":           { "type": "array", "items": { "$ref": "#/$defs/CertificateSpec" } },
+        "backupCronJobs":         { "type": "array", "items": { "$ref": "#/$defs/BackupCronJobSpec" } },
+        "rbac": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/RBACSpec" },
+            { "type": "array", "items": { "$ref": "#/$defs/RBACSpec" } }
+          ]
+        },
+        "limitRange": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/LimitRangeSpec" }
+          ]
+        },
+        "cnpgDatabase": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/CNPGDatabaseSpec" }
+          ]
+        },
+        "cnpgDatabases":          { "type": "array", "items": { "$ref": "#/$defs/CNPGDatabaseSpec" } },
+        "apps":                   { "type": "array", "items": { "$ref": "#/$defs/AppSpec" } },
+        "cronJobs":               { "type": "array", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
+        "persistentVolumeClaims": { "type": "array", "items": { "$ref": "#/$defs/PVCSpec" } },
+        "authentikBlueprints":    { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } }
+      }
+    },
+
+    "ExternalSecretSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "data"],
+      "properties": {
+        "name":                  { "type": "string" },
+        "namespace":             { "type": "string" },
+        "vaultPath":             { "type": "string" },
+        "targetName":            { "type": "string" },
+        "refreshInterval":       { "type": "string" },
+        "creationPolicy":        { "type": "string", "enum": ["Owner", "Merge", "Orphan", "None"] },
+        "deletionPolicy":        { "type": "string", "enum": ["Delete", "Merge", "Retain"] },
+        "templateType":          { "type": "string" },
+        "templateEngineVersion": { "type": "string", "enum": ["v1", "v2"] },
+        "templateMetadata":      { "type": "object" },
+        "templateData":          { "type": "object", "additionalProperties": { "type": "string" } },
+        "annotations":           { "type": "object", "additionalProperties": { "type": "string" } },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["secretKey", "property"],
+            "properties": {
+              "secretKey": { "type": "string" },
+              "property":  { "type": "string" },
+              "vaultPath": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "HTTPRouteSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "hostname"],
+      "properties": {
+        "name":                     { "type": "string" },
+        "hostname":                 { "type": "string" },
+        "gateway":                  { "type": "string", "enum": ["external", "internal", "both"] },
+        "cloudflareProxied":        { "type": "string", "enum": ["true", "false"] },
+        "kedaColdStartLoadingPage": { "type": "boolean" },
+        "pathPrefix":               { "type": "string" },
+        "filters":                  { "type": "array" },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name":      { "type": "string" },
+            "namespace": { "type": "string" },
+            "port":      { "type": ["integer", "string"] }
+          }
+        }
+      }
+    },
+
+    "TLSRouteSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "hostname", "service"],
+      "properties": {
+        "name":     { "type": "string" },
+        "hostname": { "type": "string" },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "port"],
+          "properties": {
+            "name": { "type": "string" },
+            "port": { "type": ["integer", "string"] }
+          }
+        }
+      }
+    },
+
+    "CertificateSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "issuerRef", "dnsNames"],
+      "properties": {
+        "name":        { "type": "string" },
+        "namespace":   { "type": "string" },
+        "secretName":  { "type": "string" },
+        "duration":    { "type": "string" },
+        "renewBefore": { "type": "string" },
+        "dnsNames":    { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "issuerRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ClusterIssuer", "Issuer"] },
+            "name": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "BackupCronJobSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "schedule", "type", "source", "destination"],
+      "properties": {
+        "name":     { "type": "string" },
+        "schedule": { "type": "string" },
+        "type":     { "type": "string", "enum": ["rsync", "rclone"] },
+        "successfulJobsHistoryLimit": { "type": "integer", "minimum": 0 },
+        "failedJobsHistoryLimit":     { "type": "integer", "minimum": 0 },
+        "backoffLimit":               { "type": "integer", "minimum": 0 },
+        "command":                    { "type": "array", "items": { "type": "string" } },
+        "rcloneArgs":                 { "type": "array", "items": { "type": "string" } },
+        "resources":                  { "type": "object" },
+        "securityContext":            { "type": "object" },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pvc"],
+          "properties": {
+            "pvc":     { "type": "string" },
+            "subPath": { "type": "string" },
+            "path":    { "type": "string" }
+          }
+        },
+        "destination": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type":       { "type": "string", "enum": ["nfs", "webdav"] },
+            "path":       { "type": "string" },
+            "remote":     { "type": "string" },
+            "secretName": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "RBACSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name":                          { "type": "string" },
+            "create":                        { "type": "boolean" },
+            "annotations":                   { "type": "object", "additionalProperties": { "type": "string" } },
+            "automountServiceAccountToken":  { "type": "boolean" }
+          }
+        },
+        "clusterRole": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "name":  { "type": "string" },
+            "rules": { "type": "array" }
+          }
+        },
+        "clusterRoleBinding": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" }
+          }
+        },
+        "role": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name":  { "type": "string" },
+            "rules": { "type": "array" }
+          }
+        },
+        "roleBinding": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "LimitRangeSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "name":    { "type": "string" },
+        "defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu":    { "type": ["string", "integer"] },
+            "memory": { "type": "string" }
+          }
+        },
+        "defaultRequests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cpu":    { "type": ["string", "integer"] },
+            "memory": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "CNPGDatabaseSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "owner", "clusterName"],
+      "properties": {
+        "name":        { "type": "string" },
+        "owner":       { "type": "string" },
+        "clusterName": { "type": "string" },
+        "namespace":   { "type": "string" },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "AppSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name":             { "type": "string" },
+        "enabled":          { "type": "boolean" },
+        "fullnameOverride": { "type": "string" },
+        "secret":     { "$ref": "#/$defs/PassThroughResource" },
+        "configMap":  { "$ref": "#/$defs/PassThroughResource" },
+        "deployment": { "$ref": "#/$defs/PassThroughResource" },
+        "service":    { "$ref": "#/$defs/PassThroughResource" }
+      }
+    },
+
+    "GenericCronJobSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "spec"],
+      "properties": {
+        "name":     { "type": "string" },
+        "enabled":  { "type": "boolean" },
+        "metadata": { "type": "object" },
+        "spec":     { "type": "object" }
+      }
+    },
+
+    "PVCSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "accessModes", "size"],
+      "properties": {
+        "name":             { "type": "string" },
+        "size":             { "type": "string" },
+        "accessModes":      { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "storageClassName": { "type": "string" },
+        "volumeName":       { "type": "string" },
+        "volumeMode":       { "type": "string", "enum": ["Filesystem", "Block"] },
+        "labels":           { "type": "object", "additionalProperties": { "type": "string" } },
+        "annotations":      { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+
+    "AuthentikBlueprintSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "blueprints"],
+      "properties": {
+        "name":        { "type": "string" },
+        "namespace":   { "type": "string" },
+        "enabled":     { "type": "boolean" },
+        "labels":      { "type": "object", "additionalProperties": { "type": "string" } },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "blueprints":  { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+
+    "PassThroughResource": {
+      "type": "object",
+      "description": "K8s resource bodies are passed through toYaml; no field-level validation.",
+      "properties": {
+        "metadata": { "type": "object" },
+        "spec":     { "type": "object" },
+        "type":     { "type": "string" },
+        "data":     { "type": "object" },
+        "stringData": { "type": "object" }
+      }
+    }
+  }
+}

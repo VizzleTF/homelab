@@ -41,6 +41,25 @@ jobs:
         run: helm lint charts/homelab-common
       - name: Template homelab-common (smoke)
         run: helm template smoke charts/homelab-common --debug >/dev/null
+      - name: Validate values files against schema
+        run: |
+          set -euo pipefail
+          FAILS=0
+          for f in argocd/values/applications/*.yaml argocd/values/infrastructure/*.yaml; do
+            grep -qE '^homelab-common:|^global:' "$f" || continue
+            if ! helm template test charts/homelab-common \
+                -f argocd/values/shared/global.yaml -f "$f" \
+                >/dev/null 2>/tmp/helm.err; then
+              echo "::error file=$f::Schema validation failed"
+              sed 's/^/    /' /tmp/helm.err
+              FAILS=$((FAILS+1))
+            fi
+          done
+          if [ "$FAILS" -gt 0 ]; then
+            echo "::error::$FAILS values file(s) failed schema validation"
+            exit 1
+          fi
+          echo "Schema validation: clean"
 
   gitleaks:
     runs-on: ubuntu-latest
