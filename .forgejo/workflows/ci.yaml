@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   yamllint:
+    # Pre-merge gate. После squash-merge на main те же файлы уже валидированы — не перегоняем.
+    if: github.event_name != 'push'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -27,6 +29,7 @@ jobs:
         run: yamllint .
 
   helm-lint:
+    if: github.event_name != 'push'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -65,6 +68,10 @@ jobs:
           echo "Schema validation: clean"
 
   gitleaks:
+    # Pre-merge required-check (branch protection). На push к main не запускаем —
+    # тот же diff уже проверен на PR; post-sanitize gitleaks внутри mirror-to-github
+    # остаётся вторым контуром защиты для rewriten history.
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -119,8 +126,10 @@ jobs:
           if-no-files-found: ignore
 
   mirror-to-github:
-    needs: gitleaks
-    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Post-merge only. Pre-merge gitleaks (см. job выше) — pull_request gate;
+    # сюда commit попадает только после merge на main, где он уже валидирован.
+    # workflow_dispatch разрешён для ручного перезапуска mirror без re-merge.
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -201,33 +210,33 @@ jobs:
           git push --force "https://VizzleTF:${GH_PAT}@github.com/${GH_REPO}.git" HEAD:main
 
   notify-failure:
-    needs: [gitleaks, mirror-to-github]
-    if: always() && (needs.gitleaks.result == 'failure' || needs.mirror-to-github.result == 'failure')
+    # Post-merge only. Pre-merge gitleaks failures видны в Forgejo PR UI и не нуждаются в Telegram.
+    # Триггер — failure mirror-to-github (включая встроенный post-sanitize gitleaks gate).
+    needs: mirror-to-github
+    if: always() && needs.mirror-to-github.result == 'failure'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Download gitleaks report
-        if: needs.gitleaks.result == 'failure'
+      - name: Download post-sanitize leaks report
         uses: actions/download-artifact@ad191675b41f6a5b46da9a048cb6893812da158b  # v3.1.0-node20 — DO NOT BUMP to v3.2.x or v4.x. Forgejo runner supports only @actions/artifact v1.x. Renovate guard in renovate.json: allowedVersions <3.2.0.
         with:
-          name: gitleaks-report
+          name: post-sanitize-leaks
           path: .
         continue-on-error: true
 
       - name: Build leak summary
         id: summary
-        if: needs.gitleaks.result == 'failure'
         run: |
           set -euo pipefail
-          if [ -f gitleaks-report.json ]; then
+          if [ -f post-sanitize-leaks.json ]; then
             SUMMARY=$(jq -r '
               if type=="array" and length>0 then
                 [.[] | "• " + (.RuleID // "unknown") + " @ " + (.File // "?") + ":" + ((.StartLine // 0)|tostring)] | .[0:10] | join("%0A")
               else "(report empty)" end
-            ' gitleaks-report.json)
-            COUNT=$(jq -r 'if type=="array" then length else 0 end' gitleaks-report.json)
+            ' post-sanitize-leaks.json)
+            COUNT=$(jq -r 'if type=="array" then length else 0 end' post-sanitize-leaks.json)
           else
-            SUMMARY="(no report artifact)"
+            SUMMARY="(mirror failed without leak report — see workflow logs)"
             COUNT="?"
           fi
           {
@@ -241,15 +250,14 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GL_RES: ${{ needs.gitleaks.result }}
           MR_RES: ${{ needs.mirror-to-github.result }}
           LEAK_COUNT: ${{ steps.summary.outputs.count }}
           LEAK_SUMMARY: ${{ steps.summary.outputs.summary }}
         run: |
           set -euo pipefail
-          BODY="<b>❌ ${GITHUB_REPOSITORY}</b>%0Agitleaks: <b>${GL_RES}</b> | mirror: <b>${MR_RES}</b>%0Acommit: <code>${GITHUB_SHA::8}</code> ref: <code>${GITHUB_REF_NAME}</code>"
-          if [ "${GL_RES}" = "failure" ]; then
-            BODY="${BODY}%0A%0A<b>Leaks (${LEAK_COUNT:-?}):</b>%0A<pre>${LEAK_SUMMARY:-n/a}</pre>"
+          BODY="<b>❌ ${GITHUB_REPOSITORY}</b>%0Amirror-to-github: <b>${MR_RES}</b>%0Acommit: <code>${GITHUB_SHA::8}</code> ref: <code>${GITHUB_REF_NAME}</code>"
+          if [ "${LEAK_COUNT}" != "?" ] && [ "${LEAK_COUNT}" -gt 0 ] 2>/dev/null; then
+            BODY="${BODY}%0A%0A<b>Post-sanitize leaks (${LEAK_COUNT}):</b>%0A<pre>${LEAK_SUMMARY}</pre>"
           fi
           BODY="${BODY}%0A<a href=\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\">Run #${GITHUB_RUN_NUMBER}</a>"
           curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
