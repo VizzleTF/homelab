@@ -5,7 +5,9 @@
 # ---------- stage: build terraform-mcp-server from source ----------
 # Distributed only as a Docker image upstream, so we build the Go binary
 # in an ephemeral stage and copy it into the final image.
-FROM golang:1.23-bookworm AS terraform-mcp-build
+# renovate: datasource=docker depName=golang versioning=docker
+ARG GO_BUILD_IMAGE=golang:1.26-bookworm
+FROM ${GO_BUILD_IMAGE} AS terraform-mcp-build
 # renovate: datasource=github-releases depName=hashicorp/terraform-mcp-server
 ARG TERRAFORM_MCP_VERSION=v0.5.2
 RUN git clone --depth 1 --branch ${TERRAFORM_MCP_VERSION} \
