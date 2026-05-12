@@ -59,7 +59,12 @@ regexes = [
 
 [[allowlists]]
 description = "ExternalSecret remoteRef paths look like secrets but are just Vault path references"
-paths = ['''argocd/manifests/.*''', '''argocd/values/.*''']
+paths = [
+  '''argocd/manifests/.*''',
+  '''argocd/values/.*''',
+  '''argocd/apps/.*''',
+  '''argocd/infra/.*''',
+]
 regexes = [
   '''homelab/k8s/[a-zA-Z0-9/_-]+''',
 ]

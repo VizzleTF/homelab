@@ -1,0 +1,5 @@
+chart: immich
+repoURL: https://immich-app.github.io/immich-charts
+targetRevision: "0.11.1"
+wave: "2"
+cnpgValuesFile: cnpg-values.yaml

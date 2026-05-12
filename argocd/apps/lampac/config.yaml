@@ -1,0 +1,10 @@
+chart: lampac
+repoURL: https://vizzletf.github.io/lampac_helm
+targetRevision: "0.1.10"
+wave: "2"
+extraManifests: true
+ignoreDiff: |
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+      - /spec/replicas
