@@ -76,11 +76,11 @@
       "groupName": "argocd-charts"
     },
     {
-      "matchFileNames": ["argocd/values/applications/**", "argocd/apps/**"],
+      "matchFileNames": ["argocd/apps/**"],
       "groupName": "applications"
     },
     {
-      "matchFileNames": ["argocd/values/infrastructure/**", "argocd/infra/**"],
+      "matchFileNames": ["argocd/infra/**", "argocd/values/infrastructure/argocd.yaml"],
       "groupName": "infrastructure"
     },
     {
@@ -94,8 +94,6 @@
       "managerFilePatterns": ["/argocd/(applications|infrastructure)/.+\\.ya?ml$/"],
       "datasourceTemplate": "helm",
       "matchStrings": [
-        "- name:\\s+[\\w-]+\\s+chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?",
-        "- name:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?",
         "repoURL:\\s+(?<registryUrl>https?://\\S+)\\s+chart:\\s+(?<depName>[\\w-]+)\\s+targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
       ]
     },

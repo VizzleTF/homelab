@@ -33,7 +33,7 @@ charts/homelab-common/
 ### 1. Добавить секцию в values файл
 
 ```yaml
-# argocd/values/applications/myapp.yaml
+# argocd/apps/myapp/values.yaml
 
 homelab-common:
   externalSecrets:

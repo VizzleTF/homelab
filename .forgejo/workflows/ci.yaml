@@ -45,7 +45,10 @@ jobs:
         run: |
           set -euo pipefail
           FAILS=0
-          for f in argocd/values/applications/*.yaml argocd/values/infrastructure/*.yaml; do
+          for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps/*/cnpg-values.yaml \
+                   argocd/infra/*/values.yaml argocd/infra/*/homelab-values.yaml \
+                   argocd/values/infrastructure/argocd.yaml; do
+            [ -f "$f" ] || continue
             grep -qE '^homelab-common:|^global:' "$f" || continue
             if ! helm template test charts/homelab-common \
                 -f argocd/values/shared/global.yaml -f "$f" \
