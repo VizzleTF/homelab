@@ -26,9 +26,9 @@ module "talos" {
 
   # Installer URL рендерится модулем: factory.talos.dev/<platform>-installer/<schematic>:<talos_release>.
   # talos_version — schema (vX.Y), talos_release — конкретный тег релиза.
-  kubernetes_version   = "v1.36.0-rc.1"
+  kubernetes_version   = "v1.36.0"
   talos_version        = "v1.13"
-  talos_release        = "v1.13.0-rc.0"
+  talos_release        = "v1.13.0"
   install_schematic_id = "eed1860a28ccc6fdb77f1f41ab0ae2a20c19bc6101618d416d5d72ec919bf679"
 
   # cluster_endpoint host (VIP) автоматически попадает в apiserver certSANs — дублировать не нужно
