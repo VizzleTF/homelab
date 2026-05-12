@@ -1,0 +1,22 @@
+chart: cilium
+repoURL: https://helm.cilium.io/
+targetRevision: "1.19.3"
+namespace: kube-system
+wave: "-5"
+extraManifests: true
+ignoreDiff: |
+  - group: ""
+    kind: Secret
+    name: cilium-ca
+    jqPathExpressions:
+      - .data
+  - group: ""
+    kind: Secret
+    name: hubble-relay-client-certs
+    jqPathExpressions:
+      - .data
+  - group: ""
+    kind: Secret
+    name: hubble-server-certs
+    jqPathExpressions:
+      - .data

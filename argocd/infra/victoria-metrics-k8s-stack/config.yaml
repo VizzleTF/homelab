@@ -1,0 +1,12 @@
+chart: victoria-metrics-k8s-stack
+repoURL: https://victoriametrics.github.io/helm-charts/
+targetRevision: "0.77.0"
+namespace: victoria-metrics
+wave: "-2"
+extraManifests: true
+ignoreDiff: |
+  - group: ""
+    kind: Secret
+    name: victoria-metrics-k8s-stack-victoria-metrics-operator-validation
+    jsonPointers:
+      - /data

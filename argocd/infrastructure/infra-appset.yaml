@@ -10,169 +10,24 @@ spec:
     applicationsSync: create-update
     preserveResourcesOnDeletion: true
   generators:
-    - list:
-        elements:
-          - name: cert-manager
-            repoURL: https://charts.jetstack.io
-            targetRevision: "v1.20.2"
-            wave: "-5"
-            extraManifests: true
-            homelabValuesFile: argocd/values/infrastructure/cert-manager.homelab.yaml
-          - name: cilium
-            repoURL: https://helm.cilium.io/
-            targetRevision: "1.19.3"
-            namespace: kube-system
-            wave: "-5"
-            extraManifests: true
-            ignoreDiff: |
-              - group: ""
-                kind: Secret
-                name: cilium-ca
-                jqPathExpressions:
-                  - .data
-              - group: ""
-                kind: Secret
-                name: hubble-relay-client-certs
-                jqPathExpressions:
-                  - .data
-              - group: ""
-                kind: Secret
-                name: hubble-server-certs
-                jqPathExpressions:
-                  - .data
-          - name: cloudflared
-            repoURL: https://community-charts.github.io/helm-charts
-            targetRevision: "2.2.7"
-            wave: "0"
-            homelabValuesFile: argocd/values/infrastructure/cloudflared.homelab.yaml
-          - name: cnpg-operator
-            chart: cloudnative-pg
-            repoURL: https://cloudnative-pg.github.io/charts
-            targetRevision: "0.28.0"
-            namespace: cnpg-system
-            wave: "-2"
-          - name: descheduler
-            repoURL: https://kubernetes-sigs.github.io/descheduler/
-            targetRevision: "0.35.1"
-            wave: "0"
-            extraManifests: true
-          - name: vault
-            repoURL: https://helm.releases.hashicorp.com
-            targetRevision: "0.32.0"
-            namespace: vault
-            wave: "-4"
-            extraManifests: true
-          - name: external-secrets
-            repoURL: https://charts.external-secrets.io
-            targetRevision: "2.4.1"
-            namespace: external-secrets-system
-            wave: "-2"
-          - name: external-dns
-            repoURL: https://kubernetes-sigs.github.io/external-dns/
-            targetRevision: "1.21.1"
-            wave: "-2"
-          - name: external-dns-openwrt
-            chart: external-dns
-            repoURL: https://kubernetes-sigs.github.io/external-dns/
-            targetRevision: "1.21.1"
-            wave: "-2"
-          - name: keda
-            chart: keda
-            repoURL: https://kedacore.github.io/charts
-            targetRevision: "2.19.0"
-            namespace: keda
-            wave: "-2"
-          - name: keda-add-ons-http
-            chart: keda-add-ons-http
-            repoURL: https://kedacore.github.io/charts
-            targetRevision: "0.14.1"
-            namespace: keda
-            wave: "-1"
-            extraManifests: true
-          - name: kubelet-csr-approver
-            repoURL: https://postfinance.github.io/kubelet-csr-approver
-            targetRevision: "1.2.14"
-            wave: "-3"
-          - name: intel-device-plugins-operator
-            repoURL: https://intel.github.io/helm-charts/
-            targetRevision: "0.35.0"
-            namespace: kube-system
-            wave: "-1"
-          - name: intel-device-plugins-gpu
-            repoURL: https://intel.github.io/helm-charts/
-            targetRevision: "0.35.0"
-            namespace: kube-system
-            wave: "0"
-          - name: longhorn
-            repoURL: https://charts.longhorn.io
-            targetRevision: "1.11.2"
-            namespace: longhorn-system
-            wave: "-4"
-            extraManifests: true
-          - name: metrics-server
-            repoURL: https://kubernetes-sigs.github.io/metrics-server/
-            targetRevision: "3.13.0"
-            namespace: kube-system
-            wave: "-3"
-          - name: node-feature-discovery
-            repoURL: https://kubernetes-sigs.github.io/node-feature-discovery/charts
-            targetRevision: "0.18.3"
-            wave: "-1"
-          - name: pve-exporter
-            chart: prometheus-pve-exporter
-            repoURL: https://charts.christianhuth.de
-            targetRevision: "2.7.1"
-            namespace: victoria-metrics
-            wave: "0"
-            extraManifests: true
-          - name: renovate
-            repoURL: https://docs.renovatebot.com/helm-charts
-            targetRevision: "46.145.10"
-            wave: "2"
-            extraManifests: true
-          - name: robusta
-            repoURL: https://robusta-charts.storage.googleapis.com
-            targetRevision: "0.38.0"
-            wave: "1"
-            extraManifests: true
-            homelabValuesFile: argocd/values/infrastructure/robusta.homelab.yaml
-          - name: vault-autounseal
-            repoURL: https://pytoshka.github.io/vault-autounseal
-            targetRevision: "0.5.3"
-            namespace: vault
-            wave: "1"
-          - name: victoria-metrics-k8s-stack
-            chart: victoria-metrics-k8s-stack
-            repoURL: https://victoriametrics.github.io/helm-charts/
-            targetRevision: "0.77.0"
-            namespace: victoria-metrics
-            wave: "-2"
-            extraManifests: true
-            ignoreDiff: |
-              - group: ""
-                kind: Secret
-                name: victoria-metrics-k8s-stack-victoria-metrics-operator-validation
-                jsonPointers:
-                  - /data
-          - name: victoria-logs
-            chart: victoria-logs-single
-            repoURL: https://victoriametrics.github.io/helm-charts/
-            targetRevision: "*"
-            wave: "-1"
-            extraManifests: true
+    - git:
+        repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
+        revision: HEAD
+        files:
+          - path: argocd/infra/*/config.yaml
   template:
     metadata:
-      name: "{{.name}}"
+      name: "{{ .path.basename }}"
       namespace: argocd
     spec:
       project: infrastructure
       destination:
         server: https://kubernetes.default.svc
-        namespace: "{{ dig \"namespace\" .name . }}"
+        namespace: "{{ dig \"namespace\" .path.basename . }}"
   templatePatch: |
     metadata:
       annotations:
-        argocd.argoproj.io/sync-wave: "{{.wave}}"
+        argocd.argoproj.io/sync-wave: "{{ .wave }}"
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
         app.kubernetes.io/part-of: infrastructure
@@ -180,26 +35,26 @@ spec:
         - resources-finalizer.argocd.argoproj.io/background
     spec:
       sources:
-        - repoURL: "{{.repoURL}}"
-          chart: "{{ dig "chart" .name . }}"
+        - repoURL: "{{ .repoURL }}"
+          chart: "{{ dig "chart" .path.basename . }}"
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
-              - "$values/{{ index . "valuesFile" | default (printf "argocd/values/infrastructure/%s.yaml" .name) }}"
+              - "$values/argocd/infra/{{ .path.basename }}/values.yaml"
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
           targetRevision: "1.7.3"
           helm:
             valueFiles:
               - "$values/argocd/values/shared/global.yaml"
-              - "$values/{{ index . "homelabValuesFile" | default (printf "argocd/values/infrastructure/%s.yaml" .name) }}"
+              - "$values/argocd/infra/{{ .path.basename }}/{{ dig "homelabValuesFile" "values.yaml" . }}"
         - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
           targetRevision: HEAD
           ref: values
         {{- if index . "extraManifests" }}
         - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
           targetRevision: HEAD
-          path: "argocd/manifests/infrastructure/{{.name}}"
+          path: "argocd/infra/{{ .path.basename }}/manifests"
         {{- end }}
       {{- if index . "ignoreDiff" }}
       ignoreDifferences:

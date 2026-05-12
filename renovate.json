@@ -80,7 +80,7 @@
       "groupName": "applications"
     },
     {
-      "matchFileNames": ["argocd/values/infrastructure/**"],
+      "matchFileNames": ["argocd/values/infrastructure/**", "argocd/infra/**"],
       "groupName": "infrastructure"
     },
     {
@@ -101,7 +101,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/argocd/apps/.+/config\\.ya?ml$/"],
+      "managerFilePatterns": ["/argocd/(apps|infra)/.+/config\\.ya?ml$/"],
       "datasourceTemplate": "helm",
       "matchStrings": [
         "chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
@@ -112,7 +112,8 @@
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
         "/argocd/manifests/.+\\.ya?ml$/",
-        "/argocd/apps/.+\\.ya?ml$/"
+        "/argocd/apps/.+\\.ya?ml$/",
+        "/argocd/infra/.+\\.ya?ml$/"
       ],
       "datasourceTemplate": "docker",
       "matchStrings": [

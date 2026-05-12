@@ -1,0 +1,4 @@
+chart: node-feature-discovery
+repoURL: https://kubernetes-sigs.github.io/node-feature-discovery/charts
+targetRevision: "0.18.3"
+wave: "-1"
