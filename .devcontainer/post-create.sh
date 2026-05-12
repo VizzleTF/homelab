@@ -54,4 +54,12 @@ if [ -f /workspaces/homelab/.pre-commit-config.yaml ]; then
   (cd /workspaces/homelab && pre-commit install --install-hooks >/dev/null)
 fi
 
+# chezmoi state and source are bind-mounted from the host. We do NOT run
+# `chezmoi apply` here: ~/.claude, ~/.kube, ~/.gitconfig are also bind-mounted
+# from the host, and an apply would overwrite host files through the bind.
+# Run `chezmoi diff` / `chezmoi apply` manually inside the container if needed.
+if command -v chezmoi >/dev/null 2>&1 && [ -d "$HOME/.local/share/chezmoi" ]; then
+  echo "[post-create] chezmoi available — run 'chezmoi diff' / 'chezmoi apply' manually."
+fi
+
 echo "[post-create] Done. Run 'claude' to start."
