@@ -134,6 +134,42 @@ jobs:
           git filter-repo --replace-text /tmp/replacements.txt --force
           rm -f /tmp/replacements.txt
 
+      - name: Install gitleaks (for post-sanitize gate)
+        run: |
+          set -euo pipefail
+          VERSION=8.30.1
+          SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "/tmp/${TARBALL}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}"
+          echo "${SHA256}  /tmp/${TARBALL}" | sha256sum -c -
+          tar -xzf "/tmp/${TARBALL}" -C /tmp gitleaks
+          install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Post-sanitize gitleaks gate
+        # Re-scan the rewritten history after `Sanitize history` to catch any
+        # secret pattern that slipped through MIRROR_SANITIZE_RULES. Fails the
+        # mirror job before push so nothing leaked-then-redacted reaches GitHub.
+        run: |
+          gitleaks detect \
+            --source . \
+            --redact \
+            --no-banner \
+            --platform=gitea \
+            --exit-code 1 \
+            --report-format json \
+            --report-path post-sanitize-leaks.json
+
+      - name: Upload post-sanitize gitleaks report
+        if: failure()
+        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32  # v3.1.3 — DO NOT BUMP (see PR job artifact note)
+        with:
+          name: post-sanitize-leaks
+          path: post-sanitize-leaks.json
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Push sanitized to GitHub mirror
         env:
           GH_PAT: ${{ secrets.GH_MIRROR_PAT }}
