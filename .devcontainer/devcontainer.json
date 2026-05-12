@@ -11,7 +11,9 @@
     "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind,readonly",
     "source=${localEnv:HOME}/.config/argocd,target=/home/vscode/.config/argocd,type=bind",
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
-    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly"
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly",
+    "source=${localEnv:HOME}/.config/chezmoi,target=/home/vscode/.config/chezmoi,type=bind",
+    "source=${localEnv:HOME}/.local/share/chezmoi,target=/home/vscode/.local/share/chezmoi,type=bind"
   ],
   "remoteEnv": {
     "VAULT_ADDR": "${localEnv:VAULT_ADDR}",
@@ -33,7 +35,12 @@
         "tamasfe.even-better-toml"
       ],
       "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/usr/bin/zsh"
+          }
+        },
         "files.eol": "\n"
       }
     }

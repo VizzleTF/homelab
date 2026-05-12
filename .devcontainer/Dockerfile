@@ -52,7 +52,9 @@ RUN apt-get update \
       jq yamllint \
       python3 python3-yaml python3-pip \
       postgresql-client \
- && rm -rf /var/lib/apt/lists/*
+      zsh age \
+ && rm -rf /var/lib/apt/lists/* \
+ && chsh -s /usr/bin/zsh vscode
 
 # Node.js 22 (Nodesource) — required by npx-based MCP servers and claude-code
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
@@ -131,6 +133,9 @@ COPY --from=terraform-mcp-build /out/terraform-mcp-server /usr/local/bin/terrafo
 # pre-commit (pip; --break-system-packages because Debian PEP-668)
 RUN pip install --no-cache-dir --break-system-packages \
       "pre-commit==${PRE_COMMIT_VERSION}"
+
+# chezmoi (dotfiles manager) — installed from upstream script to /usr/local/bin
+RUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
 
 USER vscode
 WORKDIR /workspaces/homelab
