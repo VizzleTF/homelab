@@ -1,6 +1,6 @@
 # Source of truth для PVE management-уровня.
 # Используется terraform modules/ansible_inventory для генерации ansible/inventory
-# и terraform modules/pve_exporter_targets для values/infrastructure/pve-exporter.yaml.
+# и terraform modules/pve_exporter_targets для argocd/infra/pve-exporter/values.yaml.
 
 hosts:
   pve1: 10.11.11.11

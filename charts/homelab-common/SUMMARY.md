@@ -66,15 +66,15 @@ spec:
       chart: myapp
       helm:
         valueFiles:
-          - $values/values/applications/myapp.yaml
+          - $values/argocd/apps/myapp/values.yaml
     
     # Добавить homelab-common (опубликован в Forgejo Helm registry)
     - repoURL: https://git.example.com/api/packages/vizzle/helm
       chart: homelab-common
-      targetRevision: "1.7.1"
+      targetRevision: "1.7.3"
       helm:
         valueFiles:
-          - $values/values/applications/myapp.yaml  # Тот же файл!
+          - $values/argocd/apps/myapp/values.yaml  # Тот же файл!
 ```
 
 ## ✅ Мигрировано

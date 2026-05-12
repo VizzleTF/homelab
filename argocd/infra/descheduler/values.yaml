@@ -5,7 +5,7 @@
 #   deschedule: RemovePodsViolatingNodeTaints, RemovePodsHavingTooManyRestarts,
 #               RemovePodsViolatingNodeAffinity,
 #               RemovePodsViolatingInterPodAntiAffinity.
-# Alerts в manifests/infrastructure/descheduler/vmrule.yaml.
+# Alerts в argocd/infra/descheduler/manifests/vmrule.yaml.
 
 kind: Deployment
 deschedulingInterval: 5m
@@ -32,7 +32,7 @@ service:
   enabled: true
 
 # В кластере нет Prometheus-operator ServiceMonitor CRD — используем VMServiceScrape
-# из manifests/infrastructure/descheduler/ (подключается через extraManifests: true).
+# из argocd/infra/descheduler/manifests/ (подключается через extraManifests: true).
 serviceMonitor:
   enabled: false
 

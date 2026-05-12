@@ -1,7 +1,7 @@
 # Полный пример использования homelab-common chart для Immich
 # Демонстрирует все возможности: ExternalSecrets, HTTPRoutes, Backups, CNPG Database
 
-# ВАЖНО: Этот файл является частью values/applications/immich.yaml
+# ВАЖНО: Этот файл является частью argocd/apps/immich/values.yaml
 # Секция homelab-common добавляется в начало основного values файла приложения
 # ArgoCD использует один и тот же values файл для обоих sources (immich chart + homelab-common)
 
