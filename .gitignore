@@ -70,4 +70,8 @@ Thumbs.db
 !/.claude/agents/
 !/.claude/hooks/
 !/.claude/settings.json
+# Devcontainer config — committed to Forgejo and mirrored to public GitHub.
+# .forgejo/workflows/ci.yaml strips only CLAUDE.md and .claude/, so .devcontainer/
+# travels to the mirror (useful for anyone cloning the public repo).
+!/.devcontainer/
 # vault_secrets_backup.yaml is matched by *secret*.yaml above + .git-hooks/blocklist.sh
