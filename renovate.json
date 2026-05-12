@@ -8,7 +8,7 @@
   ],
   "timezone": "UTC",
   "configMigration": true,
-  "minimumReleaseAge": "3 days",
+  "minimumReleaseAge": "1 day",
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "enabled": true,
@@ -23,69 +23,43 @@
   "rebaseWhen": "auto",
   "packageRules": [
     {
-      "matchUpdateTypes": ["major"],
-      "addLabels": ["major"],
-      "dependencyDashboardApproval": true
+      "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. Защита от свежеломанных релизов — глобальный minimumReleaseAge: 1 day. Security CVE летят мгновенно (см. vulnerabilityAlerts выше).",
+      "matchUpdateTypes": ["major", "minor", "patch", "pin"],
+      "automerge": true,
+      "automergeType": "pr",
+      "addLabels": ["automerge"]
     },
     {
+      "description": "Label `major` на major bump-ах — для визуальной фильтрации в Forgejo UI и Dependency Dashboard. Не блокирует merge, только маркирует.",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major"]
+    },
+    {
+      "description": "Docker digest-only обновления выключены: каждый upstream rebuild создавал бы шум-PR без version delta. Реальные version bump-ы ловятся helm/kubernetes/custom-regex managers.",
       "matchDatasources": ["docker"],
       "matchUpdateTypes": ["digest"],
       "enabled": false
     },
     {
-      "matchUpdateTypes": ["patch", "pin", "minor"],
-      "automerge": true,
-      "addLabels": ["automerge"]
-    },
-    {
-      "matchUpdateTypes": ["minor"],
-      "matchDepNames": [
-        "cilium",
-        "vault",
-        "cert-manager",
-        "longhorn",
-        "argo-cd",
-        "victoria-metrics-k8s-stack"
-      ],
-      "automerge": false,
-      "addLabels": ["critical-infra", "manual-review"]
-    },
-    {
-      "matchFileNames": ["terraform_proxmox/**"],
-      "groupName": "terraform-providers"
-    },
-    {
-      "matchFileNames": ["charts/**"],
-      "groupName": "homelab-common"
-    },
-    {
-      "matchFileNames": [".github/workflows/**", ".forgejo/workflows/**"],
-      "groupName": "ci-actions"
-    },
-    {
+      "description": "Forgejo Actions runner эмулирует GHES artifact protocol до v3 включительно. actions/upload-artifact и download-artifact v3.2.x+ перешли на @actions/artifact v2 (v4 protocol) и падают с GHESNotSupportedError. Пин <3.2.0 до миграции с Forgejo Actions на нативный workflow runtime.",
       "matchManagers": ["github-actions"],
-      "matchPackageNames": [
-        "actions/upload-artifact",
-        "actions/download-artifact"
+      "matchPackageNames": ["actions/upload-artifact", "actions/download-artifact"],
+      "allowedVersions": "<3.2.0"
+    },
+    {
+      "description": "Группа `apps`: все апдейты внутри argocd/apps/** и argocd/applications/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
+      "matchFileNames": ["argocd/apps/**", "argocd/applications/**"],
+      "groupName": "apps"
+    },
+    {
+      "description": "Группа `infra`: инфраструктурные апдейты (AppSet + standalone + raw manifests + shared values) идут одним батч-PR. Объединяет всё что управляет CRDs/Gateway/Storage/CNI/Vault.",
+      "matchFileNames": [
+        "argocd/infra/**",
+        "argocd/infrastructure/**",
+        "argocd/manifests/**",
+        "argocd/values/**"
       ],
-      "allowedVersions": "<3.2.0",
-      "description": "Forgejo runner supports only @actions/artifact v1.x (v1/v3 protocol). v3.2.x is a security backport that bumped @actions/artifact to v2 (v4 protocol) and fails with GHESNotSupportedError. v4.x is the same. Pin <3.2.0."
-    },
-    {
-      "matchFileNames": ["argocd/applications/**", "argocd/infrastructure/**"],
-      "groupName": "argocd-charts"
-    },
-    {
-      "matchFileNames": ["argocd/apps/**"],
-      "groupName": "applications"
-    },
-    {
-      "matchFileNames": ["argocd/infra/**", "argocd/values/infrastructure/argocd.yaml"],
-      "groupName": "infrastructure"
-    },
-    {
-      "matchFileNames": ["argocd/manifests/**"],
-      "groupName": "manifests"
+      "groupName": "infra"
     }
   ],
   "customManagers": [
