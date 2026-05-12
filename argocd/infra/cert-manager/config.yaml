@@ -1,0 +1,6 @@
+chart: cert-manager
+repoURL: https://charts.jetstack.io
+targetRevision: "v1.20.2"
+wave: "-5"
+extraManifests: true
+homelabValuesFile: homelab-values.yaml

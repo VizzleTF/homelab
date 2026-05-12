@@ -1,0 +1,5 @@
+chart: metrics-server
+repoURL: https://kubernetes-sigs.github.io/metrics-server/
+targetRevision: "3.13.0"
+namespace: kube-system
+wave: "-3"

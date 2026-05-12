@@ -1,0 +1,5 @@
+chart: keda
+repoURL: https://kedacore.github.io/charts
+targetRevision: "2.19.0"
+namespace: keda
+wave: "-2"

@@ -1,0 +1,6 @@
+chart: keda-add-ons-http
+repoURL: https://kedacore.github.io/charts
+targetRevision: "0.14.1"
+namespace: keda
+wave: "-1"
+extraManifests: true

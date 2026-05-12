@@ -1,0 +1,6 @@
+chart: prometheus-pve-exporter
+repoURL: https://charts.christianhuth.de
+targetRevision: "2.7.1"
+namespace: victoria-metrics
+wave: "0"
+extraManifests: true

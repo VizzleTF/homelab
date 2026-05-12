@@ -1,0 +1,6 @@
+chart: longhorn
+repoURL: https://charts.longhorn.io
+targetRevision: "1.11.2"
+namespace: longhorn-system
+wave: "-4"
+extraManifests: true
