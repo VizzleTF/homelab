@@ -2,7 +2,7 @@
 # Source: terraform_proxmox/configs/pve_hosts.yaml
 # Helm chart: christianhuth/prometheus-pve-exporter
 # Конвертация ServiceMonitor → VMServiceScrape делается VM Operator'ом
-# (disable_prometheus_converter: false в values/infrastructure/victoria-metrics-k8s-stack.yaml).
+# (disable_prometheus_converter: false в argocd/infra/victoria-metrics-k8s-stack/values.yaml).
 
 chart: prometheus-pve-exporter
 
@@ -33,8 +33,8 @@ resources:
     memory: 256Mi
 
 # ServiceMonitor отключён — у нас нет prometheus-operator CRD, только victoria-metrics.
-# Вместо этого VMServiceScrape задаётся в manifests/infrastructure/pve-exporter/
-# (см. extraManifests: true в argocd/infrastructure/infra-appset.yaml).
+# Вместо этого VMServiceScrape задаётся в argocd/infra/pve-exporter/manifests/
+# (см. extraManifests: true в argocd/infra/pve-exporter/config.yaml).
 serviceMonitor:
   enabled: false
   pveTargets:

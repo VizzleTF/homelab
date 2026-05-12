@@ -14,7 +14,7 @@ variable "inventory_dir" {
 }
 
 variable "pve_exporter_values_path" {
-  description = "Путь к argocd/values/infrastructure/pve-exporter.yaml в репозитории."
+  description = "Путь к argocd/infra/pve-exporter/values.yaml в репозитории."
   type        = string
-  default     = "../argocd/values/infrastructure/pve-exporter.yaml"
+  default     = "../argocd/infra/pve-exporter/values.yaml"
 }

@@ -9,6 +9,6 @@ output "group_vars_path" {
 }
 
 output "pve_exporter_values_path" {
-  description = "Путь к сгенерированному values/infrastructure/pve-exporter.yaml."
+  description = "Путь к сгенерированному argocd/infra/pve-exporter/values.yaml."
   value       = local_file.pve_exporter_values.filename
 }

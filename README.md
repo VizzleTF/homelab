@@ -12,20 +12,30 @@ Single-user homelab managed as a monorepo: Proxmox VE hosts → Terraform-provis
 ```
 argocd/
 ├── root-application.yaml           # App-of-Apps root
-├── infrastructure/                 # 1 ApplicationSet + 3 standalone apps
-│   ├── infra-appset.yaml           # 21 infra components
+├── infrastructure/                 # 1 ApplicationSet + 3 standalone Application objects
+│   ├── infra-appset.yaml           # git.files generator over argocd/infra/*/config.yaml (23 components)
 │   ├── argocd-application.yaml
 │   ├── gateway-api.yaml            # CRDs pinned to v1.4.1 (Cilium 1.19 compat)
 │   └── talos-etcd-backup.yaml
-├── applications/                   # 1 ApplicationSet (14 apps)
-│   └── apps-appset.yaml
+├── applications/                   # 1 ApplicationSet
+│   └── apps-appset.yaml            # git.files generator over argocd/apps/*/config.yaml (15 apps)
+├── apps/                           # Per-app self-contained folder (auto-discovered)
+│   └── <app>/
+│       ├── config.yaml             # chart, repoURL, targetRevision, namespace, wave, flags
+│       ├── values.yaml             # chart values + homelab-common: section
+│       ├── homelab-values.yaml     # optional split (when chart schema is strict)
+│       ├── cnpg-values.yaml        # optional dedicated CNPG cluster (only immich)
+│       └── manifests/              # optional raw K8s yamls (extraManifests: true)
+├── infra/                          # Per-component folder, same shape as apps/
+│   └── <component>/
+│       ├── config.yaml
+│       ├── values.yaml
+│       └── …
 ├── values/
-│   ├── infrastructure/             # Helm values per infra component
-│   ├── applications/               # Helm values per app
+│   ├── infrastructure/argocd.yaml  # standalone-Application values (NOT migrated)
 │   └── shared/global.yaml          # $values reference target (homelab-common globals)
 └── manifests/
-    ├── infrastructure/<name>/      # Raw K8s manifests (ClusterIssuers, Gateways, IPPools, …)
-    └── applications/<name>/        # KEDA HTTPScaledObjects, etc.
+    └── infrastructure/talos-etcd-backup/   # standalone-Application raw K8s
 
 charts/homelab-common/              # In-house chart (HTTPRoute, ExternalSecret, CronJob, RBAC,
                                     #   LimitRange, CNPG Database, simple workloads)
@@ -35,6 +45,8 @@ terraform_proxmox/                  # Proxmox VM provisioning (Talos + cloud-ini
 scripts/                            # forgejo-pr.sh, forgejo-branch-protection.sh, …
 .forgejo/workflows/ci.yaml          # yamllint, helm-lint, gitleaks, mirror-to-github
 ```
+
+Adding a new application = `mkdir argocd/apps/<name>` + drop `config.yaml` + `values.yaml`. The ApplicationSet picks up the new folder on next reconcile — `apps-appset.yaml` itself is not edited.
 
 ## Cluster
 
@@ -54,13 +66,13 @@ Six Talos Linux VMs across six Proxmox hosts:
 
 ## Deployed Components
 
-### Infrastructure (`argocd/infrastructure/`)
+### Infrastructure (`argocd/infra/`)
 
 ArgoCD · Cert-Manager · Cilium · Cloudflared · CNPG Operator · Descheduler · External DNS (Cloudflare + OpenWrt) · External Secrets Operator · Gateway API CRDs · Intel Device Plugins (operator + GPU) · KEDA + KEDA HTTP add-on · Kubelet CSR Approver · Longhorn · Metrics Server · Node Feature Discovery · PVE Exporter · Renovate · Robusta · Talos etcd backup CronJob · Vault · Vault Autounseal · Victoria Metrics k8s-stack · Victoria Logs (with Vector)
 
-### Applications (`argocd/applications/`)
+### Applications (`argocd/apps/`)
 
-CNPG cluster (shared PG17 — Nextcloud, Authentik, Umami) · CNPG cluster (Immich, dedicated for pgvector) · Valkey · Authentik · Forgejo (server + Actions runner) · Immich · Lampac · Nextcloud · Vaultwarden · Netboot.xyz · Omniroute · RSS-to-Telegram bot · Spotify backup · `may` (internal)
+CNPG cluster (shared PG17 — Nextcloud, Authentik, Umami) · CNPG cluster (Immich, dedicated for pgvector) · Valkey · Authentik · Cleanbot · Forgejo (server + Actions runner) · Immich · Lampac · Nextcloud · Vaultwarden · Netboot.xyz · Omniroute · RSS-to-Telegram bot · Spotify backup · `may` (internal)
 
 ### Pinning & updates
 

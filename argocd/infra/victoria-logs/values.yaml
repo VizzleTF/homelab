@@ -27,7 +27,7 @@ server:
     - name: GOMEMLIMIT
       value: "860MiB"
 
-  # Метрики — через VMServiceScrape (manifests/infrastructure/victoria-logs/vmservicescrape.yaml).
+  # Метрики — через VMServiceScrape (argocd/infra/victoria-logs/manifests/vmservicescrape.yaml).
   serviceMonitor:
     enabled: false
 

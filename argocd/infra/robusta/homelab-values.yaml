@@ -1,6 +1,6 @@
 # homelab-common: ExternalSecrets для Robusta.
 # - robusta-telegram: bot_token + signing_key для Telegram sink'ов.
-# chat_id живёт числом в values/infrastructure/robusta.yaml — Robusta требует int
+# chat_id живёт числом в argocd/infra/robusta/values.yaml — Robusta требует int
 # и не делает env-substitution для этого поля.
 homelab-common:
   externalSecrets:
