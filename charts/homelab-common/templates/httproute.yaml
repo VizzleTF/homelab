@@ -19,7 +19,7 @@
 {{/* kedaColdStartLoadingPage: shortcut that routes via the keda-loading-proxy
      nginx front-door instead of the bare interceptor. Renders a Russian
      "service is starting" loading page during scale-from-zero.
-     See argocd/manifests/infrastructure/keda-add-ons-http/loading-proxy-*.yaml */}}
+     See argocd/infra/keda-add-ons-http/manifests/loading-proxy-*.yaml */}}
 {{- $svc := .service | default dict }}
 {{- $svcName := $svc.name }}
 {{- $svcNs   := $svc.namespace }}

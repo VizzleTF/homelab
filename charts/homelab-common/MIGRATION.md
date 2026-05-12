@@ -4,7 +4,7 @@
 
 ### 1. Добавьте секцию homelab-common в values файл
 
-Откройте `argocd/values/applications/{app}.yaml` и добавьте в начало:
+Откройте `argocd/apps/{app}/values.yaml` и добавьте в начало:
 
 ```yaml
 # Общие ресурсы через homelab-common
@@ -33,7 +33,7 @@ spec:
       targetRevision: "*"
       helm:
         valueFiles:
-          - $values/argocd/values/applications/myapp.yaml
+          - $values/argocd/apps/myapp/values.yaml
     
     # НОВОЕ: Общие ресурсы через homelab-common (Forgejo Helm registry)
     - repoURL: https://git.example.com/api/packages/vizzle/helm
@@ -42,7 +42,7 @@ spec:
       helm:
         valueFiles:
           - $values/argocd/values/shared/global.yaml
-          - $values/argocd/values/applications/myapp.yaml
+          - $values/argocd/apps/myapp/values.yaml
     
     # Values reference (тот же монорепо)
     - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
@@ -53,9 +53,9 @@ spec:
 ### 3. Удалите старые манифесты
 
 После успешного деплоя удалите:
-- `argocd/manifests/applications/{app}/external-secret.yaml`
-- `argocd/manifests/applications/{app}/httproute*.yaml`
-- `argocd/manifests/applications/{app}/backup-cronjob.yaml`
+- `argocd/apps/{app}/manifests/external-secret.yaml`
+- `argocd/apps/{app}/manifests/httproute*.yaml`
+- `argocd/apps/{app}/manifests/backup-cronjob.yaml`
 - и т.д.
 
 Оставьте только специфичные для приложения манифесты (если есть).
@@ -72,9 +72,9 @@ sources:
     chart: immich
     helm:
       valueFiles:
-        - $values/argocd/values/applications/immich.yaml
+        - $values/argocd/apps/immich/values.yaml
   - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
-    path: argocd/manifests/applications/immich  # Отдельные манифесты
+    path: argocd/apps/immich/manifests  # Отдельные манифесты
 ```
 
 **После:**
@@ -85,13 +85,13 @@ sources:
     chart: immich
     helm:
       valueFiles:
-        - $values/argocd/values/applications/immich.yaml
+        - $values/argocd/apps/immich/values.yaml
   - repoURL: https://git.example.com/api/packages/vizzle/helm
     chart: homelab-common  # Forgejo Helm registry
     targetRevision: "1.7.1"
     helm:
       valueFiles:
-        - $values/argocd/values/applications/immich.yaml  # Тот же файл
+        - $values/argocd/apps/immich/values.yaml  # Тот же файл
 ```
 
 ### May (workload в homelab-common)
