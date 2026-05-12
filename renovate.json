@@ -60,29 +60,9 @@
         "argocd/values/**"
       ],
       "groupName": "infra"
-    },
-    {
-      "description": "homelab-common — anti-duplicate guard. Дженерик helm-datasource manager (см. customManagers[0]) тоже матчит блоки `chart: homelab-common` в argocd-application.yaml и обоих AppSet templatePatch, но Forgejo OCI Helm registry не отдаёт index.yaml — helm datasource там silent-fail. Резолвится исключительно через dedicated docker-datasource customManager ниже. Это правило гасит helm-вариант, чтобы не было дубль-lookup-ов.",
-      "matchManagers": ["custom.regex"],
-      "matchDatasources": ["helm"],
-      "matchPackageNames": ["homelab-common"],
-      "enabled": false
     }
   ],
   "customManagers": [
-    {
-      "customType": "regex",
-      "description": "homelab-common chart version продублирована в 3 местах (apps-appset templatePatch, infra-appset templatePatch, argocd-application). Renovate матчит все три одним regex и держит синхронными — single PR на bump. Forgejo OCI Helm endpoint требует Bearer auth (RENOVATE_TOKEN). Без hostRules для git.example.com container_registry резолв упадёт в lookup-error — задача отдельным PR.",
-      "managerFilePatterns": [
-        "/^argocd/(applications|infrastructure|apps|infra)/.+\\.ya?ml$/"
-      ],
-      "datasourceTemplate": "docker",
-      "depNameTemplate": "git.example.com/vizzle/helm/homelab-common",
-      "versioningTemplate": "helm",
-      "matchStrings": [
-        "chart:\\s+homelab-common\\s+targetRevision:\\s+[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
-      ]
-    },
     {
       "customType": "regex",
       "managerFilePatterns": ["/argocd/(applications|infrastructure)/.+\\.ya?ml$/"],
