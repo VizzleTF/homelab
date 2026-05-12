@@ -61,7 +61,13 @@ Thumbs.db
 /scripts/setup-proxmox-oidc.sh
 # CLAUDE.md and .claude/ are committed to Forgejo but stripped from the GitHub mirror
 # by the `Strip workspace-only paths for GitHub mirror` step in .forgejo/workflows/ci.yaml.
-# Per-machine local files inside .claude/ stay untracked:
-/.claude/settings.local.json
-/.claude/*.lock
+# Inside .claude/: ignore everything by default, whitelist explicit subtrees.
+# Per-machine local files (settings.local.json, *.lock) and ephemeral subdirs
+# (plans/, knowledgebase/, output-styles/, ...) stay untracked automatically.
+/.claude/*
+!/.claude/skills/
+!/.claude/reference/
+!/.claude/agents/
+!/.claude/hooks/
+!/.claude/settings.json
 # vault_secrets_backup.yaml is matched by *secret*.yaml above + .git-hooks/blocklist.sh
