@@ -1,0 +1,42 @@
+{
+  "name": "homelab",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "workspaceFolder": "/workspaces/homelab",
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind",
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind,readonly",
+    "source=${localEnv:HOME}/.config/argocd,target=/home/vscode/.config/argocd,type=bind",
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,readonly"
+  ],
+  "remoteEnv": {
+    "VAULT_ADDR": "${localEnv:VAULT_ADDR}",
+    "VAULT_TOKEN": "${localEnv:VAULT_TOKEN}",
+    "KUBECONFIG": "/home/vscode/.kube/config",
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "TFE_ADDRESS": "https://app.terraform.io"
+  },
+  "containerEnv": {
+    "TZ": "UTC"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "redhat.vscode-yaml",
+        "hashicorp.terraform",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.eol": "\n"
+      }
+    }
+  },
+  "postCreateCommand": "/workspaces/homelab/.devcontainer/post-create.sh"
+}
