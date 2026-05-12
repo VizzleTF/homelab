@@ -76,7 +76,7 @@
       "groupName": "argocd-charts"
     },
     {
-      "matchFileNames": ["argocd/values/applications/**"],
+      "matchFileNames": ["argocd/values/applications/**", "argocd/apps/**"],
       "groupName": "applications"
     },
     {
@@ -101,9 +101,18 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/argocd/apps/.+/config\\.ya?ml$/"],
+      "datasourceTemplate": "helm",
+      "matchStrings": [
+        "chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+      ]
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
-        "/argocd/manifests/.+\\.ya?ml$/"
+        "/argocd/manifests/.+\\.ya?ml$/",
+        "/argocd/apps/.+\\.ya?ml$/"
       ],
       "datasourceTemplate": "docker",
       "matchStrings": [

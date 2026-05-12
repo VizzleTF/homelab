@@ -1,0 +1,5 @@
+chart: forgejo
+repoURL: code.forgejo.org/forgejo-helm
+targetRevision: "17.0.1"
+wave: "2"
+homelabValuesFile: homelab-values.yaml

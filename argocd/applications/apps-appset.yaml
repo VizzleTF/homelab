@@ -10,98 +10,24 @@ spec:
     applicationsSync: create-update
     preserveResourcesOnDeletion: true
   generators:
-    - list:
-        elements:
-          - name: cnpg
-            chart: cluster
-            repoURL: https://cloudnative-pg.github.io/charts
-            targetRevision: "0.6.0"
-            wave: "1"
-          - name: lampac
-            repoURL: https://vizzletf.github.io/lampac_helm
-            targetRevision: "0.1.10"
-            wave: "2"
-            extraManifests: true
-            ignoreDiff: |
-              - group: apps
-                kind: Deployment
-                jsonPointers:
-                  - /spec/replicas
-          - name: nextcloud
-            repoURL: https://nextcloud.github.io/helm
-            targetRevision: "9.0.6"
-            wave: "2"
-          - name: valkey
-            repoURL: https://charts.bitnami.com/bitnami
-            targetRevision: "5.6.2"
-            wave: "1"
-          - name: vaultwarden
-            repoURL: https://guerzon.github.io/vaultwarden
-            targetRevision: "0.36.4"
-            wave: "2"
-            homelabValuesFile: argocd/values/applications/vaultwarden.homelab.yaml
-          - name: immich
-            repoURL: https://immich-app.github.io/immich-charts
-            targetRevision: "0.11.1"
-            wave: "2"
-            cnpgValuesFile: argocd/values/applications/cnpg-immich-db.yaml
-          - name: authentik
-            repoURL: https://charts.goauthentik.io/
-            targetRevision: "2026.2.2"
-            wave: "2"
-          - name: cleanbot
-            chart: cleanbot
-            repoURL: https://git.example.com/api/packages/vizzle/helm
-            targetRevision: "0.1.0"
-            wave: "2"
-          - name: forgejo
-            repoURL: code.forgejo.org/forgejo-helm
-            targetRevision: "17.0.1"
-            wave: "2"
-            homelabValuesFile: argocd/values/applications/forgejo.homelab.yaml
-          - name: forgejo-runner
-            chart: forgejo-runner
-            repoURL: codeberg.org/wrenix/helm-charts
-            targetRevision: "0.7.6"
-            wave: "3"
-            namespace: forgejo
-            homelabValuesFile: argocd/values/applications/forgejo-runner.homelab.yaml
-          - name: may
-            homelabOnly: "true"
-            wave: "2"
-          - name: omniroute
-            homelabOnly: "true"
-            wave: "2"
-            extraManifests: true
-            ignoreDiff: |
-              - group: apps
-                kind: Deployment
-                jsonPointers:
-                  - /spec/replicas
-          - name: rss-to-telegram-bot
-            homelabOnly: "true"
-            wave: "2"
-            namespace: rsstt
-          - name: netbootxyz
-            homelabOnly: "true"
-            wave: "2"
-            namespace: netboot
-          - name: spotify-backup
-            homelabOnly: "true"
-            wave: "2"
+    - git:
+        repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
+        revision: HEAD
+        files:
+          - path: argocd/apps/*/config.yaml
   template:
     metadata:
-      name: "{{.name}}"
+      name: "{{ .path.basename }}"
       namespace: argocd
     spec:
       project: applications
       destination:
         server: https://kubernetes.default.svc
-        namespace: "{{ dig \"namespace\" .name . }}"
+        namespace: "{{ dig \"namespace\" .path.basename . }}"
   templatePatch: |
     metadata:
       annotations:
-        argocd.argoproj.io/sync-wave: "{{.wave}}"
+        argocd.argoproj.io/sync-wave: "{{ .wave }}"
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
         app.kubernetes.io/part-of: applications
@@ -110,12 +36,12 @@ spec:
     spec:
       sources:
         {{- if not (index . "homelabOnly") }}
-        - repoURL: "{{.repoURL}}"
-          chart: "{{ dig "chart" .name . }}"
+        - repoURL: "{{ .repoURL }}"
+          chart: "{{ dig "chart" .path.basename . }}"
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
-              - "$values/{{ index . "valuesFile" | default (printf "argocd/values/applications/%s.yaml" .name) }}"
+              - "$values/argocd/apps/{{ .path.basename }}/values.yaml"
         {{- end }}
         {{- if index . "cnpgValuesFile" }}
         - repoURL: https://cloudnative-pg.github.io/charts
@@ -123,7 +49,7 @@ spec:
           targetRevision: "0.6.0"
           helm:
             valueFiles:
-              - "$values/{{ .cnpgValuesFile }}"
+              - "$values/argocd/apps/{{ .path.basename }}/{{ .cnpgValuesFile }}"
         {{- end }}
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
@@ -131,14 +57,14 @@ spec:
           helm:
             valueFiles:
               - "$values/argocd/values/shared/global.yaml"
-              - "$values/{{ index . "homelabValuesFile" | default (printf "argocd/values/applications/%s.yaml" .name) }}"
+              - "$values/argocd/apps/{{ .path.basename }}/{{ dig "homelabValuesFile" "values.yaml" . }}"
         - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
           targetRevision: HEAD
           ref: values
         {{- if index . "extraManifests" }}
         - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
           targetRevision: HEAD
-          path: "argocd/manifests/applications/{{.name}}"
+          path: "argocd/apps/{{ .path.basename }}/manifests"
         {{- end }}
       {{- if index . "ignoreDiff" }}
       ignoreDifferences:
