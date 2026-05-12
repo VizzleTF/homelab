@@ -1,135 +1,267 @@
-# [Proxmox Home Lab — Talos + ArgoCD](https://github.com/VizzleTF/homelab)
+<div align="center">
+
+# 🏠 Homelab — Talos + ArgoCD on Proxmox
+
+A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by ArgoCD, with Vault as the only source of truth for secrets. Provisioned by Terraform, monitored by VictoriaMetrics, backed up to Garage S3 on a Synology NAS.
+
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/homelab)
 
-Single-user homelab managed as a monorepo: Proxmox VE hosts → Terraform-provisioned **Talos Linux** VMs → Kubernetes cluster reconciled by **ArgoCD** (GitOps, App-of-Apps + ApplicationSets).
+</div>
 
-> **Note**: This GitHub copy is a sanitized mirror of a private Forgejo repo. After every successful merge to `main`, a Forgejo Actions workflow runs `gitleaks` and pushes a sanitized snapshot here via `git filter-repo --replace-text`. SHAs and replaced literals (domains, IPs, emails) will not match upstream.
+> This GitHub copy is a sanitized read-only mirror. Origin lives on a private Forgejo instance. After every merge to `main`, a Forgejo Actions workflow runs `gitleaks`, sanitizes through `git filter-repo --replace-text`, and force-pushes to GitHub. SHAs do not match upstream, and some literals (domains, IPs, emails) are replaced.
 
 ![Repobeats](https://repobeats.axiom.co/api/embed/f8bae5bb43169239582bac61ee8996a95f0d64f3.svg "Repobeats analytics image")
 
-## Repository Layout
+---
+
+## 📖 Design choices
+
+- Single operator. No PR review process, no second admin account, no destructive-op guards.
+- Six N100-class Proxmox boxes, not a rack. RAM is the binding constraint, not CPU.
+- The Synology NAS is independent of the cluster: its own TLS (`acme.sh`), its own DNS (OpenWrt), its own reverse-proxy (DSM nginx). Cluster failure does not affect stored data.
+
+---
+
+## ⚙️ Stack
+
+| Layer                 | Choice                                  | Notes                                                                |
+|-----------------------|-----------------------------------------|----------------------------------------------------------------------|
+| Hypervisor            | Proxmox VE                              | Six nodes, host config in Ansible                                    |
+| VM provisioning       | Terraform + `bpg/proxmox`               | Inventory in `terraform_proxmox/configs/vms.yaml`                    |
+| Cluster OS            | Talos Linux                             | Immutable, no SSH, API-only via `talosctl`                           |
+| CNI                   | Cilium 1.19                             | eBPF, kube-proxy replacement, WireGuard pod-to-pod, Hubble UI        |
+| Ingress               | Cilium Gateway API v1.4.1               | Three Gateways: public, internal, TLS-passthrough                    |
+| External access       | Cloudflared tunnel                      | Catch-all into the public Gateway; external-dns writes CNAMEs        |
+| TLS                   | cert-manager + Cloudflare DNS-01        | One wildcard secret in `kube-system`, every Gateway references it    |
+| Storage               | Longhorn                                | Default class, 2 replicas, `Retain` reclaim                          |
+| Secrets               | Vault HA + External Secrets Operator    | KV v2 mount `home`, auto-unseal via Transit                          |
+| Databases             | CloudNativePG                           | Shared PG17, plus a dedicated Immich cluster for `pgvector`          |
+| GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
+| Observability         | VictoriaMetrics + VictoriaLogs + Vector | Grafana, Alertmanager into Telegram, Robusta for K8s-aware enrichment |
+| Dependency updates    | Renovate                                | In-cluster CronJob, opens PRs against Forgejo                        |
+| Backups               | Garage S3 on Synology                   | Barman for Postgres, CronJobs for app data, Talos etcd snapshots     |
+
+---
+
+## 🗺️ Architecture
+
+```mermaid
+flowchart LR
+    subgraph PVE["6× Proxmox hosts"]
+        VMs["6× Talos VMs<br/>3 control-plane · 3 worker"]
+    end
+
+    subgraph K8s["Talos Kubernetes"]
+        Root["root-application.yaml<br/>(App-of-Apps)"]
+        Root --> InfraSet["infra-appset.yaml<br/>~23 components"]
+        Root --> AppsSet["apps-appset.yaml<br/>~15 apps"]
+        Root --> Standalone["3 standalone:<br/>argocd · gateway-api · etcd-backup"]
+    end
+
+    subgraph Out["Outside the cluster"]
+        Forgejo[("Forgejo<br/>git + Actions + OCI registry")]
+        Vault[("Vault HA<br/>(auto-unsealed)")]
+        Garage[("Garage S3<br/>on Synology NAS")]
+        CF[("Cloudflare<br/>tunnel + DNS + ACME")]
+    end
+
+    PVE --> K8s
+    Forgejo -- "ArgoCD pulls" --> K8s
+    Vault  -- "ESO renders Secrets" --> K8s
+    K8s    -- "Barman / CronJobs / etcd snapshots" --> Garage
+    CF     -- "catch-all tunnel" --> K8s
+```
+
+---
+
+## 🗃️ Repository layout
 
 ```
 argocd/
-├── root-application.yaml           # App-of-Apps root
-├── infrastructure/                 # 1 ApplicationSet + 3 standalone Application objects
-│   ├── infra-appset.yaml           # git.files generator over argocd/infra/*/config.yaml (23 components)
-│   ├── argocd-application.yaml
-│   ├── gateway-api.yaml            # CRDs pinned to v1.4.1 (Cilium 1.19 compat)
+├── root-application.yaml             # App-of-Apps root
+├── infrastructure/                   # 1 ApplicationSet + 3 standalone Applications
+│   ├── infra-appset.yaml             # git.files generator over argocd/infra/*/config.yaml
+│   ├── argocd-application.yaml       # self-management
+│   ├── gateway-api.yaml              # CRDs pinned to v1.4.1 (Cilium 1.19 compat)
 │   └── talos-etcd-backup.yaml
-├── applications/                   # 1 ApplicationSet
-│   └── apps-appset.yaml            # git.files generator over argocd/apps/*/config.yaml (15 apps)
-├── apps/                           # Per-app self-contained folder (auto-discovered)
+├── applications/
+│   └── apps-appset.yaml              # git.files generator over argocd/apps/*/config.yaml
+├── apps/                             # Per-app self-contained folder (auto-discovered)
 │   └── <app>/
-│       ├── config.yaml             # chart, repoURL, targetRevision, namespace, wave, flags
-│       ├── values.yaml             # chart values + homelab-common: section
-│       ├── homelab-values.yaml     # optional split (when chart schema is strict)
-│       ├── cnpg-values.yaml        # optional dedicated CNPG cluster (only immich)
-│       └── manifests/              # optional raw K8s yamls (extraManifests: true)
-├── infra/                          # Per-component folder, same shape as apps/
-│   └── <component>/
-│       ├── config.yaml
-│       ├── values.yaml
-│       └── …
+│       ├── config.yaml               # chart, repoURL, targetRevision, namespace, wave, flags
+│       ├── values.yaml               # chart values + homelab-common: section
+│       ├── homelab-values.yaml       # optional split (when chart schema is strict)
+│       ├── cnpg-values.yaml          # optional dedicated CNPG cluster (only immich today)
+│       └── manifests/                # optional raw K8s yamls (extraManifests: true)
+├── infra/                            # Same shape as apps/, per-component
 ├── values/
-│   ├── infrastructure/argocd.yaml  # standalone-Application values (NOT migrated)
-│   └── shared/global.yaml          # $values reference target (homelab-common globals)
+│   ├── infrastructure/argocd.yaml    # values for the standalone argocd Application
+│   └── shared/global.yaml            # $values target for homelab-common globals
 └── manifests/
-    └── infrastructure/talos-etcd-backup/   # standalone-Application raw K8s
+    └── infrastructure/talos-etcd-backup/
 
-charts/homelab-common/              # In-house chart (HTTPRoute, ExternalSecret, CronJob, RBAC,
-                                    #   LimitRange, CNPG Database, simple workloads)
-                                    # Published to Forgejo OCI registry; ArgoCD pulls from there.
-ansible/                            # Inventory + playbooks (PVE host config)
-terraform_proxmox/                  # Proxmox VM provisioning (Talos + cloud-init devboxes)
-scripts/                            # forgejo-pr.sh, forgejo-branch-protection.sh, …
-.forgejo/workflows/ci.yaml          # yamllint, helm-lint, gitleaks, mirror-to-github
+charts/homelab-common/                # In-house Helm chart: HTTPRoute, ExternalSecret,
+                                      # Backup CronJob, RBAC, LimitRange, CNPG Database,
+                                      # simple workloads. Published to the Forgejo OCI
+                                      # registry; ArgoCD pulls from there, not from this path.
+
+ansible/                              # PVE host config
+terraform_proxmox/                    # VM provisioning (Talos + cloud-init devboxes)
+scripts/                              # forgejo-pr.sh, talos-upgrade.sh, vm.sh, …
+.forgejo/workflows/ci.yaml            # yamllint, helm-lint, gitleaks, mirror-to-github
+.claude/skills/                       # Claude Code skills used to operate this repo
+CLAUDE.md                             # Project-wide conventions
 ```
 
-Adding a new application = `mkdir argocd/apps/<name>` + drop `config.yaml` + `values.yaml`. The ApplicationSet picks up the new folder on next reconcile — `apps-appset.yaml` itself is not edited.
+To add a new app: `mkdir argocd/apps/<name>`, then drop in `config.yaml` and `values.yaml`. The ApplicationSet auto-discovers it on the next reconcile; the appset YAML stays untouched. Same flow for infra components under `argocd/infra/`. Chart versions are pinned in each `config.yaml` (`targetRevision:`); Renovate opens the bump PRs.
 
-## Cluster
+---
 
-Six Talos Linux VMs across six Proxmox hosts:
+## 🚦 Sync waves
 
-| Role          | Count | vCPU | RAM    | Disk    |
-|---------------|-------|------|--------|---------|
-| control-plane | 3     | 3    | 12 GiB | 125–300 GB |
-| worker        | 3     | 3–4  | 6–10 GiB | 100 GB |
+ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.yaml` (`wave:`) and the standalone Application manifests under `argocd/infrastructure/`.
 
-- **OS**: Talos Linux (immutable, API-driven; `talosctl` only)
-- **CNI**: Cilium 1.19 with eBPF, kube-proxy replacement, WireGuard pod-to-pod encryption, Hubble
-- **Service LB**: Cilium LB-IPAM + L2 announcements
-- **Gateway API**: three Gateways — public (via Cloudflare tunnel), internal (LAN-only), TLS-passthrough — sharing a single `*.example.com` / `*.internal.example` wildcard certificate
-- **Storage**: Longhorn (default class, 2 replicas, `Retain` reclaim policy), backups to Garage S3 on a Synology NAS
-- **Secrets**: HashiCorp Vault HA (KV v2 mount `home`) + External Secrets Operator (`ClusterSecretStore: vault-backend-cluster`) — never inlined in values
+| Wave    | What lands                                                                                              | Why                                                                                                                                              |
+|---------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| **-10** | ArgoCD self-management, Gateway API CRDs, PreSync `ExternalSecret`s for charts with pre-install hooks   | ArgoCD reconciles itself first; Gateway API CRDs before any Gateway resource; hook-time ESO secrets must exist before chart `pre-install` Jobs run |
+| **-5**  | Cilium, cert-manager (+ ClusterIssuer)                                                                  | Networking and cert plumbing first; everything HTTP-facing depends on this                                                                       |
+| **-4**  | Longhorn, Vault                                                                                         | Storage before stateful workloads; Vault before ESO can resolve any external secret                                                              |
+| **-3**  | kubelet-csr-approver, metrics-server                                                                    | Cluster-wide utilities the rest of the stack assumes                                                                                             |
+| **-2**  | External Secrets Operator, CNPG operator, KEDA, External DNS (Cloudflare + OpenWrt), VictoriaMetrics    | ESO before any `ExternalSecret` reconciles; operators before instances                                                                           |
+| **-1**  | Node Feature Discovery, intel-device-plugins operator, KEDA HTTP add-on, VictoriaLogs                   | Layered atop the wave -2 prerequisites                                                                                                           |
+| **0**   | Cloudflared, descheduler, pve-exporter, intel-device-plugins-gpu                                        | Optional / leaf infrastructure                                                                                                                   |
+| **1**   | CNPG clusters, valkey, Robusta, vault-autounseal, talos-etcd-backup                                     | DB instances after the operator; tunnel + observability after the cluster is up                                                                  |
+| **2**   | Apps (authentik, forgejo, nextcloud, immich, vaultwarden, lampac, may, omniroute, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
+| **3**   | forgejo-runner                                                                                          | Needs the Forgejo server reachable first                                                                                                         |
 
-## Deployed Components
+---
 
-### Infrastructure (`argocd/infra/`)
+## 🖥️ Hardware
 
-ArgoCD · Cert-Manager · Cilium · Cloudflared · CNPG Operator · Descheduler · External DNS (Cloudflare + OpenWrt) · External Secrets Operator · Gateway API CRDs · Intel Device Plugins (operator + GPU) · KEDA + KEDA HTTP add-on · Kubelet CSR Approver · Longhorn · Metrics Server · Node Feature Discovery · PVE Exporter · Renovate · Robusta · Talos etcd backup CronJob · Vault · Vault Autounseal · Victoria Metrics k8s-stack · Victoria Logs (with Vector)
+Six Proxmox nodes, each hosting one Talos VM:
 
-### Applications (`argocd/apps/`)
+| Role          | Count | vCPU  | RAM       | Disk        |
+|---------------|-------|-------|-----------|-------------|
+| control-plane | 3     | 3     | 12 GiB    | 125–300 GB  |
+| worker        | 3     | 3–4   | 6–12 GiB  | 100–300 GB  |
 
-CNPG cluster (shared PG17 — Nextcloud, Authentik, Umami) · CNPG cluster (Immich, dedicated for pgvector) · Valkey · Authentik · Cleanbot · Forgejo (server + Actions runner) · Immich · Lampac · Nextcloud · Vaultwarden · Netboot.xyz · Omniroute · RSS-to-Telegram bot · Spotify backup · `may` (internal)
+Per-node storage is Longhorn (2 replicas, default class). Cold storage and backups live off-cluster on a Synology NAS, exposed as Garage S3 on a dedicated DSM volume with a local certificate.
 
-### Pinning & updates
+---
 
-- Public Helm charts use exact versions per `apps-appset.yaml` / `infra-appset.yaml`.
-- `homelab-common` is consumed via Forgejo OCI registry, not the local `charts/` path.
-- Renovate runs in-cluster (CronJob) and opens PRs against `main` for chart bumps.
-
-## Networking
-
-- **External access**: a single Cloudflared tunnel forwards a catch-all ingress to the public Cilium Gateway. Adding a new public service = one HTTPRoute (rendered by `homelab-common`); external-dns writes the CNAME automatically.
-- **TLS**: Cert-Manager + Cloudflare DNS-01, single wildcard secret `wildcard-tls` in `kube-system` referenced by all Gateways.
-- **Internal-only services** use the internal Gateway with LAN IP, served by external-dns to OpenWrt.
-
-## Secrets & Backups
-
-- **Vault** is the source of truth (auto-unsealed via Transit engine). External Secrets renders k8s `Secret`s on demand.
-- **CNPG WAL/base backups** → Garage S3 (Synology) via Barman.
-- **Application data** (Nextcloud, Vaultwarden, Immich, Vault) → in-cluster CronJobs to Garage S3.
-- **etcd snapshots** → Talos `talos-etcd-backup` CronJob to Garage S3.
-- **Off-site DR**: critical Vault unseal material kept in an off-cluster password manager (Vaultwarden secure note).
-
-## Forgejo-First Workflow
-
-Origin lives at `git.example.com/vizzle/homelab`; GitHub is read-only.
+## 🌐 Networking
 
 ```
-local branch ──push──▶ Forgejo  ──PR + gitleaks check──▶ squash-merge ──┐
-                                                                        │
-                                                  filter-repo sanitize  ▼
-                                                            push ──▶ GitHub mirror
+Internet  →  Cloudflare tunnel (cloudflared deployment in-cluster)
+                ↓ catch-all
+            cilium-gateway              public hosts
+
+LAN       →  cilium-gateway-internal    LAN-only
+LAN + TLS →  cilium-gateway-tls         TLSRoute passthrough
 ```
 
-- Direct push to `main` is blocked by branch protection; use a PR.
-- Pre-commit runs `gitleaks` + a filename blocklist; `--no-verify` is not used.
-- The `mirror-to-github` job applies `MIRROR_SANITIZE_RULES` (Forgejo Actions secret) before force-pushing.
+One wildcard cert lives in `kube-system/wildcard-tls`; every Gateway references it. cert-manager renews it via Cloudflare DNS-01.
 
-## Provisioning a Node
+external-dns writes records both ways: Cloudflare for public hosts, OpenWrt for the LAN.
+
+To expose a new public service, add `httpRoutes:` to the app's `values.yaml`. `homelab-common` renders the HTTPRoute, external-dns picks up the host, and the tunnel routes it.
+
+---
+
+## 🔐 Secrets & backups
+
+Vault is the single source of truth for secrets. It runs in HA mode and auto-unseals through a Transit engine on a second Vault outside the cluster. The unseal material has an off-cluster copy in Vaultwarden.
+
+External Secrets Operator renders Kubernetes `Secret` objects on demand from Vault paths shaped like `home/homelab/k8s/<ns>/<app>`.
+
+CNPG ships WAL and base backups through Barman to Garage S3. Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400.
+
+App data (Nextcloud, Vaultwarden, Immich, Vault itself) is backed up by in-cluster CronJobs to the same Garage bucket. Talos etcd snapshots go to the same place.
+
+---
+
+## 🛠️ Forgejo-first workflow
+
+Origin is a self-hosted Forgejo instance. The GitHub mirror is read-only.
+
+```
+local branch
+   │ push
+   ▼
+Forgejo
+   │ PR
+   ▼
+gitleaks gate
+   │ squash-merge
+   ▼
+filter-repo sanitize
+   │ push
+   ▼
+GitHub mirror
+```
+
+Direct push to `main` is blocked by branch protection; changes go through a PR. Pre-commit runs gitleaks v8.30.1 plus a filename blocklist. Forgejo Actions runs three checks on every PR: `yamllint`, `helm-lint`, `gitleaks`. All three must be green to merge.
+
+After merge, gitleaks re-runs on `main` because it scans the full history; a leak in a PR's history would poison the gate permanently. Then `mirror-to-github` applies `MIRROR_SANITIZE_RULES` (a multiline `<old>==><new>` Forgejo Actions secret) and force-pushes to GitHub.
+
+`scripts/forgejo-pr.sh open|merge` wraps the API calls with a per-user token, so squash merges are attributed to the correct account instead of the branch-protection admin token.
+
+---
+
+## 🚜 Provisioning a node
+
+Three commands once the prep is done:
 
 1. Add an entry to `terraform_proxmox/configs/vms.yaml`.
-2. `terraform -chdir=terraform_proxmox apply` — provisions the VM, applies a Talos machine config, joins the cluster.
-3. `kubectl get nodes` to verify; Cilium / Longhorn / NFD pick up the node automatically.
+2. `terraform -chdir=terraform_proxmox apply` builds the VM, applies the Talos machine config, and joins the cluster.
+3. `kubectl get nodes` to verify. Cilium, Longhorn and NFD onboard the new node automatically.
 
-For a step-by-step runbook see the `provisioning-talos-node` Claude Code skill in this repo.
+Full procedure (including the Talos secrets-cascade gotcha: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `provisioning-talos-node` Claude Code skill.
 
-## Tooling
+---
 
-| Concern              | Tool                                        |
-|----------------------|---------------------------------------------|
-| VM provisioning      | Terraform + `bpg/proxmox`, `siderolabs/talos` |
-| Host config          | Ansible (PVE hosts only)                    |
-| Cluster bootstrap    | Talos machine configs (rendered by TF)      |
-| App delivery         | ArgoCD (App-of-Apps + ApplicationSets)      |
-| Renderable resources | `homelab-common` Helm chart                 |
-| Dependency updates   | Renovate (in-cluster)                       |
-| Observability        | Victoria Metrics + Victoria Logs + Robusta  |
-| Secrets              | Vault + External Secrets Operator           |
+## 🧪 Gotchas
 
-## License
+- Gateway API v1.5 standard CRDs do not work with Cilium 1.19. Cilium 1.20 hard-fails on `backendServiceTLSRouteIndex` against v1alpha2 with `served=false`. Pin to v1.4.1 (`config/crd/experimental`) until Cilium catches up.
+- `ghcr.io/siderolabs/kubelet:<k8s-ver>` lags upstream Kubernetes releases. Do not bump the K8s version on the Talos side until the image is published; `scripts/talos-upgrade.sh check` HEADs the manifest first.
+- Mutating Talos secrets triggers a cluster-wide auth cascade. Cilium agents lose apiserver, everything serial-fails `Unauthorized`. Expect roughly fifteen minutes of rollout afterwards.
+- OpenWrt mt76 hardware flow-offload breaks WiFi roaming. FT/BTM transitions hang for ~60s under conntrack timeout. Disable HW offload, keep SW offload.
+- `vmagent`'s default 16 MiB scrape-size limit is too small for kube-apiserver `/metrics`. Bump `maxScrapeSize` to 64 MB; otherwise `apiserver_request_*_bucket` is silently dropped and the SLO rules tied to it stop firing.
+- Forgejo Actions runner only emulates the GHES artifact protocol up to v3. Pin `actions/upload-artifact@v3.1.x` and `download-artifact@v3.1.x`. v3.2.0+ uses the v4 protocol and fails with `GHESNotSupportedError`.
+- kswapd starves the WiFi driver before it pages. Keep ≥3 GiB of headroom per host.
+- `homelab-common` does not auto-publish. Bumping `Chart.yaml` only satisfies the linter; `helm package` and `helm push oci://…` are manual steps.
 
-MIT.
+---
+
+## 🤖 Claude Code skills
+
+Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) skills under `.claude/skills/`. Each skill is a Markdown runbook the agent loads on demand.
+
+| Skill                       | What it does                                                                            |
+|-----------------------------|------------------------------------------------------------------------------------------|
+| `provisioning-talos-node`   | Full node-add flow, from the first prompt to `Ready` status                              |
+| `replacing-talos-node`      | Drain, forfeit leadership, recreate the trio, clean up Longhorn                          |
+| `upgrading-talos`           | `talosctl` patch and minor upgrades, gated through ghcr manifest checks                  |
+| `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in Vault         |
+| `renewing-synology-cert`    | `acme.sh` + Cloudflare DNS-01, then reloads DSM nginx via `synow3tool`                   |
+| `rotating-proxmox-acme`     | Rotates one CF token across PVE, cert-manager, external-dns, Vault, Synology in one run |
+| `scaffolding-app`           | Boilerplate for a new app: values, HTTPRoute, ExternalSecret, ArgoCD wiring              |
+| `scaffolding-authentik-oidc`| New OIDC client: secret, dual Vault paths, blueprint files, ESO wiring                   |
+| `triaging-alerts`           | Pulls firing alerts from VictoriaMetrics and groups them by severity                     |
+| `checking-cluster-health`   | One-shot overview: nodes, pods, PVCs, certs, ArgoCD sync                                 |
+
+Full list, plus reference docs, hooks and MCP wiring, lives under `.claude/`. `CLAUDE.md` at the root contains project-wide conventions.
+
+---
+
+## 🏗️ Work in progress
+
+- [ ] Local LLM behind KEDA scale-to-zero
+- [ ] Cilium 1.20 + Gateway API v1.5 jump (blocked on the `TLSRoute` schema regression)
+- [ ] Disaster-recovery drill: drain a worker mid-day, observe recovery
+
+---
+
+## 📚 License
+
+The repository ships as-is for reference. No formal LICENSE file — treat it as "all rights reserved" until one is added.
