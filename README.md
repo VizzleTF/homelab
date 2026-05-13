@@ -298,7 +298,7 @@ Full procedure (including the Talos secrets-cascade gotcha: any `talos_machine_s
 - `vmagent`'s default 16 MiB scrape-size limit is too small for kube-apiserver `/metrics`. Bump `maxScrapeSize` to 64 MB; otherwise `apiserver_request_*_bucket` is silently dropped and the SLO rules tied to it stop firing.
 - Forgejo Actions runner only emulates the GHES artifact protocol up to v3. Pin `actions/upload-artifact@v3.1.x` and `download-artifact@v3.1.x`. v3.2.0+ uses the v4 protocol and fails with `GHESNotSupportedError`.
 - kswapd starves the WiFi driver before it pages. Keep ≥3 GiB of headroom per host.
-- `homelab-common` does not auto-publish. Bumping `Chart.yaml` only satisfies the linter; `helm package` and `helm push oci://…` are manual steps.
+- `homelab-common` publishes on git tag `homelab-common-v<version>`. Bump `Chart.yaml`, merge to main, push the tag — `.forgejo/workflows/publish-helm.yml` packages and POSTs to Forgejo Helm Chart Museum (`/api/packages/vizzle/helm/api/charts`). Без тега новая версия не появится в registry.
 
 ---
 

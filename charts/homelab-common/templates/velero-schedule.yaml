@@ -1,0 +1,28 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $schedules := $hc.veleroSchedules | default list }}
+{{- range $schedules }}
+{{- $s := . }}
+---
+# Velero Schedule cluster-scoped по интенту (live в namespace velero),
+# но owned by app's ArgoCD Application — backup config per-app живёт
+# вместе с values приложения.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: {{ $s.name }}
+  namespace: velero
+  {{- with $s.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  schedule: {{ $s.schedule | quote }}
+  {{- if hasKey $s "paused" }}
+  paused: {{ $s.paused }}
+  {{- end }}
+  {{- if hasKey $s "useOwnerReferencesInBackup" }}
+  useOwnerReferencesInBackup: {{ $s.useOwnerReferencesInBackup }}
+  {{- end }}
+  template:
+    {{- toYaml $s.template | nindent 4 }}
+{{- end }}
