@@ -1,0 +1,28 @@
+# Smoke-test Schedule — manifests only (no PVC snapshots), once per week.
+# Covers K8s runtime state that GitOps doesn't capture: ESO Secrets, Authentik
+# blueprint applied state, cert-manager Order history, Longhorn Volume CRs,
+# ArgoCD Application.status, etc.
+#
+# CNPG namespaces (cnpg, immich) excluded — Barman handles Postgres.
+# App namespaces with PVC (nextcloud, forgejo, vaultwarden, immich, openbao)
+# excluded — they get their own homelab-daily Schedule in PR-3 with hooks.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: cluster-state-weekly
+  namespace: velero
+spec:
+  schedule: "0 4 * * 0"               # Sundays 04:00 UTC
+  template:
+    ttl: 2160h0m0s                    # 90 days
+    storageLocation: garage-default
+    includeClusterResources: true
+    snapshotVolumes: false
+    defaultVolumesToFsBackup: false
+    excludedNamespaces:
+      - cnpg
+      - immich
+      - nextcloud
+      - forgejo
+      - vaultwarden
+      - openbao
