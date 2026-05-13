@@ -39,7 +39,7 @@ A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by
 | GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
 | Observability         | VictoriaMetrics + VictoriaLogs + Vector | Grafana, Alertmanager into Telegram, Robusta for K8s-aware enrichment |
 | Dependency updates    | Renovate                                | In-cluster CronJob, opens PRs against Forgejo                        |
-| Backups               | Garage S3 on Synology                   | Barman for Postgres, CronJobs for app data, Talos etcd snapshots     |
+| Backups               | Velero + Barman + talosctl etcd snapshot | Velero (CSI snapshot data movement via Kopia) для PVC + K8s state; Barman для CNPG Postgres; etcd snapshots отдельно. Всё в один Garage S3 bucket. |
 
 ---
 
@@ -59,6 +59,8 @@ Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/):
 | Database operator | CloudNativePG          | 🟢 Sandbox                           |
 | DNS sync          | ExternalDNS            | Kubernetes SIG (under K8s Graduated) |
 | Secrets backend   | OpenBao                | OpenSSF sandbox (MPL 2.0, fork of Vault 1.14.x) |
+| Backup            | Velero                 | 🟢 Sandbox                           |
+| CSI snapshotter   | kubernetes-csi/external-snapshotter | Kubernetes SIG (under K8s Graduated) |
 | Observability     | VictoriaMetrics / Logs | Not CNCF                             |
 
 ---
@@ -73,9 +75,9 @@ flowchart LR
 
     subgraph K8s["Talos Kubernetes"]
         Root["root-application.yaml<br/>(App-of-Apps)"]
-        Root --> InfraSet["infra-appset.yaml<br/>~23 components"]
+        Root --> InfraSet["infra-appset.yaml<br/>~26 components"]
         Root --> AppsSet["apps-appset.yaml<br/>~15 apps"]
-        Root --> Standalone["3 standalone:<br/>argocd · gateway-api · etcd-backup"]
+        Root --> Standalone["4 standalone:<br/>argocd · gateway-api · csi-snapshotter · etcd-backup"]
         Bao[("OpenBao HA<br/>3-node Raft · Shamir auto-unseal")]
     end
 
@@ -88,7 +90,7 @@ flowchart LR
     PVE --> K8s
     Forgejo -- "ArgoCD pulls" --> K8s
     Bao  -- "ESO renders Secrets via openbao-backend-cluster" --> K8s
-    K8s    -- "Barman / CronJobs / etcd snapshots" --> Garage
+    K8s    -- "Velero (CSI + Kopia) · Barman · etcd snapshots" --> Garage
     CF     -- "catch-all tunnel" --> K8s
 ```
 
@@ -145,12 +147,12 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 |---------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | **-10** | ArgoCD self-management, Gateway API CRDs, PreSync `ExternalSecret`s for charts with pre-install hooks   | ArgoCD reconciles itself first; Gateway API CRDs before any Gateway resource; hook-time ESO secrets must exist before chart `pre-install` Jobs run |
 | **-5**  | Cilium, cert-manager (+ ClusterIssuer)                                                                  | Networking and cert plumbing first; everything HTTP-facing depends on this                                                                       |
-| **-4**  | Longhorn, OpenBao                                                                                       | Storage before stateful workloads; OpenBao before ESO can resolve any external secret                                                            |
+| **-4**  | Longhorn, OpenBao, csi-snapshotter                                                                      | Storage before stateful workloads; OpenBao before ESO can resolve any external secret; CSI snapshotter (kubernetes-csi external-snapshotter) ships VolumeSnapshot CRDs which Velero needs |
 | **-3**  | kubelet-csr-approver, metrics-server                                                                    | Cluster-wide utilities the rest of the stack assumes                                                                                             |
 | **-2**  | External Secrets Operator, CNPG operator, KEDA, External DNS (Cloudflare + OpenWrt), VictoriaMetrics    | ESO before any `ExternalSecret` reconciles; operators before instances                                                                           |
 | **-1**  | Node Feature Discovery, intel-device-plugins operator, KEDA HTTP add-on, VictoriaLogs                   | Layered atop the wave -2 prerequisites                                                                                                           |
-| **0**   | Cloudflared, descheduler, pve-exporter, intel-device-plugins-gpu                                        | Optional / leaf infrastructure                                                                                                                   |
-| **1**   | CNPG clusters, valkey, Robusta, vault-autounseal, talos-etcd-backup                                     | DB instances after the operator; tunnel + observability after the cluster is up                                                                  |
+| **0**   | Cloudflared, descheduler, pve-exporter, intel-device-plugins-gpu, **velero**, reloader                  | Optional / leaf infrastructure                                                                                                                   |
+| **1**   | CNPG clusters, valkey, Robusta, openbao-autounseal, talos-etcd-backup, **velero-ui**                    | DB instances after the operator; tunnel + observability after the cluster is up                                                                  |
 | **2**   | Apps (authentik, forgejo, nextcloud, immich, vaultwarden, lampac, may, omniroute, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
 | **3**   | forgejo-runner                                                                                          | Needs the Forgejo server reachable first                                                                                                         |
 
@@ -204,9 +206,46 @@ OpenBao (MPL 2.0 fork of HashiCorp Vault 1.14.x under OpenSSF sandbox, API-compa
 
 External Secrets Operator renders Kubernetes `Secret` objects on demand from OpenBao paths shaped like `home/homelab/k8s/<ns>/<app>`.
 
-CNPG ships WAL and base backups through Barman to Garage S3. Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400.
+Backups go to a single Garage S3 bucket on Synology (`s3.example.com`). Three layers cover three different things — see [Backups](#-backups) below.
 
-App data (Nextcloud, Vaultwarden, Immich, OpenBao itself) is backed up by in-cluster CronJobs to the same Garage bucket. Talos etcd snapshots go to the same place.
+Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400. This catches every S3 client (Barman, Velero AWS plugin, Longhorn `BackupTarget`).
+
+---
+
+## 💾 Backups
+
+Three orthogonal layers, one Garage bucket each:
+
+| Layer | Что | Инструмент | Schedule | TTL | Notes |
+|---|---|---|---|---|---|
+| **App PVC** (nextcloud, forgejo, vaultwarden) | block-level snapshot + Kopia upload | Velero `homelab-daily` Schedule | `30 2 * * *` | 30d | CSI snapshot via Longhorn → Kopia → `s3://velero-backups/`. Hooks: `occ maintenance:mode` для Nextcloud, `sync` для остальных |
+| **Immich library** (~185 GiB) + ML cache | то же | Velero `immich-daily` Schedule | `0 3 * * *` | 30d | labelSelector `cnpg.io/cluster: DoesNotExist` исключает pgdata PVC из namespace (CNPG → Barman) |
+| **OpenBao Raft** | consistent snapshot через hook + CSI snapshot PVC | Velero `openbao-daily` Schedule | `5 2 * * *` | 30d | pre-hook: `bao operator raft snapshot save` пишет `.snap` файл внутрь PVC до CSI snapshot. Policy `snapshot` с `sudo`+`read` capability на `sys/storage/raft/snapshot` |
+| **K8s runtime state** (Secrets, CR `.status`, ESO renders, cert-manager Orders) | K8s API export | Velero `cluster-state-weekly` Schedule | `0 4 * * 0` (sun) | 90d | Только manifests, без PVC. ~100 KB per backup |
+| **Postgres** (cnpg + immich-cluster) | WAL streaming + scheduled base backups | CNPG Barman | continuous WAL + per-cluster базовый | 7d | `s3://cnpg-backups/<cluster>/`. PITR с минутной гранулярностью |
+| **etcd** (Talos control plane) | `talosctl etcd snapshot save` | CronJob `talos-etcd-backup` | `15 4 * * *` | 7d | NFS `10.11.12.237:/volume5/k8s_svc/etcd-backup`. Нужно для bootstrap кластера с нуля (Velero идёт через apiserver, не из etcd) |
+
+### Velero specifics
+
+- **Server + node-agent (DaemonSet)**: node-agent **только на воркерах** (`nodeSelector: node-role.kubernetes.io/worker`).
+- **Data-mover backup pods**: тоже только на воркерах через `node-agent-config` ConfigMap (`loadAffinity` с `control-plane: DoesNotExist`), включенный флагом `--node-agent-configmap=node-agent-config` на node-agent. ConfigMap content **JSON**, не YAML (Velero делает `json.Unmarshal`).
+- **CSI snapshotter**: kubernetes-csi/external-snapshotter v8.5.0 standalone (Longhorn 1.11 ships driver, не CRDs).
+- **Kopia repo encryption**: passphrase в `velero-repo-credentials` Secret, авто-генерируется Velero при первом backup'е.
+
+### Restore
+
+```bash
+# В test namespace (безопасно):
+velero restore create --from-backup <name> \
+  --namespace-mappings vaultwarden:vw-test
+
+# In-place (DANGEROUS — затирает live data):
+velero restore create --from-backup <name> --existing-resource-policy=update
+```
+
+Full runbook — `obsidian/113 Backups/Velero Operator Guide.md`. Сценарии:
+- single namespace lost → `velero restore` с namespace mapping
+- весь кластер потерян → talos-etcd-backup → ArgoCD пересоздаёт infra → CNPG восстанавливает Postgres из Barman → Velero restore остальное (vaultwarden → nextcloud → forgejo → immich)
 
 ---
 
