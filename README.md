@@ -43,6 +43,26 @@ A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by
 
 ---
 
+## 📊 CNCF maturity
+
+Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/):
+
+| Layer             | Project                | CNCF maturity                       |
+|-------------------|------------------------|-------------------------------------|
+| CNI               | Cilium                 | ✅ Graduated                         |
+| Container runtime | containerd (via Talos) | ✅ Graduated                         |
+| GitOps            | Argo CD                | ✅ Graduated                         |
+| TLS               | cert-manager           | ✅ Graduated                         |
+| Autoscaling       | KEDA                   | ✅ Graduated                         |
+| Storage           | Longhorn               | 🟡 Incubating                        |
+| Secrets sync      | External Secrets       | 🟢 Sandbox                           |
+| Database operator | CloudNativePG          | 🟢 Sandbox                           |
+| DNS sync          | ExternalDNS            | Kubernetes SIG (under K8s Graduated) |
+| Secrets backend   | HashiCorp Vault        | Not CNCF (BUSL-1.1)                  |
+| Observability     | VictoriaMetrics / Logs | Not CNCF                             |
+
+---
+
 ## 🗺️ Architecture
 
 ```mermaid

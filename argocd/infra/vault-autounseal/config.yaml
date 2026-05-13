@@ -1,5 +1,0 @@
-chart: vault-autounseal
-repoURL: https://pytoshka.github.io/vault-autounseal
-targetRevision: "0.5.3"
-namespace: vault
-wave: "1"
