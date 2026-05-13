@@ -1,0 +1,50 @@
+# Nextcloud daily — PVC + manifests namespace nextcloud.
+# 02:30 UTC. CSI snapshot data movement (block-level, atomic).
+#
+# Pre/post hooks: `occ maintenance:mode --on/--off`. На время CSI snapshot
+# create (~5 сек) сайт в read-only, потом обратно. Post-hook `|| true`
+# гарантирует что mode выключится даже при ошибке.
+#
+# Postgres БД в CNPG (Barman handles WAL). Здесь только nextcloud-nextcloud
+# PVC (data/html/config/themes/custom_apps subPaths).
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: nextcloud-daily
+  namespace: velero
+spec:
+  schedule: "30 2 * * *"
+  template:
+    ttl: 720h0m0s
+    storageLocation: garage-default
+    includedNamespaces: [nextcloud]
+    snapshotMoveData: true
+    csiSnapshotTimeout: 15m
+    itemOperationTimeout: 4h0m0s
+    defaultVolumesToFsBackup: false
+    hooks:
+      resources:
+        - name: maintenance
+          includedNamespaces: [nextcloud]
+          includedResources: [pods]
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: nextcloud
+          pre:
+            - exec:
+                container: nextcloud
+                command:
+                  - /bin/sh
+                  - -c
+                  - runuser -u www-data -- php /var/www/html/occ maintenance:mode --on
+                onError: Fail
+                timeout: 2m
+          post:
+            - exec:
+                container: nextcloud
+                command:
+                  - /bin/sh
+                  - -c
+                  - runuser -u www-data -- php /var/www/html/occ maintenance:mode --off || true
+                onError: Continue
+                timeout: 2m
