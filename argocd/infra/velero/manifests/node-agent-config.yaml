@@ -1,21 +1,34 @@
-# Velero node-agent читает этот ConfigMap при старте (auto-discover by name).
-# loadAffinity ограничивает где Velero шедулит data-mover expose pods —
-# исключаем CP (talos-cp-01..03) чтобы тяжелое CSI snapshot data movement
-# не давил на apiserver/etcd.
+# Velero node-agent reads this ConfigMap при старте — флаг
+# --node-agent-configmap=node-agent-config указан в values.yaml
+# (nodeAgent.extraArgs).
 #
-# loadConcurrency.globalConfig: 2 — максимум 2 параллельных upload'а
-# на одну ноду. Без этого 5 PVC одновременно могут забить worker.
+# ⚠ content ДОЛЖЕН быть JSON, не YAML. Velero делает json.Unmarshal,
+# YAML падает с "invalid character 'l' looking for beginning of value".
+#
+# loadAffinity: исключает control-plane nodes (apiserver/etcd живут там).
+# loadConcurrency.globalConfig: 2 — максимум 2 параллельных DataUpload
+# на одну ноду чтобы не забивать диск/сеть.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: node-agent-config
   namespace: velero
 data:
-  node-agent-config.yaml: |
-    loadConcurrency:
-      globalConfig: 2
-    loadAffinity:
-      - nodeSelector:
-          matchExpressions:
-            - key: node-role.kubernetes.io/control-plane
-              operator: DoesNotExist
+  node-agent-config: |
+    {
+      "loadConcurrency": {
+        "globalConfig": 2
+      },
+      "loadAffinity": [
+        {
+          "nodeSelector": {
+            "matchExpressions": [
+              {
+                "key": "node-role.kubernetes.io/control-plane",
+                "operator": "DoesNotExist"
+              }
+            ]
+          }
+        }
+      ]
+    }
