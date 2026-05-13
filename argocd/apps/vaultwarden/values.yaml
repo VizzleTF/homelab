@@ -49,14 +49,13 @@ initContainers:
 
 # Sidecar mounts /data вместе с vaultwarden и даёт sqlite3 CLI
 # для app-consistent backup (Velero pre-hook → sqlite3 .backup).
-# Upstream vaultwarden/server:Debian-slim не содержит sqlite3 CLI.
+# Upstream vaultwarden/server:1.36.0-alpine не содержит sqlite3 CLI.
+# Берём pre-built образ — apk add at runtime требует root, а
+# podSecurityContext.runAsNonRoot:true это блокирует.
 sidecars:
   - name: sqlite-helper
-    image: alpine:3.20.3
-    command:
-      - /bin/sh
-      - -c
-      - apk add --no-cache sqlite >/dev/null && exec sleep infinity
+    image: keinos/sqlite3:3.51.3
+    command: ["/bin/sh", "-c", "exec sleep infinity"]
     securityContext:
       runAsUser: 1001
       runAsGroup: 1001
