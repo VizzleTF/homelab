@@ -95,7 +95,7 @@ homelab-common:
             app: netbootxyz
         spec:
           type: LoadBalancer
-          loadBalancerIP: 10.11.11.150
+          loadBalancerIP: 10.11.10.150
           externalTrafficPolicy: Local
           selector:
             app: netbootxyz

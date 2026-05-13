@@ -31,7 +31,7 @@ service:
     annotations:
       lbipam.cilium.io/sharing-key: "internal-shared"
       lbipam.cilium.io/sharing-cross-namespace: "*"
-      io.cilium/lb-ipam-ips: "10.11.11.138"
+      io.cilium/lb-ipam-ips: "10.11.10.138"
 
 ingress:
   enabled: false
