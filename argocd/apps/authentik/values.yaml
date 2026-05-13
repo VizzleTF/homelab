@@ -413,3 +413,9 @@ global:
   securityContext:
     seccompProfile:
       type: RuntimeDefault
+  # Rollout server+worker when ESO patches `authentik-config` (new
+  # *_OIDC_CLIENT_SECRET entry added by scaffolding-authentik-oidc skill).
+  # Without this, freshly-added blueprints fail !Env resolution silently.
+  # Watched by stakater/reloader (argocd/infra/reloader).
+  deploymentAnnotations:
+    secret.reloader.stakater.com/reload: "authentik-config"
