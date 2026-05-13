@@ -3,11 +3,6 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "cluster_endpoint" {
-  description = "Kubernetes API endpoint URL"
-  type        = string
-}
-
 variable "kubernetes_version" {
   description = "Kubernetes version (matches existing kubelet image tag)"
   type        = string
@@ -24,13 +19,7 @@ variable "talos_release" {
 }
 
 variable "install_image" {
-  description = "Explicit installer image override. If empty, derived from talos_release + install_schematic_id."
-  type        = string
-  default     = ""
-}
-
-variable "install_schematic_id" {
-  description = "Talos image factory schematic ID for installer URL generation when install_image is empty."
+  description = "Explicit installer image override. If empty, derived from talos_release + schematic ID computed from modules/talos/schematic.yaml."
   type        = string
   default     = ""
 }
@@ -58,6 +47,12 @@ variable "apiserver_cert_sans" {
   default     = []
 }
 
+variable "skip_health_check" {
+  description = "Escape hatch: skip talos_cluster_health data source. Set true when debugging a broken cluster so terraform plan/apply doesn't gate on health."
+  type        = bool
+  default     = false
+}
+
 variable "nodes" {
   description = "Map of all Talos nodes; talos_managed gates post-boot apply flow"
   type = map(object({
@@ -65,4 +60,14 @@ variable "nodes" {
     role          = string # "controlplane" or "worker"
     talos_managed = bool
   }))
+}
+
+# Sourced from `module.vms.vm_ids` — see modules/vms/outputs.tf. Plumbed in so that
+# replace_triggered_by inside this module can react to VM destroy/recreate across
+# the module boundary (which `replace_triggered_by` cannot do directly, since it
+# only accepts resource references local to the module).
+variable "vm_ids" {
+  description = "Map of node names → bpg/proxmox VM resource IDs. Replace-trigger source: when a VM is recreated, var.vm_ids[<name>] becomes plan-time unknown, which forces terraform_data.vm_identity + time_sleep.wait_maintenance + talos_machine_configuration_apply to also replace for that node."
+  type        = map(string)
+  default     = {}
 }

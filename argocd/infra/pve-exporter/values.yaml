@@ -37,3 +37,10 @@ resources:
 # (см. extraManifests: true в argocd/infra/pve-exporter/config.yaml).
 serviceMonitor:
   enabled: false
+  pveTargets:
+    - 10.11.11.11
+    - 10.11.11.12
+    - 10.11.11.13
+    - 10.11.11.14
+    - 10.11.11.15
+    - 10.11.11.16

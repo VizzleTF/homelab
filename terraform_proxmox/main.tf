@@ -20,19 +20,24 @@ module "vms" {
 module "talos" {
   source = "./modules/talos"
 
-  cluster_name     = "talos-proxmox-cluster"
-  cluster_endpoint = "https://10.11.11.100:6443" # VIP, не IP одной CP
-  vip              = "10.11.11.100"
+  cluster_name = "talos-proxmox-cluster"
+  vip          = "10.11.11.100" # модуль строит cluster_endpoint = https://${vip}:6443 и анонсирует VIP с CP-нод
 
   # Installer URL рендерится модулем: factory.talos.dev/<platform>-installer/<schematic>:<talos_release>.
   # talos_version — schema (vX.Y), talos_release — конкретный тег релиза.
-  kubernetes_version   = "v1.36.0"
-  talos_version        = "v1.13"
-  talos_release        = "v1.13.0"
-  install_schematic_id = "eed1860a28ccc6fdb77f1f41ab0ae2a20c19bc6101618d416d5d72ec919bf679"
+  # schematic — modules/talos/schematic.yaml (содержание extensions), ID считает factory через talos_image_factory_schematic resource.
+  # Текущий ID посмотреть: `terraform output -raw talos_schematic_id`.
+  kubernetes_version = "v1.36.0"
+  talos_version      = "v1.13"
+  talos_release      = "v1.13.0"
 
-  # cluster_endpoint host (VIP) автоматически попадает в apiserver certSANs — дублировать не нужно
+  # VIP автоматически попадает в apiserver certSANs — дублировать не нужно
   apiserver_cert_sans = ["k8s.internal.example"]
+
+  # vm_ids — replace-trigger source. См. modules/talos/apply.tf →
+  # terraform_data.vm_identity. При -replace VM этот map становится partially
+  # unknown, что каскадирует на time_sleep + talos_machine_configuration_apply.
+  vm_ids = module.vms.vm_ids
 
   nodes = {
     for name, vm in local.vms_config.vms : name => {

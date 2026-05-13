@@ -24,3 +24,13 @@ output "install_image" {
   description = "Effective Talos installer URL — use for `talosctl upgrade --image <URL>` (provider issue #140: config apply does NOT trigger OS upgrade)"
   value       = local.effective_install_image
 }
+
+output "schematic_id" {
+  description = "Talos image factory schematic ID computed from modules/talos/schematic.yaml — single source of truth for image extensions"
+  value       = talos_image_factory_schematic.this.id
+}
+
+output "cluster_endpoint" {
+  description = "Kubernetes API endpoint derived from vip"
+  value       = local.cluster_endpoint
+}
