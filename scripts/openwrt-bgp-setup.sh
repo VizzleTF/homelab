@@ -71,10 +71,10 @@ apk update
 apk add bird2 bird2c
 SH
 
-  echo "[+] uci firewall rule: TCP/179 INPUT from servers zone"
+  echo "[+] uci firewall rule: TCP/179 INPUT from cluster subnet"
   ssh_owrt sh -s <<'SH'
 set -e
-RULE_NAME="allow-bgp-from-servers"
+RULE_NAME="allow-bgp-from-cluster"
 EXISTING=$(uci show firewall 2>/dev/null | awk -F. -v n="$RULE_NAME" '$0 ~ "name=\047"n"\047" {print $1"."$2}')
 if [ -n "$EXISTING" ]; then
   echo "    rule '$RULE_NAME' already present at $EXISTING — skipping"
@@ -82,7 +82,10 @@ else
   uci -q delete firewall.allow_bgp 2>/dev/null || true
   uci set firewall.allow_bgp=rule
   uci set firewall.allow_bgp.name="$RULE_NAME"
-  uci set firewall.allow_bgp.src='servers'
+  # vlan11 (10.11.11.0/24, servers VLAN) is part of the 'lan' zone — narrow
+  # with src_ip so the rule doesn't expose 179 to LAN clients on 10.11.12.x.
+  uci set firewall.allow_bgp.src='lan'
+  uci set firewall.allow_bgp.src_ip='10.11.11.0/24'
   uci set firewall.allow_bgp.proto='tcp'
   uci set firewall.allow_bgp.dest_port='179'
   uci set firewall.allow_bgp.target='ACCEPT'
@@ -97,7 +100,6 @@ SH
 # ---- configure ------------------------------------------------------------
 
 render_bird_conf() {
-  local pw="$1"
   cat <<EOF
 # /etc/bird.conf — managed by scripts/openwrt-bgp-setup.sh
 # eBGP peering with Cilium-managed Talos cluster (ASN ${ASN_CLUSTER}).
@@ -132,7 +134,6 @@ filter lb_pool_only {
 
 template bgp talos_peer {
     local ${OWRT_BGP_LOCAL} as ${ASN_OWRT};
-    password "${pw}";
     hold time 9;
     keepalive time 3;
     graceful restart on;
@@ -156,23 +157,13 @@ EOF
 }
 
 cmd_configure() {
-  echo "[+] reading MD5 password from Vault: ${VAULT_MOUNT}/${VAULT_PATH}"
-  local pw
-  pw=$(VAULT_FORMAT=json vault kv get -mount="${VAULT_MOUNT}" -field=password "${VAULT_PATH}" 2>/dev/null || true)
-  if [ -z "$pw" ]; then
-    echo "ERR: empty password from Vault path ${VAULT_MOUNT}/${VAULT_PATH}" >&2
-    echo "     Hint: vault kv put ${VAULT_MOUNT}/${VAULT_PATH} password=\$(openssl rand -hex 16)" >&2
-    exit 1
-  fi
-  if [ "${#pw}" -lt 8 ]; then
-    echo "ERR: password too short (${#pw} chars) — refusing to push" >&2
-    exit 1
-  fi
-
-  local tmpconf
+  # MD5 auth deliberately disabled — OpenWrt kernel lacks CONFIG_TCP_MD5SIG.
+  # Trusted LAN segment (10.11.11.0/24) carries the cluster; security model
+  # matches the L2-announce baseline we're replacing.
+  local tmpconf=""
+  trap '[ -n "${tmpconf:-}" ] && rm -f "$tmpconf"' EXIT
   tmpconf=$(mktemp)
-  trap 'rm -f "$tmpconf"' EXIT
-  render_bird_conf "$pw" >"$tmpconf"
+  render_bird_conf >"$tmpconf"
 
   echo "[+] uploading /etc/bird.conf (atomic write)"
   # Push to /tmp then mv — /tmp is tmpfs on OpenWrt 25.12, safe scratch.
