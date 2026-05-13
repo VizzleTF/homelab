@@ -109,7 +109,14 @@ kubeProxyReplacement: true
 l7Proxy: true
 
 # Enable L2 announcements
+# Kept alongside BGP during migration; removed in a follow-up PR once BGP is stable.
 l2announcements:
+  enabled: true
+
+# BGP Control Plane — eBGP peering with OpenWrt (10.11.11.1, ASN 65000).
+# CRs live in manifests/cilium-bgp.yaml; MD5 secret comes from ExternalSecret
+# in manifests/cilium-bgp-externalsecret.yaml. secretsNamespace = kube-system (chart default).
+bgpControlPlane:
   enabled: true
 
 # Ingress Controller — disabled, Gateway API used exclusively
