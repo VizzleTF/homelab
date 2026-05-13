@@ -36,10 +36,11 @@ nodeAgent:
       cpu: "1"
       memory: 1Gi
   priorityClassName: ""
-  tolerations:
-    - key: node-role.kubernetes.io/control-plane
-      operator: Exists
-      effect: NoSchedule
+  # DaemonSet только на воркерах — на CP горячо (apiserver/etcd/controllers).
+  # У homelab нет NoSchedule taint'а на CP, поэтому используем явный nodeSelector
+  # по label node-role.kubernetes.io/worker (стандартный Talos worker label).
+  nodeSelector:
+    node-role.kubernetes.io/worker: ""
 
 backupsEnabled: true
 snapshotsEnabled: true
