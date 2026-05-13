@@ -5,7 +5,7 @@
 global:
   # Vault configuration
   vault:
-    secretStore: vault-backend-cluster
+    secretStore: openbao-backend-cluster
     secretStoreKind: ClusterSecretStore
     refreshInterval: 1h
     pathPrefix: homelab/k8s

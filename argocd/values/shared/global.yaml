@@ -2,7 +2,7 @@
 # Подключается первым в valueFiles ArgoCD у source homelab-common — дальше идут файлы приложения.
 global:
   vault:
-    secretStore: vault-backend-cluster
+    secretStore: openbao-backend-cluster
     secretStoreKind: ClusterSecretStore
     refreshInterval: 1h
     pathPrefix: homelab/k8s
