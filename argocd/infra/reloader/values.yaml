@@ -16,6 +16,17 @@ reloader:
   reloadStrategy: default
   ignoreSecrets: false
   ignoreConfigMaps: false
+  # Bootstrap + cold-start safety:
+  # - syncAfterRestart: when reloader (re)starts, reconcile annotated
+  #   Deployments whose mounted Secret/CM hash drifted while reloader was
+  #   down. Covers the first-install case where the Secret already exists.
+  # - reloadOnCreate: trigger reload when reloader sees a Secret/CM with
+  #   the reload annotation for the first time (e.g. fresh OIDC integration
+  #   added by scaffolding-authentik-oidc skill).
+  # Without these, event-driven model misses any Secret change that
+  # happened before the reloader process was watching.
+  syncAfterRestart: true
+  reloadOnCreate: true
   logLevel: info
   deployment:
     replicas: 1
