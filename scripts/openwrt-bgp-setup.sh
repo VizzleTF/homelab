@@ -37,7 +37,7 @@ PEERS=(
 )
 
 # LB pool — must match cilium-lb-ippool.yaml
-LB_POOL="${LB_POOL:-10.11.11.128/25}"
+LB_POOL="${LB_POOL:-10.11.10.0/24}"
 
 VAULT_MOUNT="${VAULT_MOUNT:-home}"
 VAULT_PATH="${VAULT_PATH:-homelab/k8s/kube-system/cilium-bgp}"
@@ -128,7 +128,7 @@ protocol kernel {
 # Accept only LoadBalancer /32s inside the announced pool; reject anything
 # the cluster might leak (pod CIDR, service CIDR, defaults).
 filter lb_pool_only {
-    if net ~ [ ${LB_POOL}{25,32} ] then accept;
+    if net ~ [ ${LB_POOL}{24,32} ] then accept;
     reject;
 }
 

@@ -88,7 +88,14 @@ policy: sync
 
 interval: 5m
 
-txtOwnerId: homelab-openwrt
+# OpenWrt dnsmasq cannot store TXT records, so the default `txt` registry
+# would create A records but never update/delete them: ED can't find its
+# own owner-TXT marker, treats every existing record as "not mine" and
+# silently skips reconciliation (logs say "All records are already up to
+# date" while dnsmasq holds stale IPs). `noop` registry disables owner
+# tracking — safe here because this ED instance is the sole writer to
+# /etc/config/dhcp domain entries on the home router.
+registry: noop
 
 domainFilters:
   - example.com
