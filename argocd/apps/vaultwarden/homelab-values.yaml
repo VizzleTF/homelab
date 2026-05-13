@@ -6,17 +6,31 @@ homelab-common:
       template:
         hooks:
           resources:
-            - name: sync-buffers
+            # App-consistent SQLite backup: sqlite3 .backup в sidecar-контейнер
+            # (vaultwarden image не содержит sqlite3 CLI). Файл .bak попадает
+            # в CSI snapshot вместе с .sqlite3/-shm/-wal — на восстановлении
+            # есть и live DB и гарантированно консистентный дамп.
+            # Post-hook чистит .bak чтобы PVC не пух от старых дампов.
+            - name: sqlite-online-backup
               includedResources: [pods]
               labelSelector:
                 matchLabels:
                   app.kubernetes.io/name: vaultwarden
               pre:
                 - exec:
-                    container: vaultwarden
-                    command: ["/bin/sh", "-c", "sync"]
+                    container: sqlite-helper
+                    command:
+                      - /bin/sh
+                      - -c
+                      - 'sqlite3 /data/db.sqlite3 ".backup /data/db.sqlite3.bak" && sync'
                     onError: Continue
-                    timeout: 30s
+                    timeout: 60s
+              post:
+                - exec:
+                    container: sqlite-helper
+                    command: ["/bin/sh", "-c", "rm -f /data/db.sqlite3.bak"]
+                    onError: Continue
+                    timeout: 15s
 
   httpRoutes:
     - name: vaultwarden

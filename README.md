@@ -214,18 +214,23 @@ Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket`
 
 ## 💾 Backups
 
-One Garage bucket on Synology, three layers that don't overlap: Velero for PVCs and K8s state, CNPG Barman for Postgres PITR, `talosctl etcd snapshot` for the control plane.
+Primary bucket is Garage on Synology, with a daily off-site mirror to OVH Frankfurt. Three layers that don't overlap: Velero for PVCs and K8s state, CNPG Barman for Postgres PITR, `talosctl etcd snapshot` for the control plane.
 
 | Workload | Backup CR | Cron UTC | TTL | Method | Hook |
 |---|---|---|---|---|---|
 | OpenBao Raft state | `openbao-daily` | 02:05 | 30d | CSI snapshot data movement | pre: `bao operator raft snapshot save` drops a consistent `.snap` file into the PVC right before the CSI snapshot fires. Policy `snapshot` needs `read+sudo` on `sys/storage/raft/snapshot`. |
+| Cleanbot data PVC (SQLite) | `cleanbot-daily` | 02:25 | 30d | CSI snapshot data movement | pre: `python3 -c 'sqlite3.Connection.backup(...)'` — the image lacks `sqlite3` CLI but ships Python, whose stdlib exposes the same SQLite online-backup C API; post-hook removes the `.bak` from the PVC |
 | Nextcloud data PVC | `nextcloud-daily` | 02:30 | 30d | CSI snapshot data movement | pre: `occ maintenance:mode --on`, post: `--off \|\| true` (the `\|\| true` keeps the site from getting stuck in read-only if the post-hook fails) |
-| Forgejo data PVC (git + LFS + attachments) | `forgejo-daily` | 02:40 | 30d | CSI snapshot data movement | pre: `sync` |
-| Vaultwarden data PVC (SQLite) | `vaultwarden-daily` | 02:50 | 30d | CSI snapshot data movement | pre: `sync` — Vaultwarden's alpine image has no `sqlite3` CLI, so `.backup` would fail; sync + CSI snapshot atomicity is good enough for a single-user instance |
+| May data PVC (SQLite) | `may-daily` | 02:35 | 30d | CSI snapshot data movement | pre: `sync` — SQLite WAL gives crash-consistent recovery over the atomic PVC snapshot |
+| Forgejo data PVC (git + LFS + attachments) | `forgejo-daily` | 02:40 | 30d | CSI snapshot data movement | pre: `forgejo manager flush-queues --timeout 30s; sync` — drains in-memory webhook/indexer queues before the snapshot fires; repo Postgres metadata sits on CNPG Barman |
+| Omniroute data PVC (SQLite) | `omniroute-daily` | 02:45 | 30d | CSI snapshot data movement | — KEDA scales the pod to zero, so there's no container to exec into; CSI snapshots the PVC directly |
+| Vaultwarden data PVC (SQLite) | `vaultwarden-daily` | 02:50 | 30d | CSI snapshot data movement | pre: `sqlite3 /data/db.sqlite3 ".backup /data/db.sqlite3.bak"` from a tiny alpine+sqlite sidecar (`sqlite-helper`) — the upstream Debian-slim image has no `sqlite3` CLI; post-hook removes the `.bak` from the PVC |
+| Rss-to-telegram-bot data PVC (SQLite) | `rss-to-telegram-bot-daily` | 02:55 | 30d | CSI snapshot data movement | pre: `sync` |
 | Immich library (~185 GiB) | `immich-daily` | 03:00 | 30d | **File System Backup** — Longhorn can't clone a 185 GiB RWX volume within Velero's 15-min timeout, so node-agent mounts the live PVC via kubelet hostPath and Kopia reads straight from it. `resourcePolicy` skips the ML model cache PVC. | pre: `sync` |
 | etcd (Talos control plane) | `talos-etcd-backup` CronJob | 04:15 | 7d | `talosctl etcd snapshot save` → NFS `10.11.12.237:/volume5/k8s_svc/etcd-backup`. This is the only path back if the cluster is gone — Velero talks to apiserver, not etcd. | — |
 | Postgres (cnpg + immich-cluster) | CNPG Barman | continuous WAL + scheduled base | 7d | `s3://cnpg-backups/<cluster>/`. PITR down to the minute. | — |
 | K8s runtime state (Secrets, CR `.status`, ESO renders, cert-manager Orders) | `cluster-state-weekly` | sun 04:00 | 90d | Manifests only, no PVC data. About 100 KB per backup. | — |
+| Off-site mirror (Garage → OVH Frankfurt) | `velero-bucket-mirror-ovh` CronJob | 06:00 | — | `rclone sync garage:velero-backups → ovh:vaka-homelab/velero/`. Mounted as a second BSL `ovh-backup` with `accessMode: ReadOnly`, so a compromised cluster credential can't wipe the off-site copy. | — |
 
 ### Velero specifics
 

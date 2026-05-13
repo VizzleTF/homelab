@@ -46,3 +46,33 @@ initContainers:
     volumeMounts:
       - name: vaultwarden-data
         mountPath: /data
+
+# Sidecar mounts /data вместе с vaultwarden и даёт sqlite3 CLI
+# для app-consistent backup (Velero pre-hook → sqlite3 .backup).
+# Upstream vaultwarden/server:Debian-slim не содержит sqlite3 CLI.
+sidecars:
+  - name: sqlite-helper
+    image: alpine:3.20.3
+    command:
+      - /bin/sh
+      - -c
+      - apk add --no-cache sqlite >/dev/null && exec sleep infinity
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 1m
+        memory: 8Mi
+      limits:
+        cpu: 100m
+        memory: 32Mi
+    volumeMounts:
+      - name: vaultwarden-data
+        mountPath: /data

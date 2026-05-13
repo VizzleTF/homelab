@@ -1,4 +1,23 @@
 homelab-common:
+  veleroSchedules:
+    # CSI snapshot + Kopia. Бот пишет SQLite в /app/config — снапшот вместе
+    # с -wal/-shm даст crash-consistent state; pre-hook sync flush'ит buffers.
+    - name: rss-to-telegram-bot-daily
+      schedule: "55 2 * * *"
+      template:
+        hooks:
+          resources:
+            - name: sync-buffers
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: rss-to-telegram-bot
+              pre:
+                - exec:
+                    command: ["/bin/sh", "-c", "sync"]
+                    onError: Continue
+                    timeout: 30s
+
   externalSecrets:
     - name: rss-to-telegram-bot
       vaultPath: rsstt/rss-to-telegram-bot

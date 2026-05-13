@@ -8,7 +8,11 @@ homelab-common:
       template:
         hooks:
           resources:
-            - name: sync-buffers
+            # App-consistent backup репозиториев: flush-queues дренирует
+            # webhooks/queue tasks (in-memory очереди — потеря при snapshot'е),
+            # потом sync flush'ит OS dirty pages. Postgres-метаданные форджа
+            # бэкапятся через barman на CNPG, тут только PVC (репозитории).
+            - name: forgejo-app-consistent
               includedResources: [pods]
               labelSelector:
                 matchLabels:
@@ -16,9 +20,12 @@ homelab-common:
               pre:
                 - exec:
                     container: forgejo
-                    command: ["/bin/sh", "-c", "sync"]
+                    command:
+                      - /bin/sh
+                      - -c
+                      - 'forgejo manager flush-queues --timeout 30s; sync'
                     onError: Continue
-                    timeout: 30s
+                    timeout: 60s
 
   externalSecrets:
     # DB-пароль для самого Forgejo (берём из того же Vault path, что и в cnpg.yaml).
