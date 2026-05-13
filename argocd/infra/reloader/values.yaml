@@ -1,0 +1,28 @@
+# stakater/reloader — watches mounted Secrets/ConfigMaps and rolls out the
+# consuming Deployments when their content changes.
+#
+# Use case here: authentik-worker/server mount `authentik-config` (ESO-backed
+# Secret) and per-app blueprint ConfigMaps via envFrom/volumes. When ESO
+# patches `authentik-config` with a new `*_OIDC_CLIENT_SECRET` (added by
+# scaffolding-authentik-oidc skill), pods keep the stale env until restart.
+# Without reloader, every new OIDC integration requires a manual rollout.
+#
+# Targeting: deployments opt-in via annotation
+#   secret.reloader.stakater.com/reload: "authentik-config"
+# (set in argocd/apps/authentik/values.yaml).
+
+reloader:
+  watchGlobally: true
+  reloadStrategy: default
+  ignoreSecrets: false
+  ignoreConfigMaps: false
+  logLevel: info
+  deployment:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
