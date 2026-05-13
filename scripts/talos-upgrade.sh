@@ -68,12 +68,28 @@ tf_pin() {
   ' "$TF_DIR/main.tf"
 }
 
+# Schematic ID is no longer pinned in main.tf — it's the content hash of
+# modules/talos/schematic.yaml computed by factory.talos.dev. Cached for the
+# duration of the script run to avoid duplicate POSTs.
+SCHEMATIC_FILE_DEFAULT="$TF_DIR/modules/talos/schematic.yaml"
+_schematic_id_cache=""
+schematic_id_from_file() {
+  local file="${1:-$SCHEMATIC_FILE_DEFAULT}"
+  [ -n "$_schematic_id_cache" ] && { printf '%s' "$_schematic_id_cache"; return 0; }
+  [ -f "$file" ] || { echo "missing schematic file: $file" >&2; return 1; }
+  require curl; require jq
+  _schematic_id_cache=$(curl -fsSL -X POST --data-binary @"$file" \
+    https://factory.talos.dev/schematics | jq -r .id) || {
+      echo "factory POST failed for $file" >&2; return 1; }
+  printf '%s' "$_schematic_id_cache"
+}
+
 current_terraform_pins() {
   printf 'kubernetes_version=%s\ntalos_version=%s\ntalos_release=%s\nschematic_id=%s\n' \
     "$(tf_pin kubernetes_version)" \
     "$(tf_pin talos_version)" \
     "$(tf_pin talos_release)" \
-    "$(tf_pin install_schematic_id)"
+    "$(schematic_id_from_file)"
 }
 
 # Map node-name → InternalIP via kubectl.
@@ -170,17 +186,17 @@ cmd_check() {
   require talosctl
   require python3
 
-  local k8s_pin talos_pin release_pin schematic_pin
+  local k8s_pin talos_pin release_pin schematic_id
   k8s_pin=$(tf_pin kubernetes_version)
   talos_pin=$(tf_pin talos_version)
   release_pin=$(tf_pin talos_release)
-  schematic_pin=$(tf_pin install_schematic_id)
+  schematic_id=$(schematic_id_from_file)
 
   echo "=== Terraform pins ($TF_DIR/main.tf) ==="
   printf '  kubernetes_version    = %s\n' "$k8s_pin"
   printf '  talos_version (schema)= %s\n' "$talos_pin"
   printf '  talos_release         = %s\n' "$release_pin"
-  printf '  install_schematic_id  = %s\n' "$schematic_pin"
+  printf '  schematic_id (factory)= %s\n' "$schematic_id"
 
   echo
   echo "=== Live cluster (per node) ==="
@@ -249,7 +265,7 @@ cmd_plan() {
   require talosctl
   require python3
 
-  local schematic; schematic=$(tf_pin install_schematic_id)
+  local schematic; schematic=$(schematic_id_from_file) || exit 1
   echo "=== Plan (dry-run — nothing will be touched) ==="
   echo
   if [ -n "$talos_target" ]; then
@@ -312,8 +328,8 @@ cmd_upgrade_os() {
   require kubectl
   require talosctl
 
-  local schematic; schematic=$(tf_pin install_schematic_id)
-  [ -n "$schematic" ] || { echo "no schematic_id in $TF_DIR/main.tf" >&2; exit 1; }
+  local schematic; schematic=$(schematic_id_from_file) || exit 1
+  [ -n "$schematic" ] || { echo "no schematic_id resolved from $SCHEMATIC_FILE_DEFAULT" >&2; exit 1; }
   local image="$INSTALLER_REGISTRY/$schematic:$release"
 
   local nodes

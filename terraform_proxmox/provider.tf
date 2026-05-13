@@ -11,7 +11,7 @@ terraform {
     }
     talos = {
       source  = "siderolabs/talos"
-      version = "0.11.0"
+      version = "0.11.0-beta.2"
     }
     time = {
       source  = "hashicorp/time"

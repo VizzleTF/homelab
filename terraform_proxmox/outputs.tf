@@ -24,3 +24,8 @@ output "talos_install_image" {
   description = "Talos installer URL for `talosctl upgrade --image <URL>` (see docs/talos-terraform.md → Upgrade section)"
   value       = module.talos.install_image
 }
+
+output "talos_schematic_id" {
+  description = "Talos schematic ID computed from modules/talos/schematic.yaml — get via `terraform output -raw talos_schematic_id`"
+  value       = module.talos.schematic_id
+}
