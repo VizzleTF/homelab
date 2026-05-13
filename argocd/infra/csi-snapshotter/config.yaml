@@ -1,0 +1,5 @@
+chart: snapshot-controller
+repoURL: https://piraeus.io/helm-charts/
+targetRevision: "5.0.4"
+namespace: csi-snapshotter
+wave: "-4"

@@ -1,0 +1,35 @@
+# Kubernetes CSI external-snapshotter — ships the snapshot.storage.k8s.io/v1 CRDs
+# (VolumeSnapshot, VolumeSnapshotContent, VolumeSnapshotClass) and the controller that
+# reconciles them. Longhorn 1.11 supports CSI snapshots but does NOT bundle these CRDs;
+# they must be installed cluster-wide as a separate component.
+#
+# Required by Velero (CSI snapshot data movement) — without this, the VolumeSnapshotClass
+# manifest in argocd/infra/velero/ fails to apply.
+# Wave -4 places it alongside Longhorn, before Velero (wave 0).
+
+installCRDs: true
+
+controller:
+  enabled: true
+  replicaCount: 1
+  args:
+    leaderElection: true
+    leaderElectionNamespace: "$(NAMESPACE)"
+    httpEndpoint: ":8080"
+    # CSIVolumeGroupSnapshot — beta feature; Longhorn 1.11 supports group snapshots,
+    # cheap to keep on (gate just controls API). Disable later if it churns logs.
+    featureGates: CSIVolumeGroupSnapshot=true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+webhook:
+  enabled: false   # validating webhook опционален; controller сам справляется
