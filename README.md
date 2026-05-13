@@ -214,22 +214,26 @@ Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket`
 
 ## 💾 Backups
 
-Three orthogonal layers, one Garage bucket each:
+Всё в один Garage S3 bucket на Synology. Три ортогональных слоя — Velero (PVC + K8s state), CNPG Barman (Postgres PITR), `talosctl etcd snapshot` (control plane).
 
-| Layer | Что | Инструмент | Schedule | TTL | Notes |
+| Workload | Backup CR | Cron UTC | TTL | Метод | Hook |
 |---|---|---|---|---|---|
-| **App PVC** (nextcloud, forgejo, vaultwarden) | block-level snapshot + Kopia upload | Velero `homelab-daily` Schedule | `30 2 * * *` | 30d | CSI snapshot via Longhorn → Kopia → `s3://velero-backups/`. Hooks: `occ maintenance:mode` для Nextcloud, `sync` для остальных |
-| **Immich library** (~185 GiB) + ML cache | то же | Velero `immich-daily` Schedule | `0 3 * * *` | 30d | labelSelector `cnpg.io/cluster: DoesNotExist` исключает pgdata PVC из namespace (CNPG → Barman) |
-| **OpenBao Raft** | consistent snapshot через hook + CSI snapshot PVC | Velero `openbao-daily` Schedule | `5 2 * * *` | 30d | pre-hook: `bao operator raft snapshot save` пишет `.snap` файл внутрь PVC до CSI snapshot. Policy `snapshot` с `sudo`+`read` capability на `sys/storage/raft/snapshot` |
-| **K8s runtime state** (Secrets, CR `.status`, ESO renders, cert-manager Orders) | K8s API export | Velero `cluster-state-weekly` Schedule | `0 4 * * 0` (sun) | 90d | Только manifests, без PVC. ~100 KB per backup |
-| **Postgres** (cnpg + immich-cluster) | WAL streaming + scheduled base backups | CNPG Barman | continuous WAL + per-cluster базовый | 7d | `s3://cnpg-backups/<cluster>/`. PITR с минутной гранулярностью |
-| **etcd** (Talos control plane) | `talosctl etcd snapshot save` | CronJob `talos-etcd-backup` | `15 4 * * *` | 7d | NFS `10.11.12.237:/volume5/k8s_svc/etcd-backup`. Нужно для bootstrap кластера с нуля (Velero идёт через apiserver, не из etcd) |
+| OpenBao Raft state | `openbao-daily` | 02:05 | 30d | CSI snapshot data movement | pre: `bao operator raft snapshot save` (policy `snapshot` с `read+sudo` capability) |
+| Nextcloud data PVC | `nextcloud-daily` | 02:30 | 30d | CSI snapshot data movement | pre: `occ maintenance:mode --on`, post: `--off || true` |
+| Forgejo data PVC (git + LFS + attachments) | `forgejo-daily` | 02:40 | 30d | CSI snapshot data movement | pre: `sync` |
+| Vaultwarden data PVC (SQLite) | `vaultwarden-daily` | 02:50 | 30d | CSI snapshot data movement | pre: `sync` |
+| Immich library (~185 GiB) | `immich-daily` | 03:00 | 30d | **File System Backup** (CSI clone не успевает за 15m для большого RWX). `resourcePolicy` skip ML cache PVC | pre: `sync` |
+| etcd (Talos control plane) | `talos-etcd-backup` CronJob | 04:15 | 7d | `talosctl etcd snapshot save` → NFS `10.11.12.237:/volume5/k8s_svc/etcd-backup`. Нужно для bootstrap кластера с нуля (Velero идёт через apiserver, не из etcd) | — |
+| Postgres (cnpg + immich-cluster) | CNPG Barman | continuous WAL + scheduled base | 7d | `s3://cnpg-backups/<cluster>/`. PITR с минутной гранулярностью | — |
+| K8s runtime state (Secrets, CR `.status`, ESO renders, cert-manager Orders) | `cluster-state-weekly` | sun 04:00 | 90d | Только manifests, без PVC. ~100 KB per backup | — |
 
 ### Velero specifics
 
-- **Server + node-agent (DaemonSet)**: node-agent **только на воркерах** (`nodeSelector: node-role.kubernetes.io/worker`).
-- **Data-mover backup pods**: тоже только на воркерах через `node-agent-config` ConfigMap (`loadAffinity` с `control-plane: DoesNotExist`), включенный флагом `--node-agent-configmap=node-agent-config` на node-agent. ConfigMap content **JSON**, не YAML (Velero делает `json.Unmarshal`).
-- **CSI snapshotter**: kubernetes-csi/external-snapshotter v8.5.0 standalone (Longhorn 1.11 ships driver, не CRDs).
+- **Schedule CR'ы — per-app**, рендерятся через `homelab-common` chart 1.8.1 (`veleroSchedules:` секция в values каждого приложения). Cluster-wide `cluster-state-weekly` живёт в `argocd/infra/velero/manifests/`.
+- **Chart defaults** (override в per-app values): ttl 720h, storageLocation garage-default, snapshotMoveData true, csiSnapshotTimeout 15m, itemOperationTimeout 4h, defaultVolumesToFsBackup false. `includedNamespaces` авто = `[.Release.Namespace]`.
+- **node-agent DaemonSet** — только на воркерах (`nodeSelector: node-role.kubernetes.io/worker`).
+- **Data-mover backup pods** — тоже только на воркерах через `node-agent-config` ConfigMap (`loadAffinity` с `control-plane: DoesNotExist`), включенный флагом `--node-agent-configmap=node-agent-config` на node-agent. ConfigMap content **JSON**, не YAML (Velero делает `json.Unmarshal`).
+- **CSI snapshotter**: kubernetes-csi/external-snapshotter v8.5.0 standalone (Longhorn 1.11 ships driver, но не CRDs).
 - **Kopia repo encryption**: passphrase в `velero-repo-credentials` Secret, авто-генерируется Velero при первом backup'е.
 
 ### Restore
