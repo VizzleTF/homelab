@@ -1,0 +1,187 @@
+# OpenBao - Apache 2.0 fork of HashiCorp Vault
+# HA deployment with Raft storage, parallel to Vault during migration
+
+homelab-common:
+  externalSecrets:
+    - name: openbao-approle-credentials
+      vaultPath: vault/approle
+      targetName: openbao-snapshot-agent-token
+      deletionPolicy: Retain
+      templateEngineVersion: v2
+      data:
+        - secretKey: role_id
+          property: role_id
+        - secretKey: secret_id
+          property: secret_id
+      templateData:
+        role-id: "{{ .role_id }}"
+        secret-id: "{{ .secret_id }}"
+
+    - name: openbao-webdav-credentials
+      vaultPath: shared/webdav-backup
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
+
+  httpRoutes:
+    - name: openbao
+      hostname: openbao
+      gateway: internal
+      service:
+        name: openbao-active
+        port: 8200
+
+  backupCronJobs:
+    - name: backup-openbao
+      schedule: "0 1 * * *"
+      type: rsync
+      source:
+        pvc: data-openbao-0
+      destination:
+        type: nfs
+        path: /openbao
+
+    - name: webdav-backup-openbao
+      schedule: "0 7 * * *"
+      type: rclone
+      source:
+        pvc: data-openbao-0
+      destination:
+        type: webdav
+        remote: mailru:/backup/openbao
+        secretName: openbao-webdav-credentials
+
+  rbac:
+    - serviceAccount:
+        name: openbao
+        create: false
+      clusterRole:
+        name: openbao-server
+        rules:
+          - apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get", "list", "watch"]
+
+    - serviceAccount:
+        name: openbao-auth
+        create: true
+        automountServiceAccountToken: true
+      clusterRole:
+        name: openbao-auth-delegator
+        rules:
+          - apiGroups: [""]
+            resources: ["serviceaccounts/token"]
+            verbs: ["create"]
+          - apiGroups: [""]
+            resources: ["serviceaccounts"]
+            verbs: ["get"]
+          - apiGroups: ["authentication.k8s.io"]
+            resources: ["tokenreviews"]
+            verbs: ["create"]
+          - apiGroups: ["authorization.k8s.io"]
+            resources: ["subjectaccessreviews"]
+            verbs: ["create"]
+      clusterRoleBinding:
+        name: openbao-auth-delegator-openbao
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 250m
+      memory: 256Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi
+
+server:
+  resources:
+    requests:
+      memory: 250Mi
+      cpu: 80m
+    limits:
+      memory: 540Mi
+      cpu: 200m
+
+  extraEnvironmentVars:
+    GOMEMLIMIT: "460MiB"
+
+  dataStorage:
+    size: 2Gi
+    storageClass: longhorn
+    accessMode: ReadWriteMany
+    annotations:
+      helm.sh/resource-policy: keep
+
+  auditStorage:
+    enabled: true
+    size: 1Gi
+    storageClass: longhorn
+    accessMode: ReadWriteMany
+    annotations:
+      helm.sh/resource-policy: keep
+
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+
+        disable_mlock = true
+
+        cache {
+          size = "32768"
+        }
+
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+
+        storage "raft" {
+          path = "/openbao/data"
+
+          retry_join {
+            leader_api_addr = "http://openbao-0.openbao-internal:8200"
+          }
+
+          retry_join {
+            leader_api_addr = "http://openbao-1.openbao-internal:8200"
+          }
+
+          retry_join {
+            leader_api_addr = "http://openbao-2.openbao-internal:8200"
+          }
+        }
+
+        service_registration "kubernetes" {}
+
+  securityContext:
+    pod:
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+        add:
+          - IPC_LOCK
+
+injector:
+  resources:
+    requests:
+      memory: 100Mi
+      cpu: 15m
+    limits:
+      memory: 192Mi
+      cpu: 100m
+
+ui:
+  enabled: true

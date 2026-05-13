@@ -1,0 +1,6 @@
+chart: openbao
+repoURL: https://openbao.github.io/openbao-helm
+targetRevision: "0.28.0"
+namespace: openbao
+wave: "-4"
+extraManifests: true
