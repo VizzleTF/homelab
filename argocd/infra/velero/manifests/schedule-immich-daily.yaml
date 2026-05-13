@@ -1,0 +1,47 @@
+# Immich library + ML models daily.
+# В namespace immich живёт ТРИ PVC:
+#   immich-library-pvc      RWX 185 GiB   фото
+#   immich-machine-learning RWX 15 GiB    cache ML моделей
+#   immich-cluster-1        RWO 10 GiB    CNPG pgdata — ИСКЛЮЧАЕМ (Barman)
+#
+# labelSelector cnpg.io/cluster DoesNotExist — единственный clean способ:
+# CNPG-managed ресурсы (Cluster CR, pgdata PVC, его pod, кастомные Secrets)
+# имеют этот label, наши immich-server/machine-learning ресурсы — нет.
+# На restore ArgoCD пересоздаст CNPG Cluster CR, оператор поднимет БД из Barman.
+#
+# 03:00 UTC — после homelab-daily (02:30) и до CNPG Barman (04:30).
+# Первый run медленный (~100 min для 185 GiB), последующие deltas мелкие
+# (фото append-only).
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: immich-daily
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"
+  template:
+    ttl: 720h0m0s
+    storageLocation: garage-default
+    includedNamespaces: [immich]
+    labelSelector:
+      matchExpressions:
+        - key: cnpg.io/cluster
+          operator: DoesNotExist
+    snapshotMoveData: true
+    csiSnapshotTimeout: 15m
+    itemOperationTimeout: 6h0m0s
+    defaultVolumesToFsBackup: false
+    hooks:
+      resources:
+        - name: immich-sync
+          includedNamespaces: [immich]
+          includedResources: [pods]
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: server
+          pre:
+            - exec:
+                container: main
+                command: ["/bin/sh", "-c", "sync"]
+                onError: Continue
+                timeout: 30s
