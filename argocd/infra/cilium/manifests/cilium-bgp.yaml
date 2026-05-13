@@ -42,7 +42,10 @@ metadata:
     argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  authSecretRef: bgp-openwrt-md5
+  # TCP MD5 auth deliberately omitted — the OpenWrt 25.12 kernel ships without
+  # CONFIG_TCP_MD5SIG, and BIRD logs "Kernel does not support TCP MD5 signatures"
+  # if a password is configured. Cluster subnet 10.11.11.0/24 is a trusted L2
+  # segment; security model matches the existing L2-announce baseline.
   gracefulRestart:
     enabled: true
     restartTimeSeconds: 120
