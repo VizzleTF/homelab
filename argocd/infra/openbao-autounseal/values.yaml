@@ -1,0 +1,45 @@
+# OpenBao Auto-Unseal Configuration
+# Uses pytoshka/vault-autounseal chart — works with OpenBao via /sys/init + /sys/unseal API compat
+
+image:
+  repository: opennix/vault-autounseal
+  tag: latest
+  pullPolicy: Always
+
+replicaCount: 1
+
+settings:
+  vault_url: "http://openbao.openbao:8200"
+  vault_secret_shares: 3
+  vault_secret_threshold: 3
+  vault_root_token_secret: "openbao-root-token"
+  vault_keys_secret: "openbao-keys"
+  scan_delay: 5
+  vault_label_selector: "app.kubernetes.io/instance=openbao,component=server"
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 15m
+    memory: 100Mi
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+podSecurityContext:
+  fsGroup: 1000
+
+serviceAccount:
+  create: true
+  name: openbao-autounseal
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+logLevel: INFO
