@@ -3,3 +3,13 @@ repoURL: https://piraeus.io/helm-charts/
 targetRevision: "5.0.4"
 namespace: csi-snapshotter
 wave: "-4"
+# Chart renders a conversion-webhook Secret even with webhook.enabled: false,
+# and regenerates self-signed TLS certs on every `helm template`. Live cluster
+# has the cert from first install, so .data churns forever in ArgoCD diff.
+# Same pattern as cilium (cilium-ca, hubble-* certs).
+ignoreDiff: |
+  - group: ""
+    kind: Secret
+    name: csi-snapshotter-conversion-webhook
+    jsonPointers:
+      - /data
