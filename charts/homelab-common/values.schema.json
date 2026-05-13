@@ -127,7 +127,22 @@
         "apps":                   { "type": "array", "items": { "$ref": "#/$defs/AppSpec" } },
         "cronJobs":               { "type": "array", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
         "persistentVolumeClaims": { "type": "array", "items": { "$ref": "#/$defs/PVCSpec" } },
-        "authentikBlueprints":    { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } }
+        "authentikBlueprints":    { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
+        "veleroSchedules":        { "type": "array", "items": { "$ref": "#/$defs/VeleroScheduleSpec" } }
+      }
+    },
+
+    "VeleroScheduleSpec": {
+      "type": "object",
+      "required": ["name", "schedule", "template"],
+      "additionalProperties": false,
+      "properties": {
+        "name":                       { "type": "string" },
+        "schedule":                   { "type": "string" },
+        "annotations":                { "type": "object", "additionalProperties": { "type": "string" } },
+        "paused":                     { "type": "boolean" },
+        "useOwnerReferencesInBackup": { "type": "boolean" },
+        "template":                   { "type": "object" }
       }
     },
 
