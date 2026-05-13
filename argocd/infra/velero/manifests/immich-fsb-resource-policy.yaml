@@ -1,0 +1,17 @@
+# Velero resource policy для immich-daily Schedule.
+# Skip volume immich-machine-learning (cache моделей, регенерируется).
+# Бэкапим только immich-library-pvc (фото).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: immich-fsb-policy
+  namespace: velero
+data:
+  policy.yaml: |
+    version: v1
+    volumePolicies:
+      - conditions:
+          pvcName:
+            - immich-machine-learning
+        action:
+          type: skip

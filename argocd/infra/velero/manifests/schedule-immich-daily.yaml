@@ -1,17 +1,23 @@
-# Immich library + ML models daily.
-# В namespace immich живёт ТРИ PVC:
-#   immich-library-pvc      RWX 185 GiB   фото
-#   immich-machine-learning RWX 15 GiB    cache ML моделей
-#   immich-cluster-1        RWO 10 GiB    CNPG pgdata — ИСКЛЮЧАЕМ (Barman)
+# Immich daily — File System Backup mode (НЕ CSI snapshot data movement).
 #
-# labelSelector cnpg.io/cluster DoesNotExist — единственный clean способ:
-# CNPG-managed ресурсы (Cluster CR, pgdata PVC, его pod, кастомные Secrets)
-# имеют этот label, наши immich-server/machine-learning ресурсы — нет.
-# На restore ArgoCD пересоздаст CNPG Cluster CR, оператор поднимет БД из Barman.
+# Почему FSB вместо CSI: immich-library-pvc 185 GiB, RWX. Velero CSI требует
+# создать клон PVC из VolumeSnapshot, и Longhorn для 185 GiB на холодном
+# старте не успевает provision в Velero --resource-timeout 15min →
+# DataUpload фейлится в Accepted фазе.
 #
-# 03:00 UTC — после homelab-daily (02:30) и до CNPG Barman (04:30).
-# Первый run медленный (~100 min для 185 GiB), последующие deltas мелкие
-# (фото append-only).
+# FSB: node-agent монтит уже существующий PVC через kubelet hostPath bind
+# (без clone), Kopia читает напрямую. Скорость = чистый Garage upload.
+#
+# Trade-off: нет point-in-time block-level consistency. Mitigation:
+# pre-hook `sync` flushes dirty pages, immich фото append-only — write race
+# окно минимально и не повредит file integrity.
+#
+# В namespace immich три PVC:
+#   immich-library-pvc       RWX 185 GiB   фото — backed up
+#   immich-machine-learning  RWX 15 GiB    ML model cache — SKIPPED via resourcePolicy
+#                                          (регенерируется автоматически)
+#   immich-cluster-1         RWO 10 GiB    CNPG pgdata — excluded labelSelector'ом
+#                                          (CNPG → Barman)
 apiVersion: velero.io/v1
 kind: Schedule
 metadata:
@@ -27,10 +33,13 @@ spec:
       matchExpressions:
         - key: cnpg.io/cluster
           operator: DoesNotExist
-    snapshotMoveData: true
-    csiSnapshotTimeout: 15m
+    defaultVolumesToFsBackup: true     # ← FSB на все volumes immich-server pod
+    snapshotVolumes: false             # ← без CSI snapshot
+    snapshotMoveData: false
     itemOperationTimeout: 6h0m0s
-    defaultVolumesToFsBackup: false
+    resourcePolicy:                    # ← skip immich-machine-learning cache
+      kind: configmap
+      name: immich-fsb-policy
     hooks:
       resources:
         - name: immich-sync
