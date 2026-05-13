@@ -34,7 +34,6 @@ podSecurityContext:
 
 serviceAccount:
   create: true
-  name: openbao-autounseal
 
 nodeSelector: {}
 
