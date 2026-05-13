@@ -1,0 +1,16 @@
+# VolumeSnapshotClass для Longhorn CSI.
+# Velero CSI plugin ищет класс с лейблом velero.io/csi-volumesnapshot-class=true,
+# совпадающий по driver name. type=snap — локальный Longhorn snapshot (CoW),
+# Velero data mover потом читает его и заливает в Garage S3.
+# deletionPolicy: Retain — снапшот остаётся после удаления VolumeSnapshot CR,
+# Velero сам удаляет его после успешного data movement.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: longhorn-velero
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+driver: driver.longhorn.io
+deletionPolicy: Retain
+parameters:
+  type: snap
