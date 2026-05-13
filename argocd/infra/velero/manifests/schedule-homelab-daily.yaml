@@ -1,0 +1,72 @@
+# Daily PVC backup for the simple stateful apps.
+# Covers: nextcloud (~50 GiB), forgejo (~15 GiB), vaultwarden (~1 GiB).
+# Immich library (~185 GiB) — отдельный Schedule в PR-4, нужен labelSelector
+# чтобы исключить CNPG immich-cluster-1 pgdata PVC (CNPG → Barman).
+# OpenBao — отдельный Schedule в PR-4 с `bao operator raft snapshot save` hook.
+#
+# 02:30 UTC: до CNPG Barman (04:30) и etcd snapshot (04:15) — минимальное
+# окно конкуренции по IO.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: homelab-daily
+  namespace: velero
+spec:
+  schedule: "30 2 * * *"
+  template:
+    ttl: 720h0m0s                # 30 days
+    storageLocation: garage-default
+    includedNamespaces:
+      - nextcloud
+      - forgejo
+      - vaultwarden
+    snapshotMoveData: true       # CSI snapshot → Kopia → Garage
+    csiSnapshotTimeout: 15m
+    itemOperationTimeout: 4h0m0s  # достаточно для всех трёх PVC (~66 GiB)
+    defaultVolumesToFsBackup: false
+    hooks:
+      resources:
+        # Nextcloud — единственный hook с реальной consistency-гарантией:
+        # maintenance mode выключает все writes на время CSI snapshot create (~5s).
+        - name: nextcloud-maintenance
+          includedNamespaces: [nextcloud]
+          includedResources: [pods]
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: nextcloud
+          pre:
+            - exec:
+                container: nextcloud
+                command:
+                  - /bin/sh
+                  - -c
+                  - runuser -u www-data -- php /var/www/html/occ maintenance:mode --on
+                onError: Fail
+                timeout: 2m
+          post:
+            - exec:
+                container: nextcloud
+                command:
+                  - /bin/sh
+                  - -c
+                  - runuser -u www-data -- php /var/www/html/occ maintenance:mode --off || true
+                onError: Continue
+                timeout: 2m
+
+        # Forgejo + Vaultwarden — просто flush dirty pages.
+        # - Vaultwarden image (alpine) не содержит sqlite3 CLI, fancy hooks упадут.
+        # - Forgejo `manager flush-queues` зависит от запущенного runner'а (есть в кластере)
+        #   но проще не рисковать; БД в CNPG, на PVC только git LFS + attachments.
+        - name: sync-buffers
+          includedNamespaces: [forgejo, vaultwarden]
+          includedResources: [pods]
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [forgejo, vaultwarden]
+          pre:
+            - exec:
+                command: ["/bin/sh", "-c", "sync"]
+                onError: Continue
+                timeout: 30s
