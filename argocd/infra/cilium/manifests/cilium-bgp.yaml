@@ -13,6 +13,14 @@ apiVersion: cilium.io/v2alpha1
 kind: CiliumBGPClusterConfig
 metadata:
   name: homelab-bgp
+  annotations:
+    # BGP CRDs are installed by cilium-operator at runtime after it sees
+    # bgpControlPlane.enabled=true in the ConfigMap (wave 0). Push CR apply
+    # to a later wave so the chart resources land first and the operator
+    # has time to register the CRDs; SkipDryRunOnMissingResource lets the
+    # first attempt succeed even if the CRD is briefly missing.
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   # Apply to every node — all 6 (3 CP + 3 worker) peer with OpenWrt for ECMP.
   nodeSelector: {}
@@ -30,6 +38,9 @@ apiVersion: cilium.io/v2alpha1
 kind: CiliumBGPPeerConfig
 metadata:
   name: openwrt-peer
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   authSecretRef: bgp-openwrt-md5
   gracefulRestart:
@@ -52,6 +63,9 @@ metadata:
   name: lb-pool-advert
   labels:
     advertise: lb-pool
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   advertisements:
     - advertisementType: Service
