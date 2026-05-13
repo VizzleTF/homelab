@@ -39,7 +39,7 @@ A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by
 | GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
 | Observability         | VictoriaMetrics + VictoriaLogs + Vector | Grafana, Alertmanager into Telegram, Robusta for K8s-aware enrichment |
 | Dependency updates    | Renovate                                | In-cluster CronJob, opens PRs against Forgejo                        |
-| Backups               | Velero + Barman + talosctl etcd snapshot | Velero (CSI snapshot data movement via Kopia) для PVC + K8s state; Barman для CNPG Postgres; etcd snapshots отдельно. Всё в один Garage S3 bucket. |
+| Backups               | Velero + Barman + talosctl etcd snapshot | Velero handles PVCs and K8s state (CSI snapshot data movement through Kopia); Barman handles Postgres WAL+PITR; etcd snapshots stand on their own. Everything lands in one Garage bucket. |
 
 ---
 
@@ -214,42 +214,43 @@ Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket`
 
 ## 💾 Backups
 
-Всё в один Garage S3 bucket на Synology. Три ортогональных слоя — Velero (PVC + K8s state), CNPG Barman (Postgres PITR), `talosctl etcd snapshot` (control plane).
+One Garage bucket on Synology, three layers that don't overlap: Velero for PVCs and K8s state, CNPG Barman for Postgres PITR, `talosctl etcd snapshot` for the control plane.
 
-| Workload | Backup CR | Cron UTC | TTL | Метод | Hook |
+| Workload | Backup CR | Cron UTC | TTL | Method | Hook |
 |---|---|---|---|---|---|
-| OpenBao Raft state | `openbao-daily` | 02:05 | 30d | CSI snapshot data movement | pre: `bao operator raft snapshot save` (policy `snapshot` с `read+sudo` capability) |
-| Nextcloud data PVC | `nextcloud-daily` | 02:30 | 30d | CSI snapshot data movement | pre: `occ maintenance:mode --on`, post: `--off || true` |
+| OpenBao Raft state | `openbao-daily` | 02:05 | 30d | CSI snapshot data movement | pre: `bao operator raft snapshot save` drops a consistent `.snap` file into the PVC right before the CSI snapshot fires. Policy `snapshot` needs `read+sudo` on `sys/storage/raft/snapshot`. |
+| Nextcloud data PVC | `nextcloud-daily` | 02:30 | 30d | CSI snapshot data movement | pre: `occ maintenance:mode --on`, post: `--off \|\| true` (the `\|\| true` keeps the site from getting stuck in read-only if the post-hook fails) |
 | Forgejo data PVC (git + LFS + attachments) | `forgejo-daily` | 02:40 | 30d | CSI snapshot data movement | pre: `sync` |
-| Vaultwarden data PVC (SQLite) | `vaultwarden-daily` | 02:50 | 30d | CSI snapshot data movement | pre: `sync` |
-| Immich library (~185 GiB) | `immich-daily` | 03:00 | 30d | **File System Backup** (CSI clone не успевает за 15m для большого RWX). `resourcePolicy` skip ML cache PVC | pre: `sync` |
-| etcd (Talos control plane) | `talos-etcd-backup` CronJob | 04:15 | 7d | `talosctl etcd snapshot save` → NFS `10.11.12.237:/volume5/k8s_svc/etcd-backup`. Нужно для bootstrap кластера с нуля (Velero идёт через apiserver, не из etcd) | — |
-| Postgres (cnpg + immich-cluster) | CNPG Barman | continuous WAL + scheduled base | 7d | `s3://cnpg-backups/<cluster>/`. PITR с минутной гранулярностью | — |
-| K8s runtime state (Secrets, CR `.status`, ESO renders, cert-manager Orders) | `cluster-state-weekly` | sun 04:00 | 90d | Только manifests, без PVC. ~100 KB per backup | — |
+| Vaultwarden data PVC (SQLite) | `vaultwarden-daily` | 02:50 | 30d | CSI snapshot data movement | pre: `sync` — Vaultwarden's alpine image has no `sqlite3` CLI, so `.backup` would fail; sync + CSI snapshot atomicity is good enough for a single-user instance |
+| Immich library (~185 GiB) | `immich-daily` | 03:00 | 30d | **File System Backup** — Longhorn can't clone a 185 GiB RWX volume within Velero's 15-min timeout, so node-agent mounts the live PVC via kubelet hostPath and Kopia reads straight from it. `resourcePolicy` skips the ML model cache PVC. | pre: `sync` |
+| etcd (Talos control plane) | `talos-etcd-backup` CronJob | 04:15 | 7d | `talosctl etcd snapshot save` → NFS `10.11.12.237:/volume5/k8s_svc/etcd-backup`. This is the only path back if the cluster is gone — Velero talks to apiserver, not etcd. | — |
+| Postgres (cnpg + immich-cluster) | CNPG Barman | continuous WAL + scheduled base | 7d | `s3://cnpg-backups/<cluster>/`. PITR down to the minute. | — |
+| K8s runtime state (Secrets, CR `.status`, ESO renders, cert-manager Orders) | `cluster-state-weekly` | sun 04:00 | 90d | Manifests only, no PVC data. About 100 KB per backup. | — |
 
 ### Velero specifics
 
-- **Schedule CR'ы — per-app**, рендерятся через `homelab-common` chart 1.8.1 (`veleroSchedules:` секция в values каждого приложения). Cluster-wide `cluster-state-weekly` живёт в `argocd/infra/velero/manifests/`.
-- **Chart defaults** (override в per-app values): ttl 720h, storageLocation garage-default, snapshotMoveData true, csiSnapshotTimeout 15m, itemOperationTimeout 4h, defaultVolumesToFsBackup false. `includedNamespaces` авто = `[.Release.Namespace]`.
-- **node-agent DaemonSet** — только на воркерах (`nodeSelector: node-role.kubernetes.io/worker`).
-- **Data-mover backup pods** — тоже только на воркерах через `node-agent-config` ConfigMap (`loadAffinity` с `control-plane: DoesNotExist`), включенный флагом `--node-agent-configmap=node-agent-config` на node-agent. ConfigMap content **JSON**, не YAML (Velero делает `json.Unmarshal`).
-- **CSI snapshotter**: kubernetes-csi/external-snapshotter v8.5.0 standalone (Longhorn 1.11 ships driver, но не CRDs).
-- **Kopia repo encryption**: passphrase в `velero-repo-credentials` Secret, авто-генерируется Velero при первом backup'е.
+- **Schedule CRs live per-app**, rendered by the `homelab-common` chart 1.8.1 (`veleroSchedules:` section in each app's values). Only the cluster-wide `cluster-state-weekly` lives in `argocd/infra/velero/manifests/`.
+- **Chart defaults** (any field overridable per-app): ttl 720h, storageLocation garage-default, snapshotMoveData true, csiSnapshotTimeout 15m, itemOperationTimeout 4h, defaultVolumesToFsBackup false. `includedNamespaces` defaults to `[.Release.Namespace]`.
+- **node-agent DaemonSet** runs on workers only (`nodeSelector: node-role.kubernetes.io/worker`).
+- **Data-mover backup pods** also land on workers — `node-agent-config` ConfigMap (`loadAffinity` with `control-plane: DoesNotExist`), wired up through the `--node-agent-configmap=node-agent-config` flag on node-agent. The ConfigMap value must be **JSON**, not YAML — Velero parses it with `json.Unmarshal` and silently falls back to defaults on YAML.
+- **CSI snapshotter**: kubernetes-csi/external-snapshotter v8.5.0 deployed standalone. Longhorn 1.11 ships the driver but not the CRDs, so they have to come from somewhere.
+- **Kopia repo encryption**: passphrase lives in the `velero-repo-credentials` Secret, Velero generates it on first backup. Lose that Secret and the backups in Garage are unreadable.
 
 ### Restore
 
 ```bash
-# В test namespace (безопасно):
+# Into a test namespace (safe):
 velero restore create --from-backup <name> \
   --namespace-mappings vaultwarden:vw-test
 
-# In-place (DANGEROUS — затирает live data):
+# In-place (DANGEROUS — overwrites live data):
 velero restore create --from-backup <name> --existing-resource-policy=update
 ```
 
-Full runbook — `obsidian/113 Backups/Velero Operator Guide.md`. Сценарии:
-- single namespace lost → `velero restore` с namespace mapping
-- весь кластер потерян → talos-etcd-backup → ArgoCD пересоздаёт infra → CNPG восстанавливает Postgres из Barman → Velero restore остальное (vaultwarden → nextcloud → forgejo → immich)
+Full runbook in `obsidian/113 Backups/Velero Operator Guide.md`. Two scenarios it covers:
+
+- single namespace lost → `velero restore` with a namespace mapping into a sandbox, verify, then redo in-place
+- whole cluster gone → bootstrap from `talos-etcd-backup` → ArgoCD rebuilds infra → CNPG restores Postgres from Barman → Velero restores the rest in priority order (vaultwarden → nextcloud → forgejo → immich)
 
 ---
 
@@ -302,7 +303,7 @@ Full procedure (including the Talos secrets-cascade gotcha: any `talos_machine_s
 - `vmagent`'s default 16 MiB scrape-size limit is too small for kube-apiserver `/metrics`. Bump `maxScrapeSize` to 64 MB; otherwise `apiserver_request_*_bucket` is silently dropped and the SLO rules tied to it stop firing.
 - Forgejo Actions runner only emulates the GHES artifact protocol up to v3. Pin `actions/upload-artifact@v3.1.x` and `download-artifact@v3.1.x`. v3.2.0+ uses the v4 protocol and fails with `GHESNotSupportedError`.
 - kswapd starves the WiFi driver before it pages. Keep ≥3 GiB of headroom per host.
-- `homelab-common` publishes on git tag `homelab-common-v<version>`. Bump `Chart.yaml`, merge to main, push the tag — `.forgejo/workflows/publish-helm.yml` packages and POSTs to Forgejo Helm Chart Museum (`/api/packages/vizzle/helm/api/charts`). Без тега новая версия не появится в registry.
+- `homelab-common` publishes on git tag `homelab-common-v<version>`. Bump `Chart.yaml`, merge to main, push the tag — `.forgejo/workflows/publish-helm.yml` packages and POSTs to the Forgejo Helm Chart Museum (`/api/packages/vizzle/helm/api/charts`). Without the tag the new version never lands in the registry, and ArgoCD will sit on the old chart.
 
 ---
 
