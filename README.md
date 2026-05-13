@@ -2,7 +2,7 @@
 
 # 🏠 Homelab — Talos + ArgoCD on Proxmox
 
-A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by ArgoCD, with Vault as the only source of truth for secrets. Provisioned by Terraform, monitored by VictoriaMetrics, backed up to Garage S3 on a Synology NAS.
+A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by ArgoCD, with OpenBao as the only source of truth for secrets. Provisioned by Terraform, monitored by VictoriaMetrics, backed up to Garage S3 on a Synology NAS.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/homelab)
 
@@ -34,7 +34,7 @@ A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by
 | External access       | Cloudflared tunnel                      | Catch-all into the public Gateway; external-dns writes CNAMEs        |
 | TLS                   | cert-manager + Cloudflare DNS-01        | One wildcard secret in `kube-system`, every Gateway references it    |
 | Storage               | Longhorn                                | Default class, 2 replicas, `Retain` reclaim                          |
-| Secrets               | Vault HA + External Secrets Operator    | KV v2 mount `home`, auto-unseal via Transit                          |
+| Secrets               | OpenBao HA + External Secrets Operator  | MPL 2.0 fork of Vault 1.14.x, API-compatible; KV v2 mount `home`     |
 | Databases             | CloudNativePG                           | Shared PG17, plus a dedicated Immich cluster for `pgvector`          |
 | GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
 | Observability         | VictoriaMetrics + VictoriaLogs + Vector | Grafana, Alertmanager into Telegram, Robusta for K8s-aware enrichment |
@@ -58,7 +58,7 @@ Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/):
 | Secrets sync      | External Secrets       | 🟢 Sandbox                           |
 | Database operator | CloudNativePG          | 🟢 Sandbox                           |
 | DNS sync          | ExternalDNS            | Kubernetes SIG (under K8s Graduated) |
-| Secrets backend   | HashiCorp Vault        | Not CNCF (BUSL-1.1)                  |
+| Secrets backend   | OpenBao                | OpenSSF sandbox (MPL 2.0, fork of Vault 1.14.x) |
 | Observability     | VictoriaMetrics / Logs | Not CNCF                             |
 
 ---
@@ -76,18 +76,18 @@ flowchart LR
         Root --> InfraSet["infra-appset.yaml<br/>~23 components"]
         Root --> AppsSet["apps-appset.yaml<br/>~15 apps"]
         Root --> Standalone["3 standalone:<br/>argocd · gateway-api · etcd-backup"]
+        Bao[("OpenBao HA<br/>3-node Raft · Shamir auto-unseal")]
     end
 
     subgraph Out["Outside the cluster"]
         Forgejo[("Forgejo<br/>git + Actions + OCI registry")]
-        Vault[("Vault HA<br/>(auto-unsealed)")]
         Garage[("Garage S3<br/>on Synology NAS")]
         CF[("Cloudflare<br/>tunnel + DNS + ACME")]
     end
 
     PVE --> K8s
     Forgejo -- "ArgoCD pulls" --> K8s
-    Vault  -- "ESO renders Secrets" --> K8s
+    Bao  -- "ESO renders Secrets via openbao-backend-cluster" --> K8s
     K8s    -- "Barman / CronJobs / etcd snapshots" --> Garage
     CF     -- "catch-all tunnel" --> K8s
 ```
@@ -145,7 +145,7 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 |---------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | **-10** | ArgoCD self-management, Gateway API CRDs, PreSync `ExternalSecret`s for charts with pre-install hooks   | ArgoCD reconciles itself first; Gateway API CRDs before any Gateway resource; hook-time ESO secrets must exist before chart `pre-install` Jobs run |
 | **-5**  | Cilium, cert-manager (+ ClusterIssuer)                                                                  | Networking and cert plumbing first; everything HTTP-facing depends on this                                                                       |
-| **-4**  | Longhorn, Vault                                                                                         | Storage before stateful workloads; Vault before ESO can resolve any external secret                                                              |
+| **-4**  | Longhorn, OpenBao                                                                                       | Storage before stateful workloads; OpenBao before ESO can resolve any external secret                                                            |
 | **-3**  | kubelet-csr-approver, metrics-server                                                                    | Cluster-wide utilities the rest of the stack assumes                                                                                             |
 | **-2**  | External Secrets Operator, CNPG operator, KEDA, External DNS (Cloudflare + OpenWrt), VictoriaMetrics    | ESO before any `ExternalSecret` reconciles; operators before instances                                                                           |
 | **-1**  | Node Feature Discovery, intel-device-plugins operator, KEDA HTTP add-on, VictoriaLogs                   | Layered atop the wave -2 prerequisites                                                                                                           |
@@ -200,13 +200,13 @@ To expose a new public service, add `httpRoutes:` to the app's `values.yaml`. `h
 
 ## 🔐 Secrets & backups
 
-Vault is the single source of truth for secrets. It runs in HA mode and auto-unseals through a Transit engine on a second Vault outside the cluster. The unseal material has an off-cluster copy in Vaultwarden.
+OpenBao (MPL 2.0 fork of HashiCorp Vault 1.14.x under OpenSSF sandbox, API-compatible) is the single source of truth for secrets. It runs in HA mode (3-node Raft) and auto-unseals via Shamir keys held by a `pytoshka/vault-autounseal` sidecar. The unseal material has an off-cluster copy in Vaultwarden.
 
-External Secrets Operator renders Kubernetes `Secret` objects on demand from Vault paths shaped like `home/homelab/k8s/<ns>/<app>`.
+External Secrets Operator renders Kubernetes `Secret` objects on demand from OpenBao paths shaped like `home/homelab/k8s/<ns>/<app>`.
 
 CNPG ships WAL and base backups through Barman to Garage S3. Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400.
 
-App data (Nextcloud, Vaultwarden, Immich, Vault itself) is backed up by in-cluster CronJobs to the same Garage bucket. Talos etcd snapshots go to the same place.
+App data (Nextcloud, Vaultwarden, Immich, OpenBao itself) is backed up by in-cluster CronJobs to the same Garage bucket. Talos etcd snapshots go to the same place.
 
 ---
 
@@ -272,11 +272,11 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 | `provisioning-talos-node`   | Full node-add flow, from the first prompt to `Ready` status                              |
 | `replacing-talos-node`      | Drain, forfeit leadership, recreate the trio, clean up Longhorn                          |
 | `upgrading-talos`           | `talosctl` patch and minor upgrades, gated through ghcr manifest checks                  |
-| `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in Vault         |
+| `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in OpenBao       |
 | `renewing-synology-cert`    | `acme.sh` + Cloudflare DNS-01, then reloads DSM nginx via `synow3tool`                   |
-| `rotating-proxmox-acme`     | Rotates one CF token across PVE, cert-manager, external-dns, Vault, Synology in one run |
+| `rotating-proxmox-acme`     | Rotates one CF token across PVE, cert-manager, external-dns, OpenBao, Synology in one run |
 | `scaffolding-app`           | Boilerplate for a new app: values, HTTPRoute, ExternalSecret, ArgoCD wiring              |
-| `scaffolding-authentik-oidc`| New OIDC client: secret, dual Vault paths, blueprint files, ESO wiring                   |
+| `scaffolding-authentik-oidc`| New OIDC client: secret, dual OpenBao paths, blueprint files, ESO wiring                 |
 | `triaging-alerts`           | Pulls firing alerts from VictoriaMetrics and groups them by severity                     |
 | `checking-cluster-health`   | One-shot overview: nodes, pods, PVCs, certs, ArgoCD sync                                 |
 
