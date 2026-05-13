@@ -3,6 +3,30 @@
 
 # Общие ресурсы через homelab-common
 homelab-common:
+  veleroSchedules:
+    - name: nextcloud-daily
+      schedule: "30 2 * * *"
+      template:
+        hooks:
+          resources:
+            - name: maintenance
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: nextcloud
+              pre:
+                - exec:
+                    container: nextcloud
+                    command: ["/bin/sh", "-c", "runuser -u www-data -- php /var/www/html/occ maintenance:mode --on"]
+                    onError: Fail
+                    timeout: 2m
+              post:
+                - exec:
+                    container: nextcloud
+                    command: ["/bin/sh", "-c", "runuser -u www-data -- php /var/www/html/occ maintenance:mode --off || true"]
+                    onError: Continue
+                    timeout: 2m
+
   externalSecrets:
     - name: nextcloud-app-credentials
       vaultPath: nextcloud/app-credentials

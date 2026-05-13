@@ -2,6 +2,24 @@
 # Чартовые ключи живут в forgejo.yaml (отдельный файл из-за strict values schema у форджа).
 
 homelab-common:
+  veleroSchedules:
+    - name: forgejo-daily
+      schedule: "40 2 * * *"
+      template:
+        hooks:
+          resources:
+            - name: sync-buffers
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: forgejo
+              pre:
+                - exec:
+                    container: forgejo
+                    command: ["/bin/sh", "-c", "sync"]
+                    onError: Continue
+                    timeout: 30s
+
   externalSecrets:
     # DB-пароль для самого Forgejo (берём из того же Vault path, что и в cnpg.yaml).
     - name: forgejo-db-credentials
