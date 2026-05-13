@@ -339,6 +339,8 @@ homelab-common:
           property: nextcloud_oidc_client_secret
         - secretKey: forgejo_oidc_client_secret
           property: forgejo_oidc_client_secret
+        - secretKey: velero_ui_oidc_client_secret
+          property: velero_ui_oidc_client_secret
       templateData:
         AUTHENTIK_SECRET_KEY: "{{ .secret_key }}"
         AUTHENTIK_POSTGRESQL__HOST: "cnpg-cluster-rw.cnpg.svc.cluster.local"
@@ -355,6 +357,7 @@ homelab-common:
         IMMICH_OIDC_CLIENT_SECRET: "{{ .immich_oidc_client_secret }}"
         NEXTCLOUD_OIDC_CLIENT_SECRET: "{{ .nextcloud_oidc_client_secret }}"
         FORGEJO_OIDC_CLIENT_SECRET: "{{ .forgejo_oidc_client_secret }}"
+        VELERO_UI_OIDC_CLIENT_SECRET: "{{ .velero_ui_oidc_client_secret }}"
 
 
     # DB credentials secret for CNPG cluster bootstrap
@@ -404,6 +407,7 @@ blueprints:
     - authentik-blueprint-immich
     - authentik-blueprint-nextcloud
     - authentik-blueprint-forgejo
+    - authentik-blueprint-velero-ui
 
 global:
   securityContext:
