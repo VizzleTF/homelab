@@ -154,15 +154,25 @@ Per-node storage is Longhorn (2 replicas, default class). Cold storage and backu
 ```
 Internet  →  Cloudflare tunnel (cloudflared deployment in-cluster)
                 ↓ catch-all
-            cilium-gateway              public hosts
+            cilium-gateway              public hosts        (10.11.10.137)
 
-LAN       →  cilium-gateway-internal    LAN-only
-LAN + TLS →  cilium-gateway-tls         TLSRoute passthrough
+LAN       →  cilium-gateway-internal    LAN-only            (10.11.10.138)
+LAN + TLS →  cilium-gateway-tls         TLSRoute passthrough (10.11.10.139)
 ```
+
+Three L3 subnets, no L2 announcements:
+
+| Subnet | Role |
+|---|---|
+| `10.11.10.0/24` | LB IP pool — Service `LoadBalancer` IPs, **L3-only** (no L2 segment), announced via BGP |
+| `10.11.11.0/24` | Servers VLAN — k8s nodes, Talos VIP, PVE hosts |
+| `10.11.12.0/24` | LAN — Wi-Fi/DHCP clients, NAS Synology, router mgmt |
+
+Cilium peers eBGP with OpenWrt (BIRD2) from every node (ASN `65010` ↔ `65000`). Each LB IP is advertised as a `/32` with ECMP across all six nodes; `externalTrafficPolicy: Local` services are advertised only from the node hosting the pod, so single-replica workloads keep source IP without a kube-proxy hop. BIRD config is generated from `scripts/openwrt-bgp-setup.sh` — see `obsidian/111 Memory/Cilium BGP.md` for the operational guide.
 
 One wildcard cert lives in `kube-system/wildcard-tls`; every Gateway references it. cert-manager renews it via Cloudflare DNS-01.
 
-external-dns writes records both ways: Cloudflare for public hosts, OpenWrt for the LAN.
+external-dns writes records both ways: Cloudflare for public hosts, OpenWrt for the LAN. The OpenWrt instance runs with `registry: noop + policy: upsert-only` because dnsmasq is A-only — see `obsidian/111 Memory/External DNS OpenWrt.md`.
 
 To expose a new public service, add `httpRoutes:` to the app's `values.yaml`. `homelab-common` renders the HTTPRoute, external-dns picks up the host, and the tunnel routes it.
 
