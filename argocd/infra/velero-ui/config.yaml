@@ -1,0 +1,5 @@
+chart: velero-ui
+repoURL: https://helm.otwld.com
+targetRevision: "0.14.0"
+namespace: velero
+wave: "1"
