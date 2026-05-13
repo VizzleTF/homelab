@@ -84,7 +84,13 @@ sources:
   - gateway-tlsroute
   - service
 
-policy: sync
+# `upsert-only` (NOT `sync`): with registry=noop, ED treats every
+# record in dnsmasq as fair game. policy=sync would then delete any
+# manual `config domain` entry (PVE hosts, NAS Garage S3) on first
+# reconcile. upsert-only restricts ED to create+update operations
+# only — manual entries are left alone, IP changes to ED-managed
+# hostnames still propagate.
+policy: upsert-only
 
 interval: 5m
 
