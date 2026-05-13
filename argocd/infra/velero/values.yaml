@@ -76,6 +76,7 @@ configuration:
     - name: ovh-backup
       provider: aws
       bucket: vaka-homelab
+      prefix: velero         # rclone mirror кладёт в bucket/velero/{backups,kopia}; без prefix Velero видит `velero/` как unknown top-level dir
       default: false
       accessMode: ReadOnly
       credential:
