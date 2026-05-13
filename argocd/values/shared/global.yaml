@@ -18,11 +18,11 @@ global:
     internal:
       name: cilium-gateway-internal
       namespace: kube-system
-      ip: 10.11.11.138
+      ip: 10.11.10.138
     tls:
       name: cilium-gateway-tls
       namespace: kube-system
-      ip: 10.11.11.139
+      ip: 10.11.10.139
 
   storage:
     defaultStorageClass: longhorn
