@@ -27,6 +27,42 @@ persistence:
 # --- Values для homelab-common ---
 
 homelab-common:
+  veleroSchedules:
+    # App-consistent SQLite backup через python3 stdlib (sqlite3.Connection.backup) —
+    # тот же C-API что у sqlite3 .backup CLI, который в image отсутствует.
+    # Файл .bak попадает в CSI snapshot, post-hook чистит .bak с PVC.
+    - name: cleanbot-daily
+      schedule: "25 2 * * *"
+      template:
+        hooks:
+          resources:
+            - name: sqlite-online-backup
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: cleanbot
+              pre:
+                - exec:
+                    container: cleanbot
+                    command:
+                      - python3
+                      - -c
+                      - |
+                        import sqlite3
+                        s = sqlite3.connect("/data/cleanjob.sqlite3")
+                        d = sqlite3.connect("/data/cleanjob.sqlite3.bak")
+                        s.backup(d)
+                        d.close()
+                        s.close()
+                    onError: Continue
+                    timeout: 60s
+              post:
+                - exec:
+                    container: cleanbot
+                    command: ["python3", "-c", "import os; os.path.exists('/data/cleanjob.sqlite3.bak') and os.remove('/data/cleanjob.sqlite3.bak')"]
+                    onError: Continue
+                    timeout: 15s
+
   externalSecrets:
     - name: cleanbot-secrets
       vaultPath: cleanbot/app-secrets

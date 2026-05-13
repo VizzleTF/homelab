@@ -1,4 +1,14 @@
 homelab-common:
+  veleroSchedules:
+    # KEDA scale-to-zero (scaledownPeriod 6h): pod часто отсутствует ночью,
+    # поэтому exec hook не задаём — CSI snapshot PVC напрямую, без pod.
+    # SQLite WAL обеспечивает crash-consistency; на cold-start файл DB
+    # уже flushed (Linux page cache очищается при scale-down → write).
+    - name: omniroute-daily
+      schedule: "45 2 * * *"
+      template:
+        includedNamespaces: [omniroute]
+
   externalSecrets:
     - name: omniroute-app-secrets
       vaultPath: omniroute/app-secrets
