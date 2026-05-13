@@ -1,0 +1,53 @@
+# Daily mirror Velero bucket Garage → OVH (vaka-homelab/velero prefix).
+# Runs 06:00 UTC — после ночных Velero schedule (02:05-03:00).
+# rclone sync = incremental, после initial bulk transfer ежедневный delta
+# несколько GB (новые Velero Kopia chunks).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: velero-bucket-mirror-ovh
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero-bucket-mirror
+    app.kubernetes.io/component: offsite-mirror
+spec:
+  schedule: "0 6 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 21600  # 6h hard cap
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            node-role.kubernetes.io/worker: ""
+          containers:
+            - name: rclone
+              image: rclone/rclone:1.74
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  echo "[$(date -u)] starting rclone sync garage:velero-backups -> ovh:vaka-homelab/velero/"
+                  rclone sync \
+                    --s3-acl=private \
+                    --transfers=4 \
+                    --checkers=8 \
+                    --stats=2m \
+                    --stats-one-line \
+                    garage:velero-backups ovh:vaka-homelab/velero/
+                  echo "[$(date -u)] mirror complete"
+              envFrom:
+                - secretRef:
+                    name: velero-mirror-rclone-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
