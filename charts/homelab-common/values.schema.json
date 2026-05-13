@@ -128,13 +128,14 @@
         "cronJobs":               { "type": "array", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
         "persistentVolumeClaims": { "type": "array", "items": { "$ref": "#/$defs/PVCSpec" } },
         "authentikBlueprints":    { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
-        "veleroSchedules":        { "type": "array", "items": { "$ref": "#/$defs/VeleroScheduleSpec" } }
+        "veleroSchedules":        { "type": "array", "items": { "$ref": "#/$defs/VeleroScheduleSpec" } },
+        "veleroScheduleDefaults": { "type": "object" }
       }
     },
 
     "VeleroScheduleSpec": {
       "type": "object",
-      "required": ["name", "schedule", "template"],
+      "required": ["name", "schedule"],
       "additionalProperties": false,
       "properties": {
         "name":                       { "type": "string" },

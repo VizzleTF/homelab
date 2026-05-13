@@ -43,7 +43,7 @@ spec:
               - "$values/argocd/infra/{{ .path.basename }}/values.yaml"
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
-          targetRevision: "1.7.3"
+          targetRevision: "1.8.1"
           helm:
             valueFiles:
               - "$values/argocd/values/shared/global.yaml"

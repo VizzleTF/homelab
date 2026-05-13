@@ -1,11 +1,18 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
 {{- $schedules := $hc.veleroSchedules | default list }}
+{{- $defaults := $hc.veleroScheduleDefaults | default dict }}
 {{- range $schedules }}
 {{- $s := . }}
+{{- /* Deep-merge defaults с user template. mergeOverwrite мутирует первый аргумент — копируем defaults через deepCopy. */ -}}
+{{- $tmpl := mergeOverwrite (deepCopy $defaults) (default dict $s.template) }}
+{{- /* includedNamespaces по умолчанию [.Release.Namespace] если user не задал. */ -}}
+{{- if not $tmpl.includedNamespaces }}
+{{- $_ := set $tmpl "includedNamespaces" (list $.Release.Namespace) }}
+{{- end }}
 ---
 # Velero Schedule cluster-scoped по интенту (live в namespace velero),
 # но owned by app's ArgoCD Application — backup config per-app живёт
-# вместе с values приложения.
+# вместе с values приложения. Defaults — homelab-common.veleroScheduleDefaults.
 apiVersion: velero.io/v1
 kind: Schedule
 metadata:
@@ -24,5 +31,5 @@ spec:
   useOwnerReferencesInBackup: {{ $s.useOwnerReferencesInBackup }}
   {{- end }}
   template:
-    {{- toYaml $s.template | nindent 4 }}
+    {{- toYaml $tmpl | nindent 4 }}
 {{- end }}

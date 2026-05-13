@@ -1,5 +1,23 @@
 # Только homelab-common (второй источник ApplicationSet). Не смешивать с vaultwarden.yaml — upstream может иметь строгую values schema.
 homelab-common:
+  veleroSchedules:
+    - name: vaultwarden-daily
+      schedule: "50 2 * * *"
+      template:
+        hooks:
+          resources:
+            - name: sync-buffers
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: vaultwarden
+              pre:
+                - exec:
+                    container: vaultwarden
+                    command: ["/bin/sh", "-c", "sync"]
+                    onError: Continue
+                    timeout: 30s
+
   httpRoutes:
     - name: vaultwarden
       hostname: pass

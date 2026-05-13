@@ -2,6 +2,39 @@
 # HA deployment with Raft storage, parallel to Vault during migration
 
 homelab-common:
+  veleroSchedules:
+    - name: openbao-daily
+      schedule: "5 2 * * *"
+      template:
+        # Only StatefulSet leader pod — на нём Raft snapshot.
+        labelSelector:
+          matchLabels:
+            statefulset.kubernetes.io/pod-name: openbao-0
+        csiSnapshotTimeout: 10m
+        itemOperationTimeout: 30m0s
+        hooks:
+          resources:
+            - name: raft-snapshot
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  statefulset.kubernetes.io/pod-name: openbao-0
+              pre:
+                - exec:
+                    container: openbao
+                    command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        set -e
+                        export BAO_ADDR=http://127.0.0.1:8200
+                        mkdir -p /openbao/data/.velero
+                        JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                        export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=openbao-snapshot jwt="$JWT")
+                        bao operator raft snapshot save /openbao/data/.velero/raft.snap
+                    onError: Fail
+                    timeout: 5m
+
   externalSecrets:
     - name: openbao-approle-credentials
       vaultPath: vault/approle

@@ -155,6 +155,36 @@ homelab-common:
   #             containers: [...]
   #             volumes: [...]
 
+  # Defaults для veleroSchedules. Любое поле в schedule.template переопределяет
+  # одноимённое поле здесь (deep-merge через mergeOverwrite).
+  # Velero Schedule.spec.template — это шаблон Backup'а, поля поддерживает
+  # всё что и Backup CR.
+  veleroScheduleDefaults:
+    ttl: "720h0m0s"                  # 30 days
+    storageLocation: garage-default
+    snapshotMoveData: true
+    csiSnapshotTimeout: "15m"
+    itemOperationTimeout: "4h0m0s"
+    defaultVolumesToFsBackup: false
+
+  # Velero Schedule CR'ы. Per-app config, рендерится в namespace velero.
+  veleroSchedules: []
+  # Example:
+  # - name: myapp-daily
+  #   schedule: "30 2 * * *"
+  #   template:
+  #     # includedNamespaces по умолчанию [.Release.Namespace]
+  #     hooks:
+  #       resources:
+  #         - name: sync
+  #           includedResources: [pods]
+  #           labelSelector: { matchLabels: { app.kubernetes.io/name: myapp } }
+  #           pre:
+  #             - exec:
+  #                 command: ["/bin/sh", "-c", "sync"]
+  #                 onError: Continue
+  #                 timeout: 30s
+
   # PVC definitions
   persistentVolumeClaims: []
 

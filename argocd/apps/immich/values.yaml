@@ -3,6 +3,40 @@
 
 # Общие ресурсы через homelab-common chart
 homelab-common:
+  veleroSchedules:
+    - name: immich-daily
+      schedule: "0 3 * * *"
+      template:
+        # FSB вместо CSI: 185 GiB clone не успевает за Velero 15m timeout.
+        # node-agent монтит существующий PVC через kubelet hostPath, Kopia
+        # читает напрямую — speed = чистый Garage upload bandwidth.
+        defaultVolumesToFsBackup: true
+        snapshotVolumes: false
+        snapshotMoveData: false
+        itemOperationTimeout: 6h0m0s
+        # Excludes CNPG immich-cluster pgdata PVC (Barman handles Postgres).
+        labelSelector:
+          matchExpressions:
+            - key: cnpg.io/cluster
+              operator: DoesNotExist
+        # Skip immich-machine-learning PVC (ML model cache, регенерируется).
+        resourcePolicy:
+          kind: configmap
+          name: immich-fsb-policy
+        hooks:
+          resources:
+            - name: immich-sync
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: server
+              pre:
+                - exec:
+                    container: main
+                    command: ["/bin/sh", "-c", "sync"]
+                    onError: Continue
+                    timeout: 30s
+
   persistentVolumeClaims:
     - name: immich-library-pvc
       accessModes:
