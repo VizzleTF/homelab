@@ -1,0 +1,105 @@
+# Velero — cluster backup/restore.
+# Provider: aws (Garage S3 на Synology, тот же endpoint, что и Longhorn/CNPG barman).
+# Снапшоты PVC: CSI snapshot data movement (Kopia) поверх Longhorn driver.
+# В этом PR — только инсталляция + BSL + VSL. Schedule CR-ы добавим отдельным PR
+# после ручной проверки `velero backup-location get`.
+
+image:
+  repository: velero/velero
+  pullPolicy: IfNotPresent
+
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.13.0
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Node-agent DaemonSet — Kopia uploader для CSI snapshot data movement.
+# Без него Velero может бэкапить только манифесты, без данных PVC.
+deployNodeAgent: true
+nodeAgent:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  priorityClassName: ""
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+backupsEnabled: true
+snapshotsEnabled: true
+
+configuration:
+  uploaderType: kopia
+  features: EnableCSI
+  defaultVolumesToFsBackup: false
+  defaultBackupTTL: "720h"        # 30d — переопределяется per-Schedule
+  garbageCollectionFrequency: "1h"
+
+  backupStorageLocation:
+    - name: garage-default
+      provider: aws
+      bucket: velero-backups
+      default: true
+      credential:
+        name: velero-garage-creds
+        key: cloud
+      config:
+        region: garage            # обязательно — Garage отвергает HeadBucket с пустым region
+        s3ForcePathStyle: "true"
+        s3Url: https://s3.example.com
+
+  volumeSnapshotLocation:
+    - name: garage-default
+      provider: aws
+      config:
+        region: garage
+
+credentials:
+  useSecret: true
+  existingSecret: velero-garage-creds
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      release: victoria-metrics-k8s-stack
+
+# CRD-ы поставляются Helm-чартом; за пределами Helm их трогает только Velero сам.
+# Сейчас не требуется ignoreDifferences — добавим, если ArgoCD начнёт диффать поля,
+# которые меняет velero-server.
+
+# ─── ESO secret для Garage ───
+# Vault path: home/homelab/k8s/velero/s3-velero (конвенция scripts/garage-bucket.sh)
+# Keys: ACCESS_KEY_ID, ACCESS_SECRET_KEY
+# Готовится skill'ом creating-garage-bucket: bucket=velero-backups, key=velero, ns=velero.
+homelab-common:
+  externalSecrets:
+    - name: velero-garage-creds
+      vaultPath: velero/s3-velero
+      templateData:
+        cloud: |
+          [default]
+          aws_access_key_id = {{ .access_key }}
+          aws_secret_access_key = {{ .secret_key }}
+      data:
+        - secretKey: access_key
+          property: ACCESS_KEY_ID
+        - secretKey: secret_key
+          property: ACCESS_SECRET_KEY
