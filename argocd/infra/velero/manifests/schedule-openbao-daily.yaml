@@ -1,24 +1,23 @@
-# Hourly OpenBao Raft snapshot.
+# Daily OpenBao Raft snapshot — 02:05 UTC, до homelab-daily (02:30) и до
+# CNPG barman (04:30). Per-user homelab: KV меняется редко, hourly overkill.
+#
 # Pre-hook на openbao-0 (StatefulSet leader): `bao operator raft snapshot save`
 # пишет consistent snapshot файл ВНУТРЬ PVC data-openbao-0. CSI snapshot прямо
 # после hook'а схватывает этот файл вместе со всей файловой системой data dir.
 # При restore: PVC восстанавливается, `bao operator raft snapshot restore`
 # принимает .snap файл из /openbao/data/.velero/ и поднимает кластер с нуля.
 #
-# Cron `5 * * * *` × ttl 168h = 168 snapshots в bucket. Размер snapshot'а
-# обычно <50 MB → 7 days × 24 hourly × small delta = единицы GiB суммарно.
-#
 # Setup до этого Schedule (выполнен): policy "snapshot" + auth/kubernetes role
 # "openbao-snapshot" bound к SA openbao в ns openbao.
 apiVersion: velero.io/v1
 kind: Schedule
 metadata:
-  name: openbao-hourly
+  name: openbao-daily
   namespace: velero
 spec:
-  schedule: "5 * * * *"
+  schedule: "5 2 * * *"
   template:
-    ttl: 168h0m0s
+    ttl: 720h0m0s                  # 30 days
     storageLocation: garage-default
     includedNamespaces: [openbao]
     labelSelector:
@@ -48,6 +47,6 @@ spec:
                     mkdir -p /openbao/data/.velero
                     JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
                     export BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=openbao-snapshot jwt="$JWT")
-                    bao operator raft snapshot save /openbao/data/.velero/raft-$(date +%H).snap
+                    bao operator raft snapshot save /openbao/data/.velero/raft.snap
                 onError: Fail
                 timeout: 5m
