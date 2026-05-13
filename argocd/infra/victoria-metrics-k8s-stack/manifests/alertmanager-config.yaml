@@ -8,7 +8,7 @@ metadata:
 spec:
   refreshInterval: 1h
   secretStoreRef:
-    name: vault-backend-cluster
+    name: openbao-backend-cluster
     kind: ClusterSecretStore
   target:
     name: alertmanager-config
