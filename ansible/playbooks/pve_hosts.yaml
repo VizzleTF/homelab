@@ -4,8 +4,9 @@
 # Порядок ролей намеренный:
 #   1. ssh_harden  — затягиваем sshd (handler перезапустит в конце play)
 #   2. sysctl      — безопасные сетевые параметры (независимо от остального)
-#   3. fail2ban    — подключаем защиту от brute-force
-#   4. firewall    — последним: если что-то сломается, SSH ещё открыт
+#   3. logind      — игнорим переднюю кнопку питания (mini-PC в стойке)
+#   4. fail2ban    — подключаем защиту от brute-force
+#   5. firewall    — последним: если что-то сломается, SSH ещё открыт
 - name: Proxmox hosts hardening
   hosts: pve
   become: true
@@ -15,6 +16,8 @@
       tags: [ssh]
     - role: pve_sysctl
       tags: [sysctl]
+    - role: pve_logind
+      tags: [logind]
     - role: pve_fail2ban
       tags: [fail2ban]
     - role: pve_firewall
