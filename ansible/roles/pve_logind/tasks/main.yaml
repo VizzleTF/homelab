@@ -1,4 +1,12 @@
 ---
+- name: Ensure systemd-logind drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
 - name: Deploy logind drop-in (ignore power button on mini-PCs)
   ansible.builtin.copy:
     dest: /etc/systemd/logind.conf.d/99-homelab.conf
