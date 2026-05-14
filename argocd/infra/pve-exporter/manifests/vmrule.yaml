@@ -115,7 +115,7 @@ spec:
 
     # ---- Hardware temperature (prometheus-node-exporter / hwmon) ----
     # node_exporter раскатан ansible-ролью pve_node_exporter (только hwmon-collector).
-    # Пороги — относительные к kernel-провайденному temp_crit, потому что TjMax разный:
+    # Один порог — 90% от kernel-провайденного temp_crit. TjMax разный по хостам:
     # pve1/2/3/4 = 105°C, pve15 = 100°C, pve16 = 80°C (мобильный CPU + NVMe ~80°C).
     # Сенсоры без temp_crit (NVMe Sensor 1/2 на pve3/6) автоматически выпадают из алертов.
     - name: pve-temperature
@@ -137,25 +137,6 @@ spec:
             (
               node_hwmon_temp_celsius{job="pve-node-exporter"}
                 > on (instance, chip, sensor)
-                    (node_hwmon_temp_crit_celsius{job="pve-node-exporter"} * 0.80)
-            )
-            * on (instance, chip) group_left(chip_name)
-                node_hwmon_chip_names{job="pve-node-exporter", chip_name="coretemp"}
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: "PVE {{ $labels.instance }} CPU {{ $labels.sensor }}: {{ $value | printf \"%.1f\" }}°C"
-            description: |
-              CPU sensor {{ $labels.sensor }} на {{ $labels.instance }} держит
-              {{ $value | printf "%.1f" }}°C >80% от TjMax 10 минут.
-              Проверить нагрузку на гостях, охлаждение, термопасту.
-
-        - alert: PveCpuTempCritical
-          expr: |
-            (
-              node_hwmon_temp_celsius{job="pve-node-exporter"}
-                > on (instance, chip, sensor)
                     (node_hwmon_temp_crit_celsius{job="pve-node-exporter"} * 0.90)
             )
             * on (instance, chip) group_left(chip_name)
@@ -164,10 +145,10 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "PVE {{ $labels.instance }} CPU {{ $labels.sensor }}: {{ $value | printf \"%.1f\" }}°C — critical"
+            summary: "PVE {{ $labels.instance }} CPU {{ $labels.sensor }}: {{ $value | printf \"%.1f\" }}°C"
             description: |
-              CPU sensor {{ $labels.sensor }} на {{ $labels.instance }} =
-              {{ $value | printf "%.1f" }}°C, >90% от TjMax 5 минут.
+              CPU sensor {{ $labels.sensor }} на {{ $labels.instance }} держит
+              {{ $value | printf "%.1f" }}°C >90% от TjMax 5 минут.
               Близко к thermal throttling — снять нагрузку, проверить охлаждение.
 
         - alert: PveNvmeTempHigh
@@ -175,26 +156,7 @@ spec:
             (
               node_hwmon_temp_celsius{job="pve-node-exporter"}
                 > on (instance, chip, sensor)
-                    (node_hwmon_temp_crit_celsius{job="pve-node-exporter"} * 0.85)
-            )
-            * on (instance, chip) group_left(chip_name)
-                node_hwmon_chip_names{job="pve-node-exporter", chip_name="nvme"}
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: "PVE {{ $labels.instance }} NVMe ({{ $labels.sensor }}): {{ $value | printf \"%.1f\" }}°C"
-            description: |
-              NVMe-диск на {{ $labels.instance }} держит {{ $value | printf "%.1f" }}°C
-              (>85% от crit) уже 10 минут. Проверить airflow, при необходимости
-              добавить heatsink.
-
-        - alert: PveNvmeTempCritical
-          expr: |
-            (
-              node_hwmon_temp_celsius{job="pve-node-exporter"}
-                > on (instance, chip, sensor)
-                    (node_hwmon_temp_crit_celsius{job="pve-node-exporter"} * 0.95)
+                    (node_hwmon_temp_crit_celsius{job="pve-node-exporter"} * 0.90)
             )
             * on (instance, chip) group_left(chip_name)
                 node_hwmon_chip_names{job="pve-node-exporter", chip_name="nvme"}
@@ -202,7 +164,7 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "PVE {{ $labels.instance }} NVMe ({{ $labels.sensor }}): {{ $value | printf \"%.1f\" }}°C — critical"
+            summary: "PVE {{ $labels.instance }} NVMe ({{ $labels.sensor }}): {{ $value | printf \"%.1f\" }}°C"
             description: |
               NVMe на {{ $labels.instance }} = {{ $value | printf "%.1f" }}°C,
-              близко к thermal throttling. Срочно снять I/O-нагрузку и улучшить охлаждение.
+              >90% от crit-порога 5 минут. Срочно снять I/O-нагрузку, улучшить охлаждение.
