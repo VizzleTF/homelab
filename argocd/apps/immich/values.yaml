@@ -165,11 +165,21 @@ _shared_config:
   version: &version "v2.7.5"
   ml_tag: &ml_tag "v2.7.5-openvino"
 
-# Pod-level securityContext for the server component
+# Pod-level securityContext + scheduling for the server component
 defaultPodOptions:
   securityContext:
     seccompProfile:
       type: RuntimeDefault
+  # Pin server to worker нodes — Velero node-agent DaemonSet has nodeSelector
+  # `node-role.kubernetes.io/worker=`, so FSB of immich-library-pvc fails
+  # when the pod lands on a CP node.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node-role.kubernetes.io/worker
+                operator: Exists
 
 # Controllers configuration for new chart structure
 controllers:
