@@ -6,7 +6,8 @@
 #   2. sysctl      — безопасные сетевые параметры (независимо от остального)
 #   3. logind      — игнорим переднюю кнопку питания (mini-PC в стойке)
 #   4. fail2ban    — подключаем защиту от brute-force
-#   5. firewall    — последним: если что-то сломается, SSH ещё открыт
+#   5. node_exporter — раскатываем prometheus-node-exporter (hwmon-метрики для temp-алертов)
+#   6. firewall    — последним: если что-то сломается, SSH ещё открыт
 - name: Proxmox hosts hardening
   hosts: pve
   become: true
@@ -20,5 +21,7 @@
       tags: [logind]
     - role: pve_fail2ban
       tags: [fail2ban]
+    - role: pve_node_exporter
+      tags: [node_exporter]
     - role: pve_firewall
       tags: [firewall]

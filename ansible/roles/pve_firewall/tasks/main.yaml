@@ -28,11 +28,12 @@
           # Разрешаем ICMP echo внутри кластера (healthchecks).
           IN ACCEPT -p icmp -log nolog
           {% for cidr in trusted_cidrs %}
-          # Доверенная сеть {{ cidr }}: SSH, PVE UI, SPICE, VNC
+          # Доверенная сеть {{ cidr }}: SSH, PVE UI, SPICE, VNC, node_exporter
           IN ACCEPT -source {{ cidr }} -p tcp -dport 22 -log nolog
           IN ACCEPT -source {{ cidr }} -p tcp -dport 8006 -log nolog
           IN ACCEPT -source {{ cidr }} -p tcp -dport 3128 -log nolog
           IN ACCEPT -source {{ cidr }} -p tcp -dport 5900:5999 -log nolog
+          IN ACCEPT -source {{ cidr }} -p tcp -dport 9100 -log nolog
           {% endfor %}
           # Всё остальное логируем и дропаем (policy_in: DROP покроет неявно, но логируем явно).
           IN DROP -log info
