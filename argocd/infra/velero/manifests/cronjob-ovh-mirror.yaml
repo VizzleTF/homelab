@@ -12,6 +12,7 @@ metadata:
     app.kubernetes.io/component: offsite-mirror
 spec:
   schedule: "0 6 * * *"
+  startingDeadlineSeconds: 600    # без этого Kubernetes тихо скипает scheduled tick, если кубер controller-manager был busy в нужное окно (~100s default)
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
