@@ -1,0 +1,15 @@
+---
+- name: Deploy logind drop-in (ignore power button on mini-PCs)
+  ansible.builtin.copy:
+    dest: /etc/systemd/logind.conf.d/99-homelab.conf
+    mode: "0644"
+    owner: root
+    group: root
+    content: |
+      # Managed by Ansible (roles/pve_logind).
+      # Hosts are headless mini-PCs in a rack — a stray bump on the front-panel
+      # button must not poweroff a Proxmox node.
+      [Login]
+      HandlePowerKey=ignore
+      HandlePowerKeyLongPress=poweroff
+  notify: Restart systemd-logind
