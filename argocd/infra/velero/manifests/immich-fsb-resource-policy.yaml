@@ -1,6 +1,10 @@
 # Velero resource policy для immich-daily Schedule.
 # Skip volume immich-machine-learning (cache моделей, регенерируется).
 # Бэкапим только immich-library-pvc (фото).
+#
+# Velero v1.18 volumeConditions НЕ имеет поля `pvcName` — фильтрация
+# идёт через `pvcLabels`. На PVC immich-machine-learning chart ставит
+# стандартный `app.kubernetes.io/name: machine-learning`, его и матчим.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,7 +15,8 @@ data:
     version: v1
     volumePolicies:
       - conditions:
-          pvcName:
-            - immich-machine-learning
+          pvcLabels:
+            app.kubernetes.io/name: machine-learning
+            app.kubernetes.io/instance: immich
         action:
           type: skip
