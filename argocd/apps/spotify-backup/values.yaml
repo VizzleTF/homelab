@@ -103,7 +103,7 @@ homelab-common:
                       limits: {cpu: 100m, memory: 32Mi}
                 containers:
                   - name: backup
-                    image: python:3.12-alpine
+                    image: python:3.14-alpine
                     command: [sh, -c]
                     args:
                       - |
