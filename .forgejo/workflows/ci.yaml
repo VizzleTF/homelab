@@ -67,64 +67,6 @@ jobs:
           fi
           echo "Schema validation: clean"
 
-  publish-homelab-common:
-    # Post-merge only. Publishes charts/homelab-common to Forgejo Helm package
-    # registry (chart-museum API) when Chart.yaml version is not yet present.
-    # Idempotent: skips silently if version already in index. AppSet repoURL
-    # (https://git.example.com/api/packages/vizzle/helm) reads from this same index.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - name: Install helm
-        run: |
-          set -eu
-          VERSION=v3.16.4
-          curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
-          install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
-          helm version --short
-      - name: Detect chart version
-        id: chart
-        run: |
-          set -euo pipefail
-          VER=$(awk '/^version:/ {print $2; exit}' charts/homelab-common/Chart.yaml)
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
-          echo "Chart version: $VER"
-      - name: Check if version already published
-        id: check
-        run: |
-          set -euo pipefail
-          VER='${{ steps.chart.outputs.version }}'
-          if curl -fsSL https://git.example.com/api/packages/vizzle/helm/index.yaml \
-              | grep -qE "^[[:space:]]+version: ${VER}\$"; then
-            echo "Version $VER already published — skipping"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Package chart
-        if: steps.check.outputs.skip != 'true'
-        run: helm package charts/homelab-common -d /tmp
-      - name: Upload to Forgejo Helm package registry
-        if: steps.check.outputs.skip != 'true'
-        env:
-          USER: ${{ secrets.PUBLISHER_USER }}
-          TOKEN: ${{ secrets.PUBLISHER_TOKEN }}
-        run: |
-          set -euo pipefail
-          VER='${{ steps.chart.outputs.version }}'
-          CODE=$(curl -s -o /tmp/resp -w "%{http_code}" \
-            -u "$USER:$TOKEN" \
-            -X POST --upload-file "/tmp/homelab-common-${VER}.tgz" \
-            https://git.example.com/api/packages/vizzle/helm/api/charts)
-          if [ "$CODE" != "201" ]; then
-            echo "::error::Upload failed: HTTP $CODE"
-            cat /tmp/resp || true
-            exit 1
-          fi
-          echo "Published homelab-common ${VER}"
-
   gitleaks:
     # Pre-merge required-check (branch protection). На push к main не запускаем —
     # тот же diff уже проверен на PR; post-sanitize gitleaks внутри mirror-to-github
