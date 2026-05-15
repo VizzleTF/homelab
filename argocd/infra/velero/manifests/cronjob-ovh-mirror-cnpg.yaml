@@ -1,0 +1,54 @@
+# Daily mirror CNPG barman bucket Garage → OVH (vaka-homelab/cnpg prefix).
+# Runs 07:00 UTC — после CNPG scheduledBackups (immich 04:30, cnpg-cluster 05:15)
+# и после velero-bucket-mirror-ovh (06:00). Sequential, не пересекается.
+# rclone sync = incremental, ~5-10 GiB total.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cnpg-bucket-mirror-ovh
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: cnpg-bucket-mirror
+    app.kubernetes.io/component: offsite-mirror
+spec:
+  schedule: "0 7 * * *"
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            node-role.kubernetes.io/worker: ""
+          containers:
+            - name: rclone
+              image: rclone/rclone:1.74
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  echo "[$(date -u)] starting rclone sync garage_cnpg:cnpg-backups -> ovh:vaka-homelab/cnpg/"
+                  rclone sync \
+                    --s3-acl=private \
+                    --transfers=4 \
+                    --checkers=8 \
+                    --stats=2m \
+                    --stats-one-line \
+                    garage_cnpg:cnpg-backups ovh:vaka-homelab/cnpg/
+                  echo "[$(date -u)] mirror complete"
+              envFrom:
+                - secretRef:
+                    name: velero-mirror-rclone-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
