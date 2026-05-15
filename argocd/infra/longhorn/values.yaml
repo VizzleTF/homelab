@@ -21,16 +21,12 @@ persistence:
   # аннотации longhorn.io/last-applied-configmap). Чарт не даёт прокинуть
   # replicaAutoBalance в parameters — для новых volume'ов на этом SC
   # балансер останется "ignored" по умолчанию. Для apps, требующих
-  # авто-балансировки реплик, использовать longhorn-backup или
-  # longhorn-retain (replicaAutoBalance=best-effort выставлен в их parameters).
+  # авто-балансировки реплик, использовать longhorn-retain
+  # (replicaAutoBalance=best-effort выставлен в его parameters).
   defaultClass: true
   defaultClassReplicaCount: 2
   reclaimPolicy: Retain
 defaultSettings:
-  # Backup target — Garage S3 on Synology (s3.example.com)
-  # credentials are in Secret longhorn-backup-secret (ExternalSecret from Vault)
-  backupTarget: "s3://longhorn-backups@garage/"
-  backupTargetCredentialSecret: "longhorn-backup-secret"
   storageMinimalAvailablePercentage: "5"
   defaultReplicaCount: "2"
   replicaAutoBalance: "best-effort"
