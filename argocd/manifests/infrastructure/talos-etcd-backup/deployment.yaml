@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: talos-etcd-snapshotter
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: talos-etcd-snapshotter
+    app.kubernetes.io/part-of: infrastructure
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: talos-etcd-snapshotter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: talos-etcd-snapshotter
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fetch-talosctl
+          image: curlimages/curl:8.11.0
+          command: [sh, -c]
+          args:
+            - |
+              set -eu
+              version="v1.13.0-beta.1"
+              url="https://github.com/siderolabs/talos/releases/download/${version}/talosctl-linux-amd64"
+              echo "Downloading talosctl ${version}"
+              curl -fsSL "$url" -o /tools/talosctl
+              chmod +x /tools/talosctl
+              /tools/talosctl version --client
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+      containers:
+        - name: snapshotter
+          image: alpine:3.20
+          command: [sh, -c]
+          args:
+            - |
+              set -eu
+              mkdir -p /backup/.velero
+              echo "talos-etcd-snapshotter holder pod ready; snapshot driven by Velero pre-hook"
+              exec sleep infinity
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+              readOnly: true
+            - name: talos-config
+              mountPath: /config
+              readOnly: true
+            - name: backup
+              mountPath: /backup
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: tools
+          emptyDir: {}
+        - name: talos-config
+          secret:
+            secretName: talos-etcd-backup
+            items:
+              - key: config
+                path: config
+                mode: 0400
+        - name: backup
+          persistentVolumeClaim:
+            claimName: talos-etcd-snapshot
