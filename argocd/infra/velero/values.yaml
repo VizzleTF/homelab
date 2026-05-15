@@ -143,10 +143,14 @@ homelab-common:
           property: ACCESS_SECRET_KEY
 
     # ENV vars Secret для rclone CronJob (mirror Garage → OVH).
-    # Один Secret содержит RCLONE_CONFIG_<REMOTE>_* для трёх remote'ов:
-    # garage      = Garage с velero-key (bucket velero-backups)
-    # garage_cnpg = Garage с cnpg-key (bucket cnpg-backups, read-only mirror source)
-    # ovh         = OVH Frankfurt (mirror target)
+    # Один Secret содержит RCLONE_CONFIG_<REMOTE>_* для четырёх remote'ов:
+    # garage         = Garage с velero-key (bucket velero-backups)
+    # garage_cnpg    = Garage с cnpg-key (bucket cnpg-backups)
+    # garage_tfstate = Garage с terraform-state-key (bucket terraform-state)
+    # ovh            = OVH Frankfurt (mirror target)
+    #
+    # NB: vault paths terraform/s3-terraform-state и shared/s3-cnpg-backup
+    # — non-k8s namespaces в Vault, ESO template prepends "homelab/k8s/".
     - name: velero-mirror-rclone-env
       data:
         - secretKey: garage_ak
@@ -160,6 +164,12 @@ homelab-common:
           property: ACCESS_KEY_ID
         - secretKey: garage_cnpg_sk
           vaultPath: shared/s3-cnpg-backup
+          property: ACCESS_SECRET_KEY
+        - secretKey: garage_tfstate_ak
+          vaultPath: terraform/s3-terraform-state
+          property: ACCESS_KEY_ID
+        - secretKey: garage_tfstate_sk
+          vaultPath: terraform/s3-terraform-state
           property: ACCESS_SECRET_KEY
         - secretKey: ovh_ak
           vaultPath: velero/s3-ovh
@@ -182,6 +192,13 @@ homelab-common:
         RCLONE_CONFIG_GARAGE_CNPG_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_GARAGE_CNPG_ACCESS_KEY_ID: "{{ .garage_cnpg_ak }}"
         RCLONE_CONFIG_GARAGE_CNPG_SECRET_ACCESS_KEY: "{{ .garage_cnpg_sk }}"
+        RCLONE_CONFIG_GARAGE_TFSTATE_TYPE: "s3"
+        RCLONE_CONFIG_GARAGE_TFSTATE_PROVIDER: "Other"
+        RCLONE_CONFIG_GARAGE_TFSTATE_ENDPOINT: "https://s3.example.com"
+        RCLONE_CONFIG_GARAGE_TFSTATE_REGION: "garage"
+        RCLONE_CONFIG_GARAGE_TFSTATE_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_GARAGE_TFSTATE_ACCESS_KEY_ID: "{{ .garage_tfstate_ak }}"
+        RCLONE_CONFIG_GARAGE_TFSTATE_SECRET_ACCESS_KEY: "{{ .garage_tfstate_sk }}"
         RCLONE_CONFIG_OVH_TYPE: "s3"
         RCLONE_CONFIG_OVH_PROVIDER: "Other"
         RCLONE_CONFIG_OVH_ENDPOINT: "https://s3.de.io.cloud.ovh.net"
