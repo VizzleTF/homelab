@@ -260,10 +260,6 @@ grafana:
     - victoriametrics-metrics-datasource
     - victoriametrics-logs-datasource
 
-  # Recreate strategy required for ReadWriteOnce PVC
-  deploymentStrategy:
-    type: Recreate
-
   # Reverse proxy config — required for HTTPS gateway → HTTP Grafana
   grafana.ini:
     server:
@@ -305,13 +301,11 @@ grafana:
       cpu: 200m
       memory: 512Mi
 
-  # Persistence
+  # Grafana state is fully declarative: dashboards via sidecar+ConfigMaps,
+  # datasources via Helm chart provisioning, users via Authentik OIDC (allow_sign_up).
+  # No PVC → nothing to back up.
   persistence:
-    enabled: true
-    size: 5Gi
-    storageClassName: longhorn
-    annotations:
-      helm.sh/resource-policy: keep
+    enabled: false
 
   # Sidecar for dashboards and datasources
   sidecar:
