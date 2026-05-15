@@ -22,6 +22,9 @@ spec:
     spec:
       backoffLimit: {{ .backoffLimit | default 2 }}
       template:
+        metadata:
+          labels:
+            velero.io/exclude-from-backup: "true"
         spec:
           restartPolicy: OnFailure
           {{- if eq .type "rsync" }}
