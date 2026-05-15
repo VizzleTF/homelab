@@ -40,35 +40,6 @@ homelab-common:
         name: vaultwarden
         port: 80
 
-  backupCronJobs:
-    - name: backup-vaultwarden
-      schedule: "0 1 * * *"
-      type: rsync
-      source:
-        pvc: vaultwarden-data-vaultwarden-0
-      destination:
-        type: nfs
-        path: /vaultwarden
-
-    - name: webdav-backup-vaultwarden
-      schedule: "0 7 * * *"
-      type: rclone
-      source:
-        pvc: vaultwarden-data-vaultwarden-0
-      destination:
-        type: webdav
-        remote: mailru:/backup/vaultwarden
-        secretName: vaultwarden-webdav-credentials
-
-  externalSecrets:
-    - name: vaultwarden-webdav-credentials
-      vaultPath: shared/webdav-backup
-      data:
-        - secretKey: password
-          property: password
-      templateData:
-        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
-
   limitRange:
     enabled: true
     name: default-limits

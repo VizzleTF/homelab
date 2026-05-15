@@ -50,14 +50,6 @@ homelab-common:
         username: "{{ .username }}"
         password: "{{ .password }}"
     
-    - name: nextcloud-webdav-credentials
-      vaultPath: shared/webdav-backup
-      data:
-        - secretKey: password
-          property: password
-      templateData:
-        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
-
     - name: nextcloud-postgresql-credentials
       vaultPath: nextcloud/postgresql
       data:
@@ -96,59 +88,6 @@ homelab-common:
         name: nextcloud
         port: 8080
     
-  backupCronJobs:
-    - name: backup-nfs
-      schedule: "0 0 * * *"
-      type: rsync
-      successfulJobsHistoryLimit: 1
-      failedJobsHistoryLimit: 2
-      command:
-        - rsync
-        - -avz
-        - --no-owner
-        - --no-group
-        - --no-times
-        - --delete
-        - /source/config/config.php
-        - /source/data/ivan/files
-        - /destination/
-      source:
-        pvc: nextcloud-nextcloud
-      destination:
-        type: nfs
-        path: /nc
-      resources:
-        requests:
-          memory: 64Mi
-          cpu: 50m
-        limits:
-          memory: 256Mi
-          cpu: 500m
-    
-    - name: webdav-backup-nextcloud
-      schedule: "30 6 * * *"
-      type: rclone
-      source:
-        pvc: nextcloud-nextcloud
-      destination:
-        type: webdav
-        remote: mailru:/backup/nextcloud
-        secretName: nextcloud-webdav-credentials
-      rcloneArgs:
-        - --transfers=4
-        - --checkers=8
-        - --verbose
-        - --include=config/config.php
-        - --include=data/ivan/files/**
-        - --exclude=*
-      resources:
-        requests:
-          cpu: 100m
-          memory: 256Mi
-        limits:
-          cpu: "1"
-          memory: 512Mi
-  
   limitRange:
     enabled: true
     name: default-limits

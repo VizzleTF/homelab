@@ -65,15 +65,6 @@ homelab-common:
         key: "{{ .key }}"
         secret: "{{ .secret }}"
 
-    # WebDAV для off-site бэкапов (тот же shared path, что у nextcloud/vaultwarden).
-    - name: forgejo-webdav-credentials
-      vaultPath: shared/webdav-backup
-      data:
-        - secretKey: password
-          property: password
-      templateData:
-        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
-
     # Garage S3 credentials for [packages] section (Forgejo Packages OCI registry).
     - name: forgejo-garage-s3
       vaultPath: forgejo/garage-s3
@@ -90,52 +81,6 @@ homelab-common:
       service:
         name: forgejo-http
         port: 3000
-
-  backupCronJobs:
-    - name: backup-forgejo-nfs
-      schedule: "0 2 * * *"
-      type: rsync
-      successfulJobsHistoryLimit: 1
-      failedJobsHistoryLimit: 2
-      command:
-        - rsync
-        - -avz
-        - --no-owner
-        - --no-group
-        - --no-times
-        - --delete
-        - /source/git/gitea-repositories
-        - /source/gitea/conf
-        - /destination/
-      source:
-        pvc: forgejo-data
-      destination:
-        type: nfs
-        path: /forgejo
-      resources:
-        requests:
-          cpu: 50m
-          memory: 64Mi
-        limits:
-          cpu: 500m
-          memory: 256Mi
-
-    - name: webdav-backup-forgejo
-      schedule: "0 8 * * *"
-      type: rclone
-      source:
-        pvc: forgejo-data
-      destination:
-        type: webdav
-        remote: mailru:/backup/forgejo
-        secretName: forgejo-webdav-credentials
-      rcloneArgs:
-        - --transfers=4
-        - --checkers=8
-        - --verbose
-        - --include=git/gitea-repositories/**
-        - --include=gitea/conf/**
-        - --exclude=*
 
   # Декларативный provisioning OIDC application/provider в Authentik.
   # FORGEJO_OIDC_CLIENT_SECRET резолвится через !Env из authentik-config secret

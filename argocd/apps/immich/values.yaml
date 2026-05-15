@@ -84,14 +84,6 @@ homelab-common:
         username: "{{ .username }}"
         password: "{{ .password }}"
     
-    - name: immich-webdav-credentials
-      vaultPath: shared/webdav-backup
-      data:
-        - secretKey: password
-          property: password
-      templateData:
-        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
-
     - name: cnpg-s3-backup
       vaultPath: shared/s3-cnpg-backup
       data:
@@ -130,26 +122,6 @@ homelab-common:
         name: immich-server
         port: 2283
   
-  backupCronJobs:
-    - name: backup-immich-library
-      schedule: "30 1 * * *"
-      type: rsync
-      command: ["rsync", "-avz", "--no-owner", "--no-group", "--no-times", "--delete", "--exclude=.nfs*", "/source/", "/destination/"]
-      source:
-        pvc: immich-library-pvc
-      destination:
-        type: nfs
-        path: /immich
-    
-    - name: webdav-backup-immich
-      schedule: "45 5 * * *"
-      type: rclone
-      source:
-        pvc: immich-library-pvc
-      destination:
-        type: webdav
-        remote: mailru:/backup/immich
-        secretName: immich-webdav-credentials
   cnpgDatabase:
     name: immich
     owner: immich_user

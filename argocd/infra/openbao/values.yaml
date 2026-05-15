@@ -50,14 +50,6 @@ homelab-common:
         role-id: "{{ .role_id }}"
         secret-id: "{{ .secret_id }}"
 
-    - name: openbao-webdav-credentials
-      vaultPath: shared/webdav-backup
-      data:
-        - secretKey: password
-          property: password
-      templateData:
-        RCLONE_CONFIG_MAILRU_PASS: "{{ .password }}"
-
   httpRoutes:
     - name: openbao
       hostname: openbao
@@ -65,26 +57,6 @@ homelab-common:
       service:
         name: openbao-active
         port: 8200
-
-  backupCronJobs:
-    - name: backup-openbao
-      schedule: "0 1 * * *"
-      type: rsync
-      source:
-        pvc: data-openbao-0
-      destination:
-        type: nfs
-        path: /openbao
-
-    - name: webdav-backup-openbao
-      schedule: "0 7 * * *"
-      type: rclone
-      source:
-        pvc: data-openbao-0
-      destination:
-        type: webdav
-        remote: mailru:/backup/openbao
-        secretName: openbao-webdav-credentials
 
   rbac:
     - serviceAccount:
