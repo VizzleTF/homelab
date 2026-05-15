@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: talos-etcd-snapshot
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: talos-etcd-snapshotter
+    app.kubernetes.io/part-of: infrastructure
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi

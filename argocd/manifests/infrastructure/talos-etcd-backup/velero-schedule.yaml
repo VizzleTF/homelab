@@ -1,0 +1,54 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: talos-etcd-daily
+  namespace: velero
+spec:
+  schedule: "15 4 * * *"
+  template:
+    ttl: 720h0m0s
+    storageLocation: garage-default
+    snapshotMoveData: true
+    csiSnapshotTimeout: 15m
+    itemOperationTimeout: 4h0m0s
+    defaultVolumesToFsBackup: false
+    includedNamespaces:
+      - kube-system
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: talos-etcd-snapshotter
+    hooks:
+      resources:
+        - name: etcd-snapshot
+          includedResources: [pods]
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: talos-etcd-snapshotter
+          pre:
+            - exec:
+                container: snapshotter
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    set -eu
+                    ts=$(date -u +%Y-%m-%dT%H%M)
+                    dest="/backup/.velero/etcd-${ts}.snap"
+                    endpoints="10.11.11.101,10.11.11.102,10.11.11.103"
+                    for node in 10.11.11.101 10.11.11.102 10.11.11.103; do
+                      echo "Trying etcd snapshot from $node"
+                      if /tools/talosctl --talosconfig=/config/config \
+                          --nodes "$node" --endpoints "$endpoints" \
+                          etcd snapshot "$dest"; then
+                        echo "Snapshot OK from $node"
+                        ls -lh "$dest"
+                        # Retain last 7 snapshots on PVC; off-PVC retention via Velero TTL.
+                        ls -1t /backup/.velero/etcd-*.snap 2>/dev/null | tail -n +8 | xargs -r rm -v
+                        exit 0
+                      fi
+                      echo "Failed on $node, trying next"
+                    done
+                    echo "ERROR: snapshot not created"
+                    exit 1
+                onError: Fail
+                timeout: 10m
