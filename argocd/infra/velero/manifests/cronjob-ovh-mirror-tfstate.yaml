@@ -1,0 +1,53 @@
+# Daily mirror Terraform state bucket Garage → OVH (vaka-homelab/terraform-state prefix).
+# Runs 08:00 UTC — после CNPG mirror (07:00). State меняется редко (manual terraform apply),
+# мирьоринг даёт DR-копию вне Synology.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tfstate-bucket-mirror-ovh
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: tfstate-bucket-mirror
+    app.kubernetes.io/component: offsite-mirror
+spec:
+  schedule: "0 8 * * *"
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            node-role.kubernetes.io/worker: ""
+          containers:
+            - name: rclone
+              image: rclone/rclone:1.74
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  echo "[$(date -u)] starting rclone sync garage_tfstate:terraform-state -> ovh:vaka-homelab/terraform-state/"
+                  rclone sync \
+                    --s3-acl=private \
+                    --transfers=2 \
+                    --checkers=4 \
+                    --stats=1m \
+                    --stats-one-line \
+                    garage_tfstate:terraform-state ovh:vaka-homelab/terraform-state/
+                  echo "[$(date -u)] mirror complete"
+              envFrom:
+                - secretRef:
+                    name: velero-mirror-rclone-env
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
