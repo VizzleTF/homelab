@@ -39,7 +39,7 @@ A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by
 | GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
 | Observability         | VictoriaMetrics + VictoriaLogs + Vector | Grafana, Alertmanager into Telegram, Robusta for K8s-aware enrichment |
 | Dependency updates    | Renovate                                | In-cluster CronJob, opens PRs against Forgejo                        |
-| Backups               | Velero + Barman + talosctl etcd snapshot | Velero handles PVCs and K8s state (CSI snapshot data movement through Kopia); Barman handles Postgres WAL+PITR; etcd snapshots stand on their own. Everything lands in one Garage bucket. |
+| Backups               | Velero + Barman                         | Velero handles PVCs and K8s state (CSI snapshot data movement through Kopia, with `talosctl etcd snapshot` running as a Velero pre-hook for the control plane); Barman handles Postgres WAL+PITR. Everything lands in one Garage bucket, mirrored daily to OVH Frankfurt. |
 
 ---
 
@@ -77,7 +77,7 @@ flowchart LR
         Root["root-application.yaml<br/>(App-of-Apps)"]
         Root --> InfraSet["infra-appset.yaml<br/>~26 components"]
         Root --> AppsSet["apps-appset.yaml<br/>~15 apps"]
-        Root --> Standalone["4 standalone:<br/>argocd · gateway-api · csi-snapshotter · etcd-backup"]
+        Root --> Standalone["3 standalone:<br/>argocd · gateway-api · talos-etcd-backup"]
         Bao[("OpenBao HA<br/>3-node Raft · Shamir auto-unseal")]
     end
 
@@ -206,15 +206,15 @@ OpenBao (MPL 2.0 fork of HashiCorp Vault 1.14.x under OpenSSF sandbox, API-compa
 
 External Secrets Operator renders Kubernetes `Secret` objects on demand from OpenBao paths shaped like `home/homelab/k8s/<ns>/<app>`.
 
-Backups go to a single Garage S3 bucket on Synology (`s3.example.com`). Three layers cover three different things — see [Backups](#-backups) below.
+Backups go to dedicated Garage S3 buckets on Synology (`s3.example.com` — `velero-backups`, `cnpg-backups`, `terraform-state`), each mirrored daily to OVH Frankfurt. Two non-overlapping layers cover everything — see [Backups](#-backups) below.
 
-Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400. This catches every S3 client (Barman, Velero AWS plugin, Longhorn `BackupTarget`).
+Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400. This catches every S3 client (Barman, Velero AWS plugin, Terraform S3 backend, rclone OVH-mirror CronJobs).
 
 ---
 
 ## 💾 Backups
 
-Primary bucket is Garage on Synology, with a daily off-site mirror to OVH Frankfurt. Three layers that don't overlap: Velero for PVCs and K8s state, CNPG Barman for Postgres PITR, `talosctl etcd snapshot` for the control plane.
+Primary bucket is Garage on Synology (`velero-backups` + `cnpg-backups`), each with a daily off-site mirror to OVH Frankfurt. Two non-overlapping layers: Velero handles PVCs, K8s state and `talosctl etcd snapshot` (control plane, via Velero pre-hook on a holder pod); CNPG Barman handles Postgres WAL+PITR.
 
 | Workload | Backup CR | Cron UTC | TTL | Method | Hook |
 |---|---|---|---|---|---|
@@ -227,7 +227,7 @@ Primary bucket is Garage on Synology, with a daily off-site mirror to OVH Frankf
 | Vaultwarden data PVC (SQLite) | `vaultwarden-daily` | 02:50 | 30d | CSI snapshot data movement | pre: `sqlite3 /data/db.sqlite3 ".backup /data/db.sqlite3.bak"` from a tiny alpine+sqlite sidecar (`sqlite-helper`) — the upstream Debian-slim image has no `sqlite3` CLI; post-hook removes the `.bak` from the PVC |
 | Rss-to-telegram-bot data PVC (SQLite) | `rss-to-telegram-bot-daily` | 02:55 | 30d | CSI snapshot data movement | pre: `sync` |
 | Immich library (~185 GiB) | `immich-daily` | 03:00 | 30d | **File System Backup** — Longhorn can't clone a 185 GiB RWX volume within Velero's 15-min timeout, so node-agent mounts the live PVC via kubelet hostPath and Kopia reads straight from it. `resourcePolicy` skips the ML model cache PVC. | pre: `sync` |
-| etcd (Talos control plane) | `talos-etcd-backup` CronJob | 04:15 | 7d | `talosctl etcd snapshot save` → NFS `10.11.12.237:/volume5/k8s_svc/etcd-backup`. This is the only path back if the cluster is gone — Velero talks to apiserver, not etcd. | — |
+| etcd (Talos control plane) | `talos-etcd-daily` (Velero) | 04:15 | 30d | A holder Deployment (`talos-etcd-snapshotter`, kube-system) keeps a Longhorn PVC mounted. The Velero pre-hook execs `talosctl etcd snapshot` on the pod, iterating over CP nodes `10.11.11.{101,102,103}` until one responds, then writes `etcd-<ts>.snap` to the PVC. Velero captures the PVC via CSI to Garage; the OVH mirror picks it up next morning. Local on-PVC retain is 7 snapshots, off-PVC retention rides on Velero TTL. Only path back if the cluster is gone — Velero talks to apiserver, not etcd. | pre: `talosctl etcd snapshot /backup/.velero/etcd-<ts>.snap` |
 | Postgres (cnpg + immich-cluster) | CNPG Barman | continuous WAL + scheduled base | 7d | `s3://cnpg-backups/<cluster>/`. PITR down to the minute. | — |
 | K8s runtime state (Secrets, CR `.status`, ESO renders, cert-manager Orders) | `cluster-state-weekly` | sun 04:00 | 90d | Manifests only, no PVC data. About 100 KB per backup. | — |
 | Off-site mirror (Garage → OVH Frankfurt) | `velero-bucket-mirror-ovh` CronJob | 06:00 | — | `rclone sync garage:velero-backups → ovh:vaka-homelab/velero/`. Mounted as a second BSL `ovh-backup` with `accessMode: ReadOnly`, so a compromised cluster credential can't wipe the off-site copy. | — |
@@ -255,7 +255,7 @@ velero restore create --from-backup <name> --existing-resource-policy=update
 Full runbook in `obsidian/113 Backups/Velero Operator Guide.md`. Two scenarios it covers:
 
 - single namespace lost → `velero restore` with a namespace mapping into a sandbox, verify, then redo in-place
-- whole cluster gone → bootstrap from `talos-etcd-backup` → ArgoCD rebuilds infra → CNPG restores Postgres from Barman → Velero restores the rest in priority order (vaultwarden → nextcloud → forgejo → immich)
+- whole cluster gone → restore the last `talos-etcd-daily` Velero backup to a sandbox ns, extract the `.snap` from the restored PVC, `talosctl bootstrap --recover-from` on a fresh CP VM → ArgoCD rebuilds infra → CNPG restores Postgres from Barman → Velero restores the rest in priority order (vaultwarden → nextcloud → forgejo → immich)
 
 ---
 
