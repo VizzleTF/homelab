@@ -1,0 +1,21 @@
+# Скрейп Velero metrics через VictoriaMetrics operator.
+# Helm chart создаёт ServiceMonitor (prometheus-operator), но у нас
+# `vm-operator.disable_prometheus_converter: true` — ServiceMonitor никем
+# не подхватывается. Нужен явный VMServiceScrape.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: velero
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - velero
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: velero
+      app.kubernetes.io/instance: velero
+  endpoints:
+    - port: http-monitoring
+      path: /metrics
+      interval: 30s
