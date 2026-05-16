@@ -159,7 +159,161 @@ defaultRules:
     # VMAlert — noisy info
     RecordingRulesNoData:
       create: false
+
+    # ─── One-event-one-alert cleanup (см. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md) ───
+    # Каскадные дубликаты глушатся через alertmanager inhibit_rules.
+    # Здесь — упреждающие/late twins/SaaS-уровень шум, не actionable в homelab.
+
+    # Cluster resource overcommit — homelab сознательно overcommitted
+    KubeCPUOvercommit:
+      create: false
+    KubeMemoryOvercommit:
+      create: false
+
+    # Predictive twins of NodeFilesystemAlmostOutOfSpace/Files (already keep critical+warning of the absolute alert)
+    NodeFilesystemSpaceFillingUp:
+      create: false
+    NodeFilesystemFilesFillingUp:
+      create: false
+
+    # Memory/system saturation duplicates of NodeMemoryHighUtilization
+    NodeMemoryMajorPagesFaults:
+      create: false
+    NodeSystemSaturation:
+      create: false
+
+    # PVC inodes — rare on Longhorn ext4
+    KubePersistentVolumeInodesFillingUp:
+      create: false
+
+    # Apiserver cascade — inhibited by KubeAPIDown
+    KubeAggregatedAPIErrors:
+      create: false
+    KubeAPITerminatedRequests:
+      create: false
+
+    # Kubelet noise — Talos rotates certs automatically; server cert covered by client cert expiration
+    KubeletClientCertificateRenewalErrors:
+      create: false
+    KubeletServerCertificateRenewalErrors:
+      create: false
+    KubeletServerCertificateExpiration:
+      create: false
+    KubeNodePressure:
+      create: false
+    KubeletPlegDurationHigh:
+      create: false
+
+    # Rollout/replicas mismatch — KubeDeploymentRolloutStuck / KubeStatefulSetUpdateNotRolledOut
+    # cover the actionable case. Generation mismatch is symptom of stuck rollout.
+    KubeDeploymentGenerationMismatch:
+      create: false
+    KubeStatefulSetGenerationMismatch:
+      create: false
+    KubeDaemonSetMisScheduled:
+      create: false
+    KubeDaemonSetNotScheduled:
+      create: false
+
+    # Job — KubeJobFailed is the keeper; NotCompleted is predictive twin
+    KubeJobNotCompleted:
+      create: false
+
+    # Node clock — Skew is symptom of NotSynchronising
+    NodeClockSkewDetected:
+      create: false
+
+    # Node network counter errs — cheap NICs, chronic bumps. Keep NodeNetworkInterfaceFlapping.
+    NodeNetworkReceiveErrs:
+      create: false
+    NodeNetworkTransmitErrs:
+      create: false
+
+    # Node FD/conntrack/IO — never actionable on 6-node homelab
+    NodeFileDescriptorLimit:
+      create: false
+    NodeHighNumberConntrackEntriesUsed:
+      create: false
+    NodeDiskIOSaturation:
+      create: false
+
+    # Cluster version mismatch — fires intentionally during Talos upgrade
+    KubeVersionMismatch:
+      create: false
+
+    # Alertmanager — FailedReload is the keeper. FailedToSendAlerts overlaps vmalert RemoteWriteErrors.
+    AlertmanagerFailedToSendAlerts:
+      create: false
+
+    # vm-health — SaaS-tier alerts, homelab VM well under capacity. Keep ServiceDown + TooManyRestarts.
+    ProcessNearFDLimits:
+      create: false
+    TooHighMemoryUsage:
+      create: false
+    TooHighCPUUsage:
+      create: false
+    TooHighGoroutineSchedulingLatency:
+      create: false
+    TooManyLogs:
+      create: false
+    ConcurrentInsertsHitTheLimit:
+      create: false
+    RowsRejectedOnIngestion:
+      create: false
+    TooHighQueryLoad:
+      create: false
+
+    # vmagent cascade — inhibited by PersistentQueueIsDroppingData via alertmanager.
+    # Keep dropping-data (critical) + ScrapePoolHasNoTargets + ConfigurationReloadFailure.
+    RejectedRemoteWriteDataBlocksAreDropped:
+      create: false
+    TooManyScrapeErrors:
+      create: false
+    TooManyWriteErrors:
+      create: false
+    TooManyRemoteWriteErrors:
+      create: false
+    PersistentQueueForWritesIsSaturated:
+      create: false
+    PersistentQueueForReadsIsSaturated:
+      create: false
+    PersistentQueueRunsOutOfSpaceIn12Hours:
+      create: false
+    PersistentQueueRunsOutOfSpaceIn4Hours:
+      create: false
+
+    # vmsingle disk — keep predictive (DiskRunsOutOfSpaceIn3Days); drop late "already-full"
+    DiskRunsOutOfSpace:
+      create: false
+    NodeBecomesReadonlyIn3Days:
+      create: false
+    # vmsingle churn — keep TooHighChurnRate; drop 24h twin + cascade
+    TooHighChurnRate24h:
+      create: false
+    TooHighSlowInsertsRate:
+      create: false
+    MetadataCacheUtilizationIsTooHigh:
+      create: false
+    RequestErrorsToAPI:
+      create: false
+
+    # vmalert cascade — RemoteWriteDroppingData (critical) is keeper
+    RemoteWriteErrors:
+      create: false
+    RemoteWriteQueueHighUsage:
+      create: false
+    TooManyMissedIterations:
+      create: false
+    AlertmanagerErrors:
+      create: false
+    # Keep one of AlertingRulesError/RecordingRulesError; drop the other for noise reduction
+    RecordingRulesError:
+      create: false
+
   groups:
+    # vmoperator group — self-healing operator, only ServiceDown matters (in vm-health)
+    vmoperator:
+      create: false
     # Disable etcd rules if not using it
     etcd:
       create: false

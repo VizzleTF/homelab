@@ -20,36 +20,6 @@ spec:
               kubectl -n descheduler get pods
               kubectl -n descheduler logs -l app.kubernetes.io/name=descheduler
 
-        # Counter descheduler_pods_evicted_total регистрируется только после
-        # первого eviction. rate() вернёт пусто, пока метрики нет — алерт не
-        # срабатывает ложно на свежем старте.
-        - alert: DeschedulerHighEvictionRate
-          expr: sum(rate(descheduler_pods_evicted_total[15m])) > 0.1
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: "Descheduler выселяет слишком много подов"
-            description: |
-              За 15 минут средняя скорость eviction {{ $value | humanize }} pod/s
-              (>6 pods/min устойчиво). Возможен каскад из-за неправильных
-              thresholds у LowNodeUtilization или флапающей ноды.
-              kubectl get events -A --field-selector reason=Evicted --sort-by=.lastTimestamp
-
-        # Guard: count(descheduler_build_info) > 0, потому что upstream
-        # 0.35.1 публикует метрику со значением 0 (не 1), и сравнение == 1
-        # делало бы алерт мёртвым.
-        - alert: DeschedulerLoopStuck
-          expr: |
-            rate(descheduler_loop_duration_seconds_count[30m]) == 0
-            and on() count(descheduler_build_info) > 0
-          for: 30m
-          labels:
-            severity: warning
-          annotations:
-            summary: "Descheduler цикл не завершается"
-            description: |
-              Descheduler работает (build_info=1), но descheduling-loop не закрыл
-              ни одной итерации за 30 минут (interval=5m, должно быть ~6).
-              Возможно, завис на API call или leader election конфликт.
-              kubectl -n descheduler logs -l app.kubernetes.io/name=descheduler --tail=200
+        # Eviction-rate / loop-stuck alerts удалены: descheduler — nice-to-have,
+        # его сбои не каскадятся, и Down уже покрывает «совсем сломался» случай.
+        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #35.

@@ -33,16 +33,8 @@ spec:
               Опции: увеличить PVC, снизить retentionPeriod (сейчас 7d), сузить
               retentionDiskSpaceUsage (сейчас 9GiB).
 
-        - alert: VictoriaLogsRowsDropped
-          expr: increase(vl_rows_dropped_total[10m]) > 0
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: "VictoriaLogs роняет записи"
-            description: |
-              За 10 минут сброшено {{ $value }} записей. Обычно — невалидный JSON
-              или выход за лимиты полей/размера. Проверить Vector sink-логи.
+        # VictoriaLogsRowsDropped удалён — каскад VictoriaLogsDiskUsageHigh / VictoriaLogsDown.
+        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #24.
 
         - alert: VectorDown
           expr: absent(up{job=~".*vector.*"}) == 1 or up{job=~".*vector.*"} == 0
@@ -57,13 +49,5 @@ spec:
               kubectl -n victoria-logs get ds
               kubectl -n victoria-logs logs ds/victoria-logs-vector --tail=100
 
-        - alert: VectorSinkErrors
-          expr: rate(vector_component_errors_total{component_kind="sink"}[5m]) > 0
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: "Vector: ошибки отправки логов"
-            description: |
-              Rate ошибок sink {{ $value | humanize }}/s за 5m, сохраняется 10m+.
-              Обычно — VictoriaLogs недоступен или перегружен.
+        # VectorSinkErrors удалён — каскад VictoriaLogsDown.
+        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #36.
