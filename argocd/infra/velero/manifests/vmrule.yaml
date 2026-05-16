@@ -1,0 +1,39 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: velero
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: velero
+      rules:
+        # Backup явно провалился — phase=Failed.
+        # Counter сбрасывается при рестарте velero pod — используем increase[24h],
+        # чтобы не зависеть от абсолютного значения.
+        - alert: VeleroBackupFailed
+          expr: increase(velero_backup_failure_total{schedule!=""}[24h]) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Velero schedule {{ $labels.schedule }} провалился"
+            description: |
+              За последние 24h Velero зафиксировал {{ $value }} failed backup(s) для schedule={{ $labels.schedule }}.
+              Расследовать: kubectl -n velero get backups.velero.io --selector velero.io/schedule-name={{ $labels.schedule }} --sort-by=.metadata.creationTimestamp
+
+        # Daily schedule не имел successful backup > 26h. PartiallyFailed/Failed
+        # runs НЕ обновляют last_successful_timestamp, поэтому stale-алерт
+        # покрывает и эти кейсы — даже если VeleroBackupFailed не зафайрил
+        # (PartiallyFailed случай, когда data upload canceled).
+        # Cluster-state-weekly исключён через `-daily` regex — для него нужно
+        # отдельное правило с 8d-порогом, если когда-то понадобится.
+        - alert: VeleroBackupStale
+          expr: time() - velero_backup_last_successful_timestamp{schedule=~".+-daily"} > 26 * 3600
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Velero schedule {{ $labels.schedule }} > 26h без successful backup"
+            description: |
+              Последний успешный backup для schedule={{ $labels.schedule }} был {{ $value | humanizeDuration }} назад.
+              Проверить: velero -n velero backup describe $(velero -n velero backup get --selector velero.io/schedule-name={{ $labels.schedule }} -o name | tail -1)
