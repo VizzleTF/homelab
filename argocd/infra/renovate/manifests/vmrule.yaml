@@ -7,16 +7,8 @@ spec:
   groups:
     - name: renovate
       rules:
-        - alert: RenovateCronJobFailing
-          expr: kube_job_failed{namespace="renovate"} > 0
-          for: 15m
-          labels:
-            severity: warning
-          annotations:
-            summary: Renovate job {{ $labels.job_name }} failed
-            description: |
-              CronJob in namespace `renovate` failed. Check logs:
-              `kubectl -n renovate logs -l job-name={{ $labels.job_name }}`.
+        # RenovateCronJobFailing удалён — покрывается upstream KubeJobFailed.
+        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #39.
         - alert: RenovateScanMissing
           expr: |
             (time() - max(kube_job_status_completion_time{namespace="renovate", job_name=~"renovate-.*"})) > 172800

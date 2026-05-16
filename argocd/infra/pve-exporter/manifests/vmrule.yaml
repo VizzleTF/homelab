@@ -60,19 +60,8 @@ spec:
               за последние 30 минут. Risk: kswapd / OOM на гостях
               (см. WiFi-latency инцидент 503/504).
 
-        - alert: PveStorageFull
-          expr: |
-            (pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"})
-              * on (id, instance) group_left(storage) pve_storage_info
-              > 0.85
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: "PVE storage {{ $labels.storage }} >85% ({{ $labels.instance }})"
-            description: |
-              Хранилище {{ $labels.storage }} на {{ $labels.instance }} заполнено
-              на {{ $value | humanizePercentage }}. Расчистить бэкапы / iso / templates.
+        # PveStorageFull warning twin удалён — критический порог покрывает actionable случай.
+        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #26.
 
         - alert: PveStorageCritical
           expr: |
