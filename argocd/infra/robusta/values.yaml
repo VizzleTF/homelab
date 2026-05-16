@@ -159,6 +159,19 @@ customPlaybooks:
             # Reason `Update` у Longhorn слишком общий (используется для real
             # warnings тоже), поэтому давим по уникальной подстроке message.
             - "snapshot becomes not ready to use"
+            # Velero CSI backup → Longhorn clone lifecycle (nightly noise 2-5 UTC).
+            # ~10 schedules × 4-5 stages = ~50+ событий за ночь. Все штатные:
+            # clone PVC create → attach → data copy → detach → PV cleanup.
+            # `VolumeFailedDelete` — finalizer race: PV detached позже volumeattachment.
+            # `SnapshotContentMissing` — transient между VolumeSnapshot delete и VSC gc.
+            # `VolumeCloneCopyCompleteAwaitingHealthy` — Longhorn clone awaiting HA replicas.
+            - "VolumeFailedDelete"
+            - "SnapshotContentMissing"
+            - "VolumeCloneCopyCompleteAwaitingHealthy"
+            # FailedAttachVolume/FailedScheduling — reason shared с real issues,
+            # давим по уникальной подстроке message от Velero backup pod-ов.
+            - "is not ready for workloads"
+            - "pod has unbound immediate PersistentVolumeClaims"
     actions:
       - warning_events_report:
           warning_event_groups:
