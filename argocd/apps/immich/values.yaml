@@ -224,6 +224,7 @@ machine-learning:
                   values: ["true"]
   controllers:
     main:
+      strategy: Recreate
       containers:
         main:
           image:
