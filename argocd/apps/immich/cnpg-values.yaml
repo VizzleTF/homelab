@@ -74,7 +74,11 @@ cluster:
 backups:
   enabled: true
   endpointURL: "https://s3.example.com"
-  destinationPath: "s3://cnpg-backups/immich-cluster"
+  # TEMPORARY: new path to satisfy CNPG "Expected empty archive" check during
+  # recovery. Old path s3://cnpg-backups/immich-cluster/ stays as recovery
+  # source. Revert to original path after recovery is verified + old archive
+  # cleared.
+  destinationPath: "s3://cnpg-backups/immich-cluster-restored"
   provider: s3
   secret:
     create: false
