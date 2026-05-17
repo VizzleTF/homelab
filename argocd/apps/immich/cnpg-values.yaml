@@ -19,8 +19,9 @@ recovery:
   secret:
     create: false
     name: cnpg-s3-backup
-  pitrTarget:
-    time: "2026-05-17 07:13:00.000000+00:00"
+  # Removed PITR target: last archived WAL ends at 2026-05-17 06:46:00 UTC.
+  # Target 07:13 UTC fails with "recovery ended before configured recovery
+  # target was reached". Recover to latest available WAL instead.
 
 cluster:
   annotations:
