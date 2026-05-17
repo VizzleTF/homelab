@@ -1,4 +1,4 @@
 chart: cluster
 repoURL: https://cloudnative-pg.github.io/charts
-targetRevision: "0.6.0"
+targetRevision: "0.6.1"
 wave: "1"
