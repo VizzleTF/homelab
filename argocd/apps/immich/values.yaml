@@ -204,6 +204,7 @@ immich:
 # GPU passthrough: Proxmox → talos-c0p-fxe, i915 Talos extension installed
 # Intel GPU Device Plugin advertises gpu.intel.com/i915 and sets cgroup permissions
 machine-learning:
+  enabled: false
   defaultPodOptions:
     securityContext:
       seccompProfile:
