@@ -1,27 +1,7 @@
 # CloudNativePG Immich Cluster Configuration
 # Dedicated cluster for Immich application with vector support
-#
-# TEMPORARY RECOVERY MODE 2026-05-17: data lost via accidental
-# `argocd app sync immich --replace`. Restore from barman backup
-# 20260517T043000 + WAL replay to PITR target before incident.
-# Revert to `mode: standalone` once data verified.
 
-mode: recovery
-
-recovery:
-  method: object_store
-  clusterName: immich-cluster
-  database: immich
-  owner: immich_user
-  destinationPath: "s3://cnpg-backups/immich-cluster"
-  endpointURL: "https://s3.example.com"
-  provider: s3
-  secret:
-    create: false
-    name: cnpg-s3-backup
-  # Removed PITR target: last archived WAL ends at 2026-05-17 06:46:00 UTC.
-  # Target 07:13 UTC fails with "recovery ended before configured recovery
-  # target was reached". Recover to latest available WAL instead.
+mode: standalone
 
 cluster:
   annotations:
