@@ -89,20 +89,34 @@ token() {
 }
 
 # forgejo_api <method> <path> [json-body]
+# stdout: response body on 2xx. stderr: HTTP code + body on non-2xx.
+# Returns the raw HTTP status code (0 if curl itself failed).
 forgejo_api() {
   local method="$1" path="$2" data="${3:-}"
   local t; t=$(token)
+  local tmp; tmp=$(mktemp)
+  local code
   if [ -n "$data" ]; then
-    curl -sS -f -X "$method" \
+    code=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" \
       -H "Authorization: token $t" \
       -H "Content-Type: application/json" \
       -d "$data" \
-      "$FORGEJO_URL$path"
+      "$FORGEJO_URL$path") || code=0
   else
-    curl -sS -f -X "$method" \
+    code=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" \
       -H "Authorization: token $t" \
-      "$FORGEJO_URL$path"
+      "$FORGEJO_URL$path") || code=0
   fi
+  if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+    cat "$tmp"
+    rm -f "$tmp"
+    return 0
+  fi
+  echo "forgejo API $method $path -> HTTP $code" >&2
+  cat "$tmp" >&2
+  echo >&2
+  rm -f "$tmp"
+  return "$code"
 }
 
 get_pr_sha() {
@@ -248,10 +262,23 @@ cmd_merge() {
     --arg msg   "$body" \
     '{Do: "squash", MergeTitleField: $title, MergeMessageField: $msg}')
 
-  forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$pr/merge" "$payload" >/dev/null || {
-    echo "merge api call failed" >&2
+  # Forgejo BP readiness lags ~30s behind poll_loop success state — server
+  # may still return 405 ("Merge cannot succeed") right after CI goes green.
+  # Retry up to 5x with 30s backoff before giving up.
+  local attempt rc=0
+  for attempt in 1 2 3 4 5; do
+    if forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$pr/merge" "$payload" >/dev/null; then
+      rc=0; break
+    fi
+    rc=$?
+    if [ "$rc" = "405" ] && [ "$attempt" -lt 5 ]; then
+      echo "merge attempt $attempt got HTTP 405 (BP not ready); retrying in 30s..." >&2
+      sleep 30
+      continue
+    fi
+    echo "merge api call failed (HTTP $rc)" >&2
     return 3
-  }
+  done
 
   forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" \
     | jq '{number, merged, merged_by: (.merged_by.login // null), merge_commit_sha}'
