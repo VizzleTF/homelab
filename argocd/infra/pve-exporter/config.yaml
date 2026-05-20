@@ -1,6 +1,6 @@
 chart: prometheus-pve-exporter
 repoURL: https://charts.christianhuth.de
-targetRevision: "2.7.1"
+targetRevision: "2.8.0"
 namespace: victoria-metrics
 wave: "0"
 extraManifests: true
