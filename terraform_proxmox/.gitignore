@@ -23,6 +23,10 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Terraform plan files (may contain sensitive provider data in plaintext)
+tfplan
+*.tfplan
+
 # Talos and Kubernetes configs (sensitive)
 _out/talosconfig
 _out/kubeconfig
