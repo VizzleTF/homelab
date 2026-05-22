@@ -27,7 +27,7 @@ module "talos" {
   # talos_version — schema (vX.Y), talos_release — конкретный тег релиза.
   # schematic — modules/talos/schematic.yaml (содержание extensions), ID считает factory через talos_image_factory_schematic resource.
   # Текущий ID посмотреть: `terraform output -raw talos_schematic_id`.
-  kubernetes_version = "v1.36.0"
+  kubernetes_version = "v1.36.1"
   talos_version      = "v1.13"
   talos_release      = "v1.13.2"
 
