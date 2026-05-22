@@ -40,4 +40,11 @@ cluster:
       kind: Policy
       rules:
         - level: Metadata
+  etcd:
+    # Dedicated unauthenticated metrics/health listener so VictoriaMetrics can
+    # scrape etcd (kubeEtcd). Plain HTTP on 2381 — reachable only on the
+    # servers VLAN behind the Proxmox datacenter firewall. See
+    # docs/etcd-monitoring.md.
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381
   allowSchedulingOnControlPlanes: true
