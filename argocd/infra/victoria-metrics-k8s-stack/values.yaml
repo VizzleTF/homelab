@@ -556,6 +556,10 @@ kubeProxy:
   vmScrape:
     enabled: false
 
-# Kube Etcd scraping
+# Kube Etcd scraping — left disabled on purpose.
+# The chart's kubeEtcd builds a static Endpoints object (hardcoded CP IPs).
+# Instead etcd is scraped via a VMNodeScrape that discovers control-plane
+# nodes by label, so node IP changes / replacements need no config edit.
+# See manifests/vmnodescrape-etcd.yaml and docs/etcd-monitoring.md.
 kubeEtcd:
-  enabled: false  # Disable if not using etcd
+  enabled: false
