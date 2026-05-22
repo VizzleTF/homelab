@@ -30,7 +30,10 @@ vms:
     vlan_id: "11"
     cores: 3
     ram: 12288
-    disk_size: 300
+    # 350, not 300 — Longhorn needs room for the immich-library replica
+    # (~185 GiB nominal); with default 100% over-provisioning the existing
+    # ~116 GiB scheduled + 185 exceeded the old 296 GiB usable disk.
+    disk_size: 350
     machine: "q35"
     cpu_type: "host"
     hostpci:
