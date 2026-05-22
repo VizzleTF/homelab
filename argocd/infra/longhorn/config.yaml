@@ -4,3 +4,9 @@ targetRevision: "1.11.2"
 namespace: longhorn-system
 wave: "-4"
 extraManifests: true
+ignoreDiff: |
+  - group: longhorn.io
+    kind: BackupTarget
+    name: default
+    jqPathExpressions:
+      - .spec.syncRequestedAt
