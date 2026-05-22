@@ -29,7 +29,7 @@ module "talos" {
   # Текущий ID посмотреть: `terraform output -raw talos_schematic_id`.
   kubernetes_version = "v1.36.0"
   talos_version      = "v1.13"
-  talos_release      = "v1.13.0"
+  talos_release      = "v1.13.2"
 
   # VIP автоматически попадает в apiserver certSANs — дублировать не нужно
   apiserver_cert_sans = ["k8s.internal.example"]

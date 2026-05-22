@@ -29,7 +29,7 @@ vms:
     talos_managed: true
     vlan_id: "11"
     cores: 3
-    ram: 10240
+    ram: 12288
     disk_size: 300
     machine: "q35"
     cpu_type: "host"
