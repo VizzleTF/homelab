@@ -27,6 +27,7 @@ data "talos_cluster_health" "this" {
 
   depends_on = [
     talos_machine_bootstrap.this,
-    talos_machine_configuration_apply.this,
+    talos_machine_configuration_apply.controlplane,
+    talos_machine_configuration_apply.worker,
   ]
 }

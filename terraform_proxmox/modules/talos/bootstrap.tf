@@ -14,7 +14,10 @@ resource "talos_machine_bootstrap" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = local.bootstrap_node_ip
 
-  depends_on = [talos_machine_configuration_apply.this]
+  depends_on = [
+    talos_machine_configuration_apply.controlplane,
+    talos_machine_configuration_apply.worker,
+  ]
 
   lifecycle {
     prevent_destroy = true

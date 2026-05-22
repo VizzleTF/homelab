@@ -107,7 +107,7 @@ vms:
         xvga: false
   talos-worker-02:
     node_name: "pve5"
-    enabled: true
+    enabled: false
     vm_id: 505
     address: "10.11.11.112/24"
     tags: ["talos", "kubernetes"]

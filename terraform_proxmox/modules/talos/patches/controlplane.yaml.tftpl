@@ -5,12 +5,12 @@ machine:
 %{ endfor ~}
   network:
     interfaces:
-      # Match the NIC by driver, not kernel name — Talos v1.13.2 switched to
-      # predictable interface names (eth0 -> ens18), which silently broke the
-      # hardcoded `interface: eth0` pin on upgrade. deviceSelector is
-      # version-agnostic: resolves to eth0 on v1.13.0 and ens18 on v1.13.2+.
+      # Match the NIC by deviceSelector, not kernel name — Talos v1.13.2
+      # switched to predictable interface names (eth0 -> ens18), which
+      # silently broke the hardcoded `interface: eth0` pin on upgrade.
+      # physical:true matches the single virtio NIC regardless of kernel name.
       - deviceSelector:
-          driver: virtio_net
+          physical: true
         vip:
           ip: ${vip}
   nodeLabels:

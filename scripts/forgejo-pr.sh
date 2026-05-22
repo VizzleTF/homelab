@@ -15,6 +15,11 @@
 #   merge   <pr-number>                  monitor + squash-merge if green
 #   full    <branch> -- <title> <body>   open + merge in one flow
 #
+# After a successful merge (and for an already-merged PR), `merge`/`full`
+# delete the merged PR's local branch and fast-forward BASE_BRANCH to its
+# remote — so the next branch is never cut from a stale local main. Opt out
+# with KEEP_BRANCH=1.
+#
 # Exit codes (monitor/merge/full):
 #   0  success / merged
 #   1  CI failure
@@ -29,6 +34,7 @@
 #   FORGEJO_TOKEN    if set, skips Vault and uses this value
 #   POLL_INTERVAL    seconds between status polls (default: 15)
 #   POLL_TIMEOUT     max seconds in monitor/merge (default: 600)
+#   KEEP_BRANCH      if 1, skip post-merge local branch deletion (default: 0)
 set -euo pipefail
 
 FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
@@ -37,6 +43,7 @@ BASE_BRANCH="${BASE_BRANCH:-main}"
 VAULT_PATH="${VAULT_PATH:-homelab/forgejo/vizzle-merge-token}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-600}"
+KEEP_BRANCH="${KEEP_BRANCH:-0}"
 
 usage() {
   cat >&2 <<EOF
@@ -55,6 +62,7 @@ Env:
   FORGEJO_TOKEN  override Vault lookup
   POLL_INTERVAL  seconds between CI polls (default: $POLL_INTERVAL)
   POLL_TIMEOUT   max seconds to wait for CI (default: $POLL_TIMEOUT)
+  KEEP_BRANCH    if 1, skip post-merge local branch deletion (default: $KEEP_BRANCH)
 EOF
 }
 
@@ -167,6 +175,49 @@ poll_loop() {
   done
 }
 
+# cleanup_local_branch <branch>
+# Post-merge housekeeping: delete the merged PR's local branch and fast-forward
+# BASE_BRANCH to its remote. A stale local main is a known footgun — branching
+# off it silently re-does already-merged work. Best-effort: every step is
+# non-fatal so a cleanup hiccup never masks a successful merge.
+cleanup_local_branch() {
+  local branch="${1:-}"
+  [ "$KEEP_BRANCH" = "1" ] && return 0
+  [ -n "$branch" ] || return 0
+  command -v git >/dev/null 2>&1 || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+
+  if ! git show-ref --verify --quiet "refs/heads/$branch"; then
+    echo "local branch '$branch' not present — nothing to delete" >&2
+    return 0
+  fi
+
+  # If the merged branch is checked out, move to BASE_BRANCH first.
+  local current
+  current=$(git symbolic-ref --short -q HEAD || echo "")
+  if [ "$current" = "$branch" ]; then
+    if ! git checkout "$BASE_BRANCH" >/dev/null 2>&1; then
+      echo "could not switch off '$branch' (uncommitted changes?) — local branch kept" >&2
+      return 0
+    fi
+  fi
+
+  # -D (force): a squash-merged branch never looks "merged" to `git branch -d`.
+  if git branch -D "$branch" >/dev/null 2>&1; then
+    echo "deleted local branch '$branch'" >&2
+  else
+    echo "could not delete local branch '$branch'" >&2
+  fi
+
+  # Fast-forward BASE_BRANCH so the next branch is cut from up-to-date main.
+  if git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null \
+    && git merge --ff-only "origin/$BASE_BRANCH" >/dev/null 2>&1; then
+    echo "fast-forwarded $BASE_BRANCH to origin/$BASE_BRANCH" >&2
+  else
+    echo "note: refresh $BASE_BRANCH manually (git checkout $BASE_BRANCH && git pull)" >&2
+  fi
+}
+
 cmd_open() {
   local branch="${1:-}"
   [ -n "$branch" ] || die_usage
@@ -233,13 +284,15 @@ cmd_merge() {
   require curl
   require jq
 
-  local meta merged
+  local meta merged head_ref
   meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
   merged=$(jq -r '.merged' <<<"$meta")
+  head_ref=$(jq -r '.head.ref' <<<"$meta")
   if [ "$merged" = "true" ]; then
     echo "PR #$pr already merged — skipping merge API call" >&2
     printf '%s\n' "$meta" \
       | jq '{number, merged, merged_by: (.merged_by.login // null), merge_commit_sha}'
+    cleanup_local_branch "$head_ref"
     return 0
   fi
 
@@ -282,6 +335,8 @@ cmd_merge() {
 
   forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" \
     | jq '{number, merged, merged_by: (.merged_by.login // null), merge_commit_sha}'
+
+  cleanup_local_branch "$head_ref"
 }
 
 cmd_full() {
