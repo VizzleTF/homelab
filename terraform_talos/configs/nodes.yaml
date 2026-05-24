@@ -8,22 +8,23 @@ cluster:
   talos_version: v1.13
   talos_release: v1.13.2
 
+# Bare-metal Talos nodes. To add a node: power it on with a Talos factory
+# ISO, confirm `talosctl --insecure -e <ip> -n <ip> version` answers, then
+# add an entry here and run `terraform apply`. See provisioning-talos-node
+# skill for the full flow.
 nodes:
-  talos-cp-02:
-    enabled: true
-    address: 10.11.11.102/24
-    role: controlplane
-    install_disk: /dev/sda
-    physical_host: pve2
   talos-cp-01:
     enabled: true
     address: 10.11.11.101/24
     role: controlplane
     install_disk: /dev/sda
-    physical_host: pve1
+  talos-cp-02:
+    enabled: true
+    address: 10.11.11.102/24
+    role: controlplane
+    install_disk: /dev/sda
   talos-cp-03:
     enabled: true
     address: 10.11.11.103/24
     role: controlplane
     install_disk: /dev/sda
-    physical_host: pve3

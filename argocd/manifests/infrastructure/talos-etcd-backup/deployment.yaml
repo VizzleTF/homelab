@@ -29,7 +29,8 @@ spec:
           args:
             - |
               set -eu
-              version="v1.13.0-beta.1"
+              # renovate: datasource=github-releases depName=siderolabs/talos
+              version="v1.13.2"
               url="https://github.com/siderolabs/talos/releases/download/${version}/talosctl-linux-amd64"
               echo "Downloading talosctl ${version}"
               curl -fsSL "$url" -o /tools/talosctl

@@ -5,8 +5,8 @@
 # Topology
 #   Cluster ASN : 65010
 #   Peer        : OpenWrt 10.11.11.1, ASN 65000
-#   Advertise   : LoadBalancer IPs from homelab-pool (10.11.11.128/25)
-#   MD5         : Secret kube-system/bgp-openwrt-md5 (ExternalSecret in same dir)
+#   Advertise   : LoadBalancer IPs from homelab-pool (10.11.10.0/24)
+#   MD5         : disabled (OpenWrt 25.12 kernel lacks CONFIG_TCP_MD5SIG)
 #
 # CRDs are at cilium.io/v2alpha1 in Cilium 1.19.x.
 apiVersion: cilium.io/v2alpha1
@@ -22,7 +22,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  # Apply to every node — all 6 (3 CP + 3 worker) peer with OpenWrt for ECMP.
+  # Apply to every node — all 3 bare-metal CP nodes peer with OpenWrt for ECMP.
   nodeSelector: {}
   bgpInstances:
     - name: openwrt
