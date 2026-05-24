@@ -67,9 +67,7 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
-          {{- if index . "ignoreDiff" }}
           - RespectIgnoreDifferences=true
-          {{- end }}
         retry:
           limit: 5
           backoff:

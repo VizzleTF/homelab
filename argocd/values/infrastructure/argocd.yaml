@@ -212,6 +212,9 @@ configs:
       jqPathExpressions:
         - '.spec.volumeClaimTemplates[]?.apiVersion'
         - '.spec.volumeClaimTemplates[]?.kind'
+    resource.customizations.ignoreDifferences._PersistentVolumeClaim: |
+      jqPathExpressions:
+        - '.spec.volumeName'
     resource.customizations.health.gateway.networking.k8s.io_HTTPRoute: |
       hs = {}
       if obj.status ~= nil and obj.status.parents ~= nil then
