@@ -110,6 +110,10 @@ gitea:
       ENABLED: true
     log:
       LEVEL: Info
+    # Allow push mirrors to RFC1918 targets (e.g. NAS Gitea at 10.11.12.237
+    # used as DR-bootstrap mirror — see scripts/dr/phases).
+    migrations:
+      ALLOW_LOCALNETWORKS: true
     # Forgejo Packages OCI registry on Garage S3.
     # Use the [packages] subsystem section, NOT [storage.packages]:
     # the latter triggers a 30s timeout on bucket init against Garage.
