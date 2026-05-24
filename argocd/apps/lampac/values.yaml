@@ -49,24 +49,26 @@ resources:
     memory: "2400Mi"
     cpu: "500m"
 
-# Probes - lampac-nextgen needs time to compile modules on startup
+# Probes - lampac-nextgen needs time to compile modules + bind Kestrel on cold start
+# Observed cold-start bind ~130-150s on cp-01. Keep initialDelay short but widen
+# the failure window: liveness 60+12*15=240s, readiness 60+10*15=210s.
 livenessProbe:
   httpGet:
     path: /
     port: http
   initialDelaySeconds: 60
-  periodSeconds: 10
+  periodSeconds: 15
   timeoutSeconds: 5
-  failureThreshold: 6
+  failureThreshold: 12
 
 readinessProbe:
   httpGet:
     path: /
     port: http
   initialDelaySeconds: 60
-  periodSeconds: 10
+  periodSeconds: 15
   timeoutSeconds: 5
-  failureThreshold: 3
+  failureThreshold: 10
 
 # Environment variables
 env:
@@ -87,7 +89,20 @@ configMaps:
         "chromium": {
           "enable": false
         },
-        "SkipModules": []
+        "BaseModule": {
+          "SkipModules": [
+            "OnlineUKR",
+            "OnlineENG",
+            "OnlineGEO",
+            "OnlinePaid",
+            "SISI",
+            "Adult",
+            "WatchTogether",
+            "MsxNative",
+            "ForkPlayerXML",
+            "Community"
+          ]
+        }
       }
 
   manifest:
