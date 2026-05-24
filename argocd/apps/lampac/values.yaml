@@ -100,7 +100,13 @@ configMaps:
             "WatchTogether",
             "MsxNative",
             "ForkPlayerXML",
-            "Community"
+            "Community",
+            "Catalog",
+            "DLNA",
+            "JacRed",
+            "Tracks",
+            "Transcoding",
+            "WebLog"
           ]
         }
       }
