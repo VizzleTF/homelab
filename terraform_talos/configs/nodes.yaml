@@ -1,0 +1,29 @@
+cluster:
+  name: homelab
+  vip: 10.11.11.100
+  gateway: 10.11.11.1
+  apiserver_cert_sans:
+    - api.k8s.example.com
+  kubernetes_version: v1.36.1
+  talos_version: v1.13
+  talos_release: v1.13.2
+
+nodes:
+  talos-cp-02:
+    enabled: true
+    address: 10.11.11.102/24
+    role: controlplane
+    install_disk: /dev/sda
+    physical_host: pve2
+  talos-cp-01:
+    enabled: true
+    address: 10.11.11.101/24
+    role: controlplane
+    install_disk: /dev/sda
+    physical_host: pve1
+  talos-cp-03:
+    enabled: true
+    address: 10.11.11.103/24
+    role: controlplane
+    install_disk: /dev/sda
+    physical_host: pve3

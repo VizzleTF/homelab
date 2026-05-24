@@ -26,9 +26,8 @@ A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by
 
 | Layer                 | Choice                                  | Notes                                                                |
 |-----------------------|-----------------------------------------|----------------------------------------------------------------------|
-| Hypervisor            | Proxmox VE                              | Six nodes, host config in Ansible                                    |
-| VM provisioning       | Terraform + `bpg/proxmox`               | Inventory in `terraform_proxmox/configs/vms.yaml`                    |
-| Cluster OS            | Talos Linux                             | Immutable, no SSH, API-only via `talosctl`                           |
+| Cluster OS            | Talos Linux (bare-metal)                | Immutable, no SSH, API-only via `talosctl`; provisioned by Terraform |
+| Provisioning          | Terraform + `siderolabs/talos`          | Per-node `configs/nodes.yaml` in `terraform_talos/`                  |
 | CNI                   | Cilium 1.19                             | eBPF, kube-proxy replacement, WireGuard pod-to-pod, Hubble UI        |
 | Ingress               | Cilium Gateway API v1.4.1               | Three Gateways: public, internal, TLS-passthrough                    |
 | External access       | Cloudflared tunnel                      | Catch-all into the public Gateway; external-dns writes CNAMEs        |
@@ -127,8 +126,7 @@ charts/homelab-common/                # In-house Helm chart: HTTPRoute, External
                                       # simple workloads. Published to the Forgejo OCI
                                       # registry; ArgoCD pulls from there, not from this path.
 
-ansible/                              # PVE host config
-terraform_proxmox/                    # VM provisioning (Talos + cloud-init devboxes)
+terraform_talos/                      # Bare-metal Talos cluster provisioning
 scripts/                              # forgejo-pr.sh, talos-upgrade.sh, vm.sh, …
 .forgejo/workflows/ci.yaml            # yamllint, helm-lint, gitleaks, mirror-to-github
 .claude/skills/                       # Claude Code skills used to operate this repo
@@ -151,7 +149,7 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 | **-3**  | kubelet-csr-approver, metrics-server                                                                    | Cluster-wide utilities the rest of the stack assumes                                                                                             |
 | **-2**  | External Secrets Operator, CNPG operator, KEDA, External DNS (Cloudflare + OpenWrt), VictoriaMetrics    | ESO before any `ExternalSecret` reconciles; operators before instances                                                                           |
 | **-1**  | Node Feature Discovery, intel-device-plugins operator, KEDA HTTP add-on, VictoriaLogs                   | Layered atop the wave -2 prerequisites                                                                                                           |
-| **0**   | Cloudflared, descheduler, pve-exporter, intel-device-plugins-gpu, **velero**, reloader                  | Optional / leaf infrastructure                                                                                                                   |
+| **0**   | Cloudflared, descheduler, intel-device-plugins-gpu, **velero**, reloader                                | Optional / leaf infrastructure                                                                                                                   |
 | **1**   | CNPG clusters, valkey, Robusta, openbao-autounseal, talos-etcd-backup, **velero-ui**                    | DB instances after the operator; tunnel + observability after the cluster is up                                                                  |
 | **2**   | Apps (authentik, forgejo, nextcloud, immich, vaultwarden, lampac, may, omniroute, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
 | **3**   | forgejo-runner                                                                                          | Needs the Forgejo server reachable first                                                                                                         |
@@ -160,14 +158,14 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 
 ## 🖥️ Hardware
 
-Six Proxmox nodes, each hosting one Talos VM:
+Three bare-metal hosts running Talos directly (ex-Proxmox machines, no
+hypervisor underneath):
 
-| Role          | Count | vCPU  | RAM       | Disk        |
-|---------------|-------|-------|-----------|-------------|
-| control-plane | 3     | 3     | 12 GiB    | 125–300 GB  |
-| worker        | 3     | 3–4   | 6–12 GiB  | 100–300 GB  |
+| Role          | Count | Notes                                          |
+|---------------|-------|------------------------------------------------|
+| control-plane | 3     | talos-cp-{01,02,03} on 10.11.11.{101,102,103}  |
 
-Per-node storage is Longhorn (2 replicas, default class). Cold storage and backups live off-cluster on a Synology NAS, exposed as Garage S3 on a dedicated DSM volume with a local certificate.
+Workers join later as additional hardware comes online. Per-node storage is Longhorn (2 replicas, default class). Cold storage and backups live off-cluster on a Synology NAS, exposed as Garage S3 on a dedicated DSM volume with a local certificate.
 
 ---
 
@@ -187,7 +185,7 @@ Three L3 subnets, no L2 announcements:
 | Subnet | Role |
 |---|---|
 | `10.11.10.0/24` | LB IP pool — Service `LoadBalancer` IPs, **L3-only** (no L2 segment), announced via BGP |
-| `10.11.11.0/24` | Servers VLAN — k8s nodes, Talos VIP, PVE hosts |
+| `10.11.11.0/24` | Servers VLAN — k8s nodes, Talos VIP                |
 | `10.11.12.0/24` | LAN — Wi-Fi/DHCP clients, NAS Synology, router mgmt |
 
 Cilium peers eBGP with OpenWrt (BIRD2) from every node (ASN `65010` ↔ `65000`). Each LB IP is advertised as a `/32` with ECMP across all six nodes; `externalTrafficPolicy: Local` services are advertised only from the node hosting the pod, so single-replica workloads keep source IP without a kube-proxy hop. BIRD config is generated from `scripts/openwrt-bgp-setup.sh` — see `obsidian/111 Memory/Cilium BGP.md` for the operational guide.
@@ -289,11 +287,12 @@ After merge, gitleaks re-runs on `main` because it scans the full history; a lea
 
 ## 🚜 Provisioning a node
 
-Three commands once the prep is done:
+Bare-metal Talos install:
 
-1. Add an entry to `terraform_proxmox/configs/vms.yaml`.
-2. `terraform -chdir=terraform_proxmox apply` builds the VM, applies the Talos machine config, and joins the cluster.
-3. `kubectl get nodes` to verify. Cilium, Longhorn and NFD onboard the new node automatically.
+1. Boot the host from a Talos factory ISO (image schematic from `terraform_talos/modules/talos/schematic.yaml`).
+2. Add an entry to `terraform_talos/configs/nodes.yaml` (address, role, install disk).
+3. `terraform -chdir=terraform_talos apply` applies the machine config, joins the cluster, and waits for `talos_cluster_health`.
+4. `kubectl get nodes` to verify. Cilium, Longhorn and NFD onboard the new node automatically.
 
 Full procedure (including the Talos secrets-cascade gotcha: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `provisioning-talos-node` Claude Code skill.
 
@@ -323,7 +322,6 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 | `upgrading-talos`           | `talosctl` patch and minor upgrades, gated through ghcr manifest checks                  |
 | `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in OpenBao       |
 | `renewing-synology-cert`    | `acme.sh` + Cloudflare DNS-01, then reloads DSM nginx via `synow3tool`                   |
-| `rotating-proxmox-acme`     | Rotates one CF token across PVE, cert-manager, external-dns, OpenBao, Synology in one run |
 | `scaffolding-app`           | Boilerplate for a new app: values, HTTPRoute, ExternalSecret, ArgoCD wiring              |
 | `scaffolding-authentik-oidc`| New OIDC client: secret, dual OpenBao paths, blueprint files, ESO wiring                 |
 | `triaging-alerts`           | Pulls firing alerts from VictoriaMetrics and groups them by severity                     |

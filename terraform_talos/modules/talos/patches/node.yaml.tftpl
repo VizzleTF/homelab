@@ -1,0 +1,23 @@
+machine:
+  install:
+    disk: ${install_disk}
+  features:
+    stableHostname: false
+  network:
+    interfaces:
+      - deviceSelector:
+          physical: true
+        addresses:
+          - ${address_cidr}
+        routes:
+          - network: 0.0.0.0/0
+            gateway: ${gateway}
+%{ if is_controlplane ~}
+        vip:
+          ip: ${vip}
+%{ endif ~}
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: ${hostname}
+auto: "off"

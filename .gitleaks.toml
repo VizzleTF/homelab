@@ -48,7 +48,7 @@ regexes = [
 
 [[allowlists]]
 description = "Terraform example files"
-paths = ['''terraform_proxmox/.*\.tf\.example''']
+paths = ['''terraform_talos/.*\.tf\.example''']
 
 [[allowlists]]
 description = "Vault path references in values files (not actual secrets)"

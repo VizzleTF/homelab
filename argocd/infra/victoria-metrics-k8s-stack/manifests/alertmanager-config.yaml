@@ -44,13 +44,6 @@ spec:
                 - alertname=~"KubeNodeNotReady|KubeNodeReadinessFlapping|KubeletDown|KubePodNotReady|KubeContainerWaiting|KubePodCrashLooping|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch|TargetDown|NodeMemoryHighUtilization"
               equal: ['node']
 
-            # PVE-хост лежит → каскад
-            - source_matchers:
-                - alertname="PveNodeDown"
-              target_matchers:
-                - alertname=~"PveExporterDown|PveGuestDown|PveStorageCritical|PveHaServiceError|PveNodeExporterDown|PveCpuTempHigh|PveNvmeTempHigh|PveLxcDiskFull|PveNodeMemoryHigh"
-              equal: ['instance']
-
             # apiserver лёг → cascade на client'ов
             - source_matchers:
                 - alertname="KubeAPIDown"
