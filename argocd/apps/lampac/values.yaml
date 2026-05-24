@@ -103,10 +103,10 @@ configMaps:
             "Community",
             "Catalog",
             "DLNA",
-            "JacRed",
             "Tracks",
             "Transcoding",
-            "WebLog"
+            "WebLog",
+            "NextHUB"
           ]
         }
       }
