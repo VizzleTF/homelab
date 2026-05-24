@@ -1,0 +1,83 @@
+# NetBird routing peer — joins self-hosted mesh at netbird.example.com,
+# advertises home LAN subnets (10.11.11.0/24, 10.11.12.0/24) into NetBird.
+# Routes themselves are configured in NetBird dashboard → Network Routes.
+homelab-common:
+  externalSecrets:
+    - name: netbird-peer
+      vaultPath: netbird/peer
+      data:
+        - secretKey: setup-key
+          property: setup-key
+      templateData:
+        NB_SETUP_KEY: "{{ .setup-key }}"
+
+  persistentVolumeClaims:
+    - name: netbird-peer
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 100Mi
+      labels:
+        app: netbird-peer
+
+  apps:
+    - name: peer
+      deployment:
+        metadata:
+          labels:
+            app: netbird-peer
+        spec:
+          replicas: 1
+          strategy:
+            type: Recreate
+          selector:
+            matchLabels:
+              app: netbird-peer
+          template:
+            metadata:
+              labels:
+                app: netbird-peer
+            spec:
+              containers:
+                - name: netbird
+                  image: netbirdio/netbird:0.71.4
+                  imagePullPolicy: IfNotPresent
+                  securityContext:
+                    capabilities:
+                      add:
+                        - NET_ADMIN
+                        - NET_RAW
+                        - SYS_ADMIN
+                        - SYS_RESOURCE
+                  env:
+                    - name: NB_MANAGEMENT_URL
+                      value: "https://netbird.example.com"
+                    - name: NB_ADMIN_URL
+                      value: "https://netbird.example.com"
+                    - name: NB_HOSTNAME
+                      value: "k8s-homelab-peer"
+                    - name: NB_LOG_LEVEL
+                      value: "info"
+                  envFrom:
+                    - secretRef:
+                        name: netbird-peer
+                  resources:
+                    limits:
+                      cpu: 500m
+                      memory: 256Mi
+                    requests:
+                      cpu: 30m
+                      memory: 64Mi
+                  volumeMounts:
+                    - name: tun
+                      mountPath: /dev/net/tun
+                    - name: state
+                      mountPath: /etc/netbird
+              volumes:
+                - name: tun
+                  hostPath:
+                    path: /dev/net/tun
+                    type: CharDevice
+                - name: state
+                  persistentVolumeClaim:
+                    claimName: netbird-peer
