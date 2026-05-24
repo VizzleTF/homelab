@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Filename blocklist — must mirror the step in .forgejo/workflows/gitleaks.yaml.
+# Filename blocklist — must mirror the step in .forgejo/workflows/ci.yaml (gitleaks job).
 # Fails fast if any tracked file matches a known sensitive name pattern.
 set -euo pipefail
 

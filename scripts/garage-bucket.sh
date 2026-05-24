@@ -10,7 +10,7 @@
 # Vault path convention: <VAULT_PATH_PREFIX>/<namespace>/s3-<key-name>
 # (default prefix: homelab/k8s; mount: home). Two fields are written:
 # ACCESS_KEY_ID and ACCESS_SECRET_KEY — ExternalSecret consumers read
-# them via ClusterSecretStore vault-backend-cluster.
+# them via ClusterSecretStore openbao-backend-cluster.
 #
 # Note: `garage key create <name>` is NOT idempotent — Garage happily
 # creates multiple keys with the same name, distinguished by ID. To

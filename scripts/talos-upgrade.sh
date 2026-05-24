@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Wrapper for routine Talos OS and Kubernetes version upgrades on the
-# homelab cluster (talos-cp-{01,02,03} + talos-worker-{01,02,03}).
+# bare-metal homelab cluster (currently talos-cp-{01,02,03}; future workers
+# will be picked up automatically from terraform_talos/configs/nodes.yaml).
 #
 # Scope of this script — operational upgrades only:
 #   * talosctl upgrade --image <factory.talos.dev URL>      (per node)
