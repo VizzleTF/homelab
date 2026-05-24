@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🏠 Homelab — Talos + ArgoCD on Proxmox
+# 🏠 Homelab — Talos + ArgoCD
 
-A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by ArgoCD, with OpenBao as the only source of truth for secrets. Provisioned by Terraform, monitored by VictoriaMetrics, backed up to Garage S3 on a Synology NAS.
+A single-tenant home cluster. Three bare-metal Talos nodes managed by ArgoCD, with OpenBao as the only source of truth for secrets. Provisioned by Terraform, monitored by VictoriaMetrics, backed up to Garage S3 on a Synology NAS.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/homelab)
 
@@ -17,7 +17,7 @@ A single-tenant home cluster. Six Talos VMs across six Proxmox nodes, managed by
 ## 📖 Design choices
 
 - Single operator. No PR review process, no second admin account, no destructive-op guards.
-- Six N100-class Proxmox boxes, not a rack. RAM is the binding constraint, not CPU.
+- Three N100-class boxes running Talos directly, not a rack. RAM is the binding constraint, not CPU.
 - The Synology NAS is independent of the cluster: its own TLS (`acme.sh`), its own DNS (OpenWrt), its own reverse-proxy (DSM nginx). Cluster failure does not affect stored data.
 
 ---
@@ -68,8 +68,8 @@ Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/):
 
 ```mermaid
 flowchart LR
-    subgraph PVE["6× Proxmox hosts"]
-        VMs["6× Talos VMs<br/>3 control-plane · 3 worker"]
+    subgraph HW["3× bare-metal hosts"]
+        Nodes["3× Talos nodes<br/>(CP + worker, no separate workers yet)"]
     end
 
     subgraph K8s["Talos Kubernetes"]
@@ -86,7 +86,7 @@ flowchart LR
         CF[("Cloudflare<br/>tunnel + DNS + ACME")]
     end
 
-    PVE --> K8s
+    HW --> K8s
     Forgejo -- "ArgoCD pulls" --> K8s
     Bao  -- "ESO renders Secrets via openbao-backend-cluster" --> K8s
     K8s    -- "Velero (CSI + Kopia) · Barman · etcd snapshots" --> Garage
@@ -253,7 +253,7 @@ velero restore create --from-backup <name> --existing-resource-policy=update
 Full runbook in `obsidian/113 Backups/Velero Operator Guide.md`. Two scenarios it covers:
 
 - single namespace lost → `velero restore` with a namespace mapping into a sandbox, verify, then redo in-place
-- whole cluster gone → restore the last `talos-etcd-daily` Velero backup to a sandbox ns, extract the `.snap` from the restored PVC, `talosctl bootstrap --recover-from` on a fresh CP VM → ArgoCD rebuilds infra → CNPG restores Postgres from Barman → Velero restores the rest in priority order (vaultwarden → nextcloud → forgejo → immich)
+- whole cluster gone → see `obsidian/113 Backups/DR Recovery Automation.md` — automated via `scripts/dr/restore.sh all` once a fresh Talos cluster is up (`terraform_talos apply`). Phases: network → storage → TLS → DNS → Velero bootstrap → OpenBao restore (Shamir + Raft snapshot) → ESO → CNPG operator → ArgoCD adoption → per-app Velero PVC overlay.
 
 ---
 

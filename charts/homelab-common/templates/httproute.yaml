@@ -7,7 +7,7 @@
 {{- $gwIntName := $gwInt.name | default "cilium-gateway-internal" }}
 {{- $gwIntNs := $gwInt.namespace | default "kube-system" }}
 {{- $domain := $g.dns | default dict | dig "domain" "example.com" }}
-{{- $internalTarget := $g.gateway | default dict | dig "internal" dict | dig "ip" "10.11.11.138" }}
+{{- $internalTarget := $g.gateway | default dict | dig "internal" dict | dig "ip" "10.11.10.138" }}
 {{- $routes := $hc.httpRoutes | default list }}
 {{- range $routes }}
 {{- $gateway := .gateway | default "external" }}

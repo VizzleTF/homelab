@@ -70,8 +70,8 @@ resources:
     cpu: 1000m
     # Bumped 1536→2048Mi: first-attempt OOM observed during full repo scan
     # (Node.js heap 1024 + child processes for cargo/yarn/github-actions
-    # extractors). Renovate runs ~10-15 min/day, +512Mi peak fits within
-    # talos-worker-02 5.7GiB headroom (was 79% used at 06:00 UTC, +9%).
+    # extractors). Renovate runs ~10-15 min/day, +512Mi peak fits comfortably
+    # on bare-metal CP nodes.
     memory: 2048Mi
 
 serviceAccount:

@@ -3,7 +3,7 @@
 {{- $gwTls := $g.gateway | default dict | dig "tls" dict }}
 {{- $gwTlsName := $gwTls.name | default "cilium-gateway-tls" }}
 {{- $gwTlsNs := $gwTls.namespace | default "kube-system" }}
-{{- $gwTlsTarget := $gwTls.ip | default "10.11.11.139" }}
+{{- $gwTlsTarget := $gwTls.ip | default "10.11.10.139" }}
 {{- $domain := $g.dns | default dict | dig "domain" "example.com" }}
 {{- $routes := $hc.tlsRoutes | default list }}
 {{- range $routes }}
