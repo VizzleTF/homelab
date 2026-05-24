@@ -31,9 +31,10 @@ PEERS=(
   "talos-cp-01      10.11.11.101"
   "talos-cp-02      10.11.11.102"
   "talos-cp-03      10.11.11.103"
-  "talos-worker-01  10.11.11.111"
-  "talos-worker-02  10.11.11.112"
-  "talos-worker-03  10.11.11.113"
+  # Workers — uncomment when hardware joins the cluster.
+  # "talos-worker-01  10.11.11.111"
+  # "talos-worker-02  10.11.11.112"
+  # "talos-worker-03  10.11.11.113"
 )
 
 # LB pool — must match cilium-lb-ippool.yaml
