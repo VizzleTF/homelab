@@ -4,7 +4,7 @@ ignore:
   - charts/*/templates/
   - charts/*/charts/
   - .git/
-  - terraform_proxmox/.terraform/
+  - terraform_talos/.terraform/
 
 rules:
   truthy: disable

@@ -10,10 +10,10 @@
 #   * Changing schematic_id (image extensions) — requires node REPLACEMENT,
 #     not in-place upgrade. See skill replacing-talos-node.
 #   * Adding nodes — see skill provisioning-talos-node.
-#   * Terraform pins (terraform_proxmox/main.tf) — the script READS them
-#     for the `check` subcommand, but does NOT modify them. After an
-#     operational upgrade, update terraform_proxmox/main.tf via a separate
-#     PR so Terraform state matches the live cluster.
+#   * Terraform pins (terraform_talos/configs/nodes.yaml) — the script READS
+#     them for the `check` subcommand, but does NOT modify them. After an
+#     operational upgrade, update terraform_talos/configs/nodes.yaml via a
+#     separate PR so Terraform state matches the live cluster.
 #
 # Subcommands:
 #   check                            current cluster + terraform pins +
@@ -33,7 +33,7 @@
 # when/notwhen → how → gotchas → memory links) applies.
 set -euo pipefail
 
-TF_DIR="${TF_DIR:-terraform_proxmox}"
+TF_DIR="${TF_DIR:-terraform_talos}"
 INSTALLER_REGISTRY="${INSTALLER_REGISTRY:-factory.talos.dev/installer}"
 
 # How long to wait for a node to come back Ready after upgrade.
@@ -49,7 +49,7 @@ Usage:
   $0 upgrade-k8s --to <vX.Y.Z>
 
 Env:
-  TF_DIR                 (default: $TF_DIR) — directory with terraform main.tf
+  TF_DIR                 (default: $TF_DIR) — directory with configs/nodes.yaml
   INSTALLER_REGISTRY     (default: $INSTALLER_REGISTRY) — factory URL prefix
   NODE_READY_TIMEOUT     (default: ${NODE_READY_TIMEOUT}s) — per-node Ready wait
   NODE_POLL_INTERVAL     (default: ${NODE_POLL_INTERVAL}s) — Ready poll cadence
@@ -59,16 +59,17 @@ EOF
 die_usage() { usage; exit 2; }
 require()   { command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1" >&2; exit 1; }; }
 
-# Read a string pin from terraform_proxmox/main.tf. Robust against
+# Read a scalar pin from terraform_talos/configs/nodes.yaml. Values live
+# under `cluster.<key>: v1.x.y` (no quotes, single-line). Robust against
 # horizontal-whitespace variation; assumes one definition per file.
 tf_pin() {
   local key="$1"
-  awk -F'"' -v k="$key" '
-    $0 ~ "^[[:space:]]+" k "[[:space:]]+=" { print $2; exit }
-  ' "$TF_DIR/main.tf"
+  awk -F': *' -v k="$key" '
+    $0 ~ "^[[:space:]]+" k ":" { gsub(/[ \t"]+$/, "", $2); print $2; exit }
+  ' "$TF_DIR/configs/nodes.yaml"
 }
 
-# Schematic ID is no longer pinned in main.tf — it's the content hash of
+# Schematic ID is not pinned anywhere — it's the content hash of
 # modules/talos/schematic.yaml computed by factory.talos.dev. Cached for the
 # duration of the script run to avoid duplicate POSTs.
 SCHEMATIC_FILE_DEFAULT="$TF_DIR/modules/talos/schematic.yaml"
@@ -192,7 +193,7 @@ cmd_check() {
   release_pin=$(tf_pin talos_release)
   schematic_id=$(schematic_id_from_file)
 
-  echo "=== Terraform pins ($TF_DIR/main.tf) ==="
+  echo "=== Terraform pins ($TF_DIR/configs/nodes.yaml) ==="
   printf '  kubernetes_version    = %s\n' "$k8s_pin"
   printf '  talos_version (schema)= %s\n' "$talos_pin"
   printf '  talos_release         = %s\n' "$release_pin"
@@ -305,7 +306,7 @@ cmd_plan() {
     fi
   fi
   echo
-  echo "  Reminder: after the upgrade succeeds, update $TF_DIR/main.tf pins"
+  echo "  Reminder: after the upgrade succeeds, update $TF_DIR/configs/nodes.yaml pins"
   echo "  (kubernetes_version / talos_release) and open a PR so Terraform"
   echo "  state matches the live cluster."
 }
@@ -381,7 +382,7 @@ cmd_upgrade_os() {
 
   echo
   echo "=== Done ==="
-  echo "  Remember to bump talos_release in $TF_DIR/main.tf and open a PR."
+  echo "  Remember to bump talos_release in $TF_DIR/configs/nodes.yaml and open a PR."
 }
 
 cmd_upgrade_k8s() {
@@ -441,7 +442,7 @@ cmd_upgrade_k8s() {
 
   echo
   echo "=== Done ==="
-  echo "  Remember to bump kubernetes_version in $TF_DIR/main.tf and open a PR."
+  echo "  Remember to bump kubernetes_version in $TF_DIR/configs/nodes.yaml and open a PR."
 }
 
 case "${1:-}" in

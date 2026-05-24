@@ -26,7 +26,7 @@ OWRT_BGP_LOCAL="${OWRT_BGP_LOCAL:-10.11.11.1}"
 ASN_CLUSTER="${ASN_CLUSTER:-65010}"
 ASN_OWRT="${ASN_OWRT:-65000}"
 
-# Talos node IPs — see terraform_proxmox/configs/vms.yaml
+# Talos node IPs — see terraform_talos/configs/nodes.yaml
 PEERS=(
   "talos-cp-01      10.11.11.101"
   "talos-cp-02      10.11.11.102"
