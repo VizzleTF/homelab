@@ -9,7 +9,7 @@ homelab-common:
         - secretKey: setup-key
           property: setup-key
       templateData:
-        NB_SETUP_KEY: "{{ .setup-key }}"
+        NB_SETUP_KEY: '{{ index . "setup-key" }}'
 
   persistentVolumeClaims:
     - name: netbird-peer
