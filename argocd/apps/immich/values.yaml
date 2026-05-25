@@ -193,7 +193,7 @@ immich:
 # Machine Learning component — OpenVINO image with Intel Iris Xe GPU (N100)
 # i915 Talos extension installed; Intel GPU Device Plugin advertises gpu.intel.com/i915.
 machine-learning:
-  enabled: false
+  enabled: true
   defaultPodOptions:
     securityContext:
       seccompProfile:
