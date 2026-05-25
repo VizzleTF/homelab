@@ -36,14 +36,8 @@ nodeAgent:
       cpu: "1"
       memory: 1Gi
   priorityClassName: ""
-  # DaemonSet только на воркерах — на CP горячо (apiserver/etcd/controllers).
-  # У homelab нет NoSchedule taint'а на CP, поэтому используем явный nodeSelector
-  # по label node-role.kubernetes.io/worker (стандартный Talos worker label).
-  nodeSelector:
-    node-role.kubernetes.io/worker: ""
   # ConfigMap node-agent-config НЕ auto-discovered — Velero подхватывает его
-  # только когда явно указан через флаг. Без этого loadAffinity / loadConcurrency
-  # игнорируются и expose pods data-mover'а попадают на CP-ноды.
+  # только когда явно указан через флаг. Без этого loadConcurrency игнорируется.
   extraArgs:
     - --node-agent-configmap=node-agent-config
 

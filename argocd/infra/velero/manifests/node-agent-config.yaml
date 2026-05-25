@@ -5,7 +5,6 @@
 # ⚠ content ДОЛЖЕН быть JSON, не YAML. Velero делает json.Unmarshal,
 # YAML падает с "invalid character 'l' looking for beginning of value".
 #
-# loadAffinity: исключает control-plane nodes (apiserver/etcd живут там).
 # loadConcurrency.globalConfig: 2 — максимум 2 параллельных DataUpload
 # на одну ноду чтобы не забивать диск/сеть.
 apiVersion: v1
@@ -18,17 +17,5 @@ data:
     {
       "loadConcurrency": {
         "globalConfig": 2
-      },
-      "loadAffinity": [
-        {
-          "nodeSelector": {
-            "matchExpressions": [
-              {
-                "key": "node-role.kubernetes.io/control-plane",
-                "operator": "DoesNotExist"
-              }
-            ]
-          }
-        }
-      ]
+      }
     }

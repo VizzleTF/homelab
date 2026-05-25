@@ -137,21 +137,11 @@ _shared_config:
   version: &version "v2.7.5"
   ml_tag: &ml_tag "v2.7.5-openvino"
 
-# Pod-level securityContext + scheduling for the server component
+# Pod-level securityContext for the server component
 defaultPodOptions:
   securityContext:
     seccompProfile:
       type: RuntimeDefault
-  # Pin server to worker нodes — Velero node-agent DaemonSet has nodeSelector
-  # `node-role.kubernetes.io/worker=`, so FSB of immich-library-pvc fails
-  # when the pod lands on a CP node.
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: node-role.kubernetes.io/worker
-                operator: Exists
 
 # Controllers configuration for new chart structure
 controllers:
@@ -201,25 +191,18 @@ immich:
       existingClaim: "immich-library-pvc"
 
 # Machine Learning component — OpenVINO image with Intel Iris Xe GPU (N100)
-# GPU passthrough: Proxmox → talos-c0p-fxe, i915 Talos extension installed
-# Intel GPU Device Plugin advertises gpu.intel.com/i915 and sets cgroup permissions
+# i915 Talos extension installed; Intel GPU Device Plugin advertises gpu.intel.com/i915.
 machine-learning:
   enabled: false
   defaultPodOptions:
     securityContext:
       seccompProfile:
         type: RuntimeDefault
-    # Pin to worker нodes с Intel GPU. ML pod = 2.5 GiB RES,
-    # на CP-03 он перегружал мастера (85% RAM).
-    # GPU есть на cp-01..03, worker-01, worker-03 → required=worker + has-GPU
-    # → worker-01 (~5 GiB free) или worker-03.
     affinity:
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
           nodeSelectorTerms:
             - matchExpressions:
-                - key: node-role.kubernetes.io/worker
-                  operator: Exists
                 - key: intel.feature.node.kubernetes.io/gpu
                   operator: In
                   values: ["true"]
