@@ -136,9 +136,15 @@ fetch_status() {
 }
 
 # Reads a status payload on stdin, emits sorted "context: state" lines.
-# Null state (job has registered but not started) is normalised to "queued".
+# Forgejo Actions never POSTs back to the legacy commit-statuses table, so
+# per-context `.state` stays null forever even after a workflow finishes.
+# The combined `.state` at the top of the payload is authoritative — fall
+# back to it when per-context is null so the output reflects reality.
 format_statuses() {
-  jq -r '.statuses[]? | "\(.context): \(.state // "queued")"' | sort -u
+  jq -r '
+    (.state // "queued") as $combined |
+    .statuses[]? | "\(.context): \(.state // $combined)"
+  ' | sort -u
 }
 
 # poll_loop <sha> <verbose:0|1>
@@ -249,8 +255,13 @@ cmd_status() {
 
   local sha; sha=$(get_pr_sha "$pr")
   local payload; payload=$(fetch_status "$sha")
+  # Combined .state is authoritative for Forgejo Actions (per-context entries
+  # stay null forever — Actions never POSTs back to the legacy statuses table).
   printf '%s\n' "$payload" \
-    | jq '{state, statuses: [.statuses[]? | {context, state: (.state // "queued")}] | sort_by(.context)}'
+    | jq '
+        (.state // "queued") as $combined |
+        {state, statuses: [.statuses[]? | {context, state: (.state // $combined)}] | sort_by(.context)}
+      '
 
   case "$(jq -r '.state' <<<"$payload")" in
     success)       exit 0 ;;
