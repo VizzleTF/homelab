@@ -18,14 +18,16 @@ homelab-common:
         GITHUB_COM_TOKEN: "{{ .token }}"
     - name: renovate-notify-telegram
       templateEngineVersion: v2
-      vaultPath: telegram/victoria-metrics-bot
+      # Shared bot with Robusta — same Vault path, same chat. Single Telegram bot
+      # для всего homelab (alerts + renovate digest).
+      vaultPath: robusta/telegram
       data:
-        - secretKey: token
-          property: token
+        - secretKey: bot_token
+          property: bot_token
         - secretKey: chat_id
           property: chat_id
       templateData:
-        TELEGRAM_BOT_TOKEN: "{{ .token }}"
+        TELEGRAM_BOT_TOKEN: "{{ .bot_token }}"
         TELEGRAM_CHAT_ID: "{{ .chat_id }}"
 
   limitRange:
