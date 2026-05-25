@@ -152,7 +152,7 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 | **0**   | Cloudflared, descheduler, intel-device-plugins-gpu, **velero**, reloader                                | Optional / leaf infrastructure                                                                                                                   |
 | **1**   | CNPG clusters, valkey, Robusta, openbao-autounseal, talos-etcd-backup, **velero-ui**                    | DB instances after the operator; tunnel + observability after the cluster is up                                                                  |
 | **2**   | Apps (authentik, forgejo, nextcloud, immich, vaultwarden, lampac, may, omniroute, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
-| **3**   | forgejo-runner                                                                                          | Needs the Forgejo server reachable first                                                                                                         |
+| **3**   | forgejo-runner, netbird                                                                                 | forgejo-runner needs the Forgejo server reachable first; netbird routing peer joins the self-hosted mesh after core apps are up                  |
 
 ---
 
@@ -232,7 +232,7 @@ Primary bucket is Garage on Synology (`velero-backups` + `cnpg-backups`), each w
 
 ### Velero specifics
 
-- **Schedule CRs live per-app**, rendered by the `homelab-common` chart 1.8.1 (`veleroSchedules:` section in each app's values). Only the cluster-wide `cluster-state-weekly` lives in `argocd/infra/velero/manifests/`.
+- **Schedule CRs live per-app**, rendered by the `homelab-common` chart 1.8.4 (`veleroSchedules:` section in each app's values). Only the cluster-wide `cluster-state-weekly` lives in `argocd/infra/velero/manifests/`.
 - **Chart defaults** (any field overridable per-app): ttl 720h, storageLocation garage-default, snapshotMoveData true, csiSnapshotTimeout 15m, itemOperationTimeout 4h, defaultVolumesToFsBackup false. `includedNamespaces` defaults to `[.Release.Namespace]`.
 - **node-agent DaemonSet** runs on workers only (`nodeSelector: node-role.kubernetes.io/worker`).
 - **Data-mover backup pods** also land on workers — `node-agent-config` ConfigMap (`loadAffinity` with `control-plane: DoesNotExist`), wired up through the `--node-agent-configmap=node-agent-config` flag on node-agent. The ConfigMap value must be **JSON**, not YAML — Velero parses it with `json.Unmarshal` and silently falls back to defaults on YAML.
