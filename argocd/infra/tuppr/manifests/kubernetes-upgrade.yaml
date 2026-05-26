@@ -43,4 +43,4 @@ spec:
     image:
       repository: ghcr.io/siderolabs/talosctl
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.13.2
+      tag: v1.13.3
