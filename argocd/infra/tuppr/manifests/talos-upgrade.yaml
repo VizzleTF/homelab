@@ -30,6 +30,15 @@ spec:
     deleteLocalData: true
     ignoreDaemonSets: true
     force: true
+    # Longhorn 1.7+ создаёт per-node PDB на instance-manager pods с
+    # minAvailable=1, allowedDisruptions=0. Eviction API всегда отказывает с
+    # "violates pod's disruption budget". Longhorn `nodeDrainPolicy=always-allow`
+    # PDB не lifts (PDB остаётся, allowedDisruptions считается k8s controller'ом).
+    # disableEviction=true заставляет tuppr использовать прямой DELETE — PDB
+    # применяется только к eviction API, не к DELETE. Replicas data сохраняется
+    # на disk (/var/lib/longhorn/), после reboot Longhorn reuse'ит её (grace
+    # period replicaReplenishmentWaitInterval=1800s покрывает Talos powercycle).
+    disableEviction: true
 
   maintenance:
     windows:
