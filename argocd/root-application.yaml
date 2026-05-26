@@ -10,10 +10,13 @@ spec:
   sources:
     - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
       targetRevision: HEAD
-      path: argocd/infrastructure
+      path: argocd/projects
     - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
       targetRevision: HEAD
-      path: argocd/applications
+      path: argocd/appsets
+    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
+      targetRevision: HEAD
+      path: argocd/standalone
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

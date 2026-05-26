@@ -139,7 +139,7 @@ To add a new app: `mkdir argocd/apps/<name>`, then drop in `config.yaml` and `va
 
 ## 🚦 Sync waves
 
-ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.yaml` (`wave:`) and the standalone Application manifests under `argocd/infrastructure/`.
+ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.yaml` (`wave:`) and the standalone Application manifests under `argocd/standalone/`.
 
 | Wave    | What lands                                                                                              | Why                                                                                                                                              |
 |---------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|

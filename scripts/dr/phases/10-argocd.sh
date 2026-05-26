@@ -31,10 +31,10 @@ wait_for "argocd-repo-ssh-forgejo-root Secret synced" \
   120
 
 log_info "applying AppProjects + standalone infra Apps + root-application"
-kubectl apply -f "$REPO_ROOT/argocd/infrastructure/root-project.yaml"
-kubectl apply -f "$REPO_ROOT/argocd/infrastructure/infrastructure-project.yaml"
-kubectl apply -f "$REPO_ROOT/argocd/applications/applications-project.yaml"
-kubectl apply -f "$REPO_ROOT/argocd/infrastructure/argocd-application.yaml"
+kubectl apply -f "$REPO_ROOT/argocd/projects/root-project.yaml"
+kubectl apply -f "$REPO_ROOT/argocd/projects/infrastructure-project.yaml"
+kubectl apply -f "$REPO_ROOT/argocd/projects/applications-project.yaml"
+kubectl apply -f "$REPO_ROOT/argocd/standalone/argocd-application.yaml"
 kubectl apply -f "$REPO_ROOT/argocd/root-application.yaml"
 
 log_info "kicking root Application sync"
