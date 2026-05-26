@@ -2,7 +2,7 @@
 
 Shared Helm chart (`Chart.yaml`: `type: application`) для общих Kubernetes ресурсов. Отдельно от upstream chart в ArgoCD multi-source; это не Helm `type: library` (такой тип только как зависимость и не деплоится своим релизом).
 
-## ✅ РАБОТАЕТ! Все шаблоны с LF; для homelab-common source: `values/shared/global.yaml` + файл приложения (`global.*` и `homelab-common`)
+## ✅ РАБОТАЕТ! Все шаблоны с LF; для homelab-common source: `argocd/values/global.yaml` + файл приложения (`global.*` и `homelab-common`)
 
 ## Возможности
 
@@ -39,7 +39,7 @@ spec:
       targetRevision: "1.7.1"
       helm:
         valueFiles:
-          - $values/argocd/values/shared/global.yaml
+          - $values/argocd/values/global.yaml
           - $values/argocd/apps/immich/values.yaml
     
     # Values reference (тот же монорепо)

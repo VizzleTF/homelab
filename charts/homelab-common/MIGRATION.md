@@ -22,7 +22,7 @@ image:
 
 ### 2. Обновите ArgoCD Application
 
-Добавьте homelab-common как дополнительный source. В `helm.valueFiles` **только у этого source** укажите сначала `$values/argocd/values/shared/global.yaml`, затем файл приложения (upstream chart оставьте без `global.yaml`, если у чарта строгая values schema).
+Добавьте homelab-common как дополнительный source. В `helm.valueFiles` **только у этого source** укажите сначала `$values/argocd/values/global.yaml`, затем файл приложения (upstream chart оставьте без `global.yaml`, если у чарта строгая values schema).
 
 ```yaml
 spec:
@@ -41,7 +41,7 @@ spec:
       targetRevision: "1.7.1"
       helm:
         valueFiles:
-          - $values/argocd/values/shared/global.yaml
+          - $values/argocd/values/global.yaml
           - $values/argocd/apps/myapp/values.yaml
     
     # Values reference (тот же монорепо)
