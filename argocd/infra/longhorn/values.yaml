@@ -39,12 +39,24 @@ defaultSettings:
   # Лимит одновременных rebuild операций
   concurrentReplicaRebuildPerNodeLimit: "3"
   # Policy для автоматических node drain'ов (tuppr Talos rolling upgrade).
-  # Default `block-if-contains-last-replica` блокирует eviction instance-manager
-  # PDB → tuppr drain loops endless. `block-for-eviction-if-contains-last-replica`
-  # заставляет Longhorn авто-evict'ать last-replica volumes на drain'аемой node +
-  # удалять PDB после rebuild complete. Drain пройдёт сам, без вмешательства.
+  # `always-allow` — Longhorn разрешает drain без forced eviction replicas.
+  # Replicas остаются на диске ноды во время reboot. После возврата ноды
+  # Longhorn детектит existing replicas + reuse'ит (только delta sync), НЕ
+  # rebuild from scratch. Парный setting — replicaReplenishmentWaitInterval=1800
+  # (30 min grace period — покрывает Talos powercycle ~5 min с запасом).
+  #
+  # Trade-off: если node умрёт навсегда во время drain, data на ней теряется.
+  # У нас defaultReplicaCount=2 → copy на других CP-нодах спасает.
+  #
+  # Альтернативы:
+  # - `block-if-contains-last-replica` (default) — PDB блокирует tuppr eviction
+  # - `block-for-eviction*` — Longhorn автo-evict'ит replicas → лишний data
+  #   movement (~гигабайты по сети) на каждом rolling upgrade
   # Docs: https://longhorn.io/docs/1.10.0/references/settings/#node-drain-policy
-  nodeDrainPolicy: "block-for-eviction-if-contains-last-replica"
+  nodeDrainPolicy: "always-allow"
+  # Grace period перед rebuild from scratch для возвращающейся ноды (default 600s).
+  # Bump до 1800s покрывает Talos powercycle + cold-start kubelet + cilium ready.
+  replicaReplenishmentWaitInterval: "1800"
   # CPU оптимизация CSI компонентов (реальное потребление + 25%)
   # Поддерживаемые компоненты: csi-attacher, csi-provisioner, csi-resizer, csi-snapshotter,
   # longhorn-csi-plugin, node-driver-registrar, longhorn-liveness-probe
