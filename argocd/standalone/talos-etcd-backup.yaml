@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
     targetRevision: HEAD
-    path: argocd/manifests/infrastructure/talos-etcd-backup
+    path: argocd/manifests/talos-etcd-backup
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
