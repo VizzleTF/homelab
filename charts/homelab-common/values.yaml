@@ -1,5 +1,5 @@
 # Default values for homelab-common (shared Helm chart).
-# Секреты и среда (NFS/WebDAV/NIC) задаются в private values, см. values/shared/global.yaml.
+# Секреты и среда (NFS/WebDAV/NIC) задаются в private values, см. argocd/values/global.yaml.
 
 # Global defaults that can be overridden
 global:

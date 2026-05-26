@@ -46,7 +46,7 @@ spec:
           targetRevision: "1.8.4"
           helm:
             valueFiles:
-              - "$values/argocd/values/shared/global.yaml"
+              - "$values/argocd/values/global.yaml"
               - "$values/argocd/infra/{{ .path.basename }}/{{ dig "homelabValuesFile" "values.yaml" . }}"
         - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
           targetRevision: HEAD

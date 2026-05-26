@@ -50,11 +50,11 @@ jobs:
           FAILS=0
           for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps/*/cnpg-values.yaml \
                    argocd/infra/*/values.yaml argocd/infra/*/homelab-values.yaml \
-                   argocd/values/infrastructure/argocd.yaml; do
+                   argocd/values/argocd.yaml; do
             [ -f "$f" ] || continue
             grep -qE '^homelab-common:|^global:' "$f" || continue
             if ! helm template test charts/homelab-common \
-                -f argocd/values/shared/global.yaml -f "$f" \
+                -f argocd/values/global.yaml -f "$f" \
                 >/dev/null 2>/tmp/helm.err; then
               echo "::error file=$f::Schema validation failed"
               sed 's/^/    /' /tmp/helm.err

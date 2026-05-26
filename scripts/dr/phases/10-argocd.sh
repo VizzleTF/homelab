@@ -17,7 +17,7 @@ kubectl create ns argocd 2>/dev/null || true
 log_info "installing ArgoCD chart with homelab values"
 helm_apply argocd argo/argo-cd argocd \
   --version 9.5.15 \
-  -f "$REPO_ROOT/argocd/values/infrastructure/argocd.yaml"
+  -f "$REPO_ROOT/argocd/values/argocd.yaml"
 
 wait_for "argocd-server Ready" \
   "kubectl -n argocd rollout status deploy/argocd-server --timeout=300s"
