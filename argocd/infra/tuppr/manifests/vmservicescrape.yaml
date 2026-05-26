@@ -1,0 +1,20 @@
+# Chart 0.1.36 рендерит Service "tuppr-metrics" в ns system-upgrade c labels
+# app.kubernetes.io/name=tuppr, app.kubernetes.io/instance=tuppr,
+# порт metrics/tcp/8080, scheme=HTTP (controller.metrics.secure=false).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: tuppr
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - system-upgrade
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tuppr
+      app.kubernetes.io/instance: tuppr
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

@@ -1,0 +1,6 @@
+chart: tuppr
+repoURL: ghcr.io/home-operations/charts
+targetRevision: "0.1.36"
+namespace: system-upgrade
+wave: "-1"
+extraManifests: true
