@@ -21,7 +21,10 @@ spec:
 
   maintenance:
     windows:
-      - start: "0 3 * * 0"
+      # Ежедневно 10:00 MSK на 4h — через час после Talos OS window. Реальный
+      # upgrade запускается только при отличающемся spec.kubernetes.version.
+      # Сдвинут с ночи из-за конфликта с backup'ами (см. talos-upgrade.yaml).
+      - start: "0 10 * * *"
         duration: "4h"
         timezone: "Europe/Moscow"
 
