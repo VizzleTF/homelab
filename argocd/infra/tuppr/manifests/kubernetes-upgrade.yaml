@@ -1,0 +1,46 @@
+# KubernetesUpgrade — declarative cluster-wide kubelet/control-plane upgrade.
+# Один на cluster (admission webhook enforce).
+#
+# Запускается через час после Talos OS window (Talos OS sliding 02:00, K8s 03:00).
+# tuppr НЕ enforce'ит safe upgrade path — Renovate с separateMinorPatch ОБЯЗАН
+# делить minor и patch на отдельные PR (иначе можно случайно скакнуть N→N+2).
+#
+# Также tuppr НЕ гейтит image lag (ghcr.io/siderolabs/kubelet публикуется
+# вместе с Talos patch-релизом, не upstream). Если K8s minor бампится — сначала
+# убедись что Talos уже на патче с этим kubelet (см. memory:
+# reference_talos_kubelet_image_lag).
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: KubernetesUpgrade
+metadata:
+  name: kubernetes
+  namespace: system-upgrade
+spec:
+  kubernetes:
+    # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
+    version: v1.36.1
+
+  maintenance:
+    windows:
+      - start: "0 3 * * 0"
+        duration: "4h"
+        timezone: "Europe/Moscow"
+
+  healthChecks:
+    - apiVersion: v1
+      kind: Node
+      description: "All nodes Ready"
+      expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
+      timeout: 15m
+
+    - apiVersion: longhorn.io/v1beta2
+      kind: Volume
+      namespace: longhorn-system
+      description: "Longhorn volumes healthy"
+      expr: "status.state != 'attached' || status.robustness == 'healthy'"
+      timeout: 30m
+
+  talosctl:
+    image:
+      repository: ghcr.io/siderolabs/talosctl
+      # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
+      tag: v1.13.2

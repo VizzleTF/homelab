@@ -1,0 +1,43 @@
+# Alerts для tuppr. Точные имена метрик (tuppr_upgrade_*) скорректировать
+# после первого scrape — выгрузить через `curl -s tuppr-metrics:8080/metrics`
+# в ns system-upgrade. Шаблон ниже покрывает: controller down, upgrade failed,
+# upgrade застрял в HealthChecking >2ч.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: tuppr
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: tuppr
+      rules:
+        - alert: TupprDown
+          expr: absent(up{job=~".*tuppr.*"}) == 1 or up{job=~".*tuppr.*"} == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "tuppr controller scrape target down"
+            description: |
+              tuppr metrics endpoint недоступен >15 минут. Апгрейды Talos/K8s
+              не будут запускаться в maintenance window.
+              kubectl -n system-upgrade get pods
+              kubectl -n system-upgrade logs deploy/tuppr --tail=200
+
+        - alert: TupprUpgradeStuck
+          # CR в state != Completed/Idle дольше 2ч в любое время суток
+          # (большое окно покрывает worst-case: 3 ноды × 45m timeout = 135 min).
+          expr: |
+            (time() - max_over_time(tuppr_upgrade_phase_change_timestamp_seconds[3h])) > 7200
+            and on() count(tuppr_upgrade_phase{phase!~"Idle|Completed"}) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "tuppr upgrade stuck in non-terminal phase >2h"
+            description: |
+              TalosUpgrade или KubernetesUpgrade CR висит в фазе healthChecking
+              или Upgrading >2 часов. Проверь:
+              kubectl get talosupgrade,kubernetesupgrade -A
+              kubectl describe talosupgrade -n system-upgrade cluster
+              # Чаще всего blocked на Longhorn rebuild — kubectl -n longhorn-system get volumes -o wide

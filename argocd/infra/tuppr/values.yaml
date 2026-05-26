@@ -1,0 +1,59 @@
+# tuppr — Talos & Kubernetes Upgrade Controller (home-operations/tuppr).
+# Управляет апгрейдами декларативно через CRD TalosUpgrade + KubernetesUpgrade
+# (manifests/). Maintenance-windows, CEL healthChecks, Renovate-driven bumps.
+#
+# Talos machine config должен иметь:
+#   machine.features.kubernetesTalosAPIAccess.enabled=true
+#   allowedKubernetesNamespaces=[system-upgrade]
+#   allowedRoles=[os:admin]
+# Patch: terraform_talos/modules/talos/patches/controlplane.yaml.tftpl
+#
+# Replace для legacy: scripts/talos-upgrade.sh оставлен как break-glass.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/home-operations/tuppr
+  pullPolicy: IfNotPresent
+  # tag: ""   # default = chart appVersion (auto-bumped по тегу релиза)
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+controller:
+  # info вместо default debug — chart-author TODO до stable, у нас однако
+  # production-like (управляет ребутами). debug включай вручную при дебаге.
+  logLevel: info
+
+  leaderElection:
+    enabled: true
+
+  metrics:
+    enabled: true
+    port: 8080
+    secure: false   # plain HTTP — scrape через VMServiceScrape без TLS
+
+webhook:
+  enabled: true
+  port: 9443
+
+rbac:
+  create: true
+
+monitoring:
+  # Используем VMServiceScrape (manifests/vmservicescrape.yaml), не ServiceMonitor.
+  serviceMonitor:
+    enabled: false
+  prometheusRule:
+    enabled: false
+  dashboards:
+    enabled: false
+
+# Default tolerations подходят (control-plane NoSchedule + CriticalAddonsOnly).
+# У нас 0 dedicated workers, все workloads на CP, taint снят — tolerations
+# не блокируют, лишь страхуют если taint вернётся.

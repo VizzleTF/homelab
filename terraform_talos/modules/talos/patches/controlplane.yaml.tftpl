@@ -5,6 +5,17 @@ machine:
 %{ endfor ~}
   nodeLabels:
     node.kubernetes.io/exclude-from-external-load-balancers: ""
+  features:
+    # Required by tuppr (home-operations/tuppr) — controller runs inside the
+    # cluster and uses the Talos API to drive node upgrades. Without this
+    # feature the controller cannot reach the Talos API and TalosUpgrade CRs
+    # fail with auth errors. Scope limited to ns system-upgrade + os:admin role.
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:admin
+      allowedKubernetesNamespaces:
+        - system-upgrade
 cluster:
   apiServer:
     certSANs:

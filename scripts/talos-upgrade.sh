@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# DEPRECATED (2026-05-26): tuppr controller now drives upgrades declaratively
+# via TalosUpgrade + KubernetesUpgrade CRDs (argocd/infra/tuppr/). Use this
+# script only as break-glass: when the tuppr controller itself is broken,
+# during DR-restore before tuppr is up, or for ad-hoc single-node maintenance
+# outside the configured maintenance window.
+#
 # Wrapper for routine Talos OS and Kubernetes version upgrades on the
 # bare-metal homelab cluster (currently talos-cp-{01,02,03}; future workers
 # will be picked up automatically from terraform_talos/configs/nodes.yaml).

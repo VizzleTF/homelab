@@ -1,0 +1,92 @@
+# TalosUpgrade — declarative rolling upgrade of Talos OS on all CP nodes.
+#
+# КРИТИЧНО: tuppr НЕ имеет встроенного интервала между нодами.
+# "Пауза" реализуется через healthChecks (CEL): следующая нода не апгрейдится
+# пока ВСЕ чеки не PASS для текущего snapshot'а кластера. Главный gate —
+# Longhorn Volume robustness=healthy: реплики должны полностью восстановиться
+# на оставшихся нодах прежде чем мы тронем следующую.
+#
+# parallelism: 1 обязателен (3 CP — параллельный reboot убьёт etcd quorum).
+# rebootMode: powercycle — workaround Talos v1.13+ unmountPodMounts hang
+# на Longhorn RWX-NFS (см. memory: reference_talos_113_upgrade_gotchas).
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: TalosUpgrade
+metadata:
+  name: cluster
+  namespace: system-upgrade
+spec:
+  talos:
+    # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
+    version: v1.13.2
+
+  parallelism: 1
+
+  policy:
+    rebootMode: powercycle
+    placement: soft
+    timeout: 45m
+
+  drain:
+    deleteLocalData: true
+    ignoreDaemonSets: true
+    force: true
+
+  maintenance:
+    windows:
+      - start: "0 2 * * 0"
+        duration: "6h"
+        timezone: "Europe/Moscow"
+
+  # ===== INTERVAL GATE между нодами =====
+  # tuppr re-enters HealthChecking фазу после каждой ноды. Все expr'ы должны
+  # пройти прежде чем взять следующую. Это и есть "interval" — не sleep,
+  # а точный gate на реальное состояние storage/db.
+  healthChecks:
+    # 1. Все ноды Ready.
+    - apiVersion: v1
+      kind: Node
+      description: "All nodes Ready"
+      expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
+      timeout: 15m
+
+    # 2. ГЛАВНЫЙ GATE: все Longhorn-volumes healthy после rebuild'а реплик.
+    # Short-circuit на detached: detached volumes репортят robustness=unknown
+    # и без || заблокировали бы апгрейд навсегда.
+    - apiVersion: longhorn.io/v1beta2
+      kind: Volume
+      namespace: longhorn-system
+      description: "All attached Longhorn volumes healthy (replica rebuild complete)"
+      expr: "status.state != 'attached' || status.robustness == 'healthy'"
+      timeout: 45m
+
+    # 3. Longhorn ноды schedulable+ready (storage controller alive).
+    - apiVersion: longhorn.io/v1beta2
+      kind: Node
+      namespace: longhorn-system
+      description: "Longhorn nodes ready & schedulable"
+      expr: |
+        status.conditions.exists(c, c.type == 'Ready' && c.status == 'True') &&
+        status.conditions.exists(c, c.type == 'Schedulable' && c.status == 'True')
+      timeout: 15m
+
+    # 4. CNPG shared cluster (nextcloud + authentik + forgejo) — 3 instance up.
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      namespace: cnpg
+      description: "CNPG shared cluster healthy"
+      expr: "status.readyInstances == object.spec.instances && status.phase == 'Cluster in healthy state'"
+      timeout: 20m
+
+    # 5. CNPG immich-cluster (1 instance, отдельный ns).
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      namespace: immich
+      description: "Immich CNPG cluster healthy"
+      expr: "status.readyInstances == object.spec.instances"
+      timeout: 15m
+
+  talosctl:
+    image:
+      repository: ghcr.io/siderolabs/talosctl
+      # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
+      tag: v1.13.2
