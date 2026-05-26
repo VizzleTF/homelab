@@ -33,8 +33,21 @@ spec:
 
   maintenance:
     windows:
-      - start: "0 2 * * 0"
+      # Permanent: ежедневно 09:00 MSK на 6h. Окно открывается каждый день,
+      # но реальный rolling upgrade запускается только если spec.talos.version
+      # отличается от текущего (то есть после Renovate-PR merge). Сдвинут с
+      # ночи (02:00) потому что ночные часы заняты Velero+CNPG daily-backup'ами
+      # (см. `kubectl -n velero get schedules.velero.io`). 09:00 — после всех
+      # morning backups (cnpg-cluster в 08:15 — последний).
+      - start: "0 9 * * *"
         duration: "6h"
+        timezone: "Europe/Moscow"
+      # ONE-SHOT — окно открывается 2026-05-26 в 22:50 MSK для немедленного
+      # rolling upgrade на v1.13.3. Date-specific cron: `50 22 26 5 *` =
+      # 22:50 26 мая (любого года). После 03:50 27 мая окно закрывается само —
+      # удалять этот entry следующим PR не обязательно (просто dead config).
+      - start: "50 22 26 5 *"
+        duration: "5h"
         timezone: "Europe/Moscow"
 
   # ===== INTERVAL GATE между нодами =====
