@@ -111,6 +111,11 @@ homelab-common:
               "autoRegister": true,
               "autoLaunch": false,
               "buttonText": "Login with Authentik"
+            },
+            "machineLearning": {
+              "clip": {
+                "modelName": "nllb-clip-large-siglip__mrl"
+              }
             }
           }
   
@@ -212,8 +217,10 @@ machine-learning:
             tag: *ml_tag
           env:
             MACHINE_LEARNING_DEVICE: GPU
-            # Multilingual SigLIP via NLLB text encoder — best Russian retrieval per OpenCLIP
-            # benchmark + Immich docs recommendation for non-English native-language search.
+            # PRELOAD env warms the model cache on pod start — it does NOT pick the active
+            # model. The active CLIP model is read from Immich's system-config (DB or the
+            # IMMICH_CONFIG_FILE JSON via $IMMICH_CONFIG_FILE on the server). See
+            # immich-config.json templateData above for the authoritative setting.
             MACHINE_LEARNING_PRELOAD__CLIP: nllb-clip-large-siglip__mrl
             MACHINE_LEARNING_WORKERS: "1"
             MACHINE_LEARNING_WORKER_TIMEOUT: "0"
