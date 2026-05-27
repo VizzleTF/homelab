@@ -142,11 +142,24 @@ _shared_config:
   version: &version "v2.7.5"
   ml_tag: &ml_tag "v2.7.5-openvino"
 
-# Pod-level securityContext for the server component
+# Pod-level securityContext + soft affinity for the server component.
+# Prefer the bare-metal ML worker so the server lands next to the ML pod (low-latency
+# inter-pod calls during re-encode + thumbnail/transcode jobs), but fall back to any
+# schedulable node if worker-01 is full or down — server is not GPU-bound, so a CP
+# can run it without contention.
 defaultPodOptions:
   securityContext:
     seccompProfile:
       type: RuntimeDefault
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/ml
+                operator: In
+                values: ["true"]
 
 # Controllers configuration for new chart structure
 controllers:
@@ -157,10 +170,15 @@ controllers:
           tag: *version
         resources:
           requests:
-            cpu: 15m
+            cpu: 500m
             memory: 2400Mi
           limits:
-            cpu: 1000m
+            # Server consolidates the v2.x microservices (job dispatcher, thumbnail
+            # generator, metadata extractor, transcode launcher). During bulk re-encode
+            # it was pinned at 1000m and the kernel throttled 93 % of periods, stealing
+            # 5.4 x more CPU time than the pod was allowed to run. Bump to 6 cores;
+            # worker-01 has 16 allocatable and runs at ~20 % otherwise.
+            cpu: 6000m
             memory: 5Gi
         env:
           # PostgreSQL connection via CNPG
