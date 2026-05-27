@@ -7,6 +7,7 @@ locals {
       address_cidr = n.address
       role         = n.role
       install_disk = n.install_disk
+      mac          = try(n.mac, "")
     } if try(n.enabled, false)
   }
 }
