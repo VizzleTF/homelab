@@ -59,5 +59,6 @@ variable "nodes" {
     address_cidr = string # IP/prefix (written into machine.network.interfaces[].addresses)
     role         = string # "controlplane" or "worker"
     install_disk = string
+    mac          = optional(string, "") # Optional NIC MAC for hardwareAddr deviceSelector (bare-metal multi-NIC). Empty → physical:true.
   }))
 }

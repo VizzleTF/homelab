@@ -50,6 +50,7 @@ locals {
       vip             = var.vip
       install_disk    = n.install_disk
       is_controlplane = n.role == "controlplane"
+      mac             = n.mac
     })
   }
 }

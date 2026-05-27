@@ -6,7 +6,11 @@ machine:
   network:
     interfaces:
       - deviceSelector:
+%{ if mac != "" ~}
+          hardwareAddr: ${mac}
+%{ else ~}
           physical: true
+%{ endif ~}
         addresses:
           - ${address_cidr}
         routes:
