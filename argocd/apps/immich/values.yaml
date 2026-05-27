@@ -271,8 +271,9 @@ machine-learning:
   persistence:
     cache:
       enabled: true
-      # NLLB-large model file alone is ~14.9 GB; buffer for facial-recognition + temp downloads.
-      size: 20Gi
+      # NLLB-Large (~14.9 GB) + buffalo_l face detection + recognition + OpenVINO compile
+      # caches + HF download temp files filled 20Gi to 100 %. Bump to 30Gi.
+      size: 30Gi
       type: persistentVolumeClaim
       storageClass: "longhorn"
       accessMode: ReadWriteMany
