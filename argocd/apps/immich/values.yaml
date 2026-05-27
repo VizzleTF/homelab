@@ -238,10 +238,14 @@ machine-learning:
                 timeoutSeconds: 5
           resources:
             requests:
-              cpu: 15m
+              cpu: 2000m
               memory: 4Gi
             limits:
-              cpu: 2000m
+              # NLLB-Large encoding pins to 2 cores at the previous 2000m limit and was
+              # throttled ~80 % of the time (cgroup nr_throttled 1258/3293, throttled_usec
+              # 295s/370s). Bump to 8 cores; worker-01 is 16-core, runs at ~20 % otherwise.
+              # OpenVINO offloads tensor ops to iGPU but pre/post-processing stays on CPU.
+              cpu: 8000m
               # NLLB-Large peak ~13-14 GB during OpenVINO JIT compile (model file 14.9 GB
               # on disk maps into memory plus working set). 8Gi was OOMKilled twice.
               memory: 16Gi
