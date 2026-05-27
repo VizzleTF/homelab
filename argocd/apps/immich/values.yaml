@@ -198,14 +198,11 @@ machine-learning:
     securityContext:
       seccompProfile:
         type: RuntimeDefault
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: intel.feature.node.kubernetes.io/gpu
-                  operator: In
-                  values: ["true"]
+    # Pin to dedicated bare-metal ML worker — CP VMs also carry intel.feature.node.kubernetes.io/gpu
+    # via VFIO iGPU passthrough, so a GPU-label affinity would not actually exclude them.
+    # Add the label with: kubectl label node <name> node-role.kubernetes.io/ml=true
+    nodeSelector:
+      node-role.kubernetes.io/ml: "true"
   controllers:
     main:
       strategy: Recreate
@@ -215,7 +212,9 @@ machine-learning:
             tag: *ml_tag
           env:
             MACHINE_LEARNING_DEVICE: GPU
-            MACHINE_LEARNING_PRELOAD__CLIP: ViT-B-16-SigLIP2__webli
+            # Multilingual SigLIP via NLLB text encoder — best Russian retrieval per OpenCLIP
+            # benchmark + Immich docs recommendation for non-English native-language search.
+            MACHINE_LEARNING_PRELOAD__CLIP: nllb-clip-large-siglip__mrl
             MACHINE_LEARNING_WORKERS: "1"
             MACHINE_LEARNING_WORKER_TIMEOUT: "0"
           resources:
@@ -229,7 +228,8 @@ machine-learning:
   persistence:
     cache:
       enabled: true
-      size: 15Gi
+      # NLLB-large model file alone is ~14.9 GB; buffer for facial-recognition + temp downloads.
+      size: 20Gi
       type: persistentVolumeClaim
       storageClass: "longhorn"
       accessMode: ReadWriteMany
