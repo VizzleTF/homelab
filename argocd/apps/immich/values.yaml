@@ -217,6 +217,18 @@ machine-learning:
             MACHINE_LEARNING_PRELOAD__CLIP: nllb-clip-large-siglip__mrl
             MACHINE_LEARNING_WORKERS: "1"
             MACHINE_LEARNING_WORKER_TIMEOUT: "0"
+          # First boot with NLLB-Large on OpenVINO compiles the visual encoder ONNX graph
+          # for ~10-25 min on an Intel iGPU (cached afterwards). Default startup probe of
+          # 60×10s = 10 min is too tight; raise to 240×10s = 40 min. timeoutSeconds bumped
+          # to 5 because gunicorn's single worker can't always reply to /ping in 1 s while
+          # loading model weights. Liveness/readiness defaults are kept — once Ready, the
+          # /ping endpoint is fast.
+          probes:
+            startup:
+              spec:
+                failureThreshold: 240
+                periodSeconds: 10
+                timeoutSeconds: 5
           resources:
             requests:
               cpu: 15m
