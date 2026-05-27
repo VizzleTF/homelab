@@ -232,10 +232,12 @@ machine-learning:
           resources:
             requests:
               cpu: 15m
-              memory: 3200Mi
+              memory: 4Gi
             limits:
               cpu: 2000m
-              memory: 8Gi
+              # NLLB-Large peak ~13-14 GB during OpenVINO JIT compile (model file 14.9 GB
+              # on disk maps into memory plus working set). 8Gi was OOMKilled twice.
+              memory: 16Gi
               gpu.intel.com/i915: "1"
   persistence:
     cache:
