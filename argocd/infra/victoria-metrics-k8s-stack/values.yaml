@@ -282,6 +282,17 @@ defaultRules:
     PersistentQueueRunsOutOfSpaceIn4Hours:
       create: false
 
+    # vmalert/vmagent meta-alerts caused by transient endpoint loss during
+    # Renovate auto-updates / ArgoCD sync (vmsingle pod restart 2-3 min → all
+    # dependent rules error out → 5m for: trips). Real prolonged outage is
+    # covered by VMSingleDown / VMAlertDown (also `for: 5m`).
+    AlertingRulesError:
+      create: false
+    ConfigurationReloadFailure:
+      create: false
+    RemoteWriteDroppingData:
+      create: false
+
     # vmsingle disk — keep predictive (DiskRunsOutOfSpaceIn3Days); drop late "already-full"
     DiskRunsOutOfSpace:
       create: false

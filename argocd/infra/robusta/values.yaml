@@ -172,6 +172,12 @@ customPlaybooks:
             # давим по уникальной подстроке message от Velero backup pod-ов.
             - "is not ready for workloads"
             - "pod has unbound immediate PersistentVolumeClaims"
+            # Probe failures от Renovate/ArgoCD-driven pod restarts — pod recreates
+            # → readiness probe фейлится 5-30s до первого pass. Real probe issues
+            # покрываются `KubeContainerWaiting`/`KubePodNotReady` rules (with for:).
+            - "Readiness probe failed"
+            - "Liveness probe failed"
+            - "Startup probe failed"
     actions:
       - warning_events_report:
           warning_event_groups:

@@ -77,6 +77,15 @@ spec:
                 - severity="warning"
               equal: ['alertname', 'namespace', 'instance']
 
+            # vmsingle/vmalert pod restart (Renovate auto-update / ArgoCD sync)
+            # вызывает короткий outage → AlertingRulesError + RemoteWriteDroppingData
+            # каскадом. VMSingleDown/VMAlertDown с `for: 5m` сами не fire'ят на
+            # быстрых restart'ах, но дочерние rule errors уже спам'ят. Inhibit:
+            - source_matchers:
+                - alertname=~"VMSingleDown|VMAlertDown"
+              target_matchers:
+                - alertname=~"AlertingRulesError|RemoteWriteDroppingData|ConfigurationReloadFailure|TargetDown"
+
           receivers:
             - name: 'robusta'
               webhook_configs:
