@@ -42,7 +42,7 @@ homelab-common:
       accessModes:
         - ReadWriteMany
       storageClassName: longhorn
-      size: 185Gi
+      size: 250Gi
       volumeName: pvc-2cc76030-39eb-4309-933d-7bcd4dab47b1
 
   externalSecrets:
