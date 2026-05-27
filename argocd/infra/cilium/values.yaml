@@ -16,10 +16,10 @@ resources:
 envoy:
   resources:
     requests:
-      memory: 32Mi
+      memory: 64Mi
       cpu: 10m
     limits:
-      memory: 128Mi
+      memory: 256Mi
       cpu: 200m
 
 operator:
