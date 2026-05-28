@@ -83,7 +83,7 @@ homelab-common:
                     type: RuntimeDefault
                 initContainers:
                   - name: prep-cache
-                    image: busybox:1.37
+                    image: busybox:1.38
                     command: [sh, -c]
                     args:
                       - |
