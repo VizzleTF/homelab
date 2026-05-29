@@ -1,0 +1,23 @@
+# Independent off-site copy of etcd snapshots → OVH (BSL ovh-direct).
+# Тир etcd: daily, 30d. Без pre-hook: daily-schedule (04:15) уже положил свежий
+# etcd-*.snap на PVC через talosctl; offsite (04:45) просто CSI-снапшотит тот же
+# PVC в независимый kopia-репо на OVH (переживает wipe Garage). Не зеркало.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: talos-etcd-offsite
+  namespace: velero
+spec:
+  schedule: "45 4 * * *"
+  template:
+    ttl: 720h0m0s
+    storageLocation: ovh-direct
+    snapshotMoveData: true
+    csiSnapshotTimeout: 15m
+    itemOperationTimeout: 4h0m0s
+    defaultVolumesToFsBackup: false
+    includedNamespaces:
+      - kube-system
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: talos-etcd-snapshotter

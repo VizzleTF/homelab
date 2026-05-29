@@ -8,6 +8,14 @@ homelab-common:
       schedule: "45 2 * * *"
       template:
         includedNamespaces: [omniroute]
+    # Independent off-site copy → OVH (BSL ovh-direct). Тир низкоценные: weekly, 30d.
+    # Без hook (KEDA scale-to-zero, см. daily) — CSI snapshot PVC напрямую.
+    - name: omniroute-offsite
+      schedule: "5 4 * * 0"
+      template:
+        includedNamespaces: [omniroute]
+        storageLocation: ovh-direct
+        ttl: "720h0m0s"
 
   externalSecrets:
     - name: omniroute-app-secrets

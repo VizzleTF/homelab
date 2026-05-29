@@ -2,6 +2,23 @@
 # advertises home LAN subnets (10.11.11.0/24, 10.11.12.0/24) into NetBird.
 # Routes themselves are configured in NetBird dashboard → Network Routes.
 homelab-common:
+  # netbird-peer PVC (100Mi) = identity /etc/netbird. Без бэкапа потеря = re-enroll
+  # peer + пере-выдача routes (10.11.11/24, 10.11.12/24) в dashboard. Бэкапим.
+  # Без exec-hook: identity-файлы статичны, CSI snapshot crash-consistent достаточно.
+  veleroSchedules:
+    - name: netbird-daily
+      schedule: "20 2 * * *"
+      template:
+        includedNamespaces: [netbird]
+    # Independent off-site copy → OVH (BSL ovh-direct). Тир низкоценные: weekly, 90d
+    # (identity мелкая, держим дольше).
+    - name: netbird-offsite
+      schedule: "20 4 * * 0"
+      template:
+        includedNamespaces: [netbird]
+        storageLocation: ovh-direct
+        ttl: "2160h0m0s"
+
   externalSecrets:
     - name: netbird-peer
       vaultPath: netbird/peer

@@ -1,6 +1,9 @@
-# Daily mirror Terraform state bucket Garage → OVH (vaka-homelab/terraform-state prefix).
-# Runs 08:00 UTC — после CNPG mirror (07:00). State меняется редко (manual terraform apply),
-# мирьоринг даёт DR-копию вне Synology.
+# Daily off-site copy Terraform state bucket Garage → OVH (vaka-homelab/terraform-state).
+# Runs 08:00 UTC. State меняется редко (manual terraform apply), копия даёт DR вне Synology.
+#
+# rclone COPY (не sync): не пропагирует source-side delete на OVH. tfstate — single file,
+# перезаписывается in-place → независимость от corrupt-overwrite даёт VERSIONING на bucket
+# vaka-homelab (OVH) + terraform-state (Garage) — включить вручную (см. docs/backup-redesign.md).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -30,15 +33,15 @@ spec:
               args:
                 - |
                   set -eu
-                  echo "[$(date -u)] starting rclone sync garage_tfstate:terraform-state -> ovh:vaka-homelab/terraform-state/"
-                  rclone sync \
+                  echo "[$(date -u)] starting rclone copy garage_tfstate:terraform-state -> ovh:vaka-homelab/terraform-state/"
+                  rclone copy \
                     --s3-acl=private \
                     --transfers=2 \
                     --checkers=4 \
                     --stats=1m \
                     --stats-one-line \
                     garage_tfstate:terraform-state ovh:vaka-homelab/terraform-state/
-                  echo "[$(date -u)] mirror complete"
+                  echo "[$(date -u)] copy complete"
               envFrom:
                 - secretRef:
                     name: velero-mirror-rclone-env

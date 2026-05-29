@@ -80,6 +80,23 @@ configuration:
         region: de
         s3ForcePathStyle: "true"
         s3Url: https://s3.de.io.cloud.ovh.net
+    # Independent off-site BSL on OVH (read-write). Velero пишет СЮДА напрямую
+    # (direct offsite schedules `*-offsite`), отдельный prefix `velero-offsite` —
+    # НЕ пересекается с зеркалом `ovh-backup` (prefix `velero`). Независимая копия:
+    # переживает wipe/corruption Garage (нет destructive-sync). Retention — своя,
+    # per-schedule ttl; Velero GC чистит этот bucket сам.
+    - name: ovh-direct
+      provider: aws
+      bucket: vaka-homelab
+      prefix: velero-offsite
+      default: false
+      credential:
+        name: velero-ovh-creds
+        key: cloud
+      config:
+        region: de
+        s3ForcePathStyle: "true"
+        s3Url: https://s3.de.io.cloud.ovh.net
 
   volumeSnapshotLocation:
     - name: garage-default
@@ -136,29 +153,17 @@ homelab-common:
         - secretKey: secret_key
           property: ACCESS_SECRET_KEY
 
-    # ENV vars Secret для rclone CronJob (mirror Garage → OVH).
-    # Один Secret содержит RCLONE_CONFIG_<REMOTE>_* для четырёх remote'ов:
-    # garage         = Garage с velero-key (bucket velero-backups)
-    # garage_cnpg    = Garage с cnpg-key (bucket cnpg-backups)
+    # ENV vars Secret для tfstate-mirror rclone CronJob (Garage → OVH).
+    # После backup-redesign остались только два remote'а:
     # garage_tfstate = Garage с terraform-state-key (bucket terraform-state)
     # ovh            = OVH Frankfurt (mirror target)
+    # (garage/garage_cnpg remotes удалены вместе с velero-mirror/cnpg-mirror CronJob —
+    # PVC ушли на velero direct → ovh-direct, Postgres на pg_dump → pg-logical.)
     #
-    # NB: vault paths terraform/s3-terraform-state и shared/s3-cnpg-backup
-    # — non-k8s namespaces в Vault, ESO template prepends "homelab/k8s/".
+    # NB: vault path terraform/s3-terraform-state — non-k8s namespace в Vault,
+    # ESO template prepends "homelab/k8s/".
     - name: velero-mirror-rclone-env
       data:
-        - secretKey: garage_ak
-          vaultPath: velero/s3-velero
-          property: ACCESS_KEY_ID
-        - secretKey: garage_sk
-          vaultPath: velero/s3-velero
-          property: ACCESS_SECRET_KEY
-        - secretKey: garage_cnpg_ak
-          vaultPath: shared/s3-cnpg-backup
-          property: ACCESS_KEY_ID
-        - secretKey: garage_cnpg_sk
-          vaultPath: shared/s3-cnpg-backup
-          property: ACCESS_SECRET_KEY
         - secretKey: garage_tfstate_ak
           vaultPath: terraform/s3-terraform-state
           property: ACCESS_KEY_ID
@@ -172,20 +177,6 @@ homelab-common:
           vaultPath: velero/s3-ovh
           property: ACCESS_SECRET_KEY
       templateData:
-        RCLONE_CONFIG_GARAGE_TYPE: "s3"
-        RCLONE_CONFIG_GARAGE_PROVIDER: "Other"
-        RCLONE_CONFIG_GARAGE_ENDPOINT: "https://s3.example.com"
-        RCLONE_CONFIG_GARAGE_REGION: "garage"
-        RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
-        RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: "{{ .garage_ak }}"
-        RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: "{{ .garage_sk }}"
-        RCLONE_CONFIG_GARAGE_CNPG_TYPE: "s3"
-        RCLONE_CONFIG_GARAGE_CNPG_PROVIDER: "Other"
-        RCLONE_CONFIG_GARAGE_CNPG_ENDPOINT: "https://s3.example.com"
-        RCLONE_CONFIG_GARAGE_CNPG_REGION: "garage"
-        RCLONE_CONFIG_GARAGE_CNPG_FORCE_PATH_STYLE: "true"
-        RCLONE_CONFIG_GARAGE_CNPG_ACCESS_KEY_ID: "{{ .garage_cnpg_ak }}"
-        RCLONE_CONFIG_GARAGE_CNPG_SECRET_ACCESS_KEY: "{{ .garage_cnpg_sk }}"
         RCLONE_CONFIG_GARAGE_TFSTATE_TYPE: "s3"
         RCLONE_CONFIG_GARAGE_TFSTATE_PROVIDER: "Other"
         RCLONE_CONFIG_GARAGE_TFSTATE_ENDPOINT: "https://s3.example.com"

@@ -6,7 +6,7 @@ homelab-common:
     - name: forgejo-daily
       schedule: "40 2 * * *"
       template:
-        hooks:
+        hooks: &forgejo_hooks
           resources:
             # App-consistent backup репозиториев: flush-queues дренирует
             # webhooks/queue tasks (in-memory очереди — потеря при snapshot'е),
@@ -26,6 +26,14 @@ homelab-common:
                       - 'forgejo manager flush-queues --timeout 30s; sync'
                     onError: Continue
                     timeout: 60s
+    # Independent off-site copy → OVH (BSL ovh-direct). Тир крупные ценные:
+    # 2×/нед (Wed+Sun), 90d. Те же hooks (alias *forgejo_hooks).
+    - name: forgejo-offsite
+      schedule: "45 3 * * 3,0"
+      template:
+        storageLocation: ovh-direct
+        ttl: "2160h0m0s"
+        hooks: *forgejo_hooks
 
   externalSecrets:
     # DB-пароль для самого Forgejo (берём из того же Vault path, что и в cnpg.yaml).

@@ -59,6 +59,24 @@ homelab-common:
         - secretKey: ACCESS_SECRET_KEY
           property: ACCESS_SECRET_KEY
 
+    # rclone OVH creds для pg_dump → pg-logical CronJob (независимый off-site
+    # логический дамп, не зеркало barman). Vault: home/homelab/k8s/velero/s3-ovh.
+    - name: ovh-pglogical-rclone
+      vaultPath: velero/s3-ovh
+      data:
+        - secretKey: ovh_ak
+          property: ACCESS_KEY_ID
+        - secretKey: ovh_sk
+          property: ACCESS_SECRET_KEY
+      templateData:
+        RCLONE_CONFIG_OVH_TYPE: "s3"
+        RCLONE_CONFIG_OVH_PROVIDER: "Other"
+        RCLONE_CONFIG_OVH_ENDPOINT: "https://s3.de.io.cloud.ovh.net"
+        RCLONE_CONFIG_OVH_REGION: "de"
+        RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
+        RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+
   cnpgDatabase:
     name: nextcloud
     owner: nextcloud
@@ -78,6 +96,97 @@ homelab-common:
     defaultRequests:
       cpu: 50m
       memory: 64Mi
+
+  # Independent logical backup (pg_dump -Fc) → OVH pg-logical/cnpg-cluster/.
+  # Параллельно barman→Garage (PITR on-site). pg_dump = self-contained, восстановим
+  # в любой PG, независим от Garage (переживает wipe). Per-DB как owner (без
+  # superuser-зависимости). initContainer дампит → emptyDir, main rclone copy (append,
+  # не sync) + prune >90d. Тир секреты: daily 03:50, 90d retention.
+  cronJobs:
+    - name: pglogical-offsite
+      spec:
+        schedule: "50 3 * * *"
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 600
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 3
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            activeDeadlineSeconds: 3600
+            template:
+              spec:
+                restartPolicy: OnFailure
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 26
+                  runAsGroup: 26
+                  fsGroup: 26
+                  seccompProfile:
+                    type: RuntimeDefault
+                initContainers:
+                  - name: dump
+                    image: ghcr.io/cloudnative-pg/postgresql:17-bookworm
+                    imagePullPolicy: IfNotPresent
+                    command: ["/bin/bash", "-c"]
+                    args:
+                      - |
+                        set -euo pipefail
+                        ts=$(date -u +%Y%m%dT%H%M%SZ)
+                        dump() {
+                          echo "[$(date -u)] pg_dump $1"
+                          PGPASSWORD="$3" pg_dump -h cnpg-cluster-rw -U "$2" -Fc -d "$1" \
+                            -f "/dump/$1-$ts.dump"
+                        }
+                        dump nextcloud "$NC_USER" "$NC_PASS"
+                        dump authentik "$AK_USER" "$AK_PASS"
+                        dump forgejo   "$FJ_USER" "$FJ_PASS"
+                        ls -lh /dump
+                    env:
+                      - name: NC_USER
+                        valueFrom: { secretKeyRef: { name: nextcloud-db-credentials, key: username } }
+                      - name: NC_PASS
+                        valueFrom: { secretKeyRef: { name: nextcloud-db-credentials, key: password } }
+                      - name: AK_USER
+                        valueFrom: { secretKeyRef: { name: authentik-db-credentials, key: username } }
+                      - name: AK_PASS
+                        valueFrom: { secretKeyRef: { name: authentik-db-credentials, key: password } }
+                      - name: FJ_USER
+                        valueFrom: { secretKeyRef: { name: forgejo-db-credentials, key: username } }
+                      - name: FJ_PASS
+                        valueFrom: { secretKeyRef: { name: forgejo-db-credentials, key: password } }
+                    volumeMounts:
+                      - name: dump
+                        mountPath: /dump
+                    resources:
+                      requests: { cpu: 50m, memory: 128Mi }
+                      limits: { cpu: 500m, memory: 512Mi }
+                containers:
+                  - name: upload
+                    image: rclone/rclone:1.74
+                    imagePullPolicy: IfNotPresent
+                    command: ["/bin/sh", "-c"]
+                    args:
+                      - |
+                        set -eu
+                        echo "[$(date -u)] rclone copy /dump -> ovh:vaka-homelab/pg-logical/cnpg-cluster/"
+                        rclone copy /dump ovh:vaka-homelab/pg-logical/cnpg-cluster/ \
+                          --s3-acl=private --stats-one-line --stats=2m
+                        echo "[$(date -u)] prune >90d"
+                        rclone delete ovh:vaka-homelab/pg-logical/cnpg-cluster/ \
+                          --min-age 2160h --rmdirs || true
+                    envFrom:
+                      - secretRef:
+                          name: ovh-pglogical-rclone
+                    volumeMounts:
+                      - name: dump
+                        mountPath: /dump
+                    resources:
+                      requests: { cpu: 50m, memory: 128Mi }
+                      limits: { cpu: 500m, memory: 256Mi }
+                volumes:
+                  - name: dump
+                    emptyDir: {}
 
 mode: standalone
 
