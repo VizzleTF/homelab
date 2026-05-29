@@ -2,8 +2,9 @@
 # Runs 08:00 UTC. State меняется редко (manual terraform apply), копия даёт DR вне Synology.
 #
 # rclone COPY (не sync): не пропагирует source-side delete на OVH. tfstate — single file,
-# перезаписывается in-place → независимость от corrupt-overwrite даёт VERSIONING на bucket
-# vaka-homelab (OVH) + terraform-state (Garage) — включить вручную (см. docs/backup-redesign.md).
+# перезаписывается in-place → независимость от corrupt-overwrite даёт VERSIONING на OVH
+# bucket vaka-homelab (enabled + noncurrent-expire 30d, 2026-05-29). Garage НЕ умеет
+# versioning (PutBucketVersioning Unimplemented в Garage 2.x) — источник без версий, OK.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

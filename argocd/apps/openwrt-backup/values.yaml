@@ -1,0 +1,112 @@
+# OpenWrt config backup — cluster-side CronJob.
+# SSH root@10.11.12.1 (main router) → `sysupgrade -b -` стримит config-tarball
+# в stdout → uploads в Garage (on-site) + OVH (off-site, independent, versioned).
+# Бэкап-логика в кластере, НЕ на роутере (не храним бэкап на том, что бэкапим).
+#
+# `sysupgrade -b` дефолтно включает /etc/config/* + /etc/bird.conf (BGP-пир для
+# Cilium LB!) + dnsmasq + usteer(BTM) + crontabs + dropbear/authorized_keys —
+# bird2-пакет регистрирует conffile, править /etc/sysupgrade.conf не надо.
+homelab-common:
+  externalSecrets:
+    # SSH private key (reuse existing admin id_rsa). Pubkey уже в
+    # /etc/dropbear/authorized_keys на роутере. Vault: home/homelab/k8s/openwrt-backup/ssh.
+    - name: openwrt-ssh-key
+      vaultPath: openwrt-backup/ssh
+      data:
+        - secretKey: id_rsa
+          property: id_rsa
+
+    # rclone creds: Garage (velero key, bucket velero-backups) + OVH (off-site).
+    - name: openwrt-backup-rclone
+      data:
+        - secretKey: garage_ak
+          vaultPath: velero/s3-velero
+          property: ACCESS_KEY_ID
+        - secretKey: garage_sk
+          vaultPath: velero/s3-velero
+          property: ACCESS_SECRET_KEY
+        - secretKey: ovh_ak
+          vaultPath: velero/s3-ovh
+          property: ACCESS_KEY_ID
+        - secretKey: ovh_sk
+          vaultPath: velero/s3-ovh
+          property: ACCESS_SECRET_KEY
+      templateData:
+        RCLONE_CONFIG_GARAGE_TYPE: "s3"
+        RCLONE_CONFIG_GARAGE_PROVIDER: "Other"
+        RCLONE_CONFIG_GARAGE_ENDPOINT: "https://s3.example.com"
+        RCLONE_CONFIG_GARAGE_REGION: "garage"
+        RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: "{{ .garage_ak }}"
+        RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: "{{ .garage_sk }}"
+        RCLONE_CONFIG_OVH_TYPE: "s3"
+        RCLONE_CONFIG_OVH_PROVIDER: "Other"
+        RCLONE_CONFIG_OVH_ENDPOINT: "https://s3.de.io.cloud.ovh.net"
+        RCLONE_CONFIG_OVH_REGION: "de"
+        RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
+        RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+
+  cronJobs:
+    - name: config-backup
+      spec:
+        schedule: "30 5 * * 0"          # Sundays 05:30 UTC (weekly, config low-churn)
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 600
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 3
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            activeDeadlineSeconds: 600
+            template:
+              spec:
+                restartPolicy: OnFailure
+                securityContext:
+                  # root нужен для apk add; backup-pod короткоживущий
+                  runAsUser: 0
+                  runAsGroup: 0
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: backup
+                    image: alpine:3.21
+                    command: ["/bin/sh", "-c"]
+                    args:
+                      - |
+                        set -eu
+                        apk add --no-cache openssh-client rclone >/dev/null
+                        ts=$(date -u +%Y%m%dT%H%M%SZ)
+                        mkdir -p /tmp/b
+                        echo "[$(date -u)] ssh sysupgrade -b root@10.11.12.1"
+                        ssh -i /ssh/id_rsa -T \
+                          -o StrictHostKeyChecking=accept-new \
+                          -o UserKnownHostsFile=/tmp/known_hosts \
+                          -o ConnectTimeout=15 \
+                          root@10.11.12.1 "sysupgrade -b -" > "/tmp/b/owrt-router-$ts.tar.gz"
+                        ls -lh /tmp/b/
+                        gzip -t /tmp/b/*.tar.gz   # sanity: valid gzip
+                        for r in garage:velero-backups/openwrt ovh:vaka-homelab/openwrt; do
+                          echo "[$(date -u)] rclone copy -> $r/"
+                          rclone copy /tmp/b "$r/" --s3-acl=private --stats-one-line
+                          rclone delete "$r/" --min-age 2160h --rmdirs || true
+                        done
+                        echo "[$(date -u)] done"
+                    envFrom:
+                      - secretRef:
+                          name: openwrt-backup-rclone
+                    volumeMounts:
+                      - name: ssh
+                        mountPath: /ssh
+                        readOnly: true
+                    resources:
+                      requests: { cpu: 25m, memory: 64Mi }
+                      limits: { cpu: 500m, memory: 256Mi }
+                volumes:
+                  - name: ssh
+                    secret:
+                      secretName: openwrt-ssh-key
+                      defaultMode: 0400
+                      items:
+                        - key: id_rsa
+                          path: id_rsa
