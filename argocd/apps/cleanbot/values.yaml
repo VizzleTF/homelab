@@ -34,7 +34,7 @@ homelab-common:
     - name: cleanbot-daily
       schedule: "25 2 * * *"
       template:
-        hooks:
+        hooks: &cleanbot_hooks
           resources:
             - name: sqlite-online-backup
               includedResources: [pods]
@@ -62,6 +62,13 @@ homelab-common:
                     command: ["python3", "-c", "import os; os.path.exists('/data/cleanjob.sqlite3.bak') and os.remove('/data/cleanjob.sqlite3.bak')"]
                     onError: Continue
                     timeout: 15s
+    # Independent off-site copy → OVH (BSL ovh-direct). Тир низкоценные: weekly, 30d.
+    - name: cleanbot-offsite
+      schedule: "10 4 * * 0"
+      template:
+        storageLocation: ovh-direct
+        ttl: "720h0m0s"
+        hooks: *cleanbot_hooks
 
   externalSecrets:
     - name: cleanbot-secrets

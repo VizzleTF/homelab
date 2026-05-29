@@ -7,12 +7,12 @@ homelab-common:
       schedule: "5 2 * * *"
       template:
         # Only StatefulSet leader pod — на нём Raft snapshot.
-        labelSelector:
+        labelSelector: &openbao_lsel
           matchLabels:
             statefulset.kubernetes.io/pod-name: openbao-0
         csiSnapshotTimeout: 10m
         itemOperationTimeout: 30m0s
-        hooks:
+        hooks: &openbao_hooks
           resources:
             - name: raft-snapshot
               includedResources: [pods]
@@ -34,6 +34,17 @@ homelab-common:
                         bao operator raft snapshot save /openbao/data/.velero/raft.snap
                     onError: Fail
                     timeout: 5m
+    # Independent off-site copy → OVH (BSL ovh-direct). Тир секреты: daily, 90d.
+    # Raft snapshot hook + leader-only labelSelector через YAML alias.
+    - name: openbao-offsite
+      schedule: "30 3 * * *"
+      template:
+        labelSelector: *openbao_lsel
+        csiSnapshotTimeout: 10m
+        itemOperationTimeout: 30m0s
+        storageLocation: ovh-direct
+        ttl: "2160h0m0s"
+        hooks: *openbao_hooks
 
   externalSecrets:
     - name: openbao-approle-credentials

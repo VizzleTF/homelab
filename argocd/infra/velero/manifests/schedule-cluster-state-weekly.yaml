@@ -26,3 +26,27 @@ spec:
       - forgejo
       - vaultwarden
       - openbao
+---
+# Independent off-site copy of cluster-state → OVH (BSL ovh-direct). После удаления
+# rclone-mirror'а cluster-state потерял off-site копию — этот Schedule её возвращает
+# напрямую (не зеркало). Manifests only, weekly Sun 04:30, 90d.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: cluster-state-offsite
+  namespace: velero
+spec:
+  schedule: "30 4 * * 0"               # Sundays 04:30 UTC
+  template:
+    ttl: 2160h0m0s                    # 90 days
+    storageLocation: ovh-direct
+    includeClusterResources: true
+    snapshotVolumes: false
+    defaultVolumesToFsBackup: false
+    excludedNamespaces:
+      - cnpg
+      - immich
+      - nextcloud
+      - forgejo
+      - vaultwarden
+      - openbao

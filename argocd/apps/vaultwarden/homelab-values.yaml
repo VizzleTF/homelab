@@ -4,7 +4,7 @@ homelab-common:
     - name: vaultwarden-daily
       schedule: "50 2 * * *"
       template:
-        hooks:
+        hooks: &vw_hooks
           resources:
             # App-consistent SQLite backup: sqlite3 .backup в sidecar-контейнер
             # (vaultwarden image не содержит sqlite3 CLI). Файл .bak попадает
@@ -31,6 +31,14 @@ homelab-common:
                     command: ["/bin/sh", "-c", "rm -f /data/db.sqlite3.bak"]
                     onError: Continue
                     timeout: 15s
+    # Independent off-site copy → OVH (BSL ovh-direct). Тир секреты: daily, 90d.
+    # Те же hooks (YAML alias *vw_hooks). Не зеркало — переживает wipe Garage.
+    - name: vaultwarden-offsite
+      schedule: "35 3 * * *"
+      template:
+        storageLocation: ovh-direct
+        ttl: "2160h0m0s"
+        hooks: *vw_hooks
 
   httpRoutes:
     - name: vaultwarden

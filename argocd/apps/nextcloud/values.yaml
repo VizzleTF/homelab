@@ -7,7 +7,7 @@ homelab-common:
     - name: nextcloud-daily
       schedule: "30 2 * * *"
       template:
-        hooks:
+        hooks: &nextcloud_hooks
           resources:
             - name: maintenance
               includedResources: [pods]
@@ -26,6 +26,14 @@ homelab-common:
                     command: ["/bin/sh", "-c", "runuser -u www-data -- php /var/www/html/occ maintenance:mode --off || true"]
                     onError: Continue
                     timeout: 2m
+    # Independent off-site copy → OVH (BSL ovh-direct). Тир крупные ценные:
+    # 2×/нед (Wed+Sun), 90d. Те же maintenance-mode hooks (alias *nextcloud_hooks).
+    - name: nextcloud-offsite
+      schedule: "40 3 * * 3,0"
+      template:
+        storageLocation: ovh-direct
+        ttl: "2160h0m0s"
+        hooks: *nextcloud_hooks
 
   externalSecrets:
     - name: nextcloud-app-credentials
