@@ -70,7 +70,7 @@ homelab-common:
                     type: RuntimeDefault
                 containers:
                   - name: backup
-                    image: alpine:3.21
+                    image: alpine:3.23
                     command: ["/bin/sh", "-c"]
                     args:
                       - |
