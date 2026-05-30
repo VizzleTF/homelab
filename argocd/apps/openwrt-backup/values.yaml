@@ -16,14 +16,15 @@ homelab-common:
         - secretKey: id_rsa
           property: id_rsa
 
-    # rclone creds: Garage (velero key, bucket velero-backups) + OVH (off-site).
+    # rclone creds: Garage (dedicated bucket config-backups — НЕ velero-backups,
+    # иначе Velero валит garage-default BSL на "invalid top-level dir") + OVH (off-site).
     - name: openwrt-backup-rclone
       data:
         - secretKey: garage_ak
-          vaultPath: velero/s3-velero
+          vaultPath: openwrt-backup/s3-config-backups
           property: ACCESS_KEY_ID
         - secretKey: garage_sk
-          vaultPath: velero/s3-velero
+          vaultPath: openwrt-backup/s3-config-backups
           property: ACCESS_SECRET_KEY
         - secretKey: ovh_ak
           vaultPath: velero/s3-ovh
@@ -86,7 +87,7 @@ homelab-common:
                           root@10.11.12.1 "sysupgrade -b -" > "/tmp/b/owrt-router-$ts.tar.gz"
                         ls -lh /tmp/b/
                         gzip -t /tmp/b/*.tar.gz   # sanity: valid gzip
-                        for r in garage:velero-backups/openwrt ovh:vaka-homelab/openwrt; do
+                        for r in garage:config-backups/openwrt ovh:vaka-homelab/openwrt; do
                           echo "[$(date -u)] rclone copy -> $r/"
                           rclone copy /tmp/b "$r/" --s3-acl=private --stats-one-line
                           rclone delete "$r/" --min-age 2160h --rmdirs || true
