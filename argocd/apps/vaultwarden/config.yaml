@@ -1,5 +1,5 @@
 chart: vaultwarden
 repoURL: https://guerzon.github.io/vaultwarden
-targetRevision: "0.37.0"
+targetRevision: "0.38.0"
 wave: "2"
 homelabValuesFile: homelab-values.yaml
