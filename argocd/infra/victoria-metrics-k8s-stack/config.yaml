@@ -1,6 +1,6 @@
 chart: victoria-metrics-k8s-stack
 repoURL: https://victoriametrics.github.io/helm-charts/
-targetRevision: "0.80.0"
+targetRevision: "0.81.0"
 namespace: victoria-metrics
 wave: "-2"
 extraManifests: true
