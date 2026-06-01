@@ -15,7 +15,11 @@ data:
     TG_API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
     FG_API="https://git.example.com/api/v1"
     FG_WEB="https://git.example.com"
-    YESTERDAY=$(date -u -d "@$(($(date -u +%s) - 86400))" +%Y-%m-%dT%H:%M:%SZ)
+    REPO="vizzle/homelab"
+    DASHBOARD_ISSUE="1"   # Renovate Dependency Dashboard issue number
+    STALE_DAYS=2          # open PR older than this with no merge = flagged stale
+    NOW=$(date -u +%s)
+    DAY_AGO=$((NOW - 86400))
 
     fg_get() {
       curl -sSf \
@@ -24,36 +28,100 @@ data:
         "${FG_API}/$1"
     }
 
-    render_repo() {
-      repo="$1"
-      dash_body=$(fg_get "repos/${repo}/issues/1" | jq -r '.body // ""')
-      pending=$(printf '%s\n' "$dash_body" | grep -c '^ *- \[ \] <!-- approve-branch' || true)
-      awaiting=$(printf '%s\n' "$dash_body" | grep -c '^ *- \[ \] <!-- unschedule-branch' || true)
-
-      open_prs=$(fg_get "repos/${repo}/pulls?state=open&limit=50")
-      open_count=$(printf '%s' "$open_prs" | jq '[.[] | select(.labels | map(.name) | index("dependencies"))] | length')
-      open_list=$(printf '%s' "$open_prs" | jq -r '[.[] | select(.labels | map(.name) | index("dependencies"))] | .[] | "• <a href=\"\(.html_url)\">#\(.number)</a> \(.title | gsub("<";"&lt;") | gsub(">";"&gt;"))"')
-      needs_review=$(printf '%s' "$open_prs" | jq '[.[] | select(.labels | map(.name) | index("manual-review"))] | length')
-
-      closed=$(fg_get "repos/${repo}/pulls?state=closed&sort=newest&limit=50")
-      merged=$(printf '%s' "$closed" | jq --arg s "$YESTERDAY" '[.[] | select(.labels | map(.name) | index("dependencies")) | select(.merged_at != null) | select(.merged_at > $s)] | length')
-      rejected=$(printf '%s' "$closed" | jq --arg s "$YESTERDAY" '[.[] | select(.labels | map(.name) | index("dependencies")) | select(.merged_at == null) | select(.closed_at > $s)] | length')
-
-      printf '<b>📦 <a href="%s/%s">%s</a></b>\n' "$FG_WEB" "$repo" "$repo"
-      printf '✅ Merged (24h): %s   ❌ Closed (24h): %s\n' "$merged" "$rejected"
-      printf '📥 Open PRs: %s   ⚠️ Needs review: %s\n' "$open_count" "$needs_review"
-      printf '🔘 Dashboard: %s pending approval, %s awaiting schedule\n' "$pending" "$awaiting"
-      if [ -n "$open_list" ]; then
-        printf '\n%s\n' "$open_list"
-      fi
-      printf '\n'
+    # Strip Renovate's commit prefix / "Update " noise, then HTML-escape.
+    clean_title() {
+      printf '%s' "$1" \
+        | sed -e 's/^chore(deps): //' -e 's/^Update //' \
+        | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
     }
 
-    {
-      printf '<b>🤖 Renovate Daily Digest</b>\n'
-      printf '<i>%s UTC</i>\n\n' "$(date -u +'%Y-%m-%d %H:%M')"
-      render_repo "vizzle/homelab"
-    } > /tmp/message.txt
+    # --- Auto-merged in last 24h (the "what landed in the cluster" changelog) ---
+    closed=$(fg_get "repos/${REPO}/pulls?state=closed&sort=newest&limit=50")
+    merged_tsv=$(printf '%s' "$closed" | jq -r --argjson s "$DAY_AGO" '
+      [ .[]
+        | select(.labels | map(.name) | index("dependencies"))
+        | select(.merged_at != null)
+        | select((.merged_at | fromdateiso8601) > $s)
+      ] | sort_by(.merged_at) | .[]
+      | [ (.number|tostring), .title, .html_url, ((.labels|map(.name)|index("major")) != null | tostring) ]
+      | @tsv')
+    merged_count=$(printf '%s' "$merged_tsv" | grep -c . || true)
+
+    merged_block=""
+    if [ "$merged_count" -gt 0 ]; then
+      merged_block=$(printf '%s\n' "$merged_tsv" | while IFS="$(printf '\t')" read -r num title url is_major; do
+        [ -n "$num" ] || continue
+        mark=""
+        [ "$is_major" = "true" ] && mark=" ⬆️major"
+        printf '  • <a href="%s">#%s</a> %s%s\n' "$url" "$num" "$(clean_title "$title")" "$mark"
+      done)
+    fi
+
+    # --- Stuck open PRs (automerge could NOT close them — these need a human) ---
+    open_prs=$(fg_get "repos/${REPO}/pulls?state=open&limit=50")
+    open_tsv=$(printf '%s' "$open_prs" | jq -r '
+      [ .[] | select(.labels | map(.name) | index("dependencies")) ] | .[]
+      | [ (.number|tostring), .head.sha, (.mergeable|tostring), .created_at, .title, .html_url ]
+      | @tsv')
+
+    stuck_block=""
+    stuck_count=0
+    if [ -n "$open_tsv" ]; then
+      stuck_block=$(printf '%s\n' "$open_tsv" | while IFS="$(printf '\t')" read -r num sha mergeable created title url; do
+        [ -n "$num" ] || continue
+        age_days=$(( (NOW - $(printf '%s' "$created" | jq -rR 'fromdateiso8601')) / 86400 ))
+        reason=""
+        if [ "$mergeable" = "false" ]; then
+          reason="merge conflict"
+        else
+          status=$(fg_get "repos/${REPO}/commits/${sha}/status" 2>/dev/null || printf '{}')
+          state=$(printf '%s' "$status" | jq -r '.state // "pending"')
+          if [ "$state" = "failure" ] || [ "$state" = "error" ]; then
+            ctx=$(printf '%s' "$status" | jq -r '[.statuses[]? | select(.status=="failure" or .status=="error") | .context] | unique | join(", ")')
+            reason="CI failing ($ctx)"
+          elif [ "$age_days" -ge "$STALE_DAYS" ]; then
+            reason="stale"
+          fi
+        fi
+        # Healthy in-flight PR (CI green/pending, fresh) — will automerge, skip.
+        [ -n "$reason" ] || continue
+        printf '  • <a href="%s">#%s</a> %s — %s · open %sd\n' "$url" "$num" "$(clean_title "$title")" "$reason" "$age_days"
+      done)
+      stuck_count=$(printf '%s' "$stuck_block" | grep -c . || true)
+    fi
+
+    # --- Dependency Dashboard: what Renovate itself flagged (errored / queued) ---
+    dash_body=$(fg_get "repos/${REPO}/issues/${DASHBOARD_ISSUE}" | jq -r '.body // ""')
+    errored=$(printf '%s\n' "$dash_body" | grep -c '<!-- recreate-branch' || true)
+    rate_limited=$(printf '%s\n' "$dash_body" | grep -c '<!-- unlimit-branch' || true)
+    pending_approval=$(printf '%s\n' "$dash_body" | grep -c '<!-- approve-branch' || true)
+
+    attention=$((stuck_count + errored))
+
+    # --- Idle: nothing landed, nothing stuck, nothing errored → one-line heartbeat ---
+    if [ "$merged_count" -eq 0 ] && [ "$attention" -eq 0 ]; then
+      queued=$((rate_limited + pending_approval))
+      printf '<b>🤖 Renovate</b> — всё тихо · %s в очереди · %s UTC\n' \
+        "$queued" "$(date -u +'%Y-%m-%d')" > /tmp/message.txt
+    else
+      {
+        printf '<b>🤖 Renovate</b> — <a href="%s/%s">%s</a> · %s UTC\n' \
+          "$FG_WEB" "$REPO" "$REPO" "$(date -u +'%Y-%m-%d')"
+
+        if [ "$merged_count" -gt 0 ]; then
+          printf '\n✅ <b>Auto-merged (24h): %s</b>\n%s\n' "$merged_count" "$merged_block"
+        fi
+
+        if [ "$stuck_count" -gt 0 ]; then
+          printf '\n🔴 <b>Needs attention: %s</b>\n%s\n' "$stuck_count" "$stuck_block"
+        fi
+
+        if [ "$errored" -gt 0 ] || [ "$rate_limited" -gt 0 ] || [ "$pending_approval" -gt 0 ]; then
+          printf '\n🕓 <b>Dashboard:</b> %s errored · %s rate-limited · %s pending approval\n' \
+            "$errored" "$rate_limited" "$pending_approval"
+        fi
+      } > /tmp/message.txt
+    fi
 
     # Telegram caps at 4096 chars
     if [ "$(wc -c < /tmp/message.txt)" -gt 4000 ]; then
