@@ -1,10 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    ":dependencyDashboard",
-    ":pinDependencies",
-    "helpers:pinGitHubActionDigests"
+    "config:best-practices",
+    ":dependencyDashboard"
   ],
   "timezone": "UTC",
   "configMigration": true,
@@ -35,10 +33,33 @@
       "addLabels": ["major"]
     },
     {
+      "description": "Critical-infra major-gate: major-бампы CRD-несущих компонентов НЕ автомёржатся — требуют ручного approve через Dependency Dashboard. Ошибочный major здесь = кластерный outage, не один app. Идёт ПОСЛЕ глобального automerge-правила (last-match-wins) → перебивает automerge:true для этих пакетов на major. Minor/patch остаются на автомёрже.",
+      "matchPackageNames": [
+        "cilium",
+        "cnpg-operator",
+        "cloudnative-pg",
+        "longhorn",
+        "cert-manager",
+        "argo-cd",
+        "victoria-metrics-k8s-stack",
+        "vault",
+        "openbao"
+      ],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "dependencyDashboardApproval": true,
+      "addLabels": ["critical-infra", "manual-review"]
+    },
+    {
       "description": "Docker digest-only обновления выключены: каждый upstream rebuild создавал бы шум-PR без version delta. Реальные version bump-ы ловятся helm/kubernetes/custom-regex managers.",
       "matchDatasources": ["docker"],
       "matchUpdateTypes": ["digest"],
       "enabled": false
+    },
+    {
+      "description": "config:best-practices тянет docker:pinDigests (pinDigests:true) → массовые @sha256-pin PR по всем image-тегам. Мы трактуем digest-ы как шум (см. правило выше). Отключаем digest-пиннинг, оставляем tag-only поведение. Образы, которым нужен явный digest (curl-jq в notify-cronjob), пинятся вручную в манифесте.",
+      "matchDatasources": ["docker"],
+      "pinDigests": false
     },
     {
       "description": "Forgejo Actions runner эмулирует GHES artifact protocol до v3 включительно. actions/upload-artifact и download-artifact v3.2.x+ перешли на @actions/artifact v2 (v4 protocol) и падают с GHESNotSupportedError. Пин <3.2.0 до миграции с Forgejo Actions на нативный workflow runtime.",
@@ -93,22 +114,12 @@
       ]
     },
     {
-      "description": "config.yaml helm-чарты с http(s) chart-индексом. registryUrl ограничен https?:// — scheme-less OCI repoURL-ы (code.forgejo.org, codeberg.org, ghcr.io) сюда НЕ попадают (их ловит docker-менеджер ниже), иначе helm datasource падал бы с 'Invalid regex manager registryUrl' + no-result.",
-      "customType": "regex",
-      "managerFilePatterns": ["/argocd/(apps|infra)/.+/config\\.ya?ml$/"],
-      "datasourceTemplate": "helm",
+      "description": "Helm-чарты в argocd/{apps,infra}/*/config.yaml (структурный YAML chart/repoURL/targetRevision). JSONata парсит YAML структурно — datasource выбирается по наличию scheme в repoURL: со scheme (https://) = helm chart-индекс, scheme-less = OCI-артефакт = docker. Заменяет два прежних regex-менеджера (colon-hack [^\\s:] + lazy [\\s\\S]*?targetRevision, зависевший от порядка строк и ломкий о блок-скаляр ignoreDiff). Покрывает ~40 helm config.yaml + OCI (forgejo, forgejo-runner, tuppr). homelab-common тут НЕ резолвится — он в appsets templatePatch (см. helm-regex менеджер ниже).",
+      "customType": "jsonata",
+      "fileFormat": "yaml",
+      "managerFilePatterns": ["/argocd/(apps|infra)/[^/]+/config\\.ya?ml$/"],
       "matchStrings": [
-        "chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
-      ]
-    },
-    {
-      "description": "config.yaml helm-чарты, опубликованные как OCI-артефакты (repoURL без scheme — ArgoCD так требует для OCI auto-detect). Резолвятся через docker datasource по тегам OCI-registry; packageName = <repoURL>/<chart>. registryUrl matcher [^\\s:]+/[^\\s:]+ не матчит https:// (двоеточие исключено) → пересечения с helm-менеджером нет. Покрывает forgejo, forgejo-runner, tuppr.",
-      "customType": "regex",
-      "managerFilePatterns": ["/argocd/(apps|infra)/.+/config\\.ya?ml$/"],
-      "datasourceTemplate": "docker",
-      "packageNameTemplate": "{{{packageName}}}/{{{depName}}}",
-      "matchStrings": [
-        "chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<packageName>[^\\s:]+/[^\\s:]+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+        "$exists(chart) and $exists(repoURL) and $exists(targetRevision) ? { \"depName\": chart, \"currentValue\": targetRevision, \"datasource\": $contains(repoURL, \"://\") ? \"helm\" : \"docker\", \"packageName\": $contains(repoURL, \"://\") ? chart : repoURL & \"/\" & chart, \"registryUrl\": $contains(repoURL, \"://\") ? repoURL : undefined }"
       ]
     },
     {
