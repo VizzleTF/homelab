@@ -16,8 +16,7 @@ data:
     FG_API="https://git.example.com/api/v1"
     FG_WEB="https://git.example.com"
     REPO="vizzle/homelab"
-    DASHBOARD_ISSUE="1"   # Renovate Dependency Dashboard issue number
-    STALE_DAYS=2          # open PR older than this with no merge = flagged stale
+    PR_AUTHOR="renovate-bot"   # Forgejo login Renovate commits/opens PRs as
     NOW=$(date -u +%s)
     DAY_AGO=$((NOW - 86400))
 
@@ -28,97 +27,113 @@ data:
         "${FG_API}/$1"
     }
 
-    # Strip Renovate's commit prefix / "Update " noise, then HTML-escape.
+    # Strip Renovate's commit prefix / "Update|Pin " noise, then HTML-escape.
     clean_title() {
       printf '%s' "$1" \
-        | sed -e 's/^chore(deps): //' -e 's/^Update //' \
+        | sed -e 's/^chore(deps): //' -e 's/^Update //' -e 's/^Pin //' \
         | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
     }
 
-    # --- Auto-merged in last 24h (the "what landed in the cluster" changelog) ---
+    # --- Merged in last 24h (the "what landed in the cluster" changelog) ---
+    # Renovate PRs carry no labels in this repo — match by author login instead.
     closed=$(fg_get "repos/${REPO}/pulls?state=closed&sort=newest&limit=50")
-    merged_tsv=$(printf '%s' "$closed" | jq -r --argjson s "$DAY_AGO" '
+    merged_tsv=$(printf '%s' "$closed" | jq -r --argjson s "$DAY_AGO" --arg a "$PR_AUTHOR" '
       [ .[]
-        | select(.labels | map(.name) | index("dependencies"))
+        | select(.user.login == $a)
         | select(.merged_at != null)
         | select((.merged_at | fromdateiso8601) > $s)
       ] | sort_by(.merged_at) | .[]
-      | [ (.number|tostring), .title, .html_url, ((.labels|map(.name)|index("major")) != null | tostring) ]
+      | [ (.number|tostring), .title, .html_url ]
       | @tsv')
     merged_count=$(printf '%s' "$merged_tsv" | grep -c . || true)
 
     merged_block=""
     if [ "$merged_count" -gt 0 ]; then
-      merged_block=$(printf '%s\n' "$merged_tsv" | while IFS="$(printf '\t')" read -r num title url is_major; do
+      merged_block=$(printf '%s\n' "$merged_tsv" | while IFS="$(printf '\t')" read -r num title url; do
         [ -n "$num" ] || continue
-        mark=""
-        [ "$is_major" = "true" ] && mark=" ⬆️major"
-        printf '  • <a href="%s">#%s</a> %s%s\n' "$url" "$num" "$(clean_title "$title")" "$mark"
+        printf '  • <a href="%s">#%s</a> %s\n' "$url" "$num" "$(clean_title "$title")"
       done)
     fi
 
-    # --- Stuck open PRs (automerge could NOT close them — these need a human) ---
+    # --- Open Renovate PRs (not auto-merged — every one warrants a look) ---
     open_prs=$(fg_get "repos/${REPO}/pulls?state=open&limit=50")
-    open_tsv=$(printf '%s' "$open_prs" | jq -r '
-      [ .[] | select(.labels | map(.name) | index("dependencies")) ] | .[]
-      | [ (.number|tostring), .head.sha, (.mergeable|tostring), .created_at, .title, .html_url ]
+    open_tsv=$(printf '%s' "$open_prs" | jq -r --arg a "$PR_AUTHOR" '
+      [ .[] | select(.user.login == $a) ] | sort_by(.created_at) | .[]
+      | [ (.number|tostring), (.mergeable|tostring), .created_at, .title, .html_url ]
       | @tsv')
+    open_count=$(printf '%s' "$open_tsv" | grep -c . || true)
 
-    stuck_block=""
-    stuck_count=0
-    if [ -n "$open_tsv" ]; then
-      stuck_block=$(printf '%s\n' "$open_tsv" | while IFS="$(printf '\t')" read -r num sha mergeable created title url; do
+    open_block=""
+    if [ "$open_count" -gt 0 ]; then
+      open_block=$(printf '%s\n' "$open_tsv" | while IFS="$(printf '\t')" read -r num mergeable created title url; do
         [ -n "$num" ] || continue
         age_days=$(( (NOW - $(printf '%s' "$created" | jq -rR 'fromdateiso8601')) / 86400 ))
-        reason=""
-        if [ "$mergeable" = "false" ]; then
-          reason="merge conflict"
-        else
-          status=$(fg_get "repos/${REPO}/commits/${sha}/status" 2>/dev/null || printf '{}')
-          state=$(printf '%s' "$status" | jq -r '.state // "pending"')
-          if [ "$state" = "failure" ] || [ "$state" = "error" ]; then
-            ctx=$(printf '%s' "$status" | jq -r '[.statuses[]? | select(.status=="failure" or .status=="error") | .context] | unique | join(", ")')
-            reason="CI failing ($ctx)"
-          elif [ "$age_days" -ge "$STALE_DAYS" ]; then
-            reason="stale"
-          fi
-        fi
-        # Healthy in-flight PR (CI green/pending, fresh) — will automerge, skip.
-        [ -n "$reason" ] || continue
-        printf '  • <a href="%s">#%s</a> %s — %s · open %sd\n' "$url" "$num" "$(clean_title "$title")" "$reason" "$age_days"
+        flag=""
+        [ "$mergeable" = "false" ] && flag=" ⚠️conflict"
+        printf '  • <a href="%s">#%s</a> %s · open %sd%s\n' "$url" "$num" "$(clean_title "$title")" "$age_days" "$flag"
       done)
-      stuck_count=$(printf '%s' "$stuck_block" | grep -c . || true)
     fi
 
     # --- Dependency Dashboard: what Renovate itself flagged (errored / queued) ---
-    dash_body=$(fg_get "repos/${REPO}/issues/${DASHBOARD_ISSUE}" | jq -r '.body // ""')
-    errored=$(printf '%s\n' "$dash_body" | grep -c '<!-- recreate-branch' || true)
-    rate_limited=$(printf '%s\n' "$dash_body" | grep -c '<!-- unlimit-branch' || true)
-    pending_approval=$(printf '%s\n' "$dash_body" | grep -c '<!-- approve-branch' || true)
+    # Discover the dashboard issue by title (number is not stable across repos).
+    dash_num=$(fg_get "repos/${REPO}/issues?state=open&type=issues&limit=50" \
+      | jq -r '[.[] | select(.title == "Dependency Dashboard")][0].number // empty')
+    dash_body=""
+    [ -n "$dash_num" ] && dash_body=$(fg_get "repos/${REPO}/issues/${dash_num}" | jq -r '.body // ""')
 
-    attention=$((stuck_count + errored))
+    # Extract clean update titles for a given dashboard marker (one per line).
+    dash_titles() {
+      printf '%s\n' "$dash_body" \
+        | grep -oE "<!-- $1=[^>]*-->.*" \
+        | sed -E "s/<!-- $1=[^>]*-->//; s/\[([^]]*)\]\([^)]*\)/\1/g" \
+        | while IFS= read -r t; do printf '%s\n' "$(clean_title "$t")"; done
+    }
+    dash_block() {
+      # $1=marker  $2=icon+label ; emits a section only when non-empty
+      titles=$(dash_titles "$1")
+      [ -n "$titles" ] || return 0
+      n=$(printf '%s\n' "$titles" | grep -c .)
+      printf '\n%s (%s)\n' "$2" "$n"
+      printf '%s\n' "$titles" | sed 's/^/  • /'
+    }
 
-    # --- Idle: nothing landed, nothing stuck, nothing errored → one-line heartbeat ---
-    if [ "$merged_count" -eq 0 ] && [ "$attention" -eq 0 ]; then
-      queued=$((rate_limited + pending_approval))
-      printf '<b>🤖 Renovate</b> — всё тихо · %s в очереди · %s UTC\n' \
-        "$queued" "$(date -u +'%Y-%m-%d')" > /tmp/message.txt
+    errored=$(dash_titles "retry-branch" | grep -c . || true)
+    pending_checks=$(dash_titles "approvePr-branch" | grep -c . || true)
+    pending_approval=$(dash_titles "approve-branch" | grep -c . || true)
+    rate_limited=$(dash_titles "unlimit-branch" | grep -c . || true)
+    awaiting=$(dash_titles "unschedule-branch" | grep -c . || true)
+    repo_problems=$(printf '%s\n' "$dash_body" \
+      | awk '/^## Repository Problems/{f=1;next} /^## /{f=0} f' \
+      | grep -cE '^[[:space:]]*[-]' || true)
+
+    queued=$((errored + pending_checks + pending_approval + rate_limited + awaiting))
+
+    # --- Idle: nothing merged, no open PR, nothing queued → one-line heartbeat ---
+    if [ "$merged_count" -eq 0 ] && [ "$open_count" -eq 0 ] && [ "$queued" -eq 0 ] && [ "$repo_problems" -eq 0 ]; then
+      printf '<b>🤖 Renovate</b> — всё тихо, ничего в очереди · %s UTC\n' \
+        "$(date -u +'%Y-%m-%d')" > /tmp/message.txt
     else
       {
         printf '<b>🤖 Renovate</b> — <a href="%s/%s">%s</a> · %s UTC\n' \
           "$FG_WEB" "$REPO" "$REPO" "$(date -u +'%Y-%m-%d')"
 
         if [ "$merged_count" -gt 0 ]; then
-          printf '\n✅ <b>Auto-merged (24h): %s</b>\n%s\n' "$merged_count" "$merged_block"
+          printf '\n✅ <b>Merged (24h): %s</b>\n%s\n' "$merged_count" "$merged_block"
         fi
 
-        if [ "$stuck_count" -gt 0 ]; then
-          printf '\n🔴 <b>Needs attention: %s</b>\n%s\n' "$stuck_count" "$stuck_block"
+        if [ "$open_count" -gt 0 ]; then
+          printf '\n📂 <b>Open PRs: %s</b> <i>(not auto-merged)</i>\n%s\n' "$open_count" "$open_block"
         fi
 
-        if [ "$errored" -gt 0 ] || [ "$rate_limited" -gt 0 ] || [ "$pending_approval" -gt 0 ]; then
-          printf '\n🕓 <b>Dashboard:</b> %s errored · %s rate-limited · %s pending approval\n' \
-            "$errored" "$rate_limited" "$pending_approval"
+        dash_block "retry-branch"     "❗ <b>Errored</b>"
+        dash_block "approve-branch"   "⏳ <b>Pending approval</b>"
+        dash_block "approvePr-branch" "🔁 <b>Awaiting status checks</b>"
+        dash_block "unlimit-branch"   "⏸️ <b>Rate-limited</b>"
+        dash_block "unschedule-branch" "🕓 <b>Awaiting schedule</b>"
+
+        if [ "$repo_problems" -gt 0 ]; then
+          printf '\n⚠️ <b>Repository problems (%s)</b> — <a href="%s/%s/issues/%s">see dashboard</a>\n' \
+            "$repo_problems" "$FG_WEB" "$REPO" "${dash_num:-}"
         fi
       } > /tmp/message.txt
     fi
