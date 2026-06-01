@@ -1,5 +1,5 @@
 chart: victoria-logs-single
 repoURL: https://victoriametrics.github.io/helm-charts/
-targetRevision: "*"
+targetRevision: "0.13.5"
 wave: "-1"
 extraManifests: true

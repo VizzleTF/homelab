@@ -37,7 +37,7 @@ ingress:
 
 initContainers:
   - name: fix-permissions
-    image: busybox:latest
+    image: busybox:1.38.0
     command: ["chown", "-R", "1001:1001", "/data"]
     securityContext:
       runAsUser: 0

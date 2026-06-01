@@ -1,5 +1,5 @@
 chart: reloader
 repoURL: https://stakater.github.io/stakater-charts
-targetRevision: "*"
+targetRevision: "2.2.12"
 namespace: reloader
 wave: "0"
