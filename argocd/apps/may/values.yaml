@@ -80,7 +80,8 @@ homelab-common:
                   type: RuntimeDefault
               containers:
                 - name: may
-                  image: ghcr.io/dannymcc/may:latest
+                  # renovate: image=ghcr.io/dannymcc/may
+                  image: ghcr.io/dannymcc/may:0.22.6
                   imagePullPolicy: IfNotPresent
                   ports:
                     - name: http

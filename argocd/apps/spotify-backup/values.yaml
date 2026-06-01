@@ -83,6 +83,7 @@ homelab-common:
                     type: RuntimeDefault
                 initContainers:
                   - name: prep-cache
+                    # renovate: image=busybox
                     image: busybox:1.38
                     command: [sh, -c]
                     args:
@@ -103,6 +104,7 @@ homelab-common:
                       limits: {cpu: 100m, memory: 32Mi}
                 containers:
                   - name: backup
+                    # renovate: image=python
                     image: python:3.14-alpine
                     command: [sh, -c]
                     args:

@@ -72,11 +72,22 @@
       ]
     },
     {
+      "description": "config.yaml helm-чарты с http(s) chart-индексом. registryUrl ограничен https?:// — scheme-less OCI repoURL-ы (code.forgejo.org, codeberg.org, ghcr.io) сюда НЕ попадают (их ловит docker-менеджер ниже), иначе helm datasource падал бы с 'Invalid regex manager registryUrl' + no-result.",
       "customType": "regex",
       "managerFilePatterns": ["/argocd/(apps|infra)/.+/config\\.ya?ml$/"],
       "datasourceTemplate": "helm",
       "matchStrings": [
-        "chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+        "chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<registryUrl>https?://\\S+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+      ]
+    },
+    {
+      "description": "config.yaml helm-чарты, опубликованные как OCI-артефакты (repoURL без scheme — ArgoCD так требует для OCI auto-detect). Резолвятся через docker datasource по тегам OCI-registry; packageName = <repoURL>/<chart>. registryUrl matcher [^\\s:]+/[^\\s:]+ не матчит https:// (двоеточие исключено) → пересечения с helm-менеджером нет. Покрывает forgejo, forgejo-runner, tuppr.",
+      "customType": "regex",
+      "managerFilePatterns": ["/argocd/(apps|infra)/.+/config\\.ya?ml$/"],
+      "datasourceTemplate": "docker",
+      "packageNameTemplate": "{{{packageName}}}/{{{depName}}}",
+      "matchStrings": [
+        "chart:\\s+(?<depName>[\\w-]+)\\s+repoURL:\\s+(?<packageName>[^\\s:]+/[^\\s:]+)[\\s\\S]*?targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
       ]
     },
     {
@@ -89,8 +100,8 @@
       ],
       "datasourceTemplate": "docker",
       "matchStrings": [
-        "#\\s*renovate:\\s*image=(?<depName>[^\\s]+)\\s*\\n\\s*image:\\s+[\"']?(?<currentValue>[^\"'\\s]+)[\"']?",
-        "#\\s*renovate:\\s*datasource=(?<datasourceTemplate>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n.*?[\"']?(?<currentValue>v?[0-9][^\"'\\s]*)[\"']?"
+        "#\\s*renovate:\\s*image=(?<depName>[^\\s]+)\\s*\\n\\s*image:\\s+[\"']?[^\\s\"':]+:(?<currentValue>[\\w][\\w.+-]*)(?:@(?<currentDigest>sha256:[a-f0-9]+))?",
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n.*?[\"']?(?<currentValue>v?[0-9][^\"'\\s]*)[\"']?"
       ]
     }
   ]
