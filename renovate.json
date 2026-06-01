@@ -47,28 +47,49 @@
       "allowedVersions": "<3.2.0"
     },
     {
-      "description": "Группа `apps`: все апдейты внутри argocd/apps/** и argocd/applications/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
-      "matchFileNames": ["argocd/apps/**", "argocd/applications/**"],
+      "description": "gateway-api пин в пределах 1.4.x: v1.5 standard несовместим с Cilium 1.19 (hard-fail на backendServiceTLSRouteIndex с TLSRoute v1alpha2 served=false). Снять/поднять guard ТОЛЬКО после апгрейда Cilium до ≥1.20. Сейчас Cilium 1.19.4 → Renovate бампает лишь patch внутри 1.4.x.",
+      "matchDepNames": ["kubernetes-sigs/gateway-api"],
+      "allowedVersions": "<1.5.0"
+    },
+    {
+      "description": "Группа `apps`: все апдейты внутри argocd/apps/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
+      "matchFileNames": ["argocd/apps/**"],
       "groupName": "apps"
     },
     {
-      "description": "Группа `infra`: инфраструктурные апдейты (AppSet + standalone + raw manifests + shared values) идут одним батч-PR. Объединяет всё что управляет CRDs/Gateway/Storage/CNI/Vault.",
+      "description": "Группа `infra`: инфраструктурные апдейты (per-component infra + AppSet-шаблоны + standalone Application'ы + raw manifests + shared values) идут одним батч-PR. Объединяет всё что управляет CRDs/Gateway/Storage/CNI/Vault/ArgoCD.",
       "matchFileNames": [
         "argocd/infra/**",
-        "argocd/infrastructure/**",
+        "argocd/appsets/**",
+        "argocd/standalone/**",
         "argocd/manifests/**",
         "argocd/values/**"
       ],
       "groupName": "infra"
+    },
+    {
+      "description": "Группа `talos`: версии Talos OS / Kubernetes для bare-metal нод (terraform bootstrap-версия в nodes.yaml). Отдельный batch-PR — апгрейд нод требует ручного `terraform apply` + tuppr enacts rolling-upgrade живого кластера. Держать в синхроне с tuppr CRD image-версиями (installer/talosctl/kubelet).",
+      "matchFileNames": ["terraform_talos/configs/**"],
+      "groupName": "talos"
     }
   ],
   "customManagers": [
     {
+      "description": "Helm-чарты в standalone Application'ах и ApplicationSet-шаблонах (формат repoURL→chart→targetRevision). Glob = argocd/standalone + argocd/appsets (после миграции с applications/infrastructure). Ловит argo-cd, homelab-common (×3: оба appset + standalone), cluster (immich cnpg-шаблон в apps-appset).",
       "customType": "regex",
-      "managerFilePatterns": ["/argocd/(applications|infrastructure)/.+\\.ya?ml$/"],
+      "managerFilePatterns": ["/argocd/(standalone|appsets)/.+\\.ya?ml$/"],
       "datasourceTemplate": "helm",
       "matchStrings": [
         "repoURL:\\s+(?<registryUrl>https?://\\S+)\\s+chart:\\s+(?<depName>[\\w-]+)\\s+targetRevision:\\s+[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+      ]
+    },
+    {
+      "description": "Git-source чарты/CRD в standalone Application'ах (repoURL github .git + path + targetRevision, без chart:). Ловит gateway-api (kubernetes-sigs/gateway-api). datasource=github-releases по depName из github-пути.",
+      "customType": "regex",
+      "managerFilePatterns": ["/argocd/standalone/.+\\.ya?ml$/"],
+      "datasourceTemplate": "github-releases",
+      "matchStrings": [
+        "repoURL:\\s+https://github\\.com/(?<depName>[^\\s]+?)\\.git\\s+targetRevision:\\s+[\"']?(?<currentValue>v[\\w.-]+)[\"']?"
       ]
     },
     {
@@ -105,13 +126,14 @@
       ]
     },
     {
-      "description": "Образы/бинарники через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы (docker для talosctl/installer/kubelet, github-releases для talos).",
+      "description": "Образы/бинарники/версии через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы. Покрывает argocd/** (talosctl/installer/kubelet docker, talos github-releases) и terraform_talos/configs/** (Talos OS / Kubernetes bootstrap-версии в nodes.yaml).",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
         "/argocd/manifests/.+\\.ya?ml$/",
         "/argocd/apps/.+\\.ya?ml$/",
-        "/argocd/infra/.+\\.ya?ml$/"
+        "/argocd/infra/.+\\.ya?ml$/",
+        "/terraform_talos/configs/.+\\.ya?ml$/"
       ],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n.*?[\"']?(?<currentValue>v?[0-9][^\"'\\s]*)[\"']?"
