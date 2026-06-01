@@ -47,7 +47,7 @@ spec:
       containers:
         - name: nginx
           # renovate: image=nginx
-          image: nginx:1.27-alpine
+          image: nginx:1.31-alpine
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
