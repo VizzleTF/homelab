@@ -34,6 +34,7 @@ locals {
     install_image = local.effective_install_image
     install_disk  = local.default_install_disk
     host_entries  = local.host_entries
+    gateway       = var.gateway
   })
 
   controlplane_patch = templatefile("${path.module}/patches/controlplane.yaml.tftpl", {

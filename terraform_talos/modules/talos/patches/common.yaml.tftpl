@@ -15,6 +15,12 @@ machine:
     extraConfig:
       serverTLSBootstrap: true
   network:
+    # Pin host resolver to the LAN gateway (OpenWrt) so nodes resolve internal
+    # split-horizon records (e.g. git.example.com → cilium-gateway-internal) for
+    # image pulls. Without this Talos falls back to 1.1.1.1/8.8.8.8 when DHCP
+    # gives no DNS, and public DNS returns NXDOMAIN for internal names.
+    nameservers:
+      - ${gateway}
     extraHostEntries:
 %{ for e in host_entries ~}
       - ip: ${e.ip}
