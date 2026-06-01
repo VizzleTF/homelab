@@ -183,6 +183,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: notify
+              # renovate: image=badouralix/curl-jq
               image: badouralix/curl-jq:latest@sha256:3670578737d1d2019b10a4f9e607284101feb9fdd6b0478e78ea87bf61d96145
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/digest.sh"]

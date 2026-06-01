@@ -46,6 +46,7 @@ spec:
               app.kubernetes.io/name: keda-loading-proxy
       containers:
         - name: nginx
+          # renovate: image=nginx
           image: nginx:1.27-alpine
           imagePullPolicy: IfNotPresent
           ports:

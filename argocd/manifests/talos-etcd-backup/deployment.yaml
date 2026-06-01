@@ -24,6 +24,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: fetch-talosctl
+          # renovate: image=curlimages/curl
           image: curlimages/curl:8.11.0
           command: [sh, -c]
           args:
@@ -53,6 +54,7 @@ spec:
               memory: 128Mi
       containers:
         - name: snapshotter
+          # renovate: image=alpine
           image: alpine:3.20
           command: [sh, -c]
           args:

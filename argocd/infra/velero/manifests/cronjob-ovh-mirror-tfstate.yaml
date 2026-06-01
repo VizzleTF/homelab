@@ -28,6 +28,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: rclone
+              # renovate: image=rclone/rclone
               image: rclone/rclone:1.74
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]

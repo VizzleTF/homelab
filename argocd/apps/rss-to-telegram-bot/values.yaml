@@ -79,7 +79,8 @@ homelab-common:
                   type: RuntimeDefault
               containers:
                 - name: rss-to-telegram-bot
-                  image: ghcr.io/vizzletf/rss-to-telegram-bot-2:dev
+                  # renovate: image=ghcr.io/vizzletf/rss-to-telegram-bot-2
+                  image: ghcr.io/vizzletf/rss-to-telegram-bot-2:dev@sha256:2679ff61d7ac444009c02e12c3e37169763e1c0875bbecb3d22ad8c411b97931
                   imagePullPolicy: Always
                   securityContext:
                     allowPrivilegeEscalation: false
