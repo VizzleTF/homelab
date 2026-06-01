@@ -1,14 +1,14 @@
 # Cleanbot — Telegram-бот, удаляющий старые сообщения в форумных топиках.
-# Chart:  https://git.example.com/api/packages/vizzle/helm  cleanbot 0.1.0
+# Chart:  https://git.example.com/api/packages/vizzle/helm  cleanbot 0.2.9
 # Source: https://git.example.com/vizzle/cleanbot
 # Vault:  homelab/k8s/cleanbot/app-secrets  (bot_token, webhook_header_secret, webhook_path_secret)
 
 # --- Values для upstream-чарта cleanbot ---
 
+# tag не задаём — чарт подставит .Chart.AppVersion (pinned через targetRevision в config.yaml),
+# pullPolicy остаётся чартный IfNotPresent. Versioned образ ⇒ Renovate трекает chart-bumps.
 image:
   repository: git.example.com/vizzle/cleanbot
-  tag: "latest"
-  pullPolicy: Always
 
 bot:
   # ESO материализует Secret cleanbot-secrets из Vault (см. homelab-common.externalSecrets ниже).
