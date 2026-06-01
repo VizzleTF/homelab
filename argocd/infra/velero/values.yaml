@@ -63,28 +63,13 @@ configuration:
         region: garage            # обязательно — Garage отвергает HeadBucket с пустым region
         s3ForcePathStyle: "true"
         s3Url: https://s3.example.com
-    # Secondary off-site BSL on OVH (Frankfurt). Mirror Garage через CronJob
-    # ниже — Velero сам в этот bucket не пишет, но BSL зарегистрирован чтобы
-    # restore из него работал когда Synology умрёт. accessMode ReadOnly = velero
-    # никогда не попытается update objects сам.
-    - name: ovh-backup
-      provider: aws
-      bucket: vaka-homelab
-      prefix: velero         # rclone mirror кладёт в bucket/velero/{backups,kopia}; без prefix Velero видит `velero/` как unknown top-level dir
-      default: false
-      accessMode: ReadOnly
-      credential:
-        name: velero-ovh-creds
-        key: cloud
-      config:
-        region: de
-        s3ForcePathStyle: "true"
-        s3Url: https://s3.de.io.cloud.ovh.net
+    # (ovh-backup RO-mirror BSL удалён 2026-06-01 — старая destructive-mirror схема
+    # выведена. ovh-direct ниже даёт независимую off-site копию всех ns, mirror prefix
+    # `velero/` на OVH очищен. См. docs/backup-redesign.md.)
     # Independent off-site BSL on OVH (read-write). Velero пишет СЮДА напрямую
-    # (direct offsite schedules `*-offsite`), отдельный prefix `velero-offsite` —
-    # НЕ пересекается с зеркалом `ovh-backup` (prefix `velero`). Независимая копия:
-    # переживает wipe/corruption Garage (нет destructive-sync). Retention — своя,
-    # per-schedule ttl; Velero GC чистит этот bucket сам.
+    # (direct offsite schedules `*-offsite`), prefix `velero-offsite`. Независимая
+    # копия: переживает wipe/corruption Garage (нет destructive-sync). Retention —
+    # своя, per-schedule ttl; Velero GC чистит этот bucket сам.
     - name: ovh-direct
       provider: aws
       bucket: vaka-homelab
@@ -138,7 +123,7 @@ homelab-common:
         - secretKey: secret_key
           property: ACCESS_SECRET_KEY
 
-    # OVH credentials для secondary BSL `ovh-backup`.
+    # OVH credentials для off-site BSL `ovh-direct`.
     # Vault path: home/homelab/k8s/velero/s3-ovh — keys ACCESS_KEY_ID, ACCESS_SECRET_KEY.
     - name: velero-ovh-creds
       vaultPath: velero/s3-ovh
