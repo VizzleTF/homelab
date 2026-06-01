@@ -55,10 +55,11 @@ cluster:
 backups:
   enabled: true
   endpointURL: "https://s3.example.com"
-  # TEMPORARY: new path to satisfy CNPG "Expected empty archive" check during
-  # recovery. Old path s3://cnpg-backups/immich-cluster/ stays as recovery
-  # source. Revert to original path after recovery is verified + old archive
-  # cleared.
+  # Permanent path. Originally `immich-cluster-restored` was a fresh path to pass
+  # the CNPG "Expected empty archive" check during a barman recovery (2026-05);
+  # recovery long verified and the old `immich-cluster/` archive purged 2026-06-01,
+  # so this stays as the canonical path (reverting would re-trigger the empty-archive
+  # check for no benefit).
   destinationPath: "s3://cnpg-backups/immich-cluster-restored"
   provider: s3
   secret:
