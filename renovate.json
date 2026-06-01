@@ -91,6 +91,7 @@
       ]
     },
     {
+      "description": "Образы через `# renovate: image=<repo>` коммент (одна строка `image: repo:tag[@sha256:...]`). datasource фиксирован docker. Захватывает только тег + опц. digest.",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
@@ -100,7 +101,19 @@
       ],
       "datasourceTemplate": "docker",
       "matchStrings": [
-        "#\\s*renovate:\\s*image=(?<depName>[^\\s]+)\\s*\\n\\s*image:\\s+[\"']?[^\\s\"':]+:(?<currentValue>[\\w][\\w.+-]*)(?:@(?<currentDigest>sha256:[a-f0-9]+))?",
+        "#\\s*renovate:\\s*image=(?<depName>[^\\s]+)\\s*\\n\\s*image:\\s+[\"']?[^\\s\"':]+:(?<currentValue>[\\w][\\w.+-]*)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
+      ]
+    },
+    {
+      "description": "Образы/бинарники через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы (docker для talosctl/installer/kubelet, github-releases для talos).",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/argocd/values/.+\\.ya?ml$/",
+        "/argocd/manifests/.+\\.ya?ml$/",
+        "/argocd/apps/.+\\.ya?ml$/",
+        "/argocd/infra/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n.*?[\"']?(?<currentValue>v?[0-9][^\"'\\s]*)[\"']?"
       ]
     }
