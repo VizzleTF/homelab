@@ -168,6 +168,20 @@ customPlaybooks:
             - "VolumeFailedDelete"
             - "SnapshotContentMissing"
             - "VolumeCloneCopyCompleteAwaitingHealthy"
+            # Longhorn Engine rebuild/delete churn в Velero CSI datamover window
+            # (02-06 UTC): клон с 2 репликами удаляется до завершения rebuild
+            # 2-й реплики → FailedRebuilding (EOF) / FailedDeleting (connection
+            # refused). Бэкапы проходят успешно = benign. aggregation_key НЕ
+            # схлопывает их в Telegram (только в SaaS UI) → давим reason целиком.
+            # Реальные degraded/faulted volumes теперь покрыты VMRule longhorn
+            # (LonghornVolumeDegraded for:10m / LonghornVolumeFaulted).
+            # См. argocd/infra/longhorn/manifests/vmrule.yaml + docs/longhorn-monitoring.md.
+            - "FailedRebuilding"
+            - "FailedDeleting"
+            # Velero CSI VolumeSnapshotContent gc — transient delete error.
+            - "SnapshotContentObjectDeleteError"
+            # Longhorn snapshot во время Velero-window: engine ещё не attached.
+            - "Waiting for the volume to be attached"
             # FailedAttachVolume/FailedScheduling — reason shared с real issues,
             # давим по уникальной подстроке message от Velero backup pod-ов.
             - "is not ready for workloads"
@@ -191,17 +205,6 @@ customPlaybooks:
               matchers: [FailedScheduling]
             - aggregation_key: VolumeWarning
               matchers: [FailedMount, FailedAttachVolume, VolumeFailedDelete]
-            # Longhorn Engine warnings during Velero CSI datamover window
-            # (02-04 UTC). Clone PVC is provisioned with 2 replicas; Longhorn
-            # starts rebuilding the 2nd replica, but Velero deletes the clone
-            # once the data copy is done — before the rebuild finishes —
-            # so the sync aborts (`FailedRebuilding` EOF / `FailedDeleting`
-            # connection refused). Backups themselves complete fine. Reason is
-            # shared with real degraded-volume rebuilds, so we DON'T exclude —
-            # we aggregate: the nightly burst collapses into one digest event
-            # instead of ~6+ individual Telegram messages.
-            - aggregation_key: VolumeRebuildWarning
-              matchers: [FailedRebuilding, FailedDeleting]
     sinks: [telegram_alerts]
 
   # 5. Job failure с обогащением (info + events + pod logs).

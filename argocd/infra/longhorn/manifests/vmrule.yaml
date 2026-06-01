@@ -1,0 +1,52 @@
+# Longhorn volume/node health — stateful Prometheus-сигнал.
+# Заменяет шумные kubewatch-event'ы FailedRebuilding/FailedDeleting, которые
+# Robusta слала в Telegram пачкой каждую ночь (Velero CSI clone rebuild abort —
+# benign). См. docs/longhorn-monitoring.md.
+#
+# longhorn_volume_robustness — набор серий с label `state`
+# (degraded/faulted/healthy/unknown), value=1 для активного состояния.
+# `max by (...)` — дедуп 4× managers (каждый отдаёт глобальный view).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: longhorn
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: longhorn
+      rules:
+        - alert: LonghornVolumeFaulted
+          expr: max by (volume, pvc, pvc_namespace) (longhorn_volume_robustness{state="faulted"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} faulted"
+            description: |
+              Volume {{ $labels.volume }} (pvc {{ $labels.pvc_namespace }}/{{ $labels.pvc }}) в состоянии faulted >5m — данные недоступны.
+              kubectl -n longhorn-system get volumes.longhorn.io {{ $labels.volume }} -o yaml
+
+        # for:10m — transient rebuild при Velero CSI clone / перезапуске ноды
+        # резолвится за секунды/минуты и НЕ файрит. Реальная деградация (>10m,
+        # реплика не восстановилась) = 1 алерт, auto-resolve при healthy.
+        - alert: LonghornVolumeDegraded
+          expr: max by (volume, pvc, pvc_namespace) (longhorn_volume_robustness{state="degraded"}) == 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} degraded >10m"
+            description: |
+              Volume {{ $labels.volume }} деградирован >10m — реплика не восстановилась.
+              kubectl -n longhorn-system get volumes.longhorn.io {{ $labels.volume }} -o yaml
+
+        - alert: LonghornNodeDown
+          expr: longhorn_node_status{condition="ready"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Longhorn node {{ $labels.node }} not ready >5m"
+            description: |
+              Longhorn manager на ноде {{ $labels.node }} не ready >5m — реплики на ней недоступны.
+              kubectl -n longhorn-system get nodes.longhorn.io {{ $labels.node }} -o yaml

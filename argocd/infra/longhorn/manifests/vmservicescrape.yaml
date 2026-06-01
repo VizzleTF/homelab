@@ -1,0 +1,24 @@
+# Скрейп Longhorn manager metrics через VictoriaMetrics operator.
+# Helm chart создаёт ServiceMonitor (prometheus-operator), но у нас
+# `vm-operator.disable_prometheus_converter: true` — ServiceMonitor никем
+# не подхватывается. Нужен явный VMServiceScrape (как у velero/tuppr).
+#
+# longhorn-backend Service (port `manager`/9500, /metrics) selects все 4
+# longhorn-manager pod-а. Каждый manager отдаёт ГЛОБАЛЬНЫЙ view всех volumes →
+# 4× дублей серий. Дедуп — в expr VMRule через `max by (...)`.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: longhorn
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - longhorn-system
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  endpoints:
+    - port: manager
+      path: /metrics
+      interval: 30s
