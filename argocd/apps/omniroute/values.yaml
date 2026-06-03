@@ -41,7 +41,7 @@ homelab-common:
       accessModes:
         - ReadWriteOnce
       size: 5Gi
-      volumeName: pvc-150eeade-365f-465b-8076-6c136efeec5e
+      volumeName: pvc-9ec16b6f-9a4e-4289-8f4d-3ce0ae585411
 
   httpRoutes:
     # KEDA-fronted scale-to-zero (см. argocd/apps/omniroute/manifests/httpscaledobject.yaml).
@@ -81,6 +81,13 @@ homelab-common:
               labels:
                 app.kubernetes.io/name: omniroute
             spec:
+              # Image runs as node(1000). Velero CSI restore resets PVC files to
+              # root:root → SQLite "attempt to write a readonly database". fsGroup
+              # chgrp's the volume to 1000 + g+rw so node can write; survives future restores.
+              securityContext:
+                runAsUser: 1000
+                runAsGroup: 1000
+                fsGroup: 1000
               containers:
                 - name: omniroute
                   # renovate: image=ghcr.io/diegosouzapw/omniroute
