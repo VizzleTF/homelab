@@ -35,6 +35,8 @@
 #   POLL_INTERVAL    seconds between status polls (default: 15)
 #   POLL_TIMEOUT     max seconds in monitor/merge (default: 600)
 #   KEEP_BRANCH      if 1, skip post-merge local branch deletion (default: 0)
+#   UPDATE_OUTDATED  if 1, merge BASE_BRANCH into an outdated PR branch before
+#                    merging (block_on_outdated_branch); re-triggers CI (default: 0)
 set -euo pipefail
 
 FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
@@ -44,6 +46,7 @@ VAULT_PATH="${VAULT_PATH:-homelab/forgejo/vizzle-merge-token}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-600}"
 KEEP_BRANCH="${KEEP_BRANCH:-0}"
+UPDATE_OUTDATED="${UPDATE_OUTDATED:-0}"
 
 usage() {
   cat >&2 <<EOF
@@ -63,6 +66,7 @@ Env:
   POLL_INTERVAL  seconds between CI polls (default: $POLL_INTERVAL)
   POLL_TIMEOUT   max seconds to wait for CI (default: $POLL_TIMEOUT)
   KEEP_BRANCH    if 1, skip post-merge local branch deletion (default: $KEEP_BRANCH)
+  UPDATE_OUTDATED if 1, merge $BASE_BRANCH into an outdated PR branch first (default: $UPDATE_OUTDATED)
 EOF
 }
 
@@ -129,6 +133,25 @@ forgejo_api() {
 
 get_pr_sha() {
   forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$1" | jq -r '.head.sha'
+}
+
+# pr_freshness  (reads a PR meta JSON on stdin)
+# Forgejo's `mergeable:true` only means "no merge conflicts"; with
+# block_on_outdated_branch enabled, the merge API still returns HTTP 405 when
+# the PR branch sits behind the base-branch tip. Detect that here: the branch
+# is outdated whenever its merge base differs from the current base tip.
+# Emits "behind" or "uptodate" on stdout.
+pr_freshness() {
+  jq -r '
+    if (.merge_base != null and .base.sha != null and .merge_base != .base.sha)
+    then "behind" else "uptodate" end'
+}
+
+# update_pr_branch <pr-number>
+# Server-side merge of the base branch into the PR branch so an outdated branch
+# satisfies block_on_outdated_branch. Produces a new head sha → CI re-runs.
+update_pr_branch() {
+  forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$1/update?style=merge" >/dev/null
 }
 
 fetch_status() {
@@ -253,7 +276,11 @@ cmd_status() {
   require curl
   require jq
 
-  local sha; sha=$(get_pr_sha "$pr")
+  local meta; meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
+  local sha; sha=$(jq -r '.head.sha' <<<"$meta")
+  if [ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]; then
+    echo "note: PR #$pr branch is behind $BASE_BRANCH (outdated) — block_on_outdated_branch will reject merge until updated (UPDATE_OUTDATED=1)" >&2
+  fi
   local payload; payload=$(fetch_status "$sha")
   # Combined .state is authoritative for Forgejo Actions (per-context entries
   # stay null forever — Actions never POSTs back to the legacy statuses table).
@@ -307,6 +334,25 @@ cmd_merge() {
     return 0
   fi
 
+  # block_on_outdated_branch: an outdated branch passes CI yet 405s on merge.
+  # Surface it up front (and optionally update the branch) so the failure isn't
+  # an opaque "HTTP 405" after the CI wait.
+  if [ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]; then
+    if [ "$UPDATE_OUTDATED" = "1" ]; then
+      echo "PR #$pr branch is behind $BASE_BRANCH — merging $BASE_BRANCH in (UPDATE_OUTDATED=1)..." >&2
+      if ! update_pr_branch "$pr"; then
+        echo "branch update failed — merge would be rejected as outdated" >&2
+        return 3
+      fi
+      # New head sha after the update merge → re-fetch so CI polls the right commit.
+      meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
+      echo "branch updated; CI re-runs on new head $(jq -r '.head.sha' <<<"$meta")" >&2
+    else
+      echo "WARNING: PR #$pr branch is behind $BASE_BRANCH; block_on_outdated_branch=true will 405 the merge." >&2
+      echo "         re-run with UPDATE_OUTDATED=1 to merge $BASE_BRANCH in first (re-triggers CI)." >&2
+    fi
+  fi
+
   local sha; sha=$(jq -r '.head.sha' <<<"$meta")
   echo "waiting for CI on PR #$pr (head $sha)..." >&2
 
@@ -326,17 +372,25 @@ cmd_merge() {
     --arg msg   "$body" \
     '{Do: "squash", MergeTitleField: $title, MergeMessageField: $msg}')
 
-  # Forgejo BP readiness lags ~30s behind poll_loop success state — server
-  # may still return 405 ("Merge cannot succeed") right after CI goes green.
-  # Retry up to 5x with 30s backoff before giving up.
+  # Forgejo BP readiness lags ~30s behind poll_loop success state — the merge
+  # API may still return 405 ("Merge cannot succeed") or 409 (mergeability being
+  # recomputed, e.g. right after a branch update) just after CI goes green.
+  # Retry those up to 5x with 30s backoff. Crucially, a non-2xx response does NOT
+  # always mean the merge failed: Forgejo has been observed returning 409 with
+  # the PR object on a merge that actually went through — so after any failure,
+  # re-check the authoritative .merged flag before giving up.
   local attempt rc=0
   for attempt in 1 2 3 4 5; do
-    if forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$pr/merge" "$payload" >/dev/null; then
+    if forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$pr/merge" "$payload" >/dev/null 2>&1; then
       rc=0; break
     fi
     rc=$?
-    if [ "$rc" = "405" ] && [ "$attempt" -lt 5 ]; then
-      echo "merge attempt $attempt got HTTP 405 (BP not ready); retrying in 30s..." >&2
+    if [ "$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" 2>/dev/null | jq -r '.merged')" = "true" ]; then
+      echo "merge attempt $attempt returned HTTP $rc but PR #$pr is merged — treating as success" >&2
+      rc=0; break
+    fi
+    if { [ "$rc" = "405" ] || [ "$rc" = "409" ]; } && [ "$attempt" -lt 5 ]; then
+      echo "merge attempt $attempt got HTTP $rc (BP/mergeability not ready); retrying in 30s..." >&2
       sleep 30
       continue
     fi
