@@ -7,7 +7,11 @@ cluster:
   annotations:
     helm.sh/resource-policy: keep
   instances: 1
-  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:17-0.4.3
+  # Stage 1 of PG18 migration: vchord 0.4.3 → 1.1.0 on PG17 (ext upgrade only,
+  # no pg_upgrade). After rollout: ALTER EXTENSION vchord UPDATE + REINDEX
+  # clip_index/face_index. Stage 2 bumps to 18.3-1.1.0 (pg_upgrade). Compound
+  # <pgmajor>.<pgminor>-<vchord> tag — Renovate-managing it is a known-hard case.
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:17.9-1.1.0
 
   env:
     - name: AWS_DEFAULT_REGION
