@@ -1,0 +1,20 @@
+# CloudNativePG Barman Cloud Plugin (CNPG-I).
+# Provides barman-cloud backup/WAL-archive as an operator plugin + sidecar,
+# replacing the in-tree barman support removed from PG18 GA operand images.
+# Registered plugin name: barman-cloud.cloudnative-pg.io
+# Runs in cnpg-system alongside the operator; uses cert-manager (chart ships its
+# own self-signed Issuer + Certificates for the CNPG-I mTLS).
+#
+# Clusters reference it via .spec.plugins + an ObjectStore CR
+# (objectstores.barmancloud.cnpg.io) in the cluster's own namespace.
+
+crds:
+  create: true
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
