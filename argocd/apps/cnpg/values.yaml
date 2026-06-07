@@ -126,7 +126,7 @@ homelab-common:
                     type: RuntimeDefault
                 initContainers:
                   - name: dump
-                    image: ghcr.io/cloudnative-pg/postgresql:18-bookworm
+                    image: ghcr.io/cloudnative-pg/postgresql:18.3-standard-bookworm
                     imagePullPolicy: IfNotPresent
                     command: ["/bin/bash", "-c"]
                     args:
@@ -194,8 +194,12 @@ cluster:
   annotations:
     helm.sh/resource-policy: keep
   instances: 3
-  # Full image (not -minimal) — barman-cloud-backup binaries needed for S3 backup
-  imageName: "ghcr.io/cloudnative-pg/postgresql:18-bookworm"
+  # Full `standard` image (not `minimal`) — barman-cloud-backup binaries needed
+  # for S3 backup. Pinned concrete (not floating `18-...`) so ArgoCD never pulls
+  # a new/RC build unreviewed; Renovate bumps it via PR (datasource:docker).
+  # Major bumps (18→19 = offline pg_upgrade) are gated manual in renovate.json.
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.3-standard-bookworm"
 
   # Garage S3 требует region (HeadBucket 400 без него); chart v0.6.0 не
   # прокидывает s3Credentials.region, поэтому передаём через env контейнера postgres.
