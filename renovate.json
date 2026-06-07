@@ -38,6 +38,8 @@
         "cilium",
         "cnpg-operator",
         "cloudnative-pg",
+        "ghcr.io/cloudnative-pg/postgresql",
+        "ghcr.io/tensorchord/cloudnative-vectorchord",
         "longhorn",
         "cert-manager",
         "argo-cd",
