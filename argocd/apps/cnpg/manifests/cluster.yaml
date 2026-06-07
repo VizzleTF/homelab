@@ -1,0 +1,91 @@
+# Shared cnpg-cluster (nextcloud / authentik / forgejo).
+# Managed as a raw manifest (not the cloudnative-pg/cluster chart) because that
+# chart (≤0.6.1) cannot emit .spec.plugins, required for the Barman Cloud Plugin
+# after PG18 GA images dropped in-tree barman. Spec mirrors the prior
+# chart-rendered values so ArgoCD adopts the live Cluster in place (SSA, no
+# recreate). Operator-defaulted fields (probes, monitoring, extra postgresql
+# params, etc.) are intentionally omitted — the operator manages them.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cnpg-cluster
+  namespace: cnpg
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: 3
+  # Full `standard` image — Renovate-managed, majors gated manual (renovate.json).
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.3-standard-bookworm"
+  imagePullPolicy: IfNotPresent
+  postgresUID: 26
+  postgresGID: 26
+  primaryUpdateMethod: switchover
+  # match prior chart state — keeps the generated superuser secret
+  # (postgres-credentials consumer); omitting it defaults to false.
+  enableSuperuserAccess: true
+
+  storage:
+    size: "5Gi"
+    storageClass: longhorn
+
+  # Garage region for any barman tooling that runs in the postgres container path.
+  env:
+    - name: AWS_DEFAULT_REGION
+      value: garage
+
+  postgresql:
+    parameters:
+      max_connections: "150"
+      shared_buffers: "128MB"
+      effective_cache_size: "512MB"
+      work_mem: "4MB"
+      maintenance_work_mem: "64MB"
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "50m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+  managed:
+    roles:
+      - name: nextcloud
+        ensure: present
+        login: true
+        createdb: true
+        passwordSecret:
+          name: nextcloud-db-credentials
+      - name: authentik
+        ensure: present
+        login: true
+        passwordSecret:
+          name: authentik-db-credentials
+      - name: forgejo
+        ensure: present
+        login: true
+        createdb: true
+        passwordSecret:
+          name: forgejo-db-credentials
+
+  # init-only; ignored on the existing cluster. Mirrors live to avoid SSA churn.
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      encoding: UTF8
+      localeCollate: C
+      localeCType: C
+
+  # Barman Cloud Plugin: WAL archiving + backups via the ObjectStore CR.
+  # Replaces .spec.backup.barmanObjectStore (removed).
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: cnpg-cluster-store
+        # serverName must match the prior in-tree layout for backup continuity:
+        # objects live at <destinationPath>/<serverName> = s3://cnpg-backups/cnpg-cluster/cnpg-cluster
+        serverName: cnpg-cluster

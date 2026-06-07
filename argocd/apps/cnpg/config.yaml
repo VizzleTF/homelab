@@ -1,4 +1,6 @@
-chart: cluster
-repoURL: https://cloudnative-pg.github.io/charts
-targetRevision: "0.6.1"
+# cnpg-cluster is managed via raw manifests (manifests/) + homelab-common, NOT
+# the cloudnative-pg/cluster chart: that chart (≤0.6.1) can't emit .spec.plugins,
+# required for the Barman Cloud Plugin after PG18 GA dropped in-tree barman.
+homelabOnly: true
+extraManifests: true
 wave: "1"

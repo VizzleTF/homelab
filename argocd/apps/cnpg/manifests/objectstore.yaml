@@ -1,0 +1,34 @@
+# Barman Cloud Plugin object store for cnpg-cluster (Garage S3).
+# Replaces the in-tree .spec.backup.barmanObjectStore (gone from PG18 GA images).
+# destinationPath + serverName mirror the previous in-tree layout exactly
+# (in-tree invoked: barman-cloud-wal-archive s3://cnpg-backups/cnpg-cluster cnpg-cluster ...)
+# so the plugin reads/continues the existing backup catalog & WALs.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-cluster-store
+  namespace: cnpg
+spec:
+  retentionPolicy: "7d"
+  instanceSidecarConfiguration:
+    # Garage requires a region or HeadBucket returns 400. The sidecar (not the
+    # postgres container) now runs barman, so the region env goes here.
+    env:
+      - name: AWS_DEFAULT_REGION
+        value: garage
+  configuration:
+    destinationPath: "s3://cnpg-backups/cnpg-cluster"
+    endpointURL: "https://s3.example.com"
+    s3Credentials:
+      accessKeyId:
+        name: cnpg-s3-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: cnpg-s3-backup
+        key: ACCESS_SECRET_KEY
+    data:
+      compression: gzip
+      encryption: AES256
+    wal:
+      compression: gzip
+      encryption: AES256
