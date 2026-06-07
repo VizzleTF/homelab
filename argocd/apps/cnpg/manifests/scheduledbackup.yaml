@@ -1,0 +1,16 @@
+# Daily backup via the Barman Cloud Plugin (method: plugin), replacing the
+# chart's in-tree barmanObjectStore ScheduledBackup. Same name → ArgoCD adopts
+# the existing object in place.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: cnpg-cluster-daily-backup
+  namespace: cnpg
+spec:
+  schedule: "0 15 5 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: cnpg-cluster
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
