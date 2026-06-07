@@ -195,7 +195,7 @@ cluster:
     helm.sh/resource-policy: keep
   instances: 3
   # Full image (not -minimal) — barman-cloud-backup binaries needed for S3 backup
-  imageName: "ghcr.io/cloudnative-pg/postgresql:17-bookworm"
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18-bookworm"
 
   # Garage S3 требует region (HeadBucket 400 без него); chart v0.6.0 не
   # прокидывает s3Credentials.region, поэтому передаём через env контейнера postgres.
