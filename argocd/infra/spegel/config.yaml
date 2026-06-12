@@ -1,0 +1,5 @@
+chart: spegel
+repoURL: ghcr.io/spegel-org/helm-charts
+targetRevision: "0.7.1"
+namespace: spegel
+wave: "-3"

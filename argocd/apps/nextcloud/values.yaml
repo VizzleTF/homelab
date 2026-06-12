@@ -201,7 +201,8 @@ postgresql:
 externalDatabase:
   enabled: true
   type: postgresql
-  host: cnpg-cluster-rw.cnpg.svc.cluster.local
+  # Via PgBouncer (transaction pooling) — argocd/apps/cnpg/manifests/pooler.yaml
+  host: cnpg-cluster-pooler-rw.cnpg.svc.cluster.local
   database: nextcloud
   existingSecret:
     enabled: true

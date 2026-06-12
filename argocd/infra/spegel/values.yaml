@@ -1,0 +1,17 @@
+# P2P OCI registry mirror — nodes serve image layers to each other, cutting
+# external pulls (Docker Hub rate limits, internal-DNS pull failures).
+# Talos: registry hosts dir is /etc/cri/conf.d/hosts (chart default is
+# /etc/containerd/certs.d). containerd socket default already matches.
+# Requires discard_unpacked_layers=false on nodes — see
+# terraform_talos/modules/talos/patches/common.yaml.tftpl.
+spegel:
+  containerdRegistryConfigPath: /etc/cri/conf.d/hosts
+
+# Chart default sets only a memory limit; pin CPU too (no LimitRange in ns spegel).
+resources:
+  requests:
+    cpu: 25m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

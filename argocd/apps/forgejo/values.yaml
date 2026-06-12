@@ -80,7 +80,8 @@ gitea:
       OFFLINE_MODE: true
     database:
       DB_TYPE: postgres
-      HOST: cnpg-cluster-rw.cnpg.svc.cluster.local:5432
+      # Via PgBouncer (transaction pooling) — argocd/apps/cnpg/manifests/pooler.yaml
+      HOST: cnpg-cluster-pooler-rw.cnpg.svc.cluster.local:5432
       NAME: forgejo
       USER: forgejo
       SSL_MODE: require

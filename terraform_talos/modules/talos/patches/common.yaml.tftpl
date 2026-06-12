@@ -31,6 +31,16 @@ machine:
     disk: ${install_disk}
     image: ${install_image}
     wipe: false
+  # Spegel (argocd/infra/spegel): keep unpacked image layers in containerd's
+  # content store so nodes can serve them to peers. containerd 2.x plugin key
+  # (io.containerd.cri.v1.images, not the old io.containerd.grpc.v1.cri).
+  # *.part files under /etc/cri/conf.d are merged into CRI config at boot.
+  files:
+    - op: create
+      path: /etc/cri/conf.d/20-customization.part
+      content: |
+        [plugins."io.containerd.cri.v1.images"]
+          discard_unpacked_layers = false
   features:
     rbac: true
     stableHostname: true

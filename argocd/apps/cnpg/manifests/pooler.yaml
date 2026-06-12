@@ -1,0 +1,36 @@
+# PgBouncer pooler in front of the shared cnpg-cluster. Consumers: authentik,
+# nextcloud, forgejo (their values point at cnpg-cluster-pooler-rw). Transaction
+# pooling keeps PG backend count low while 3 chatty apps share one cluster.
+# max_prepared_statements: forgejo (xorm) and nextcloud (PDO) use protocol-level
+# prepared statements, unsupported by transaction mode without this knob.
+# Authentik additionally sets AUTHENTIK_POSTGRESQL__USE_PGBOUNCER=true to
+# disable server-side cursors.
+# The pg_dump CronJob (pglogical-offsite) intentionally stays on cnpg-cluster-rw:
+# dumps must not run through a transaction pooler.
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: cnpg-cluster-pooler-rw
+  namespace: cnpg
+spec:
+  cluster:
+    name: cnpg-cluster
+  instances: 2
+  type: rw
+  pgbouncer:
+    poolMode: transaction
+    parameters:
+      max_client_conn: "200"
+      default_pool_size: "10"
+      max_prepared_statements: "200"
+  template:
+    spec:
+      containers:
+        - name: pgbouncer
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
