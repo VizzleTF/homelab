@@ -72,7 +72,7 @@ homelab-common:
                 containers:
                   - name: backup
                     # renovate: image=alpine
-                    image: alpine:3.23
+                    image: alpine:3.24
                     command: ["/bin/sh", "-c"]
                     args:
                       - |
