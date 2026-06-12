@@ -33,7 +33,7 @@
       "addLabels": ["major"]
     },
     {
-      "description": "Critical-infra major-gate: major-бампы CRD-несущих компонентов НЕ автомёржатся — требуют ручного approve через Dependency Dashboard. Ошибочный major здесь = кластерный outage, не один app. Идёт ПОСЛЕ глобального automerge-правила (last-match-wins) → перебивает automerge:true для этих пакетов на major. Minor/patch остаются на автомёрже.",
+      "description": "Critical-infra major label: major-бампы CRD-несущих компонентов помечаются для видимости в Forgejo UI / Dependency Dashboard. Гейт ручного approve снят 2026-06-12 по решению пользователя: АБСОЛЮТНО всё на автомёрже, CI — единственный gate. Откат: вернуть automerge:false + dependencyDashboardApproval:true в это правило.",
       "matchPackageNames": [
         "cilium",
         "cnpg-operator",
@@ -48,9 +48,7 @@
         "openbao"
       ],
       "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "dependencyDashboardApproval": true,
-      "addLabels": ["critical-infra", "manual-review"]
+      "addLabels": ["critical-infra"]
     },
     {
       "description": "Docker digest-only обновления выключены: каждый upstream rebuild создавал бы шум-PR без version delta. Реальные version bump-ы ловятся helm/kubernetes/custom-regex managers.",

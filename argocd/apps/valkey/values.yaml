@@ -4,7 +4,15 @@ auth:
   enabled: false
 
 primary:
-  resourcesPreset: nano
+  # Explicit resources instead of resourcesPreset (Bitnami marks presets as not
+  # production-ready). Live usage ~31m/26Mi; serves ArgoCD cache + authentik redis.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
   persistence:
     storageClass: longhorn
     size: 1Gi

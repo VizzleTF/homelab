@@ -268,7 +268,10 @@ homelab-common:
           property: velero_ui_oidc_client_secret
       templateData:
         AUTHENTIK_SECRET_KEY: "{{ .secret_key }}"
-        AUTHENTIK_POSTGRESQL__HOST: "cnpg-cluster-rw.cnpg.svc.cluster.local"
+        # Via PgBouncer (transaction pooling) — see argocd/apps/cnpg/manifests/pooler.yaml.
+        # USE_PGBOUNCER disables server-side cursors (incompatible with transaction mode).
+        AUTHENTIK_POSTGRESQL__HOST: "cnpg-cluster-pooler-rw.cnpg.svc.cluster.local"
+        AUTHENTIK_POSTGRESQL__USE_PGBOUNCER: "true"
         AUTHENTIK_POSTGRESQL__USER: "authentik"
         AUTHENTIK_POSTGRESQL__NAME: "authentik"
         AUTHENTIK_POSTGRESQL__PASSWORD: "{{ .db_password }}"
@@ -321,6 +324,34 @@ homelab-common:
 authentik:
   existingSecret:
     secretName: "authentik-config"
+
+server:
+  # Live usage ~32m/442Mi; memory sits close to the chart's suggested 512Mi.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # Chart defaults (timeout 3s, threshold 3) kill the pod after 30s of GC/load
+  # stalls — source of the recurring restarts + gateway 502s.
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+
+worker:
+  # Live usage ~97m/370Mi.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 
 # Mount blueprints ConfigMaps (top-level chart setting, not under authentik:)
 blueprints:

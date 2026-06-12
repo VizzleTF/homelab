@@ -153,6 +153,10 @@ configs:
     # → each gen 100-500 MiB. Bump to 4 if argocd_repo_pending_request_total
     # stays elevated.
     reposerver.parallelism.limit: "2"
+    # Server-Side Diff: compare via dry-run SSA on the apiserver, so
+    # webhook/operator-defaulted fields (CNPG plugins[].enabled, atomic lists)
+    # no longer produce perpetual OutOfSync with an empty `argocd app diff`.
+    controller.diff.server.side: "true"
   cm:
     server.sessionMaxTokenAge: "720h"
     accounts.mcp: apiKey
