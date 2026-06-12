@@ -1,5 +1,5 @@
 chart: plugin-barman-cloud
 repoURL: https://cloudnative-pg.github.io/charts
-targetRevision: "0.6.0"
+targetRevision: "0.7.0"
 namespace: cnpg-system
 wave: "-1"
