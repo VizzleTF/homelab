@@ -83,6 +83,9 @@ spec:
   # Replaces .spec.backup.barmanObjectStore (removed).
   plugins:
     - name: barman-cloud.cloudnative-pg.io
+      # mirrors the webhook default: .spec.plugins is an atomic list, so an
+      # apply without `enabled` would drop the defaulted field -> perpetual OutOfSync
+      enabled: true
       isWALArchiver: true
       parameters:
         barmanObjectName: cnpg-cluster-store
