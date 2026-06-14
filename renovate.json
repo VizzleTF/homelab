@@ -78,6 +78,11 @@
       "allowedVersions": "!/^v/"
     },
     {
+      "description": "opennix/vault-autounseal версионирует теги как `vault-autounseal-X.Y.Z` (prefix). extractVersion срезает префикс, чтобы Renovate version-трекал образ (helm-values manager ловит image.repository+tag в openbao-autounseal/values.yaml). Upstream малоактивен — last vault-autounseal-0.5.2.",
+      "matchPackageNames": ["opennix/vault-autounseal"],
+      "extractVersion": "^vault-autounseal-(?<version>.+)$"
+    },
+    {
       "description": "Группа `apps`: все апдейты внутри argocd/apps/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
       "matchFileNames": ["argocd/apps/**"],
       "groupName": "apps"

@@ -3,8 +3,10 @@
 
 image:
   repository: opennix/vault-autounseal
-  tag: latest
-  pullPolicy: Always
+  # Upstream only publishes versioned tags as `vault-autounseal-X.Y.Z`; an
+  # extractVersion rule in renovate.json strips the prefix so Renovate can track it.
+  tag: vault-autounseal-0.5.2
+  pullPolicy: IfNotPresent
 
 replicaCount: 1
 
