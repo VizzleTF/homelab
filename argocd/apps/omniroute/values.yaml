@@ -41,7 +41,10 @@ homelab-common:
       accessModes:
         - ReadWriteOnce
       size: 5Gi
-      volumeName: pvc-9ec16b6f-9a4e-4289-8f4d-3ce0ae585411
+      # volumeName intentionally unpinned — the PV changes on every Velero restore;
+      # a stale pin makes the SSA dry-run reject the immutable field, breaking diff
+      # (SYNC=Unknown). The global ignoreDifferences._PersistentVolumeClaim masks the
+      # live volumeName instead. See reference_argocd_pvc_volumename_drift.
 
   httpRoutes:
     # KEDA-fronted scale-to-zero (см. argocd/apps/omniroute/manifests/httpscaledobject.yaml).

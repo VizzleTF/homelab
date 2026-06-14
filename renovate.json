@@ -6,12 +6,10 @@
   ],
   "timezone": "UTC",
   "configMigration": true,
-  "minimumReleaseAge": "1 day",
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "enabled": true,
     "addLabels": ["security"],
-    "minimumReleaseAge": null,
     "automerge": true
   },
   "prConcurrentLimit": 10,
@@ -21,7 +19,7 @@
   "rebaseWhen": "auto",
   "packageRules": [
     {
-      "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. Защита от свежеломанных релизов — глобальный minimumReleaseAge: 1 day. Security CVE летят мгновенно (см. vulnerabilityAlerts выше).",
+      "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. minimumReleaseAge УБРАН 2026-06-14: Renovate default minimumReleaseAgeBehaviour=timestamp-required держал вечно pending GHCR-образы без OCI `created` timestamp (may/omniroute/cnpg-postgresql застряли — debug dry-run подтвердил 'Marking N release(s) as pending, do not have a releaseTimestamp'). Buffer ломал трекинг тише, чем защищал. CI+ArgoCD health — реальный gate.",
       "matchUpdateTypes": ["major", "minor", "patch", "pin"],
       "automerge": true,
       "automergeType": "pr",
@@ -71,6 +69,16 @@
       "description": "gateway-api пин в пределах 1.4.x: v1.5 standard несовместим с Cilium 1.19 (hard-fail на backendServiceTLSRouteIndex с TLSRoute v1alpha2 served=false). Снять/поднять guard ТОЛЬКО после апгрейда Cilium до ≥1.20. Сейчас Cilium 1.19.4 → Renovate бампает лишь patch внутри 1.4.x.",
       "matchDepNames": ["kubernetes-sigs/gateway-api"],
       "allowedVersions": "<1.5.0"
+    },
+    {
+      "description": "lampac публикует каждый релиз ДВАЖДЫ — `X.Y.Z` и `vX.Y.Z`. Pin без `v` + Renovate выбирает абсолютный максимум (v-префиксный) = смена префикса non-v→v, которую Renovate трактует как не-бамп и молча скипает. Из-за этого образ застрял на 1.4.3 с 2026-06-01 (pin floating→semver) при доступном 1.34.0. Лочим non-v lineage, чтобы трекинг не ломался о prefix-flip.",
+      "matchPackageNames": ["ghcr.io/lampac-nextgen/lampac"],
+      "allowedVersions": "!/^v/"
+    },
+    {
+      "description": "opennix/vault-autounseal версионирует теги как `vault-autounseal-X.Y.Z` (prefix). extractVersion срезает префикс, чтобы Renovate version-трекал образ (helm-values manager ловит image.repository+tag в openbao-autounseal/values.yaml). Upstream малоактивен — last vault-autounseal-0.5.2.",
+      "matchPackageNames": ["opennix/vault-autounseal"],
+      "extractVersion": "^vault-autounseal-(?<version>.+)$"
     },
     {
       "description": "Группа `apps`: все апдейты внутри argocd/apps/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
