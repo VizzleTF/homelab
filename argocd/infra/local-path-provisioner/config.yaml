@@ -1,0 +1,5 @@
+chart: local-path-provisioner
+repoURL: https://charts.containeroo.ch
+targetRevision: "0.0.37"
+namespace: local-path-provisioner
+wave: "0"
