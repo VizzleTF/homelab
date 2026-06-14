@@ -1,0 +1,28 @@
+# Weekly filesystem-trim across ALL Longhorn volumes.
+#
+# Thin-provisioned Longhorn volumes don't auto-reclaim freed blocks — deleted
+# files stay allocated on the backing disk until trimmed. Without this the
+# backing disk silently fills despite low filesystem usage. filesystem-trim is
+# non-destructive (issues fstrim on the attached, healthy volume); detached or
+# degraded volumes are skipped automatically.
+#
+# groups: [default] — longhorn-manager auto-maintains the
+# `recurring-job-group.longhorn.io/default: enabled` label on every Volume, so
+# this is the idiomatic "all volumes, now and future" target with zero per-volume
+# labeling. Deliberate use of the default group (see MEMORY: never NAME a custom
+# group `default`, but targeting it for an all-volumes trim is intended).
+#
+# Schedule: Sundays 04:00 UTC — clear of renovate (06:00) and the nightly
+# backups (01:30) to avoid IO contention.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: trim
+  namespace: longhorn-system
+spec:
+  task: filesystem-trim
+  cron: "0 4 * * 0"
+  groups:
+    - default
+  concurrency: 2
+  retain: 0
