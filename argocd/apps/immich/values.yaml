@@ -252,7 +252,9 @@ homelab-common:
 _shared_config:
   hostname: &hostname immich.example.com
   url: &url https://immich.example.com
+  # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
   version: &version "v2.7.5"
+  # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
   ml_tag: &ml_tag "v2.7.5-openvino"
 
 # Pod-level securityContext + soft affinity for the server component.
