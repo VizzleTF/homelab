@@ -1,6 +1,6 @@
 chart: robusta
 repoURL: https://robusta-charts.storage.googleapis.com
-targetRevision: "0.40.0"
+targetRevision: "0.41.0"
 wave: "1"
 extraManifests: true
 homelabValuesFile: homelab-values.yaml
