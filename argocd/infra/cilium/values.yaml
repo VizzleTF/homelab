@@ -105,6 +105,21 @@ k8sServicePort: 7445
 # Replace kube-proxy with Cilium's eBPF implementation
 kubeProxyReplacement: true
 
+# Socket-level LB — translate service→backend at the connect()/sendmsg() cgroup
+# hook, eliminating per-packet DNAT for east-west ClusterIP traffic. Was observed
+# OFF in live cilium-config (bpf-lb-sock: false) despite kube-proxy replacement;
+# set explicitly. Verify post-sync that bpf-lb-sock flips to true.
+socketLB:
+  enabled: true
+
+# Bandwidth Manager — EDT/eBPF egress shaping + BBR congestion control. Improves
+# throughput/latency for user-facing upload/download via cloudflared. Requires
+# eBPF host routing (active: Masquerading=BPF) and kernel >=5.18 (Talos 6.18).
+# Takes effect after pod restart.
+bandwidthManager:
+  enabled: true
+  bbr: true
+
 # Enable L7 proxy for Ingress Controller support
 l7Proxy: true
 
