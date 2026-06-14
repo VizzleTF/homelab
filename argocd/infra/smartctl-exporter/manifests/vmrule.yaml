@@ -1,0 +1,61 @@
+# Disk SMART health alerts — ported from the chart's built-in prometheusRules
+# (disabled, no Prometheus-operator CRDs) to a native VMRule. Bare-metal drive-
+# failure prediction for the Longhorn-on-physical-disk setup.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: smartctl-exporter
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: smartctl-exporter
+      rules:
+        - alert: SmartCTLDeviceMediaErrors
+          expr: smartctl_device_media_errors != 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Disk {{ $labels.device }} on {{ $labels.instance }} has media errors"
+            description: |
+              Device {{ $labels.device }} reports {{ $value }} media errors — failing media. Replace the drive.
+
+        - alert: SmartCTLDeviceCriticalWarning
+          expr: smartctl_device_critical_warning != 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Disk {{ $labels.device }} on {{ $labels.instance }} critical controller warning"
+            description: |
+              Device {{ $labels.device }} controller raised a critical warning (NVMe critical_warning bitmap != 0).
+
+        - alert: SmartCTLDeviceBadStatus
+          expr: smartctl_device_status != 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Disk {{ $labels.device }} on {{ $labels.instance }} reports bad SMART status"
+            description: |
+              Device {{ $labels.device }} overall SMART health status is not PASSED — drive is failing.
+
+        - alert: SmartCTLDeviceAvailableSpareLow
+          expr: smartctl_device_available_spare_threshold > smartctl_device_available_spare
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk {{ $labels.device }} on {{ $labels.instance }} under available-spare threshold"
+            description: |
+              NVMe available spare on {{ $labels.device }} dropped below the manufacturer threshold — wear-out approaching.
+
+        - alert: SmartCTLDeviceTemperatureHigh
+          expr: smartctl_device_temperature{temperature_type="current"} > 60
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Disk {{ $labels.device }} on {{ $labels.instance }} over 60°C"
+            description: |
+              Device {{ $labels.device }} current temperature {{ $value }}°C exceeds 60°C — check airflow.

@@ -1,0 +1,22 @@
+# Chart 0.16.1 renders Service "smartctl-exporter-prometheus-smartctl-exporter"
+# in ns smartctl-exporter with labels app.kubernetes.io/name=prometheus-smartctl-
+# exporter, app.kubernetes.io/instance=smartctl-exporter (release name = app/folder
+# name). Port "http" (80 → containerPort 9633), plain HTTP /metrics.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: smartctl-exporter
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - smartctl-exporter
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-smartctl-exporter
+      app.kubernetes.io/instance: smartctl-exporter
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 60s
