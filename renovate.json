@@ -6,12 +6,10 @@
   ],
   "timezone": "UTC",
   "configMigration": true,
-  "minimumReleaseAge": "1 day",
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "enabled": true,
     "addLabels": ["security"],
-    "minimumReleaseAge": null,
     "automerge": true
   },
   "prConcurrentLimit": 10,
@@ -21,7 +19,7 @@
   "rebaseWhen": "auto",
   "packageRules": [
     {
-      "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. Защита от свежеломанных релизов — глобальный minimumReleaseAge: 1 day. Security CVE летят мгновенно (см. vulnerabilityAlerts выше).",
+      "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. minimumReleaseAge УБРАН 2026-06-14: Renovate default minimumReleaseAgeBehaviour=timestamp-required держал вечно pending GHCR-образы без OCI `created` timestamp (may/omniroute/cnpg-postgresql застряли — debug dry-run подтвердил 'Marking N release(s) as pending, do not have a releaseTimestamp'). Buffer ломал трекинг тише, чем защищал. CI+ArgoCD health — реальный gate.",
       "matchUpdateTypes": ["major", "minor", "patch", "pin"],
       "automerge": true,
       "automergeType": "pr",
