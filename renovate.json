@@ -73,6 +73,11 @@
       "allowedVersions": "<1.5.0"
     },
     {
+      "description": "lampac публикует каждый релиз ДВАЖДЫ — `X.Y.Z` и `vX.Y.Z`. Pin без `v` + Renovate выбирает абсолютный максимум (v-префиксный) = смена префикса non-v→v, которую Renovate трактует как не-бамп и молча скипает. Из-за этого образ застрял на 1.4.3 с 2026-06-01 (pin floating→semver) при доступном 1.34.0. Лочим non-v lineage, чтобы трекинг не ломался о prefix-flip.",
+      "matchPackageNames": ["ghcr.io/lampac-nextgen/lampac"],
+      "allowedVersions": "!/^v/"
+    },
+    {
       "description": "Группа `apps`: все апдейты внутри argocd/apps/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
       "matchFileNames": ["argocd/apps/**"],
       "groupName": "apps"
