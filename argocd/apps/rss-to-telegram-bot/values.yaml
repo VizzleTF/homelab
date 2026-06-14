@@ -42,7 +42,10 @@ homelab-common:
       accessModes:
         - ReadWriteOnce
       size: 1Gi
-      volumeName: pvc-6586d6c9-ea7f-406d-ad89-5efdf33a20b9
+      # volumeName intentionally unpinned — the PV changes on every Velero restore;
+      # a stale pin makes the SSA dry-run reject the immutable field, breaking diff
+      # (SYNC=Unknown). The global ignoreDifferences._PersistentVolumeClaim masks the
+      # live volumeName instead. See reference_argocd_pvc_volumename_drift.
       labels:
         app.kubernetes.io/name: rss-to-telegram-bot
         app.kubernetes.io/instance: rss-to-telegram-bot

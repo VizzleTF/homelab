@@ -59,7 +59,10 @@ homelab-common:
         - ReadWriteMany
       storageClassName: longhorn
       size: 250Gi
-      volumeName: pvc-2cc76030-39eb-4309-933d-7bcd4dab47b1
+      # volumeName intentionally unpinned — the PV changes on every Velero restore,
+      # and a stale pin makes the SSA dry-run reject the immutable field, breaking
+      # diff (SYNC=Unknown). The global ignoreDifferences._PersistentVolumeClaim
+      # masks the live volumeName instead. See reference_argocd_pvc_volumename_drift.
 
   externalSecrets:
     - name: immich-app-secrets
@@ -249,7 +252,9 @@ homelab-common:
 _shared_config:
   hostname: &hostname immich.example.com
   url: &url https://immich.example.com
+  # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
   version: &version "v2.7.5"
+  # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
   ml_tag: &ml_tag "v2.7.5-openvino"
 
 # Pod-level securityContext + soft affinity for the server component.

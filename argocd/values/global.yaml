@@ -28,7 +28,8 @@ global:
     defaultStorageClass: longhorn
 
   backup:
-    rcloneImage: rclone/rclone:latest
+    # renovate: datasource=docker depName=rclone/rclone
+    rcloneImage: rclone/rclone:1.74
     rcloneDefaultArgs:
       - --transfers=4
       - --checkers=8
