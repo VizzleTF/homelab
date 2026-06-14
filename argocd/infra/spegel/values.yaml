@@ -7,6 +7,13 @@
 spegel:
   containerdRegistryConfigPath: /etc/cri/conf.d/hosts
 
+# Single-zone bare-metal cluster (no topology.kubernetes.io/zone labels) — the
+# EndpointSlice controller can't honor topology hints and emits a recurring
+# TopologyAwareHintsDisabled warning. Drop the annotation; hints are pointless here.
+service:
+  registry:
+    topologyAwareHintsEnabled: false
+
 # Chart default sets only a memory limit; pin CPU too (no LimitRange in ns spegel).
 resources:
   requests:
