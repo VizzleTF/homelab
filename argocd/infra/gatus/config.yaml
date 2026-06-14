@@ -1,0 +1,4 @@
+homelabOnly: true
+namespace: gatus
+wave: "0"
+extraManifests: true
