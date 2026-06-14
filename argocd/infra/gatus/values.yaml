@@ -1,0 +1,209 @@
+# Gatus — health / uptime status dashboard. Deployed entirely via homelab-common
+# (homelabOnly: true in config.yaml — no upstream chart). The home-operations
+# gatus-sidecar watches HTTPRoute resources cluster-wide and writes generated
+# endpoint config into the shared /config dir, hot-reloaded by gatus
+# (GATUS_CONFIG_PATH points at the directory).
+#
+# Discovery is OPT-IN: the sidecar runs in annotation-only mode for HTTPRoute
+# (`--enable-httproute`, no `--auto-*`), so only HTTPRoutes carrying the
+# annotation `gatus.home-operations.com/enabled: "true"` produce an endpoint.
+# Annotating app HTTPRoutes is a follow-up.
+homelab-common:
+  persistentVolumeClaims:
+    # SQLite store for gatus history (storage.path /data/data.db).
+    - name: gatus-data
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 1Gi
+      labels:
+        app: gatus
+
+  rbac:
+    # Dedicated SA + cluster-scoped read for the sidecar's resource discovery.
+    serviceAccount:
+      create: true
+      name: gatus
+      automountServiceAccountToken: true
+    clusterRole:
+      name: gatus-sidecar
+      # httproutes/gateways used now (--enable-httproute); ingress/service kept so
+      # enabling --enable-ingress/--enable-service later needs no RBAC change.
+      rules:
+        - apiGroups: ["gateway.networking.k8s.io"]
+          resources: ["httproutes", "gateways"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: ["networking.k8s.io"]
+          resources: ["ingresses", "ingressclasses"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: [""]
+          resources: ["services", "endpoints"]
+          verbs: ["get", "list", "watch"]
+
+  apps:
+    - name: gatus
+      # Base gatus config (storage + ui + web + metrics + a self-check endpoint so
+      # the dashboard is never empty before any HTTPRoute is annotated). The
+      # init-config container copies this into /config/00-base.yaml; gatus merges
+      # every *.yaml in /config alongside the sidecar-generated file.
+      # ConfigMap renders as the app fullname "gatus" (homelab-common ignores a
+      # metadata.name override — fullname wins in its merge); the base volume
+      # below references that name.
+      configMap:
+        data:
+          config.yaml: |
+            storage:
+              type: sqlite
+              path: /data/data.db
+            ui:
+              title: "Homelab Status"
+              header: "Homelab Status"
+            web:
+              port: 8080
+            metrics: true
+            endpoints:
+              - name: gatus
+                group: internal
+                url: http://localhost:8080/health
+                interval: 60s
+                conditions:
+                  - "[STATUS] == 200"
+
+      service:
+        metadata:
+          labels:
+            app: gatus
+        spec:
+          selector:
+            app: gatus
+          ports:
+            - name: http
+              port: 80
+              targetPort: 8080
+
+      deployment:
+        metadata:
+          labels:
+            app: gatus
+        spec:
+          replicas: 1
+          strategy:
+            type: Recreate
+          selector:
+            matchLabels:
+              app: gatus
+          template:
+            metadata:
+              labels:
+                app: gatus
+            spec:
+              serviceAccountName: gatus
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                fsGroup: 1000
+                fsGroupChangePolicy: OnRootMismatch
+                seccompProfile:
+                  type: RuntimeDefault
+              initContainers:
+                - name: init-config
+                  image: busybox:1.37
+                  imagePullPolicy: IfNotPresent
+                  command:
+                    - sh
+                    - -c
+                    - cp /tmp/base/config.yaml /config/00-base.yaml
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop: ["ALL"]
+                  volumeMounts:
+                    - name: config
+                      mountPath: /config
+                    - name: base
+                      mountPath: /tmp/base
+                      readOnly: true
+              containers:
+                - name: app
+                  # renovate: image=ghcr.io/twin/gatus
+                  image: ghcr.io/twin/gatus:v5.34.0
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: GATUS_CONFIG_PATH
+                      value: /config
+                  ports:
+                    - name: http
+                      containerPort: 8080
+                  livenessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8080
+                    initialDelaySeconds: 10
+                    periodSeconds: 30
+                    timeoutSeconds: 5
+                  readinessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8080
+                    initialDelaySeconds: 5
+                    periodSeconds: 15
+                    timeoutSeconds: 5
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop: ["ALL"]
+                  resources:
+                    requests:
+                      cpu: 25m
+                      memory: 64Mi
+                    limits:
+                      memory: 256Mi
+                  volumeMounts:
+                    - name: config
+                      mountPath: /config
+                    - name: data
+                      mountPath: /data
+                - name: gatus-sidecar
+                  # renovate: image=ghcr.io/home-operations/gatus-sidecar
+                  image: ghcr.io/home-operations/gatus-sidecar:0.3.0
+                  imagePullPolicy: IfNotPresent
+                  args:
+                    # Opt-in HTTPRoute discovery only; writes a single file that
+                    # gatus merges from the /config directory.
+                    - --enable-httproute
+                    - --output=/config/gatus-sidecar.yaml
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop: ["ALL"]
+                  resources:
+                    requests:
+                      cpu: 10m
+                      memory: 32Mi
+                    limits:
+                      memory: 128Mi
+                  volumeMounts:
+                    - name: config
+                      mountPath: /config
+              volumes:
+                - name: config
+                  emptyDir: {}
+                - name: base
+                  configMap:
+                    name: gatus
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: gatus-data
+
+  httpRoutes:
+    # gatus.example.com on cilium-gateway-internal (LAN only).
+    - name: gatus
+      hostname: gatus
+      gateway: internal
+      service:
+        name: gatus
+        namespace: gatus
+        port: 80

@@ -35,12 +35,14 @@ spec:
         - resources-finalizer.argocd.argoproj.io/background
     spec:
       sources:
+        {{- if not (index . "homelabOnly") }}
         - repoURL: "{{ .repoURL }}"
           chart: "{{ dig "chart" .path.basename . }}"
           targetRevision: "{{ dig "targetRevision" "*" . }}"
           helm:
             valueFiles:
               - "$values/argocd/infra/{{ .path.basename }}/values.yaml"
+        {{- end }}
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
           targetRevision: "1.8.4"

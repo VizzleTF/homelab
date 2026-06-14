@@ -1,0 +1,20 @@
+# homelab-common renders Service "gatus" in ns gatus with label app=gatus,
+# port http (80 → targetPort 8080). gatus exposes Prometheus metrics at
+# /metrics over plain HTTP (metrics: true in the base config).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: gatus
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - gatus
+  selector:
+    matchLabels:
+      app: gatus
+  endpoints:
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 30s
