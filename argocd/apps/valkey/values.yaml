@@ -14,7 +14,11 @@ primary:
       cpu: 500m
       memory: 256Mi
   persistence:
-    storageClass: longhorn
+    # Valkey is a pure cache (ArgoCD cache + authentik redis, DB-index split) —
+    # rebuildable, so node-local local-path instead of Longhorn. Loss on node
+    # death = ArgoCD re-caches + authentik sessions drop (re-login). RWO, single
+    # standalone replica.
+    storageClass: local-path
     size: 1Gi
     annotations:
       helm.sh/resource-policy: keep
