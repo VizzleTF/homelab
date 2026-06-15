@@ -70,6 +70,15 @@ resources:
     cpu: 500m
     memory: 512Mi
 
+# ndots:2 — pod resolv.conf defaults to ndots:5, so CI image/registry hosts
+# (git.example.com, ghcr.io, docker.io — all <5 dots) burn 3-4 NXDOMAIN
+# search-suffix lookups each before resolving. Highest-volume external-caller
+# of these, so the clearest win. Chart renders this as pod dnsConfig.
+dnsConfig:
+  options:
+    - name: ndots
+      value: "2"
+
 securityContext:
   privileged: true
 

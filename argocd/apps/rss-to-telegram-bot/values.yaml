@@ -73,6 +73,13 @@ homelab-common:
                 app.kubernetes.io/name: rss-to-telegram-bot
                 app.kubernetes.io/instance: rss-to-telegram-bot
             spec:
+              # ndots:2 — pod resolv.conf defaults to ndots:5, so external names
+              # with <5 dots (RSS feed hosts, api.telegram.org) burn 3-4 NXDOMAIN
+              # search-suffix lookups before the real one. Cuts that tax.
+              dnsConfig:
+                options:
+                  - name: ndots
+                    value: "2"
               securityContext:
                 runAsNonRoot: true
                 runAsUser: 1000
