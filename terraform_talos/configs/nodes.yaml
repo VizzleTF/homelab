@@ -5,7 +5,7 @@ cluster:
   apiserver_cert_sans:
     - api.k8s.example.com
   # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
-  kubernetes_version: v1.36.1
+  kubernetes_version: v1.36.2
   talos_version: v1.13
   # renovate: datasource=github-releases depName=siderolabs/talos
   talos_release: v1.13.4
