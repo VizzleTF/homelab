@@ -50,6 +50,15 @@ cluster:
     # Dedicated unauthenticated metrics/health listener so VictoriaMetrics can
     # scrape etcd (kubeEtcd). Plain HTTP on 2381 — reachable only on the
     # servers VLAN behind the host firewall.
+    #
+    # Compaction/quota tuning: Talos does NOT auto-defrag. Periodic compaction
+    # (5m retention) keeps the keyspace bounded so CRD churn / perpetual-OutOfSync
+    # loops (CNPG, snapshot-controller) can't silently bloat the DB. quota raised
+    # to 8 GiB headroom. Defrag stays manual: `talosctl etcd defrag` (leader last,
+    # only when dbSize vs dbSizeInUse diverge >40%).
     extraArgs:
       listen-metrics-urls: http://0.0.0.0:2381
+      auto-compaction-mode: periodic
+      auto-compaction-retention: 5m
+      quota-backend-bytes: "8589934592"
   allowSchedulingOnControlPlanes: true
