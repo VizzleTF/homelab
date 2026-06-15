@@ -74,6 +74,13 @@ homelab-common:
               labels:
                 app: may
             spec:
+              # ndots:2 — pod resolv.conf defaults to ndots:5, so external names
+              # with <5 dots burn 3-4 NXDOMAIN search-suffix lookups before the
+              # real one. Cuts that tax for outbound calls.
+              dnsConfig:
+                options:
+                  - name: ndots
+                    value: "2"
               securityContext:
                 fsGroup: 1000
                 seccompProfile:
