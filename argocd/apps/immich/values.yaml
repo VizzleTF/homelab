@@ -393,8 +393,12 @@ machine-learning:
       # caches + HF download temp files filled 20Gi to 100 %. Bump to 30Gi.
       size: 30Gi
       type: persistentVolumeClaim
-      storageClass: "longhorn"
-      accessMode: ReadWriteMany
+      # ML model cache (NLLB/buffalo_l/OpenVINO) is fully regenerable — re-downloaded
+      # on demand — so node-local local-path instead of Longhorn (30Gi × 2 replicas
+      # = 60Gi saved). Single ML pod (replicas:1, Recreate, GPU-node-pinned) → RWO is
+      # fine; local-path is RWO-only and node-pins the PV to the GPU node anyway.
+      storageClass: "local-path"
+      accessMode: ReadWriteOnce
       retain: true
 
 # Valkey: используем shared valkey-primary в ns `valkey` (DB index 1)
