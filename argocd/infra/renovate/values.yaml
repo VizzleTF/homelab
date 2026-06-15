@@ -84,7 +84,12 @@ renovate:
   persistence:
     cache:
       enabled: true
-      storageClass: longhorn
+      # node-local scratch — renovate cache is fully rebuildable, so skip
+      # Longhorn's 2x replica + network overhead. local-path PV is node-pinned
+      # (WaitForFirstConsumer); the cronjob follows it via PV node affinity. If
+      # the node dies the cache is lost and renovate rebuilds it. See
+      # argocd/infra/local-path-provisioner.
+      storageClass: local-path
       storageSize: 2Gi
   config: |
     {
