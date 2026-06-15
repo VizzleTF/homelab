@@ -92,6 +92,9 @@ homelab-common:
     - name: nextcloud
       hostname: nc
       gateway: external
+      # gatus auto-discovery (home-operations/gatus-sidecar, opt-in)
+      annotations:
+        gatus.home-operations.com/enabled: "true"
       service:
         name: nextcloud
         port: 8080

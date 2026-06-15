@@ -3,6 +3,9 @@ homelab-common:
     - name: longhorn
       hostname: longhorn
       gateway: internal
+      # gatus auto-discovery (home-operations/gatus-sidecar, opt-in)
+      annotations:
+        gatus.home-operations.com/enabled: "true"
       service:
         name: longhorn-frontend
         port: 80
