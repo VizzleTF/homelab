@@ -192,6 +192,7 @@
         "kedaColdStartLoadingPage": { "type": "boolean" },
         "pathPrefix":               { "type": "string" },
         "filters":                  { "type": "array" },
+        "annotations":              { "type": "object", "additionalProperties": { "type": "string" } },
         "service": {
           "type": "object",
           "additionalProperties": false,

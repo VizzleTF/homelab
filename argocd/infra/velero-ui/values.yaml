@@ -87,6 +87,9 @@ homelab-common:
     - name: velero-ui
       hostname: velero
       gateway: internal
+      # gatus auto-discovery (home-operations/gatus-sidecar, opt-in)
+      annotations:
+        gatus.home-operations.com/enabled: "true"
       service:
         name: velero-ui
         port: 3000
