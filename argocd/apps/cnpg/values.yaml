@@ -126,7 +126,7 @@ homelab-common:
                     type: RuntimeDefault
                 initContainers:
                   - name: dump
-                    image: ghcr.io/cloudnative-pg/postgresql:18.3-standard-bookworm
+                    image: ghcr.io/cloudnative-pg/postgresql:18.4-standard-bookworm
                     imagePullPolicy: IfNotPresent
                     command: ["/bin/bash", "-c"]
                     args:
