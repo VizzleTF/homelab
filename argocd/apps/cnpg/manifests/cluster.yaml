@@ -16,7 +16,7 @@ spec:
   instances: 3
   # Full `standard` image — Renovate-managed, majors gated manual (renovate.json).
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-  imageName: "ghcr.io/cloudnative-pg/postgresql:18.3-standard-bookworm"
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.4-standard-bookworm"
   imagePullPolicy: IfNotPresent
   postgresUID: 26
   postgresGID: 26
