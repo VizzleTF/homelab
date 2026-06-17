@@ -1,5 +1,5 @@
 chart: openbao-autounseal
 repoURL: https://vizzletf.github.io/openbao_autounseal
-targetRevision: "0.5.8"
+targetRevision: "0.5.9"
 namespace: openbao
 wave: "1"
