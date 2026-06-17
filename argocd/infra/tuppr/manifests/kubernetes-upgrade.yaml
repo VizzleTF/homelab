@@ -17,7 +17,7 @@ metadata:
 spec:
   kubernetes:
     # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
-    version: v1.36.1
+    version: v1.36.2
 
   maintenance:
     windows:
@@ -46,4 +46,4 @@ spec:
     image:
       repository: ghcr.io/siderolabs/talosctl
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.13.3
+      tag: v1.13.4
