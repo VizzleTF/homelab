@@ -8,7 +8,9 @@
 #   root_token_secret=openbao-root-token, keys_secret=openbao-keys,
 #   label_selector=app.kubernetes.io/instance=openbao,component=server,
 #   image=ghcr.io/vizzletf/openbao-autounseal:<appVersion>.
-# Only deployment ops overrides are set below.
+# RBAC (namespaced Role) and a hardened securityContext (non-root uid 65532,
+# read-only rootfs, drop ALL caps, seccomp RuntimeDefault) are chart defaults
+# too. Only resource limits are overridden here.
 
 replicaCount: 1
 
@@ -19,13 +21,6 @@ resources:
   requests:
     cpu: 15m
     memory: 100Mi
-
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-
-podSecurityContext:
-  fsGroup: 1000
 
 serviceAccount:
   create: true
