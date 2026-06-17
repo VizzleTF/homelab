@@ -27,9 +27,10 @@ spec:
     timeout: 45m
 
   drain:
-    deleteLocalData: true
-    ignoreDaemonSets: true
-    force: true
+    # chart 0.2.x: spec.drain переработан — допустимы только enabled +
+    # disableEviction. Поля deleteLocalData/ignoreDaemonSets/force убраны из
+    # CRD (force теперь в spec.policy.force, DS игнорируются хардкодом).
+    enabled: true
     # Longhorn 1.7+ создаёт per-node PDB на instance-manager pods с
     # minAvailable=1, allowedDisruptions=0. Eviction API всегда отказывает с
     # "violates pod's disruption budget". Longhorn `nodeDrainPolicy=always-allow`
