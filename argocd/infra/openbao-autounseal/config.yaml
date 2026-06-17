@@ -1,5 +1,5 @@
-chart: vault-autounseal
-repoURL: https://pytoshka.github.io/vault-autounseal
-targetRevision: "0.5.3"
+chart: openbao-autounseal
+repoURL: https://vizzletf.github.io/openbao_autounseal
+targetRevision: "0.5.4"
 namespace: openbao
 wave: "1"
