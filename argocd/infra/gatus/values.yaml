@@ -108,7 +108,7 @@ homelab-common:
                   type: RuntimeDefault
               initContainers:
                 - name: init-config
-                  image: busybox:1.37
+                  image: busybox:1.38
                   imagePullPolicy: IfNotPresent
                   command:
                     - sh
@@ -128,7 +128,7 @@ homelab-common:
               containers:
                 - name: app
                   # renovate: image=ghcr.io/twin/gatus
-                  image: ghcr.io/twin/gatus:v5.34.0
+                  image: ghcr.io/twin/gatus:v5.36.0
                   imagePullPolicy: IfNotPresent
                   env:
                     - name: GATUS_CONFIG_PATH
@@ -167,7 +167,7 @@ homelab-common:
                       mountPath: /data
                 - name: gatus-sidecar
                   # renovate: image=ghcr.io/home-operations/gatus-sidecar
-                  image: ghcr.io/home-operations/gatus-sidecar:0.3.0
+                  image: ghcr.io/home-operations/gatus-sidecar:0.3.2
                   imagePullPolicy: IfNotPresent
                   args:
                     # Opt-in HTTPRoute discovery only; writes a single file that

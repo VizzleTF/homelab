@@ -17,7 +17,7 @@ metadata:
 spec:
   talos:
     # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-    version: v1.13.3
+    version: v1.13.4
 
   parallelism: 1
 
@@ -111,4 +111,4 @@ spec:
     image:
       repository: ghcr.io/siderolabs/talosctl
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.13.3
+      tag: v1.13.4
