@@ -1,23 +1,16 @@
 # OpenBao Auto-Unseal Configuration
-# Uses pytoshka/vault-autounseal chart — works with OpenBao via /sys/init + /sys/unseal API compat
-
-image:
-  repository: opennix/vault-autounseal
-  # Upstream only publishes versioned tags as `vault-autounseal-X.Y.Z`; an
-  # extractVersion rule in renovate.json strips the prefix so Renovate can track it.
-  tag: vault-autounseal-0.5.2
-  pullPolicy: IfNotPresent
+# Fork chart: openbao-autounseal @ https://vizzletf.github.io/openbao_autounseal
+# (fork of pyToshka/vault-autounseal — rebranded, ghcr image, OPENBAO_* env,
+#  loop-refresh + configurable label-selector fix). See repo README.
+#
+# All OpenBao functional settings are chart defaults (no override needed):
+#   openbao_url=http://openbao.openbao:8200, secret_shares 3 / threshold 3,
+#   root_token_secret=openbao-root-token, keys_secret=openbao-keys,
+#   label_selector=app.kubernetes.io/instance=openbao,component=server,
+#   image=ghcr.io/vizzletf/openbao-autounseal:<appVersion>.
+# Only deployment ops overrides are set below.
 
 replicaCount: 1
-
-settings:
-  vault_url: "http://openbao.openbao:8200"
-  vault_secret_shares: 3
-  vault_secret_threshold: 3
-  vault_root_token_secret: "openbao-root-token"
-  vault_keys_secret: "openbao-keys"
-  scan_delay: 5
-  vault_label_selector: "app.kubernetes.io/instance=openbao,component=server"
 
 resources:
   limits:
@@ -36,11 +29,3 @@ podSecurityContext:
 
 serviceAccount:
   create: true
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
-
-logLevel: INFO
