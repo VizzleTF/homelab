@@ -3,16 +3,22 @@
 # (fork of pyToshka/vault-autounseal — rebranded, ghcr image, OPENBAO_* env,
 #  loop-refresh + configurable label-selector fix). See repo README.
 #
-# All OpenBao functional settings are chart defaults (no override needed):
-#   openbao_url=http://openbao.openbao:8200, secret_shares 3 / threshold 3,
-#   root_token_secret=openbao-root-token, keys_secret=openbao-keys,
+# Most OpenBao functional settings are chart defaults (no override needed):
+#   secret_shares 3 / threshold 3, root_token_secret=openbao-root-token,
+#   keys_secret=openbao-keys,
 #   label_selector=app.kubernetes.io/instance=openbao,component=server,
 #   image=ghcr.io/vizzletf/openbao-autounseal:<appVersion>.
 # RBAC (namespaced Role) and a hardened securityContext (non-root uid 65532,
 # read-only rootfs, drop ALL caps, seccomp RuntimeDefault) are chart defaults
-# too. Only resource limits are overridden here.
+# too.
+#
+# NOTE: chart 0.5.15 flipped settings.openbao_url default to https://. Our
+# OpenBao service does NOT terminate TLS on :8200 — pin it back to http:// here.
 
 replicaCount: 1
+
+settings:
+  openbao_url: "http://openbao.openbao:8200"
 
 resources:
   limits:
