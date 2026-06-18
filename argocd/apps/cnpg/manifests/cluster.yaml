@@ -69,6 +69,11 @@ spec:
         createdb: true
         passwordSecret:
           name: forgejo-db-credentials
+      - name: atuin
+        ensure: present
+        login: true
+        passwordSecret:
+          name: atuin-db-credentials
 
   # init-only; ignored on the existing cluster. Mirrors live to avoid SSA churn.
   bootstrap:
