@@ -72,10 +72,11 @@ homelab-common:
                       value: "0.0.0.0"
                     - name: ATUIN_PORT
                       value: "8888"
-                    # Open during initial client registration; flip to "false" + re-sync
-                    # once accounts exist to lock down signups (see docs/atuin.md).
+                    # Locked down post-registration. `atuin login` on new devices works
+                    # regardless; this only gates new-account signups. Flip to "true"
+                    # temporarily if registering a fresh account (see docs/atuin.md).
                     - name: ATUIN_OPEN_REGISTRATION
-                      value: "true"
+                      value: "false"
                   envFrom:
                     - secretRef:
                         name: atuin-db
