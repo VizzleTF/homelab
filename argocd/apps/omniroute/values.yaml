@@ -76,6 +76,12 @@ homelab-common:
       deployment:
         spec:
           replicas: 1
+          # RWO Longhorn PVC (omniroute-data) → single-node attach. Default
+          # RollingUpdate keeps the old pod alive on another node during image
+          # bumps → new pod gets "Multi-Attach error" and hangs forever. Recreate
+          # tears down the old pod first so the new one can attach the volume.
+          strategy:
+            type: Recreate
           selector:
             matchLabels:
               app.kubernetes.io/name: omniroute
