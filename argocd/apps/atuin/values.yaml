@@ -1,0 +1,113 @@
+# Atuin — self-hosted shell-history sync server (homelab-common.apps workload).
+# Stateless: all state in shared cnpg-cluster (DB `atuin`). No PVC.
+# DB via cnpg-cluster-rw DIRECT (not the pooler): atuin/sqlx prepared statements
+# break under pgbouncer transaction-mode pooling.
+# See docs/atuin.md.
+homelab-common:
+  externalSecrets:
+    # Builds the libpq URI atuin reads via ATUIN_DB_URI. Password is alphanumeric
+    # in Vault → no URL-encoding needed in the connection string.
+    - name: atuin-db
+      vaultPath: atuin/atuin
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        ATUIN_DB_URI: "postgres://atuin:{{ .password }}@cnpg-cluster-rw.cnpg.svc.cluster.local:5432/atuin"
+
+  httpRoutes:
+    - name: atuin
+      hostname: atuin  # -> atuin.example.com
+      gateway: internal  # LAN/VPN only (sync is e2e-encrypted regardless)
+      service:
+        name: atuin
+        port: 8888
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi
+
+  apps:
+    - name: atuin
+      deployment:
+        metadata:
+          labels:
+            app: atuin
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: atuin
+          template:
+            metadata:
+              labels:
+                app: atuin
+            spec:
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                fsGroup: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              containers:
+                - name: atuin
+                  # renovate: image=ghcr.io/atuinsh/atuin
+                  image: ghcr.io/atuinsh/atuin:18.16.1
+                  imagePullPolicy: IfNotPresent
+                  # Image entrypoint is `atuin server`; `start` launches the sync server.
+                  args: ["start"]
+                  ports:
+                    - name: http
+                      containerPort: 8888
+                      protocol: TCP
+                  env:
+                    - name: ATUIN_HOST
+                      value: "0.0.0.0"
+                    - name: ATUIN_PORT
+                      value: "8888"
+                    # Open during initial client registration; flip to "false" + re-sync
+                    # once accounts exist to lock down signups (see docs/atuin.md).
+                    - name: ATUIN_OPEN_REGISTRATION
+                      value: "true"
+                  envFrom:
+                    - secretRef:
+                        name: atuin-db
+                  livenessProbe:
+                    httpGet:
+                      path: /
+                      port: http
+                    initialDelaySeconds: 10
+                    periodSeconds: 30
+                  readinessProbe:
+                    httpGet:
+                      path: /
+                      port: http
+                    initialDelaySeconds: 5
+                    periodSeconds: 15
+                  resources:
+                    limits:
+                      cpu: 250m
+                      memory: 256Mi
+                    requests:
+                      cpu: 15m
+                      memory: 64Mi
+      service:
+        metadata:
+          labels:
+            app: atuin
+        spec:
+          type: ClusterIP
+          ports:
+            - port: 8888
+              targetPort: http
+              protocol: TCP
+              name: http
+          selector:
+            app: atuin

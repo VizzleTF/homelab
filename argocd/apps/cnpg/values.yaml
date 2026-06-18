@@ -51,6 +51,16 @@ homelab-common:
         username: forgejo
         password: "{{ .password }}"
 
+    - name: atuin-db-credentials
+      templateType: kubernetes.io/basic-auth
+      data:
+        - secretKey: password
+          vaultPath: atuin/atuin
+          property: password
+      templateData:
+        username: atuin
+        password: "{{ .password }}"
+
     - name: cnpg-s3-backup
       vaultPath: shared/s3-cnpg-backup
       data:
@@ -85,6 +95,9 @@ homelab-common:
   cnpgDatabases:
     - name: forgejo
       owner: forgejo
+      clusterName: cnpg-cluster
+    - name: atuin
+      owner: atuin
       clusterName: cnpg-cluster
 
   limitRange:
@@ -141,6 +154,7 @@ homelab-common:
                         dump nextcloud "$NC_USER" "$NC_PASS"
                         dump authentik "$AK_USER" "$AK_PASS"
                         dump forgejo   "$FJ_USER" "$FJ_PASS"
+                        dump atuin     "$AT_USER" "$AT_PASS"
                         ls -lh /dump
                     env:
                       - name: NC_USER
@@ -155,6 +169,10 @@ homelab-common:
                         valueFrom: { secretKeyRef: { name: forgejo-db-credentials, key: username } }
                       - name: FJ_PASS
                         valueFrom: { secretKeyRef: { name: forgejo-db-credentials, key: password } }
+                      - name: AT_USER
+                        valueFrom: { secretKeyRef: { name: atuin-db-credentials, key: username } }
+                      - name: AT_PASS
+                        valueFrom: { secretKeyRef: { name: atuin-db-credentials, key: password } }
                     volumeMounts:
                       - name: dump
                         mountPath: /dump
