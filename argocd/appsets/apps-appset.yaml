@@ -46,7 +46,7 @@ spec:
         {{- if index . "cnpgValuesFile" }}
         - repoURL: https://cloudnative-pg.github.io/charts
           chart: cluster
-          targetRevision: "0.6.1"
+          targetRevision: "0.7.0"
           helm:
             valueFiles:
               - "$values/argocd/apps/{{ .path.basename }}/{{ .cnpgValuesFile }}"
