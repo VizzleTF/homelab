@@ -1,5 +1,5 @@
 chart: cloudflared
 repoURL: https://community-charts.github.io/helm-charts
-targetRevision: "2.2.9"
+targetRevision: "2.2.10"
 wave: "0"
 homelabValuesFile: homelab-values.yaml
