@@ -113,6 +113,12 @@ homelab-common:
       memory: 64Mi
 
 server:
+  # RollingUpdate (chart default = OnDelete): auto-roll pods on image/chart bumps
+  # без ручного delete. Reverse-ordinal по одному, ждёт Ready между подами —
+  # autounseal расшиливает холодный pod (~30s) до readiness. active (openbao-0)
+  # катится последним. См. memory reference-openbao-autounseal-broken-full-reboot.
+  updateStrategyType: "RollingUpdate"
+
   resources:
     requests:
       memory: 250Mi
