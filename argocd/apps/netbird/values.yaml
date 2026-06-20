@@ -58,7 +58,7 @@ homelab-common:
               containers:
                 - name: netbird
                   # renovate: image=netbirdio/netbird
-                  image: netbirdio/netbird:0.72.4
+                  image: netbirdio/netbird:0.73.1
                   imagePullPolicy: IfNotPresent
                   securityContext:
                     capabilities:
