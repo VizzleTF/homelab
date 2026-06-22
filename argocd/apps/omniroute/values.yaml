@@ -1,15 +1,13 @@
 homelab-common:
   veleroSchedules:
-    # KEDA scale-to-zero (scaledownPeriod 6h): pod часто отсутствует ночью,
-    # поэтому exec hook не задаём — CSI snapshot PVC напрямую, без pod.
-    # SQLite WAL обеспечивает crash-consistency; на cold-start файл DB
-    # уже flushed (Linux page cache очищается при scale-down → write).
+    # exec hook не задаём — CSI snapshot PVC напрямую. SQLite WAL обеспечивает
+    # crash-consistency, snapshot живого DB безопасен (rollback к последней
+    # checkpoint при recovery).
     - name: omniroute-daily
       schedule: "45 2 * * *"
       template:
         includedNamespaces: [omniroute]
     # Independent off-site copy → OVH (BSL ovh-direct). Тир низкоценные: weekly, 30d.
-    # Без hook (KEDA scale-to-zero, см. daily) — CSI snapshot PVC напрямую.
     - name: omniroute-offsite
       schedule: "5 4 * * 0"
       template:
@@ -47,29 +45,21 @@ homelab-common:
       # live volumeName instead. See reference_argocd_pvc_volumename_drift.
 
   httpRoutes:
-    # KEDA-fronted scale-to-zero (см. argocd/apps/omniroute/manifests/httpscaledobject.yaml).
-    # `kedaColdStartLoadingPage: true` (homelab-common >= 1.7.3) переключает backend
-    # на keda-loading-proxy → во время cold-start пользователь видит "сервис запускается".
-    # `service:` оставлен fallback для v1.7.2 (флаг игнорируется на старом чарте).
-    # Cross-namespace backendRef требует ReferenceGrant в keda ns
-    # (argocd/infra/keda-add-ons-http/manifests/referencegrant.yaml).
+    # Always-on (KEDA scale-to-zero убран — omniroute теперь LLM-backend для Vane,
+    # cold-start неприемлем). Routes бьют напрямую в omniroute svc :20128.
     - name: omniroute
       hostname: omniroute
       gateway: internal
-      kedaColdStartLoadingPage: true
       service:
-        name: keda-add-ons-http-interceptor-proxy
-        namespace: keda
-        port: 8080
+        name: omniroute
+        port: 20128
     - name: omniroute-api
       hostname: omniroute
       gateway: external
       pathPrefix: /v1
-      kedaColdStartLoadingPage: true
       service:
-        name: keda-add-ons-http-interceptor-proxy
-        namespace: keda
-        port: 8080
+        name: omniroute
+        port: 20128
 
   apps:
     - name: omniroute

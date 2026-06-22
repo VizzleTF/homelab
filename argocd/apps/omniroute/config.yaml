@@ -1,8 +1,2 @@
 homelabOnly: true
 wave: "2"
-extraManifests: true
-ignoreDiff: |
-  - group: apps
-    kind: Deployment
-    jsonPointers:
-      - /spec/replicas
