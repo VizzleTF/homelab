@@ -1,0 +1,156 @@
+# SearxNG — meta-search backend for Vane (privacy AI answering engine).
+# Deployed entirely via homelab-common (homelabOnly: true — upstream ships only a
+# docker-compose, no Helm chart). Internal-only: no HTTPRoute, reachable by Vane at
+# http://searxng.searxng.svc.cluster.local:8080.
+#
+# limiter DISABLED on purpose: SearxNG's bot-detection limiter blocks programmatic
+# JSON-API clients (no browser link_token / headers), which would break Vane's
+# /search?format=json calls. The instance is internal-only with a single trusted
+# client, so rate-limiting buys nothing. valkey is still wired below — SearxNG uses
+# it for engine result caching. To re-enable the limiter, add a limiter.toml with a
+# botdetection IP allowlist for the Vane pod subnet.
+#
+# secret_key handling: the container entrypoint randomises `ultrasecretkey` ONLY when
+# settings.yml does NOT yet exist, and has NO SEARXNG_SECRET env support — so a
+# mounted settings.yml must already carry a real secret_key. We therefore render the
+# WHOLE settings.yml through ESO templateData with the Vault secret_key injected
+# (only the template lives in git, the secret is pulled from Vault) and mount it as a
+# Secret. An initContainer copies it into a writable emptyDir because the entrypoint
+# treats /etc/searxng as a volume and runs as uid 977 (non-root, can't chown a
+# read-only secret mount).
+homelab-common:
+  externalSecrets:
+    - name: searxng
+      vaultPath: searxng/config
+      data:
+        - secretKey: secret_key
+          property: secret_key
+      # Full settings.yml rendered with the Vault secret_key. Resulting Secret has a
+      # single `settings.yml` key, mounted read-only into the init container.
+      templateData:
+        settings.yml: |
+          use_default_settings: true
+          general:
+            instance_name: "Homelab SearxNG"
+            debug: false
+          server:
+            secret_key: "{{ .secret_key }}"
+            limiter: false
+            image_proxy: true
+            method: GET
+          search:
+            formats:
+              - html
+              - json
+            autocomplete: ""
+          valkey:
+            url: redis://valkey-primary.valkey.svc.cluster.local:6379/3
+
+  apps:
+    - name: searxng
+      service:
+        metadata:
+          labels:
+            app: searxng
+        spec:
+          selector:
+            app: searxng
+          ports:
+            - name: http
+              port: 8080
+              targetPort: 8080
+
+      deployment:
+        metadata:
+          labels:
+            app: searxng
+        spec:
+          replicas: 1
+          strategy:
+            type: RollingUpdate
+          selector:
+            matchLabels:
+              app: searxng
+          template:
+            metadata:
+              labels:
+                app: searxng
+            spec:
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 977
+                runAsGroup: 977
+                fsGroup: 977
+                fsGroupChangePolicy: OnRootMismatch
+                seccompProfile:
+                  type: RuntimeDefault
+              initContainers:
+                # Copy the ESO-rendered settings.yml (with real secret_key) into the
+                # writable /etc/searxng emptyDir so the entrypoint finds it and skips
+                # its template+random-secret bootstrap.
+                - name: init-config
+                  image: busybox:1.38
+                  imagePullPolicy: IfNotPresent
+                  command:
+                    - sh
+                    - -c
+                    - cp /tmp/secret/settings.yml /etc/searxng/settings.yml
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop: ["ALL"]
+                  volumeMounts:
+                    - name: config
+                      mountPath: /etc/searxng
+                    - name: settings-src
+                      mountPath: /tmp/secret
+                      readOnly: true
+              containers:
+                - name: searxng
+                  # renovate: image=docker.io/searxng/searxng
+                  image: docker.io/searxng/searxng:2026.6.22-952896d29
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: SEARXNG_PORT
+                      value: "8080"
+                  ports:
+                    - name: http
+                      containerPort: 8080
+                  livenessProbe:
+                    httpGet:
+                      path: /healthz
+                      port: 8080
+                    initialDelaySeconds: 15
+                    periodSeconds: 30
+                    timeoutSeconds: 5
+                  readinessProbe:
+                    httpGet:
+                      path: /healthz
+                      port: 8080
+                    initialDelaySeconds: 5
+                    periodSeconds: 15
+                    timeoutSeconds: 5
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop: ["ALL"]
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 128Mi
+                    limits:
+                      memory: 256Mi
+                  volumeMounts:
+                    - name: config
+                      mountPath: /etc/searxng
+                    - name: data
+                      mountPath: /var/cache/searxng
+              volumes:
+                - name: config
+                  emptyDir: {}
+                - name: data
+                  emptyDir: {}
+                - name: settings-src
+                  secret:
+                    secretName: searxng
