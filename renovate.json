@@ -76,6 +76,11 @@
       "allowedVersions": "!/^v/"
     },
     {
+      "description": "omniroute 3.8.32 = регрессия шифрования: на boot не читает существующие enc:v1 записи (auth tag validation fail) → провайдеры не грузятся (checking 0 credentials), роутер мёртв. Пробил себя на sync #300 (2026-06-22 06:06, бамп 3.8.31→3.8.32). Откат на 3.8.31. Блок ровно 3.8.32 — 3.8.33+ (предположительно с фиксом) пропускаем.",
+      "matchPackageNames": ["ghcr.io/diegosouzapw/omniroute"],
+      "allowedVersions": "!/^3\\.8\\.32$/"
+    },
+    {
       "description": "Группа `apps`: все апдейты внутри argocd/apps/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
       "matchFileNames": ["argocd/apps/**"],
       "groupName": "apps"
