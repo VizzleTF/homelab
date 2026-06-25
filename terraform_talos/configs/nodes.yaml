@@ -8,7 +8,7 @@ cluster:
   kubernetes_version: v1.36.2
   talos_version: v1.13
   # renovate: datasource=github-releases depName=siderolabs/talos
-  talos_release: v1.13.4
+  talos_release: v1.13.5
 
 # Bare-metal Talos nodes. To add a node: power it on with a Talos factory
 # ISO, confirm `talosctl --insecure -e <ip> -n <ip> version` answers, then
