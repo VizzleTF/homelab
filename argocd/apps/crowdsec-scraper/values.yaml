@@ -126,6 +126,8 @@ homelab-common:
                   imagePullPolicy: IfNotPresent
                   args:
                     - -promscrape.config=/etc/vmagent/scrape.yaml
+                    # auto-reload scrape.yaml ConfigMap changes (no config-reloader sidecar)
+                    - -promscrape.configCheckInterval=30s
                     - -remoteWrite.url=http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428/api/v1/write
                     - -remoteWrite.tmpDataPath=/tmp/vmagent-rw
                     - -remoteWrite.maxDiskUsagePerURL=512MB
