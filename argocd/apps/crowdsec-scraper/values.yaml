@@ -1,0 +1,145 @@
+# crowdsec-scraper — pull CrowdSec :6060 метрик с VPS-парка (internal.example) в домашний
+# VictoriaMetrics. Под = netbird sidecar (входит в self-hosted mesh netbird.example.com,
+# свой peer k8s-crowdsec-scraper) + vmagent в общем netns: видит и cluster (VMSingle через
+# eth0/CoreDNS), и mesh-IP VPS (100.104.x.x через wt0). vmagent скрейпит :6060 и remote_write
+# → in-cluster VMSingle. На VPS crowdsec prometheus bind 0.0.0.0, nft пускает :6060 только
+# из 100.104.0.0/16 (см. ../vps/crowdsec.md).
+homelab-common:
+  # netbird identity PVC (/etc/netbird) — отдельный peer, НЕ переиспользовать netbird app.
+  veleroSchedules:
+    - name: crowdsec-scraper-daily
+      schedule: "25 2 * * *"
+      template:
+        includedNamespaces: [crowdsec-scraper]
+
+  externalSecrets:
+    - name: netbird-peer
+      vaultPath: crowdsec-scraper/netbird   # → home/homelab/k8s/crowdsec-scraper/netbird
+      data:
+        - secretKey: setup-key
+          property: setup-key
+      templateData:
+        NB_SETUP_KEY: '{{ index . "setup-key" }}'
+
+  persistentVolumeClaims:
+    - name: netbird-peer
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 100Mi
+      labels:
+        app: crowdsec-scraper
+
+  apps:
+    - name: scraper
+      configMap:
+        metadata:
+          labels:
+            app: crowdsec-scraper
+        data:
+          scrape.yaml: |
+            global:
+              scrape_interval: 30s
+              external_labels:
+                cluster: vps
+            scrape_configs:
+              - job_name: crowdsec
+                metrics_path: /metrics
+                static_configs:
+                  - targets: ["100.104.107.59:6060"]
+                    labels: {host: dp}
+                  - targets: ["100.104.62.15:6060"]
+                    labels: {host: ape}
+                  - targets: ["100.104.110.240:6060"]
+                    labels: {host: cloudru}
+                  - targets: ["100.104.113.213:6060"]
+                    labels: {host: nexus}
+      deployment:
+        metadata:
+          labels:
+            app: crowdsec-scraper
+        spec:
+          replicas: 1
+          strategy:
+            type: Recreate
+          selector:
+            matchLabels:
+              app: crowdsec-scraper
+          template:
+            metadata:
+              labels:
+                app: crowdsec-scraper
+            spec:
+              containers:
+                - name: netbird
+                  # renovate: image=netbirdio/netbird
+                  image: netbirdio/netbird:0.72.2
+                  imagePullPolicy: IfNotPresent
+                  securityContext:
+                    capabilities:
+                      add:
+                        - NET_ADMIN
+                        - NET_RAW
+                        - SYS_ADMIN
+                        - SYS_RESOURCE
+                  env:
+                    - name: NB_MANAGEMENT_URL
+                      value: "https://netbird.example.com"
+                    - name: NB_ADMIN_URL
+                      value: "https://netbird.example.com"
+                    - name: NB_HOSTNAME
+                      value: "k8s-crowdsec-scraper"
+                    - name: NB_LOG_LEVEL
+                      value: "info"
+                  envFrom:
+                    - secretRef:
+                        name: netbird-peer
+                  resources:
+                    limits:
+                      cpu: 300m
+                      memory: 128Mi
+                    requests:
+                      cpu: 20m
+                      memory: 48Mi
+                  volumeMounts:
+                    - name: tun
+                      mountPath: /dev/net/tun
+                    - name: state
+                      mountPath: /etc/netbird
+                - name: vmagent
+                  # renovate: image=victoriametrics/vmagent
+                  image: victoriametrics/vmagent:v1.145.0
+                  imagePullPolicy: IfNotPresent
+                  args:
+                    - -promscrape.config=/etc/vmagent/scrape.yaml
+                    - -remoteWrite.url=http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428/api/v1/write
+                    - -remoteWrite.tmpDataPath=/tmp/vmagent-rw
+                    - -remoteWrite.maxDiskUsagePerURL=512MB
+                    - -remoteWrite.queues=1
+                    - -memory.allowedPercent=60
+                  resources:
+                    limits:
+                      cpu: 200m
+                      memory: 192Mi
+                    requests:
+                      cpu: 20m
+                      memory: 64Mi
+                  volumeMounts:
+                    - name: scrape-config
+                      mountPath: /etc/vmagent
+                      readOnly: true
+                    - name: rw-queue
+                      mountPath: /tmp/vmagent-rw
+              volumes:
+                - name: tun
+                  hostPath:
+                    path: /dev/net/tun
+                    type: CharDevice
+                - name: state
+                  persistentVolumeClaim:
+                    claimName: netbird-peer
+                - name: scrape-config
+                  configMap:
+                    name: crowdsec-scraper
+                - name: rw-queue
+                  emptyDir: {}
