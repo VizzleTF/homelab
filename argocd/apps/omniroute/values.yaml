@@ -107,7 +107,7 @@ homelab-common:
               containers:
                 - name: omniroute
                   # renovate: image=ghcr.io/diegosouzapw/omniroute
-                  image: ghcr.io/diegosouzapw/omniroute:3.8.35
+                  image: ghcr.io/diegosouzapw/omniroute:3.8.36
                   ports:
                     - containerPort: 20128
                   env:
