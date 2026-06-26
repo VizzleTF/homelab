@@ -290,6 +290,156 @@ homelab-common:
                 meta_description: Collaborative travel planner
                 policy_engine_mode: any
 
+    # Self-service enrollment via single-use invitation links.
+    # Built as a blueprint because the admin "create enrollment flow" wizard is
+    # broken on authentik 2026.5.3 (dramatiq get_result() times out — task runs
+    # and result lands in the Task table, but the synchronous get_result the
+    # wizard uses never resolves). The blueprint discovery+apply path is fine.
+    - name: authentik-blueprint-enrollment-invitation
+      namespace: authentik
+      enabled: true
+      blueprints:
+        enrollment-invitation.yaml: |
+          version: 1
+          metadata:
+            name: Enrollment via Invitation
+          entries:
+            # --- Prompt fields ---
+            - model: authentik_stages_prompt.prompt
+              id: prompt-username
+              identifiers:
+                field_key: username
+                name: invitation-field-username
+              attrs:
+                label: Username
+                type: username
+                required: true
+                placeholder: Username
+                order: 100
+            - model: authentik_stages_prompt.prompt
+              id: prompt-name
+              identifiers:
+                field_key: name
+                name: invitation-field-name
+              attrs:
+                label: Display name
+                type: text
+                required: true
+                placeholder: Name
+                order: 150
+            - model: authentik_stages_prompt.prompt
+              id: prompt-email
+              identifiers:
+                field_key: email
+                name: invitation-field-email
+              attrs:
+                label: Email
+                type: email
+                required: true
+                placeholder: Email
+                order: 200
+            - model: authentik_stages_prompt.prompt
+              id: prompt-password
+              identifiers:
+                field_key: password
+                name: invitation-field-password
+              attrs:
+                label: Password
+                type: password
+                required: true
+                placeholder: Password
+                order: 300
+            - model: authentik_stages_prompt.prompt
+              id: prompt-password-repeat
+              identifiers:
+                field_key: password_repeat
+                name: invitation-field-password-repeat
+              attrs:
+                label: Password (repeat)
+                type: password
+                required: true
+                placeholder: Password (repeat)
+                order: 400
+
+            # --- Password-equality validation policy ---
+            - model: authentik_policies_expression.expressionpolicy
+              id: policy-password-equal
+              identifiers:
+                name: invitation-password-equals
+              attrs:
+                expression: |
+                  if request.context.get("prompt_data", {}).get("password") != request.context.get("prompt_data", {}).get("password_repeat"):
+                      ak_message("Passwords don't match.")
+                      return False
+                  return True
+
+            # --- Stages ---
+            - model: authentik_stages_invitation.invitationstage
+              id: stage-invitation
+              identifiers:
+                name: invitation-enrollment-invitation
+              attrs:
+                continue_flow_without_invitation: false
+            - model: authentik_stages_prompt.promptstage
+              id: stage-prompt
+              identifiers:
+                name: invitation-enrollment-prompt
+              attrs:
+                fields:
+                  - !KeyOf prompt-username
+                  - !KeyOf prompt-name
+                  - !KeyOf prompt-email
+                  - !KeyOf prompt-password
+                  - !KeyOf prompt-password-repeat
+                validation_policies:
+                  - !KeyOf policy-password-equal
+            - model: authentik_stages_user_write.userwritestage
+              id: stage-write
+              identifiers:
+                name: invitation-enrollment-write
+              attrs:
+                user_creation_mode: always_create
+                create_users_as_inactive: false
+            - model: authentik_stages_user_login.userloginstage
+              id: stage-login
+              identifiers:
+                name: invitation-enrollment-login
+              attrs:
+                session_duration: seconds=0
+
+            # --- Flow ---
+            - model: authentik_flows.flow
+              id: flow
+              identifiers:
+                slug: enrollment-invitation
+              attrs:
+                name: Enrollment via Invitation
+                title: Create your account
+                designation: enrollment
+                authentication: require_unauthenticated
+
+            # --- Stage bindings (order = sequence) ---
+            - model: authentik_flows.flowstagebinding
+              identifiers:
+                target: !KeyOf flow
+                stage: !KeyOf stage-invitation
+                order: 10
+            - model: authentik_flows.flowstagebinding
+              identifiers:
+                target: !KeyOf flow
+                stage: !KeyOf stage-prompt
+                order: 20
+            - model: authentik_flows.flowstagebinding
+              identifiers:
+                target: !KeyOf flow
+                stage: !KeyOf stage-write
+                order: 30
+            - model: authentik_flows.flowstagebinding
+              identifiers:
+                target: !KeyOf flow
+                stage: !KeyOf stage-login
+                order: 40
+
   externalSecrets:
     # Config secret for authentik (referenced via existingSecret.secretName)
     - name: authentik-config
@@ -411,6 +561,7 @@ blueprints:
     - authentik-blueprint-forgejo
     - authentik-blueprint-velero-ui
     - authentik-blueprint-trek
+    - authentik-blueprint-enrollment-invitation
 
 global:
   securityContext:
