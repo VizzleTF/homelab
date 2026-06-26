@@ -1,0 +1,81 @@
+# TREK — self-hosted collaborative travel planner (NestJS + React, SQLite).
+# Chart pins fsGroup:1000 and exposes no securityContext override → image runs as
+# UID 1000 (Node). No LimitRange-incompatible knobs; resources set below.
+
+image:
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 3000
+
+# ENCRYPTION_KEY / ADMIN_* / OIDC_CLIENT_SECRET are read from this ESO-managed
+# Secret (see homelab-common.externalSecrets). Setting existingSecret makes the
+# chart skip its own Secret template — no name clash.
+existingSecret: trek-secret
+existingSecretKey: ENCRYPTION_KEY
+
+env:
+  NODE_ENV: production
+  PORT: 3000
+  DEFAULT_LANGUAGE: "ru"
+  # Behind Cloudflare tunnel + Gateway (TLS terminated upstream).
+  APP_URL: "https://trek.example.com"
+  ALLOWED_ORIGINS: "https://trek.example.com"
+  FORCE_HTTPS: "true"
+  TRUST_PROXY: "1"
+  # OIDC (Authentik) — OIDC_CLIENT_SECRET comes from the ESO secret above.
+  OIDC_ISSUER: "https://authentik.example.com/application/o/trek/"
+  OIDC_DISCOVERY_URL: "https://authentik.example.com/application/o/trek/.well-known/openid-configuration"
+  OIDC_CLIENT_ID: "trek"
+  OIDC_DISPLAY_NAME: "Authentik"
+  OIDC_SCOPE: "openid email profile"
+
+persistence:
+  enabled: true
+  data:
+    size: 1Gi
+    storageClassName: longhorn
+  uploads:
+    size: 10Gi
+    storageClassName: longhorn
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Chart's own Ingress unused — exposure via homelab-common HTTPRoute below.
+ingress:
+  enabled: false
+
+homelab-common:
+  httpRoutes:
+    - name: trek
+      hostname: trek            # → trek.example.com
+      gateway: both             # external (Cloudflare) + internal (LAN)
+      service:
+        name: trek
+        port: 3000
+
+  externalSecrets:
+    - name: trek-secret
+      vaultPath: trek/trek      # → home/homelab/k8s/trek/trek
+      data:
+        - secretKey: ENCRYPTION_KEY
+          property: encryption_key
+        - secretKey: OIDC_CLIENT_SECRET
+          property: oidc_client_secret
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 100m
+      memory: 256Mi
