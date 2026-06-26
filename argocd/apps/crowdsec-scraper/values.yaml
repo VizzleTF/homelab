@@ -54,6 +54,20 @@ homelab-common:
                     labels: {host: cloudru}
                   - targets: ["100.104.113.213:6060"]
                     labels: {host: nexus}
+              # node_exporter (apt prometheus-node-exporter) on each VPS — host load
+              # (CPU/RAM/disk/net). View via the chart's "Node Exporter Full" dashboard
+              # with the job=node selector. :9100 firewalled to mesh (nft, ../vps).
+              - job_name: node
+                metrics_path: /metrics
+                static_configs:
+                  - targets: ["100.104.107.59:9100"]
+                    labels: {host: dp}
+                  - targets: ["100.104.62.15:9100"]
+                    labels: {host: ape}
+                  - targets: ["100.104.110.240:9100"]
+                    labels: {host: cloudru}
+                  - targets: ["100.104.113.213:9100"]
+                    labels: {host: nexus}
       deployment:
         metadata:
           labels:
