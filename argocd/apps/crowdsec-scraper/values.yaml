@@ -87,7 +87,7 @@ homelab-common:
               containers:
                 - name: netbird
                   # renovate: image=netbirdio/netbird
-                  image: netbirdio/netbird:0.72.2
+                  image: netbirdio/netbird:0.73.2
                   imagePullPolicy: IfNotPresent
                   securityContext:
                     capabilities:
@@ -122,7 +122,7 @@ homelab-common:
                       mountPath: /etc/netbird
                 - name: vmagent
                   # renovate: image=victoriametrics/vmagent
-                  image: victoriametrics/vmagent:v1.145.0
+                  image: victoriametrics/vmagent:v1.146.0
                   imagePullPolicy: IfNotPresent
                   args:
                     - -promscrape.config=/etc/vmagent/scrape.yaml
