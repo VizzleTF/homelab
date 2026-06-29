@@ -5,6 +5,7 @@ ignore:
   - charts/*/charts/
   - .git/
   - terraform_talos/.terraform/
+  - .mise.toml
 
 rules:
   truthy: disable

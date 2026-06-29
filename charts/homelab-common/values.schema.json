@@ -196,6 +196,7 @@
         "service": {
           "type": "object",
           "additionalProperties": false,
+          "required": ["name", "port"],
           "properties": {
             "name":      { "type": "string" },
             "namespace": { "type": "string" },
