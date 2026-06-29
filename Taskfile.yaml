@@ -1,0 +1,20 @@
+# go-task front-door for the homelab repo. Thin dispatcher over scripts/ —
+# the scripts remain the implementation; this just makes them discoverable
+# (`task --list`) and gives the local pre-merge gate one entry point (`task ci:all`).
+# Tool versions are pinned in .mise.toml (`mise install` to provision them).
+version: '3'
+
+includes:
+  ci: .taskfiles/ci/Taskfile.yaml
+  talos: .taskfiles/talos/Taskfile.yaml
+  pr: .taskfiles/pr/Taskfile.yaml
+  vm: .taskfiles/vm/Taskfile.yaml
+  garage: .taskfiles/garage/Taskfile.yaml
+  synology: .taskfiles/synology/Taskfile.yaml
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list
+    silent: true

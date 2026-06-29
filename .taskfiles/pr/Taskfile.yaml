@@ -1,0 +1,21 @@
+# Wraps scripts/forgejo-pr.sh (vizzle-merge-token from Vault).
+version: '3'
+
+tasks:
+  open:
+    desc: 'Open a Forgejo PR — usage: task pr:open -- <branch> -- "<title>" "<body>"'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/forgejo-pr.sh open {{.CLI_ARGS}}
+
+  status:
+    desc: 'PR status / CI checks — usage: task pr:status -- <pr-number>'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/forgejo-pr.sh status {{.CLI_ARGS}}
+
+  merge:
+    desc: 'Squash-merge a PR after green — usage: task pr:merge -- <pr-number>'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/forgejo-pr.sh merge {{.CLI_ARGS}}

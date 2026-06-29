@@ -1,0 +1,47 @@
+# Local mirror of the .forgejo/workflows/ci.yaml pre-merge gate.
+# Run `task ci:all` before pushing.
+version: '3'
+
+tasks:
+  lint:
+    desc: yamllint the whole repo (matches CI yamllint job)
+    cmds:
+      - yamllint .
+
+  helm-lint:
+    desc: Lint + smoke-template homelab-common (matches CI helm-lint job)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - helm lint charts/homelab-common
+      - helm template smoke charts/homelab-common --debug >/dev/null
+
+  schema:
+    desc: Validate every values file against the homelab-common JSON schema
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - |
+        set -euo pipefail
+        fails=0
+        for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps/*/cnpg-values.yaml \
+                 argocd/infra/*/values.yaml argocd/infra/*/homelab-values.yaml \
+                 argocd/values/argocd.yaml; do
+          [ -f "$f" ] || continue
+          grep -qE '^homelab-common:|^global:' "$f" || continue
+          helm template test charts/homelab-common -f argocd/values/global.yaml -f "$f" >/dev/null \
+            || { echo "FAIL: $f"; fails=$((fails + 1)); }
+        done
+        [ "$fails" -eq 0 ] && echo "schema: clean" || { echo "$fails file(s) failed"; exit 1; }
+
+  kubeconform:
+    desc: Validate raw + rendered manifests with kubeconform (matches CI kubeconform job)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/kubeconform-validate.sh
+
+  all:
+    desc: Run the full pre-merge gate locally (lint + helm-lint + schema + kubeconform)
+    cmds:
+      - task: lint
+      - task: helm-lint
+      - task: schema
+      - task: kubeconform

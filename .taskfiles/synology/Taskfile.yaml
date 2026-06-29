@@ -1,0 +1,15 @@
+# Wraps scripts/synology-cert.sh (DSM cert via acme.sh; see renewing-synology-cert skill).
+version: '3'
+
+tasks:
+  status:
+    desc: Show Synology DSM certificate status
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/synology-cert.sh status {{.CLI_ARGS}}
+
+  renew:
+    desc: Renew DSM cert via acme.sh + Cloudflare DNS-01 and reload nginx
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/synology-cert.sh renew {{.CLI_ARGS}}

@@ -1,0 +1,15 @@
+# Wraps scripts/vm.sh (VictoriaMetrics ops; see managing-victoria-metrics skill).
+version: '3'
+
+tasks:
+  status:
+    desc: VictoriaMetrics stack status
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/vm.sh status {{.CLI_ARGS}}
+
+  cli:
+    desc: 'Passthrough — usage: task vm:cli -- <subcommand> [args] (query/rules/targets/silence/logs)'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/vm.sh {{.CLI_ARGS}}

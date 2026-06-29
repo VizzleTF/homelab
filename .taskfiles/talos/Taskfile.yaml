@@ -1,0 +1,27 @@
+# Wraps scripts/talos-upgrade.sh (see also the upgrading-talos skill).
+version: '3'
+
+tasks:
+  check:
+    desc: Check Talos OS / Kubernetes upgrade availability
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/talos-upgrade.sh check {{.CLI_ARGS}}
+
+  plan:
+    desc: Show the upgrade plan
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/talos-upgrade.sh plan {{.CLI_ARGS}}
+
+  upgrade-os:
+    desc: 'Upgrade Talos OS — usage: task talos:upgrade-os -- --node <name>'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/talos-upgrade.sh upgrade-os {{.CLI_ARGS}}
+
+  upgrade-k8s:
+    desc: 'Upgrade Kubernetes version — usage: task talos:upgrade-k8s -- --node <name>'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/talos-upgrade.sh upgrade-k8s {{.CLI_ARGS}}

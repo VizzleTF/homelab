@@ -1,0 +1,15 @@
+# Wraps scripts/garage-bucket.sh (Garage S3 on Synology; see creating-garage-bucket skill).
+version: '3'
+
+tasks:
+  create:
+    desc: 'Create bucket + key, store creds in Vault — usage: task garage:create -- <bucket> <key> --namespace <ns>'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/garage-bucket.sh create {{.CLI_ARGS}}
+
+  status:
+    desc: 'Bucket/key status — usage: task garage:status -- <key> --namespace <ns>'
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/garage-bucket.sh status {{.CLI_ARGS}}
