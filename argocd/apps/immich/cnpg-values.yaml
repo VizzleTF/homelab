@@ -60,9 +60,15 @@ cluster:
 
   initdb:
     database: immich
-    # Historical (init ran once, immutable in effect). Aligned to the real owner
-    # `immich` for truthfulness; changing it has no effect on the live cluster.
     owner: immich
+    # CNPG reconciles the owner's password from THIS secret (ongoing, not just at
+    # init). Must be a kubernetes.io/basic-auth secret whose `username` == owner.
+    # Default `<cluster>-app` (username=app) mismatches → "while updating database
+    # owner password: wrong username 'app', expected 'immich'". immich-main-user-
+    # credentials is the purpose-built basic-auth secret (username=immich, same
+    # Vault immich/main-database password as immich-db-credentials).
+    secret:
+      name: immich-main-user-credentials
     postInitSQL:
       - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
 
