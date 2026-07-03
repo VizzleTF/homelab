@@ -1,0 +1,70 @@
+# CouchDB chart values (apache/couchdb). Backend для Obsidian Self-hosted LiveSync.
+# homelab-common живёт в homelab-values.yaml (strict schema у couchdb chart).
+
+# Single-node: LiveSync требует single_node=true, кластер не нужен.
+clusterSize: 1
+
+# Admin creds из ESO-секрета (homelab-values.yaml → ExternalSecret), не из git.
+# Chart ждёт секрет с кастомными key-именами.
+createAdminSecret: false
+adminUsername: admin
+extraSecretName: obsidian-livesync-couchdb-creds
+adminUsernameKey: adminUsername
+adminPasswordKey: adminPassword
+cookieAuthSecretKey: cookieAuthSecret
+erlangCookieKey: erlangCookie
+
+image:
+  repository: couchdb
+  tag: "3.5.1"
+
+persistentVolume:
+  enabled: true
+  storageClass: longhorn
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+
+# Данные = sync-хаб, но PVC не пересоздавать при удалении StatefulSet.
+persistentVolumeClaimRetentionPolicy:
+  enabled: true
+  whenScaled: Retain
+  whenDeleted: Retain
+
+# Single node → anti-affinity не нужен, networkpolicy для кластерного трафика не нужен.
+networkPolicy:
+  enabled: false
+
+# LiveSync-обязательная конфигурация CouchDB.
+couchdbConfig:
+  couchdb:
+    # Стабильный server UUID (chart требует явно; не секрет). Не менять после init.
+    uuid: 158082af61034052db27da49056dddc0
+    single_node: true
+    max_document_size: 50000000
+  chttpd:
+    bind_address: any
+    require_valid_user: true
+    max_http_request_size: 4294967296
+    enable_cors: true
+  chttpd_auth:
+    require_valid_user: true
+  httpd:
+    WWW-Authenticate: 'Basic realm="couchdb"'
+    enable_cors: true
+  cors:
+    origins: app://obsidian.md,capacitor://localhost,http://localhost
+    credentials: "true"
+    headers: accept, authorization, content-type, origin, referer
+    methods: GET, PUT, POST, HEAD, DELETE
+  # Авто-compaction: LiveSync плодит ревизии, без compaction .couch пухнут.
+  smoosh:
+    db_channels: upgrade_dbs,ratio_dbs,slack_dbs
+    view_channels: upgrade_views,ratio_views,slack_views
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    memory: 512Mi

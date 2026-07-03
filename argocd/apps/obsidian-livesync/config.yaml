@@ -1,0 +1,6 @@
+chart: couchdb
+repoURL: https://apache.github.io/couchdb-helm
+targetRevision: "4.6.3"
+namespace: obsidian-livesync
+wave: "2"
+homelabValuesFile: homelab-values.yaml
