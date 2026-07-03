@@ -16,12 +16,13 @@ homelab-common:
         - secretKey: erlangCookie
           property: erlangCookie
 
-  # External через Cloudflare tunnel → мобильники синкаются с сотовой сети.
+  # both: LAN-устройства синкаются напрямую через internal gateway (обходит CF 100MB
+  # лимит на вложениях), вне дома — через Cloudflare tunnel. Один hostname/Setup-URI.
   # E2E-шифрование в плагине → CouchDB/трафик не палят заметки.
   httpRoutes:
     - name: obsidian-livesync
       hostname: livesync
-      gateway: external
+      gateway: both
       service:
         name: obsidian-livesync-svc-couchdb
         port: 5984
