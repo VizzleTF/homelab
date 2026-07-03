@@ -169,7 +169,7 @@ homelab-common:
   
   cnpgDatabase:
     name: immich
-    owner: immich_user
+    owner: immich
     clusterName: immich-cluster
     extensions:
       - name: vector
@@ -177,7 +177,7 @@ homelab-common:
       - name: earthdistance
 
   # Independent logical backup (pg_dump -Fc) immich DB → OVH pg-logical/immich-cluster/.
-  # Параллельно barman→Garage. immich_user = superuser → дамп всей DB. Restore требует
+  # Параллельно barman→Garage. immich владеет всей DB (owner) → дамп всей DB. Restore требует
   # vchord-image (CREATE EXTENSION vchord). Тир секреты: daily 03:55, 90d.
   cronJobs:
     - name: pglogical-offsite
