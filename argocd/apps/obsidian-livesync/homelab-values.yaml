@@ -1,0 +1,43 @@
+# Только homelab-common (второй источник ApplicationSet). Не смешивать с values.yaml —
+# couchdb chart имеет строгую values schema (config.yaml → homelabValuesFile: homelab-values.yaml).
+homelab-common:
+  # CouchDB admin creds из OpenBao. Target-секрет с key-именами под couchdb chart
+  # (values.yaml: extraSecretName + *Key). Vault: homelab/k8s/obsidian-livesync/couchdb.
+  externalSecrets:
+    - name: obsidian-livesync-couchdb-creds
+      vaultPath: obsidian-livesync/couchdb
+      data:
+        - secretKey: adminUsername
+          property: username
+        - secretKey: adminPassword
+          property: password
+        - secretKey: cookieAuthSecret
+          property: cookieAuthSecret
+        - secretKey: erlangCookie
+          property: erlangCookie
+
+  # External через Cloudflare tunnel → мобильники синкаются с сотовой сети.
+  # E2E-шифрование в плагине → CouchDB/трафик не палят заметки.
+  httpRoutes:
+    - name: obsidian-livesync
+      hostname: livesync
+      gateway: external
+      service:
+        name: obsidian-livesync-svc-couchdb
+        port: 5984
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 25m
+      memory: 64Mi
+
+  # Crash-consistent snapshot CouchDB PVC. Данные = sync-хаб (не единственная копия),
+  # recovery = re-init + Fetch с любого устройства. Daily, Garage BSL.
+  veleroSchedules:
+    - name: obsidian-livesync-daily
+      schedule: "40 2 * * *"
