@@ -29,12 +29,20 @@ cluster:
       memory: "4Gi"
       cpu: "2"
 
+  # Role name MUST equal the `username` key in immich-db-credentials (Vault
+  # immich/main-database → "immich"), else CNPG refuses to reconcile the managed
+  # role: "wrong username 'immich' in secret, expected '<role>'" every ~16 min.
+  # The cluster was barman-restored (2026-05); restored data + all 66 tables +
+  # the immich DB are owned by role `immich`, and the app connects as `immich`
+  # (non-superuser, and the pg-logical dump runs fine as owner) — so `immich`,
+  # superuser:false, is the source of truth. The old `immich_user` superuser was
+  # a phantom (owned nothing); drop it manually after this reconciles.
   roles:
-    - name: immich_user
+    - name: immich
       ensure: present
       comment: "Immich application user for database access"
       login: true
-      superuser: true
+      superuser: false
       inherit: true
       connectionLimit: -1
       passwordSecret:
@@ -52,7 +60,9 @@ cluster:
 
   initdb:
     database: immich
-    owner: immich_user
+    # Historical (init ran once, immutable in effect). Aligned to the real owner
+    # `immich` for truthfulness; changing it has no effect on the live cluster.
+    owner: immich
     postInitSQL:
       - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
 
