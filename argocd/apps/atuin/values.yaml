@@ -59,7 +59,7 @@ homelab-common:
               containers:
                 - name: atuin
                   # renovate: image=ghcr.io/atuinsh/atuin
-                  image: ghcr.io/atuinsh/atuin:18.16.1
+                  image: ghcr.io/atuinsh/atuin:18.17.0
                   imagePullPolicy: IfNotPresent
                   # Image entrypoint is `atuin server`; `start` launches the sync server.
                   args: ["start"]
