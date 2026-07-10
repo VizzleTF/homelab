@@ -256,9 +256,9 @@ _shared_config:
   hostname: &hostname immich.example.com
   url: &url https://immich.example.com
   # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
-  version: &version "v3.0.1"
+  version: &version "v3.0.2"
   # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
-  ml_tag: &ml_tag "v3.0.1-openvino"
+  ml_tag: &ml_tag "v3.0.2-openvino"
 
 # Pod-level securityContext + soft affinity for the server component.
 # Prefer the bare-metal ML worker so the server lands next to the ML pod (low-latency
