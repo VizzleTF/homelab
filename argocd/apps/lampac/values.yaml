@@ -10,7 +10,7 @@ image:
   # Upstream tags every release as both `X.Y.Z` and `vX.Y.Z`. Stay on the non-v
   # scheme — a renovate.json rule (allowedVersions "!/^v/") locks tracking to it
   # so the prefix never flips and Renovate keeps bumping cleanly.
-  tag: "1.39.1"
+  tag: "1.40.0"
 
 serviceAccount:
   create: true
