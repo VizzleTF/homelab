@@ -1,4 +1,4 @@
 chart: valkey
 repoURL: https://charts.bitnami.com/bitnami
-targetRevision: "6.1.16"
+targetRevision: "6.2.0"
 wave: "1"
