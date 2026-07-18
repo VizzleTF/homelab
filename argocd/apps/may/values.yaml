@@ -88,7 +88,7 @@ homelab-common:
               containers:
                 - name: may
                   # renovate: image=ghcr.io/dannymcc/may
-                  image: ghcr.io/dannymcc/may:0.24.4
+                  image: ghcr.io/dannymcc/may:0.25.0
                   imagePullPolicy: IfNotPresent
                   ports:
                     - name: http
