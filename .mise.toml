@@ -3,7 +3,7 @@
 # Renovate's native `mise` manager bumps these (datasource auto-resolved per tool).
 # `scripts/kubeconform-validate.sh` (and CI) read the kubeconform pin from here.
 [tools]
-helm = "3.16.4"          # keep in sync with .forgejo/workflows/ci.yaml helm install
+helm = "3.21.3"          # keep in sync with .forgejo/workflows/ci.yaml helm install
 kubectl = "1.36.2"       # match cluster k8s version
 talosctl = "1.13.6"
 kubeconform = "0.8.0"
