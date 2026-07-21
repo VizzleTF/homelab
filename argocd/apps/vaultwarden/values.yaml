@@ -54,7 +54,7 @@ initContainers:
 # podSecurityContext.runAsNonRoot:true это блокирует.
 sidecars:
   - name: sqlite-helper
-    image: keinos/sqlite3:3.53.2
+    image: keinos/sqlite3:3.53.3
     command: ["/bin/sh", "-c", "exec sleep infinity"]
     securityContext:
       runAsUser: 1001
