@@ -25,13 +25,13 @@ spec:
       initContainers:
         - name: fetch-talosctl
           # renovate: image=curlimages/curl
-          image: curlimages/curl:8.20.0
+          image: curlimages/curl:8.21.0
           command: [sh, -c]
           args:
             - |
               set -eu
               # renovate: datasource=github-releases depName=siderolabs/talos
-              version="v1.13.4"
+              version="v1.13.7"
               url="https://github.com/siderolabs/talos/releases/download/${version}/talosctl-linux-amd64"
               echo "Downloading talosctl ${version}"
               curl -fsSL "$url" -o /tools/talosctl

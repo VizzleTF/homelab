@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.24
+# syntax=docker/dockerfile:1.25
 # Devcontainer for homelab — pinned toolchain + Claude Code.
 # Renovate updates ARG pins via inline `# renovate:` annotations.
 
