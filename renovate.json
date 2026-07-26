@@ -4,6 +4,7 @@
     "config:best-practices",
     ":dependencyDashboard"
   ],
+  "description": "rebaseWhen=behind-base-branch (было auto, сменено 2026-07-26): Forgejo branch protection держит block_on_outdated_branch=true, но `auto` на платформе gitea ребейзит только конфликтующие ветки — «отстал от base» Renovate детектит лишь через GitHub-специфичный признак. Ветка устаревала после первого же чужого merge, automerge отдавал 405, PR висел вечно, и очередь упиралась в prConcurrentLimit=10 (10 мёртвых PR = все новые уходят в Rate-Limited на дашборде). Проверено 2026-07-26: 10 открытых PR возрастом до 2 месяцев, все с зелёным CI и automerge:true.",
   "timezone": "UTC",
   "configMigration": true,
   "osvVulnerabilityAlerts": true,
@@ -16,7 +17,7 @@
   "prHourlyLimit": 4,
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
-  "rebaseWhen": "auto",
+  "rebaseWhen": "behind-base-branch",
   "packageRules": [
     {
       "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. minimumReleaseAge УБРАН 2026-06-14: Renovate default minimumReleaseAgeBehaviour=timestamp-required держал вечно pending GHCR-образы без OCI `created` timestamp (may/omniroute/cnpg-postgresql застряли — debug dry-run подтвердил 'Marking N release(s) as pending, do not have a releaseTimestamp'). Buffer ломал трекинг тише, чем защищал. CI+ArgoCD health — реальный gate.",
