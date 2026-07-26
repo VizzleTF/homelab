@@ -7,12 +7,11 @@ homelab-common:
       issuerRef:
         name: cloudflare-issuer
         kind: ClusterIssuer
-      # internal.example SANs removed 2026-07-26: the domain sits on a registrar
-      # verification hold (NS = ns1.verification-hold.suspended-domain.com), so
-      # the DNS-01 challenge cannot resolve authoritative nameservers and the
-      # whole cert stops renewing — including *.example.com, which every route
-      # actually uses. Nothing in the cluster serves a internal.example hostname.
-      # Re-add both entries once the domain is out of hold.
+      # example.com is the only domain. internal.example was decommissioned 2026-07-26:
+      # it died on a registrar verification hold (NS =
+      # ns1.verification-hold.suspended-domain.com), its DNS-01 challenge could
+      # not resolve authoritative nameservers, and because all SANs share one
+      # Certificate it stalled renewal of *.example.com too. Do not add it back.
       dnsNames:
         - "*.example.com"
         - "example.com"

@@ -43,8 +43,6 @@ spec:
   dnsNames:
     - "*.example.com"
     - "example.com"
-    - "*.internal.example"
-    - "internal.example"
 EOF
 
 wait_for "wildcard-tls Certificate Ready" \

@@ -1,4 +1,4 @@
-# crowdsec-scraper — pull CrowdSec :6060 метрик с VPS-парка (internal.example) в домашний
+# crowdsec-scraper — pull CrowdSec :6060 метрик с VPN-VPS парка (dp/ape/vps-panel/vps-fi) в домашний
 # VictoriaMetrics. Под = netbird sidecar (входит в self-hosted mesh netbird.example.com,
 # свой peer k8s-crowdsec-scraper) + vmagent в общем netns: видит и cluster (VMSingle через
 # eth0/CoreDNS), и mesh-IP VPS (100.104.x.x через wt0). vmagent скрейпит :6060 и remote_write
