@@ -28,9 +28,14 @@ runner:
           A_TEST_ENV_NAME_1: a_test_env_value_1
           A_TEST_ENV_NAME_2: a_test_env_value_2
         env_file: .env
+        # act_runner runs JS actions with the node binary from these images, so the
+        # newest label must carry a node runtime at least as new as the actions we
+        # use. actions/checkout v7 declares `using: node24`, which cannot start on
+        # node:22. ubuntu-latest and ubuntu-24.04 therefore run node:24-bookworm;
+        # the older labels stay put so a workflow can pin an older runtime.
         labels:
-          - ubuntu-latest:docker://node:20-bookworm
-          - ubuntu-24.04:docker://node:22-bookworm
+          - ubuntu-latest:docker://node:24-bookworm
+          - ubuntu-24.04:docker://node:24-bookworm
           - ubuntu-22.04:docker://node:22-bookworm
           - ubuntu-20.04:docker://node:20-bookworm
       cache:
