@@ -77,6 +77,16 @@ provider:
         cpu: 12m
         memory: 32Mi
 
+    # The chart applies the top-level `securityContext` to the external-dns
+    # container only, so the webhook sidecar tripped the namespace's
+    # restricted PodSecurity warning on every rollout. Same settings here.
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+
 annotationFilter: "external-dns.alpha.kubernetes.io/internal-dns in (true)"
 
 sources:
