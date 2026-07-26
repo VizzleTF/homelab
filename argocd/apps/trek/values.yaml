@@ -56,7 +56,8 @@ homelab-common:
   httpRoutes:
     - name: trek
       hostname: trek            # → trek.example.com
-      gateway: both             # external (Cloudflare) + internal (LAN)
+      # external-only, see immich/values.yaml for the split-horizon / QUIC story
+      gateway: external
       service:
         name: trek
         port: 3000

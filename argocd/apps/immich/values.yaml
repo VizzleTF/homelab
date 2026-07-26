@@ -159,7 +159,12 @@ homelab-common:
   httpRoutes:
     - name: immich
       hostname: immich
-      gateway: both
+      # external-only: split-horizon DNS (internal route + LAN A-record) made
+      # browsers reuse the Cloudflare-advertised HTTP/3 Alt-Svc against the
+      # TCP-only internal gateway -> ERR_QUIC_PROTOCOL_ERROR at home.
+      # Note: LAN traffic now hairpins through Cloudflare, so the free-plan
+      # 100 MB request cap applies to uploads.
+      gateway: external
       # gatus auto-discovery (home-operations/gatus-sidecar, opt-in)
       annotations:
         gatus.home-operations.com/enabled: "true"

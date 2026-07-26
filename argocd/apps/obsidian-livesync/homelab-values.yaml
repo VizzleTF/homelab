@@ -16,13 +16,15 @@ homelab-common:
         - secretKey: erlangCookie
           property: erlangCookie
 
-  # both: LAN-устройства синкаются напрямую через internal gateway (обходит CF 100MB
-  # лимит на вложениях), вне дома — через Cloudflare tunnel. Один hostname/Setup-URI.
+  # external-only: internal route + LAN A-record on the same hostname made browsers
+  # reuse the Cloudflare-advertised HTTP/3 Alt-Svc against the TCP-only internal
+  # gateway -> ERR_QUIC_PROTOCOL_ERROR at home. LAN sync now hairpins through
+  # Cloudflare, so the free-plan 100 MB request cap applies to attachments again.
   # E2E-шифрование в плагине → CouchDB/трафик не палят заметки.
   httpRoutes:
     - name: obsidian-livesync
       hostname: livesync
-      gateway: both
+      gateway: external
       service:
         name: obsidian-livesync-svc-couchdb
         port: 5984
