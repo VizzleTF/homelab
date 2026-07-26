@@ -97,9 +97,25 @@ spec:
         - path:
             type: PathPrefix
             value: {{ .pathPrefix | default "/" }}
-      {{- if .filters }}
+      {{- /* Alt-Svc: clear — the same hostname is served by Cloudflare externally
+           (which advertises `alt-svc: h3=":443"`) and by this TCP-only internal
+           gateway on the LAN. Browsers cache Alt-Svc per origin, not per IP, so
+           at home they keep trying QUIC against 10.11.10.138 and fail with
+           ERR_QUIC_PROTOCOL_ERROR. `clear` invalidates that cache (RFC 7838).
+           Opt out per route with `altSvcClear: false`. */}}
+      {{- $altSvcClear := ne .altSvcClear false }}
+      {{- if or $altSvcClear .filters }}
       filters:
-        {{- toYaml .filters | nindent 8 }}
+        {{- if $altSvcClear }}
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Alt-Svc
+                value: clear
+        {{- end }}
+        {{- with .filters }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       backendRefs:
         - name: {{ $svcName }}
