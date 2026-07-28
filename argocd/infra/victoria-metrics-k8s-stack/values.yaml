@@ -101,6 +101,17 @@ defaultRules:
       create: false
     KubeStateMetricsShardsMissing:
       create: false
+    # Talos binds kube-controller-manager (10257) and kube-scheduler (10259) to
+    # 127.0.0.1 — verified unreachable from a pod on all three CP nodes — so
+    # kubeControllerManager.enabled / kubeScheduler.enabled are false below.
+    # These rules are bare `absent(up{job="kube-..."})`, so with no scrape job
+    # they fire critical forever (did so from 2026-07-26 until this change).
+    # Re-enable together with the scrape jobs if the bind-address is ever
+    # patched in the Talos machine config.
+    KubeControllerManagerDown:
+      create: false
+    KubeSchedulerDown:
+      create: false
     # HPA — not used
     KubeHpaMaxedOut:
       create: false
