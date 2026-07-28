@@ -16,6 +16,17 @@ homelab-common:
           property: token
       templateData:
         GITHUB_COM_TOKEN: "{{ .token }}"
+        # GITHUB_COM_TOKEN даёт hostRule ТОЛЬКО для matchHost=github.com (hostType=github)
+        # — ghcr.io Renovate ходит анонимно. Анонимный GHCR-токен короткоживущий и
+        # жёстко rate-limited, а ghcr.io/immich-app/immich-machine-learning имеет
+        # ~186k тегов = 187 последовательных страниц tags/list на каждый lookup
+        # (GHCR капает n на 1000 и сортирует oldest→newest, поэтому Renovate обязан
+        # вычитать ВСЕ страницы). Walk отваливался посреди пагинации → getTags вернул
+        # null → "Failed to look up docker package ...: no-result" в Dependency
+        # Dashboard. Тот же PAT (scope read:packages) снимает лимит.
+        # hostRules — тип array/object, env-переменная парсится JSON5; github.com-правило
+        # из GITHUB_COM_TOKEN добавляется ПОСЛЕ и не затирается.
+        RENOVATE_HOST_RULES: '[{"matchHost":"ghcr.io","hostType":"docker","username":"VizzleTF","password":"{{ .token }}"}]'
     - name: renovate-notify-telegram
       templateEngineVersion: v2
       # Shared bot with Robusta — same Vault path, same chat. Single Telegram bot
