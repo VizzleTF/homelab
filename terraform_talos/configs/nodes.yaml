@@ -5,10 +5,10 @@ cluster:
   apiserver_cert_sans:
     - api.k8s.example.com
   # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
-  kubernetes_version: v1.36.2
+  kubernetes_version: v1.36.3
   talos_version: v1.13
   # renovate: datasource=github-releases depName=siderolabs/talos
-  talos_release: v1.13.6
+  talos_release: v1.13.7
 
 # Bare-metal Talos nodes. To add a node: power it on with a Talos factory
 # ISO, confirm `talosctl --insecure -e <ip> -n <ip> version` answers, then
