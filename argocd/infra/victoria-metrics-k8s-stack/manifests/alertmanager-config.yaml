@@ -10,6 +10,21 @@ spec:
   secretStoreRef:
     name: openbao-backend-cluster
     kind: ClusterSecretStore
+  # ESO v1 rejects an ExternalSecret carrying neither `data` nor `dataFrom`
+  # ("either data or dataFrom should be specified"), even when the whole payload
+  # comes from target.template. Without this block the Replace=true annotation
+  # above made every sync of this app fail — which also kept the chart's PostSync
+  # rules sync-job from running. The keys themselves are vestigial: Telegram
+  # delivery moved to Robusta, so the template below references no variables.
+  data:
+    - secretKey: token
+      remoteRef:
+        key: home/data/homelab/k8s/telegram/victoria-metrics-bot
+        property: token
+    - secretKey: chat_id
+      remoteRef:
+        key: home/data/homelab/k8s/telegram/victoria-metrics-bot
+        property: chat_id
   target:
     name: alertmanager-config
     creationPolicy: Owner
