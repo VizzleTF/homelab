@@ -29,10 +29,10 @@ provider:
       # Форк renanqts/external-dns-openwrt-webhook (апстрим заморожен: единственный
       # релиз v0.1.0 от 2025-02-27, апстрим сам документирует себя как upsert-only).
       # Форк чинит удаление/обновление, multi-target и reload dnsmasq.
-      # Исходники: https://github.com/VizzleTF/external-dns-openwrt-webhook
-      # renovate: datasource=docker depName=ghcr.io/vizzletf/external-dns-openwrt-webhook
-      repository: ghcr.io/vizzletf/external-dns-openwrt-webhook
-      tag: "v0.2.0"
+      # Исходники: https://github.com/VizzleTF/external-dns-openwrt-next
+      # renovate: datasource=docker depName=ghcr.io/vizzletf/external-dns-openwrt-next
+      repository: ghcr.io/vizzletf/external-dns-openwrt-next
+      tag: "v0.3.0"
       pullPolicy: IfNotPresent
 
     livenessProbe:
@@ -63,6 +63,23 @@ provider:
       # uci-конфиги, не только dhcp.
       - name: PROVIDER_OPENWRT_RELOADSTRATEGY
         value: "dnsmasq"
+
+      # Владение записями. Провайдер дописывает `external_dns=homelab` в каждую
+      # созданную uci-секцию и отдаёт external-dns ТОЛЬКО помеченные. Ручные
+      # записи (pve1..pve4, s3.example.com) остаются невидимы — их нельзя ни
+      # обновить, ни удалить. Это предусловие для policy: sync, который иначе
+      # снёс бы их: registry=noop считает своим всё, что вернул провайдер, а
+      # TXT-registry невозможен — в uci нет поддержки TXT.
+      #
+      # Маркер инертен: dhcp_domain_add читает только name/ip, dhcp_cname_add —
+      # только cname/target, в сгенерированный конфиг dnsmasq опция не попадает.
+      - name: PROVIDER_OPENWRT_OWNERSHIPID
+        value: "homelab"
+      # Адопция: если запрошенная запись уже есть на роутере без маркера,
+      # провайдер помечает существующую секцию вместо создания дубликата. Так
+      # мигрируют 10 уже существующих k8s-записей — без правок на роутере.
+      - name: PROVIDER_OPENWRT_ADOPTEXISTING
+        value: "true"
       - name: PROVIDER_OPENWRT_LUCIRPC_HOSTNAME
         valueFrom:
           secretKeyRef:
