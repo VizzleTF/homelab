@@ -50,14 +50,19 @@ provider:
       timeoutSeconds: 5
 
     env:
-      # Шаг 1 миграции на форк: чистая замена образа, поведение как у v0.1.0.
       # `uci commit` пишет только /etc/config/dhcp — он не пересобирает
-      # /var/etc/dnsmasq.conf.* и не сигналит демону (проверено: сгенерированный
-      # конфиг был на 6 дней новее процесса dnsmasq). Форк умеет дёргать
-      # `/etc/init.d/dnsmasq reload` через rpc/sys (`dnsmasq`), но включаем это
-      # отдельным шагом, убедившись что образ поднялся и читает записи.
+      # /var/etc/dnsmasq.conf.* и не сигналит демону, поэтому до этого коммита
+      # новые записи не начинали резолвиться, пока dnsmasq не перезапустят
+      # чем-то ещё (проверено: сгенерированный конфиг был на 6 дней новее
+      # процесса dnsmasq). `dnsmasq` = `/etc/init.d/dnsmasq reload` через
+      # rpc/sys — самый узкий вариант: не трогает ни другие сервисы, ни чужие
+      # застейдженные uci-конфиги. Доступность rpc/sys для этого пользователя
+      # проверена отдельно (login + sys.uptime → 200).
+      #
+      # НЕ менять на `uci-apply` без нужды: тот путь применяет ВСЕ pending
+      # uci-конфиги, не только dhcp.
       - name: PROVIDER_OPENWRT_RELOADSTRATEGY
-        value: "none"
+        value: "dnsmasq"
       - name: PROVIDER_OPENWRT_LUCIRPC_HOSTNAME
         valueFrom:
           secretKeyRef:
