@@ -26,8 +26,13 @@ provider:
   name: webhook
   webhook:
     image:
-      repository: renanqts/external-dns-openwrt-webhook
-      tag: "v0.1.0"
+      # Форк renanqts/external-dns-openwrt-webhook (апстрим заморожен: единственный
+      # релиз v0.1.0 от 2025-02-27, апстрим сам документирует себя как upsert-only).
+      # Форк чинит удаление/обновление, multi-target и reload dnsmasq.
+      # Исходники: https://github.com/VizzleTF/external-dns-openwrt-webhook
+      # renovate: datasource=docker depName=ghcr.io/vizzletf/external-dns-openwrt-webhook
+      repository: ghcr.io/vizzletf/external-dns-openwrt-webhook
+      tag: "v0.2.0"
       pullPolicy: IfNotPresent
 
     livenessProbe:
@@ -45,6 +50,14 @@ provider:
       timeoutSeconds: 5
 
     env:
+      # Шаг 1 миграции на форк: чистая замена образа, поведение как у v0.1.0.
+      # `uci commit` пишет только /etc/config/dhcp — он не пересобирает
+      # /var/etc/dnsmasq.conf.* и не сигналит демону (проверено: сгенерированный
+      # конфиг был на 6 дней новее процесса dnsmasq). Форк умеет дёргать
+      # `/etc/init.d/dnsmasq reload` через rpc/sys (`dnsmasq`), но включаем это
+      # отдельным шагом, убедившись что образ поднялся и читает записи.
+      - name: PROVIDER_OPENWRT_RELOADSTRATEGY
+        value: "none"
       - name: PROVIDER_OPENWRT_LUCIRPC_HOSTNAME
         valueFrom:
           secretKeyRef:
