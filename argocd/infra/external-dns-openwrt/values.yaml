@@ -32,7 +32,7 @@ provider:
       # Исходники: https://github.com/VizzleTF/external-dns-openwrt-next
       # renovate: datasource=docker depName=ghcr.io/vizzletf/external-dns-openwrt-next
       repository: ghcr.io/vizzletf/external-dns-openwrt-next
-      tag: "v0.3.0"
+      tag: "v0.4.0"
       pullPolicy: IfNotPresent
 
     livenessProbe:
@@ -50,19 +50,24 @@ provider:
       timeoutSeconds: 5
 
     env:
-      # `uci commit` пишет только /etc/config/dhcp — он не пересобирает
-      # /var/etc/dnsmasq.conf.* и не сигналит демону, поэтому до этого коммита
-      # новые записи не начинали резолвиться, пока dnsmasq не перезапустят
-      # чем-то ещё (проверено: сгенерированный конфиг был на 6 дней новее
-      # процесса dnsmasq). `dnsmasq` = `/etc/init.d/dnsmasq reload` через
-      # rpc/sys — самый узкий вариант: не трогает ни другие сервисы, ни чужие
-      # застейдженные uci-конфиги. Доступность rpc/sys для этого пользователя
-      # проверена отдельно (login + sys.uptime → 200).
+      # `restart` = `/etc/init.d/dnsmasq restart` через rpc/sys.
+      #
+      # Почему не `reload`: dnsmasq работает под ujail, а reload_service() — это
+      # `rc_procd start_service; procd_send_signal dnsmasq`, и сигнал уходит в
+      # jail-обёртку, а не в демон. Проверено сквозным тестом 2026-07-29: запись
+      # закоммичена, лежит в /tmp/hosts/dhcp.*, а dnsmasq (поднят неделей ранее)
+      # отдаёт по ней NXDOMAIN, при этом соседнее имя из ТОГО ЖЕ файла
+      # резолвится. Голого SIGHUP тоже мало: A-записи живут в hostfile, а CNAME —
+      # это `--cname=` в /var/etc/dnsmasq.conf.*, который читается один раз при
+      # старте. Оба типа применяет только restart.
+      #
+      # Цена: ~1 с без DNS/DHCP, срабатывает лишь когда записи реально менялись,
+      # аренды переживают в /tmp/dhcp.leases.
       #
       # НЕ менять на `uci-apply` без нужды: тот путь применяет ВСЕ pending
       # uci-конфиги, не только dhcp.
       - name: PROVIDER_OPENWRT_RELOADSTRATEGY
-        value: "dnsmasq"
+        value: "restart"
 
       # Владение записями. Провайдер дописывает `external_dns=homelab` в каждую
       # созданную uci-секцию и отдаёт external-dns ТОЛЬКО помеченные. Ручные
