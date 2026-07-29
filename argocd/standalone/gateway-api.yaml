@@ -31,9 +31,17 @@ spec:
       - CreateNamespace=false
       - Replace=true
       - RespectIgnoreDifferences=true
+  # Narrowed from /metadata/annotations (2026-07-29). Combined with
+  # RespectIgnoreDifferences=true, the broad pointer stripped every annotation
+  # from the manifest ArgoCD applies, including
+  # gateway.networking.k8s.io/bundle-version. The safe-upgrades
+  # ValidatingAdmissionPolicy that gateway-api v1.6.1 installs requires that
+  # annotation, so every httproutes CRD apply was denied.
+  # The original intent was only to keep the oversized
+  # kubectl.kubernetes.io/last-applied-configuration out of the diff.
   ignoreDifferences:
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition
       name: httproutes.gateway.networking.k8s.io
       jsonPointers:
-        - /metadata/annotations
+        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
