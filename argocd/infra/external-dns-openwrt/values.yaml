@@ -129,13 +129,21 @@ sources:
   - gateway-tlsroute
   - service
 
-# `upsert-only` (NOT `sync`): with registry=noop, ED treats every
-# record in dnsmasq as fair game. policy=sync would then delete any
-# manual `config domain` entry (PVE hosts, NAS Garage S3) on first
-# reconcile. upsert-only restricts ED to create+update operations
-# only — manual entries are left alone, IP changes to ED-managed
-# hostnames still propagate.
-policy: upsert-only
+# `sync` — удалённый из k8s hostname убирает за собой запись на роутере.
+#
+# Раньше здесь стоял `upsert-only`, потому что при registry=noop ED считает
+# своей КАЖДУЮ запись, вернувшуюся от провайдера, и sync снёс бы ручные
+# `config domain` (PVE-хосты, Garage S3 на NAS). Это больше не так: провайдер
+# помечает свои секции `external_dns=homelab` (PROVIDER_OPENWRT_OWNERSHIPID) и
+# отдаёт ED только помеченные — ручные записи он физически не видит и удалить
+# их не может.
+#
+# Предусловие проверено перед включением: на роутере 17 секций, маркер стоит
+# ровно на 10 k8s-записях, у pve1..pve4 и s3.example.com его нет.
+#
+# ВАЖНО: sync безопасен ТОЛЬКО вместе с OWNERSHIPID. Если убрать маркер —
+# сначала вернуть policy в upsert-only.
+policy: sync
 
 interval: 5m
 
