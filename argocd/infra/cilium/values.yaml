@@ -69,6 +69,11 @@ gatewayAPI:
   enabled: true
   enableAlpn: true
   enableAppProtocol: true
+  # New in Cilium 1.20, defaults to true. Cilium 1.19 had no such flag and ran
+  # Envoy with use_remote_address=false. Keeping it false preserves the pre-1.20
+  # real-IP behaviour behind cloudflared (x-envoy-external-address would otherwise
+  # become the cloudflared pod IP). Flip deliberately, not as an upgrade side effect.
+  useRemoteAddress: false
 
 # Native routing (all nodes on same L2: 10.11.11.x)
 routingMode: native

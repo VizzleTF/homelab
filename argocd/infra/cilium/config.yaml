@@ -1,6 +1,6 @@
 chart: cilium
 repoURL: https://helm.cilium.io/
-targetRevision: "1.19.6"
+targetRevision: "1.20.0"
 namespace: kube-system
 wave: "-5"
 extraManifests: true
