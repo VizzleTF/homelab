@@ -29,7 +29,7 @@ spec:
           containers:
             - name: rclone
               # renovate: image=rclone/rclone
-              image: rclone/rclone:1.74
+              image: rclone/rclone:1.75
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]
               args:

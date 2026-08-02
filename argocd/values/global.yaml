@@ -29,7 +29,7 @@ global:
 
   backup:
     # renovate: datasource=docker depName=rclone/rclone
-    rcloneImage: rclone/rclone:1.74
+    rcloneImage: rclone/rclone:1.75
     rcloneDefaultArgs:
       - --transfers=4
       - --checkers=8
