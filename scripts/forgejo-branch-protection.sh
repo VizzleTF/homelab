@@ -13,7 +13,9 @@
 #
 # Token must have `write:repository` scope on the listed repos.
 # Get one from Forgejo: User Settings → Applications → Generate New Token.
-# Recommended: store in Vault at home/homelab/forgejo/branch-protection-token.
+# In practice: home/homelab/forgejo/vizzle-merge-token (KV v2, key `token`) —
+# it carries the needed rights. A dedicated branch-protection-token was once
+# planned but that Vault path was never populated.
 set -euo pipefail
 
 : "${FORGEJO_TOKEN:?FORGEJO_TOKEN must be set}"
@@ -45,7 +47,14 @@ protection_payload() {
       unprotected_file_patterns: "",
       block_on_rejected_reviews: false,
       block_on_official_review_requests: false,
-      block_on_outdated_branch: true,
+      # Disabled 2026-08-02. With `true`, only ONE PR could merge per Renovate
+      # run: automerging the first PR moved `main`, instantly marking every
+      # other rebased branch outdated, and Forgejo answered 405 on their
+      # automerge. Renovate opens updates faster than 1/day, so the queue never
+      # drained (#396/#399/#400 sat green+mergeable for days). Safety is not
+      # lost: the `gitleaks` status check still gates every PR, and it re-runs
+      # on `main` post-merge before the GitHub mirror push.
+      block_on_outdated_branch: false,
       dismiss_stale_approvals: true,
       ignore_stale_approvals: false,
       require_pull_request: true,

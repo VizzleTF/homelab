@@ -13,6 +13,14 @@
     "addLabels": ["security"],
     "automerge": true
   },
+  "lockFileMaintenance": {
+    "description": "config:best-practices включает lockFileMaintenance с дефолтным расписанием `before 4am on monday`. Кронджоб Renovate стартует в 06:00 UTC — окно к тому моменту закрыто, поэтому запись вечно висела в `Awaiting Schedule` на дашборде и не выполнялась НИ РАЗУ. Расширяем окно на весь понедельник (день недели 1) — попадает любой запуск в этот день. automerge задан здесь явно: updateType `lockFileMaintenance` не матчится правилом ниже (major/minor/patch/pin), иначе PR повис бы открытым. Единственный lock-файл в репо — terraform_talos/.terraform.lock.hcl.",
+    "enabled": true,
+    "schedule": ["* * * * 1"],
+    "automerge": true,
+    "automergeType": "pr",
+    "addLabels": ["automerge"]
+  },
   "prConcurrentLimit": 10,
   "prHourlyLimit": 4,
   "labels": ["dependencies"],
