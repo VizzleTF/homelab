@@ -23,6 +23,16 @@ spec:
 
   policy:
     rebootMode: powercycle
+    # Wait for Longhorn to detach this node's attached (iSCSI) volumes after the
+    # drain BEFORE rebooting. Without this the Talos v1.13 upgrade sequencer hangs
+    # in unmountPodMounts on the still-attached iSCSI devices (EXT4 I/O errors,
+    # "failed to convert unwritten extents"), the reboot never fires, and the node
+    # stays on the old version despite "upgrade completed successfully" (incident
+    # 2026-08-06: cp-01 ran 3 installs, 0 reboots, 10d uptime). This only waits for
+    # the ATTACHMENT to release (workload pods reschedule elsewhere) — it does NOT
+    # migrate replicas: node-drain-policy=always-allow keeps replica data on disk,
+    # reused after reboot within replica-replenishment-wait-interval (1800s).
+    waitForVolumeDetach: true
     placement: soft
     timeout: 45m
 
