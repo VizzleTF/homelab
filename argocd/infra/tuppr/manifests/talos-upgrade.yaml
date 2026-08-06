@@ -16,8 +16,16 @@ metadata:
   namespace: system-upgrade
 spec:
   talos:
+    # FROZEN at v1.13.7 — v1.13.8 breaks Longhorn iSCSI volume attach on this
+    # hardware (engine "iscsidev StartInitator: Failed to discover", 0 volumes
+    # attachable on v1.13.8 nodes vs healthy on v1.13.7). Same class as Talos
+    # iSCSI regressions siderolabs/talos#12119 (1.11.3) and #12951 (1.12.5).
+    # Incident 2026-08-06: cp-01+worker-01 upgraded to v1.13.8 → storage dead on
+    # them → rolled back to v1.13.7. Renovate is pinned <1.13.8 in renovate.json
+    # (packageRules) so it cannot re-bump this. Bump only after a Talos release is
+    # verified to fix the iSCSI regression.
     # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-    version: v1.13.8
+    version: v1.13.7
 
   parallelism: 1
 
@@ -121,5 +129,6 @@ spec:
   talosctl:
     image:
       repository: ghcr.io/siderolabs/talosctl
+      # FROZEN at v1.13.7 — see talos.version note above (Longhorn iSCSI regression).
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.13.8
+      tag: v1.13.7
