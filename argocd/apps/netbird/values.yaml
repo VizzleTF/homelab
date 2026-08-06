@@ -1,9 +1,16 @@
-# NetBird routing peer — joins self-hosted mesh at netbird.example.com,
-# advertises home LAN subnets (10.11.11.0/24, 10.11.12.0/24) into NetBird.
-# Routes themselves are configured in NetBird dashboard → Network Routes.
+# NetBird routing peers — join self-hosted mesh at netbird.example.com,
+# advertise home LAN subnets (10.11.11.0/24, 10.11.12.0/24) into NetBird.
+# Routes themselves are configured in NetBird dashboard → Network Routes (bound
+# to the `router` group; the reusable `k8s` setup key auto-joins both peers to it).
+#
+# Two INDEPENDENT peers (peer / peer-2), each its own identity PVC — a single
+# routing peer is a SPOF: draining its node severs the mesh route into the LAN
+# (see incident 2026-08-05). Hard pod anti-affinity keeps them on different nodes,
+# so no single node drain/failure can take out both. HA is two separate peers,
+# NOT replicas=2 — the RWO identity PVC + one-identity-per-peer model forbids it.
 homelab-common:
-  # netbird-peer PVC (100Mi) = identity /etc/netbird. Без бэкапа потеря = re-enroll
-  # peer + пере-выдача routes (10.11.11/24, 10.11.12/24) в dashboard. Бэкапим.
+  # netbird identity PVCs (100Mi each) = /etc/netbird per peer. Без бэкапа потеря =
+  # re-enroll peer (routes auto-restored via `router` group auto-join). Бэкапим весь ns.
   # Без exec-hook: identity-файлы статичны, CSI snapshot crash-consistent достаточно.
   veleroSchedules:
     - name: netbird-daily
@@ -20,6 +27,8 @@ homelab-common:
         ttl: "2160h0m0s"
 
   externalSecrets:
+    # Single reusable setup key (Vault netbird/peer) — both peers enroll with it;
+    # the key's auto_groups puts each new peer into the `router` group automatically.
     - name: netbird-peer
       vaultPath: netbird/peer
       data:
@@ -36,13 +45,25 @@ homelab-common:
       size: 100Mi
       labels:
         app: netbird-peer
+    - name: netbird-peer-2
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 100Mi
+      labels:
+        app: netbird-peer-2
 
   apps:
+    # ── peer 1 ──────────────────────────────────────────────────────────────
+    # sync-wave 1: re-applied AFTER peer-2 (wave 0) is healthy, so the brief
+    # Recreate gap here is covered by the already-running peer-2 — no self-lockout.
     - name: peer
       deployment:
         metadata:
           labels:
             app: netbird-peer
+          annotations:
+            argocd.argoproj.io/sync-wave: "1"
         spec:
           replicas: 1
           strategy:
@@ -55,6 +76,14 @@ homelab-common:
               labels:
                 app: netbird-peer
             spec:
+              # Never co-locate with peer-2.
+              affinity:
+                podAntiAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    - labelSelector:
+                        matchLabels:
+                          app: netbird-peer-2
+                      topologyKey: kubernetes.io/hostname
               containers:
                 - name: netbird
                   # renovate: image=netbirdio/netbird
@@ -99,3 +128,77 @@ homelab-common:
                 - name: state
                   persistentVolumeClaim:
                     claimName: netbird-peer
+    # ── peer 2 ──────────────────────────────────────────────────────────────
+    # sync-wave 0 (default): comes up first, provides route redundancy before
+    # peer-1 is recreated. Separate identity PVC, distinct NB_HOSTNAME.
+    - name: peer-2
+      deployment:
+        metadata:
+          labels:
+            app: netbird-peer-2
+          annotations:
+            argocd.argoproj.io/sync-wave: "0"
+        spec:
+          replicas: 1
+          strategy:
+            type: Recreate
+          selector:
+            matchLabels:
+              app: netbird-peer-2
+          template:
+            metadata:
+              labels:
+                app: netbird-peer-2
+            spec:
+              # Never co-locate with peer-1.
+              affinity:
+                podAntiAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    - labelSelector:
+                        matchLabels:
+                          app: netbird-peer
+                      topologyKey: kubernetes.io/hostname
+              containers:
+                - name: netbird
+                  # renovate: image=netbirdio/netbird
+                  image: netbirdio/netbird:0.76.1
+                  imagePullPolicy: IfNotPresent
+                  securityContext:
+                    capabilities:
+                      add:
+                        - NET_ADMIN
+                        - NET_RAW
+                        - SYS_ADMIN
+                        - SYS_RESOURCE
+                  env:
+                    - name: NB_MANAGEMENT_URL
+                      value: "https://netbird.example.com"
+                    - name: NB_ADMIN_URL
+                      value: "https://netbird.example.com"
+                    - name: NB_HOSTNAME
+                      value: "k8s-homelab-peer-2"
+                    - name: NB_LOG_LEVEL
+                      value: "info"
+                  envFrom:
+                    - secretRef:
+                        name: netbird-peer
+                  resources:
+                    limits:
+                      cpu: 500m
+                      memory: 256Mi
+                    requests:
+                      cpu: 30m
+                      memory: 64Mi
+                  volumeMounts:
+                    - name: tun
+                      mountPath: /dev/net/tun
+                    - name: state
+                      mountPath: /etc/netbird
+              volumes:
+                - name: tun
+                  hostPath:
+                    path: /dev/net/tun
+                    type: CharDevice
+                - name: state
+                  persistentVolumeClaim:
+                    claimName: netbird-peer-2
