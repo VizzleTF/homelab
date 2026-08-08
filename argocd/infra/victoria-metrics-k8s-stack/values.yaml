@@ -76,31 +76,31 @@ defaultDashboards:
 
 # Default monitoring rules
 defaultRules:
-  create: true
+  enabled: true
   rules:
     Watchdog:
-      create: false
+      enabled: false
     InfoInhibitor:
-      create: false
+      enabled: false
     # Alertmanager cluster rules — single replica, cluster rules are useless
     AlertmanagerClusterCrashlooping:
-      create: false
+      enabled: false
     AlertmanagerClusterDown:
-      create: false
+      enabled: false
     AlertmanagerClusterFailedToSendAlerts:
-      create: false
+      enabled: false
     AlertmanagerConfigInconsistent:
-      create: false
+      enabled: false
     AlertmanagerMembersInconsistent:
-      create: false
+      enabled: false
     # SLO burn-rate — KubeAPIDown is sufficient for homelab
     KubeAPIErrorBudgetBurn:
-      create: false
+      enabled: false
     # KSM sharding — not used
     KubeStateMetricsShardingMismatch:
-      create: false
+      enabled: false
     KubeStateMetricsShardsMissing:
-      create: false
+      enabled: false
     # Talos binds kube-controller-manager (10257) and kube-scheduler (10259) to
     # 127.0.0.1 — verified unreachable from a pod on all three CP nodes — so
     # kubeControllerManager.enabled / kubeScheduler.enabled are false below.
@@ -109,67 +109,67 @@ defaultRules:
     # Re-enable together with the scrape jobs if the bind-address is ever
     # patched in the Talos machine config.
     KubeControllerManagerDown:
-      create: false
+      enabled: false
     KubeSchedulerDown:
-      create: false
+      enabled: false
     # HPA — not used
     KubeHpaMaxedOut:
-      create: false
+      enabled: false
     KubeHpaReplicasMismatch:
-      create: false
+      enabled: false
     # PDB — not used
     KubePdbNotEnoughHealthyPods:
-      create: false
+      enabled: false
     # ResourceQuota — not used
     KubeCPUQuotaOvercommit:
-      create: false
+      enabled: false
     KubeMemoryQuotaOvercommit:
-      create: false
+      enabled: false
     KubeQuotaAlmostFull:
-      create: false
+      enabled: false
     KubeQuotaExceeded:
-      create: false
+      enabled: false
     KubeQuotaFullyUsed:
-      create: false
+      enabled: false
     # CPU throttling — node-feature-discovery worker constantly triggers, not actionable
     CPUThrottlingHigh:
-      create: false
+      enabled: false
     # Kubelet info-level — noisy, not actionable
     KubeNodeEviction:
-      create: false
+      enabled: false
     KubeletPodStartUpLatencyHigh:
-      create: false
+      enabled: false
     KubeletTooManyPods:
-      create: false
+      enabled: false
     # Node exporter — not applicable (Talos, no bonding/RAID/systemd)
     NodeBondingDegraded:
-      create: false
+      enabled: false
     NodeCPUHighUsage:
-      create: false
+      enabled: false
     NodeRAIDDegraded:
-      create: false
+      enabled: false
     NodeRAIDDiskFailure:
-      create: false
+      enabled: false
     NodeSystemdServiceCrashlooping:
-      create: false
+      enabled: false
     NodeSystemdServiceFailed:
-      create: false
+      enabled: false
     NodeTextFileCollectorScrapeError:
-      create: false
+      enabled: false
     # VMAgent — unused features
     RemoteWriteConnectionIsSaturated:
-      create: false
+      enabled: false
     SeriesLimitDayReached:
-      create: false
+      enabled: false
     SeriesLimitHourReached:
-      create: false
+      enabled: false
     StreamAggrDedupFlushTimeout:
-      create: false
+      enabled: false
     StreamAggrFlushTimeout:
-      create: false
+      enabled: false
     # VMAlert — noisy info
     RecordingRulesNoData:
-      create: false
+      enabled: false
 
     # ─── One-event-one-alert cleanup (см. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md) ───
     # Каскадные дубликаты глушатся через alertmanager inhibit_rules.
@@ -177,171 +177,171 @@ defaultRules:
 
     # Cluster resource overcommit — homelab сознательно overcommitted
     KubeCPUOvercommit:
-      create: false
+      enabled: false
     KubeMemoryOvercommit:
-      create: false
+      enabled: false
 
     # Predictive twins of NodeFilesystemAlmostOutOfSpace/Files (already keep critical+warning of the absolute alert)
     NodeFilesystemSpaceFillingUp:
-      create: false
+      enabled: false
     NodeFilesystemFilesFillingUp:
-      create: false
+      enabled: false
 
     # Memory/system saturation duplicates of NodeMemoryHighUtilization
     NodeMemoryMajorPagesFaults:
-      create: false
+      enabled: false
     NodeSystemSaturation:
-      create: false
+      enabled: false
 
     # PVC inodes — rare on Longhorn ext4
     KubePersistentVolumeInodesFillingUp:
-      create: false
+      enabled: false
 
     # Apiserver cascade — inhibited by KubeAPIDown
     KubeAggregatedAPIErrors:
-      create: false
+      enabled: false
     KubeAPITerminatedRequests:
-      create: false
+      enabled: false
 
     # Kubelet noise — Talos rotates certs automatically; server cert covered by client cert expiration
     KubeletClientCertificateRenewalErrors:
-      create: false
+      enabled: false
     KubeletServerCertificateRenewalErrors:
-      create: false
+      enabled: false
     KubeletServerCertificateExpiration:
-      create: false
+      enabled: false
     KubeNodePressure:
-      create: false
+      enabled: false
     KubeletPlegDurationHigh:
-      create: false
+      enabled: false
 
     # Rollout/replicas mismatch — KubeDeploymentRolloutStuck / KubeStatefulSetUpdateNotRolledOut
     # cover the actionable case. Generation mismatch is symptom of stuck rollout.
     KubeDeploymentGenerationMismatch:
-      create: false
+      enabled: false
     KubeStatefulSetGenerationMismatch:
-      create: false
+      enabled: false
     KubeDaemonSetMisScheduled:
-      create: false
+      enabled: false
     KubeDaemonSetNotScheduled:
-      create: false
+      enabled: false
 
     # Job — KubeJobFailed is the keeper; NotCompleted is predictive twin
     KubeJobNotCompleted:
-      create: false
+      enabled: false
 
     # Node clock — Skew is symptom of NotSynchronising
     NodeClockSkewDetected:
-      create: false
+      enabled: false
 
     # Node network counter errs — cheap NICs, chronic bumps. Keep NodeNetworkInterfaceFlapping.
     NodeNetworkReceiveErrs:
-      create: false
+      enabled: false
     NodeNetworkTransmitErrs:
-      create: false
+      enabled: false
 
     # Node FD/conntrack/IO — never actionable on 6-node homelab
     NodeFileDescriptorLimit:
-      create: false
+      enabled: false
     NodeHighNumberConntrackEntriesUsed:
-      create: false
+      enabled: false
     NodeDiskIOSaturation:
-      create: false
+      enabled: false
 
     # Cluster version mismatch — fires intentionally during Talos upgrade
     KubeVersionMismatch:
-      create: false
+      enabled: false
 
     # Alertmanager — FailedReload is the keeper. FailedToSendAlerts overlaps vmalert RemoteWriteErrors.
     AlertmanagerFailedToSendAlerts:
-      create: false
+      enabled: false
 
     # vm-health — SaaS-tier alerts, homelab VM well under capacity. Keep ServiceDown + TooManyRestarts.
     ProcessNearFDLimits:
-      create: false
+      enabled: false
     TooHighMemoryUsage:
-      create: false
+      enabled: false
     TooHighCPUUsage:
-      create: false
+      enabled: false
     TooHighGoroutineSchedulingLatency:
-      create: false
+      enabled: false
     TooManyLogs:
-      create: false
+      enabled: false
     ConcurrentInsertsHitTheLimit:
-      create: false
+      enabled: false
     RowsRejectedOnIngestion:
-      create: false
+      enabled: false
     TooHighQueryLoad:
-      create: false
+      enabled: false
 
     # vmagent cascade — inhibited by PersistentQueueIsDroppingData via alertmanager.
     # Keep dropping-data (critical) + ScrapePoolHasNoTargets + ConfigurationReloadFailure.
     RejectedRemoteWriteDataBlocksAreDropped:
-      create: false
+      enabled: false
     TooManyScrapeErrors:
-      create: false
+      enabled: false
     TooManyWriteErrors:
-      create: false
+      enabled: false
     TooManyRemoteWriteErrors:
-      create: false
+      enabled: false
     PersistentQueueForWritesIsSaturated:
-      create: false
+      enabled: false
     PersistentQueueForReadsIsSaturated:
-      create: false
+      enabled: false
     PersistentQueueRunsOutOfSpaceIn12Hours:
-      create: false
+      enabled: false
     PersistentQueueRunsOutOfSpaceIn4Hours:
-      create: false
+      enabled: false
 
     # vmalert/vmagent meta-alerts caused by transient endpoint loss during
     # Renovate auto-updates / ArgoCD sync (vmsingle pod restart 2-3 min → all
     # dependent rules error out → 5m for: trips). Real prolonged outage is
     # covered by VMSingleDown / VMAlertDown (also `for: 5m`).
     AlertingRulesError:
-      create: false
+      enabled: false
     ConfigurationReloadFailure:
-      create: false
+      enabled: false
     RemoteWriteDroppingData:
-      create: false
+      enabled: false
 
     # vmsingle disk — keep predictive (DiskRunsOutOfSpaceIn3Days); drop late "already-full"
     DiskRunsOutOfSpace:
-      create: false
+      enabled: false
     NodeBecomesReadonlyIn3Days:
-      create: false
+      enabled: false
     # vmsingle churn — keep TooHighChurnRate; drop 24h twin + cascade
     TooHighChurnRate24h:
-      create: false
+      enabled: false
     TooHighSlowInsertsRate:
-      create: false
+      enabled: false
     MetadataCacheUtilizationIsTooHigh:
-      create: false
+      enabled: false
     RequestErrorsToAPI:
-      create: false
+      enabled: false
 
     # vmalert cascade — RemoteWriteDroppingData (critical) is keeper
     RemoteWriteErrors:
-      create: false
+      enabled: false
     RemoteWriteQueueHighUsage:
-      create: false
+      enabled: false
     TooManyMissedIterations:
-      create: false
+      enabled: false
     AlertmanagerErrors:
-      create: false
+      enabled: false
     # Keep one of AlertingRulesError/RecordingRulesError; drop the other for noise reduction
     RecordingRulesError:
-      create: false
+      enabled: false
 
   groups:
     # vmoperator group — self-healing operator, only ServiceDown matters (in vm-health)
     vmoperator:
-      create: false
+      enabled: false
     # Disable etcd rules if not using it
     etcd:
-      create: false
+      enabled: false
     # vmcluster disabled — using vmsingle
     vmcluster:
-      create: false
+      enabled: false
 
 # VMSingle - single node storage
 vmsingle:
