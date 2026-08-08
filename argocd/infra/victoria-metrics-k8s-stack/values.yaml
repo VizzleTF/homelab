@@ -342,6 +342,30 @@ defaultRules:
     # vmcluster disabled — using vmsingle
     vmcluster:
       enabled: false
+    # NOTE: the chart's rule sync-job honors GROUP-level `enabled: false` but
+    # IGNORES per-rule `defaultRules.rules.<Alert>.enabled` — it always emits the
+    # full default rule set for an enabled group (verified 2026-08-08: deleting a
+    # VMRule and re-running the job recreates it with the "disabled" alerts). So
+    # the per-rule block above is effectively dead config kept for intent; the
+    # only working lever for whole unwanted groups is here. Mixed groups (a few
+    # unwanted alerts among wanted ones) must be suppressed at Alertmanager.
+    #
+    # kubernetes-resources — every rule (CPUThrottlingHigh + Kube*Overcommit +
+    # Kube*Quota*) is unwanted here: overcommit is intentional, quotas unused,
+    # CPU throttling is CFS-quota noise. Killed the CPUThrottlingHigh flood.
+    kubernetes-resources:
+      enabled: false
+    # kube-apiserver-slos — SLO burn-rate multiwindow alerts; KubeAPIDown suffices.
+    kube-apiserver-slos:
+      enabled: false
+    # Talos binds kube-controller-manager (10257) / kube-scheduler (10259) to
+    # 127.0.0.1 — unreachable from pods on all CP nodes — so both the *Down and
+    # *InstanceUnreachable rules in these groups fire forever with no scrape job.
+    # kubeControllerManager.enabled / kubeScheduler.enabled are false below.
+    kubernetes-system-controller-manager:
+      enabled: false
+    kubernetes-system-scheduler:
+      enabled: false
 
 # VMSingle - single node storage
 vmsingle:
