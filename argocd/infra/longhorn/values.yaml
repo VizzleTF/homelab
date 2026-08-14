@@ -10,6 +10,9 @@ homelab-common:
         name: longhorn-frontend
         port: 80
 
+# NB: `networkPolicies.restrictInternalTraffic` (default true с 1.12.1) намеренно
+# НЕ выключаем — изоляция longhorn-компонентов остаётся. Кросс-namespace доступ
+# выдаём точечно: manifests/netpol-allow-monitoring.yaml (vmagent → 9500).
 service:
   ui:
     type: LoadBalancer
@@ -35,8 +38,12 @@ defaultSettings:
   replicaAutoBalance: "best-effort"
   # CPU для instance-manager: было 2 CPU (2000m), реальное 65m → ставим 100m
   guaranteedInstanceManagerCPU: '{"v1":"0.1","v2":"0.1"}'
-  # Отключаем ревизионные счетчики для снижения нагрузки
-  disableRevisionCounter: '{"v1":"true","v2":"true"}'
+  # Отключаем ревизионные счетчики для снижения нагрузки.
+  # Только ключ v1: с 1.12.1 Longhorn отвергает `v2` для этой настройки
+  # ("mismatched data engines for setting Disable Revision Counter") — весь
+  # customized default пропускался, а в логе на каждый reconcile висел warning.
+  # Формат совпадает с дефолтом чарта.
+  disableRevisionCounter: '{"v1":"true"}'
   # Автоочистка системных снапшотов
   autoCleanupSystemGeneratedSnapshot: "true"
   # Лимит одновременных rebuild операций

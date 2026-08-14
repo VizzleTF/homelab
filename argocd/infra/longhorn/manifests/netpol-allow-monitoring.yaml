@@ -1,0 +1,35 @@
+# Longhorn 1.12.1 добавил шесть NetworkPolicy, и гейт у них — новый
+# `networkPolicies.restrictInternalTraffic` (default true), а НЕ
+# `networkPolicies.enabled` (default false). Апгрейд 1.12.0 → 1.12.1 поэтому
+# молча включил изоляцию: политика `longhorn-manager` пускает на порт 9500
+# только поды longhorn-manager / longhorn-ui / longhorn-csi-plugin из своего
+# namespace. vmagent живёт в `victoria-metrics` — скрейп /metrics отвалился
+# по таймауту, VMRule зажёг TargetDown, дашборды по стораджу ослепли.
+#
+# Изоляцию оставляем (см. values.yaml), а здесь доливаем точечное разрешение:
+# NetworkPolicy аддитивны — union разрешений всех политик, выбравших под.
+# Если появится ещё один кросс-namespace потребитель API 9500 (support-bundle,
+# внешний экспортер) — ему нужен такой же явный allow, иначе он так же молча
+# отвалится по таймауту.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-manager-allow-monitoring
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: victoria-metrics
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vmagent
+      ports:
+        - protocol: TCP
+          port: 9500

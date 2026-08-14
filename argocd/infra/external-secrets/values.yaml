@@ -4,6 +4,21 @@
 installCRDs: true
 replicaCount: 2
 
+# Обе реплики садились на talos-worker-01: все три control-plane ноды несут
+# tuppr-taint `tuppr.home-operations.com/outdated:PreferNoSchedule` (кластер
+# заморожен на Talos v1.13.7), и без жёсткого правила scheduler уводит всё на
+# единственную нечистую ноду. Падение worker-01 уносило ESO целиком, а с ним
+# синк всех секретов. Namespace в exclude-списке descheduler, так что
+# evict-лупа тут не было — только дыра в HA.
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: external-secrets
+            app.kubernetes.io/instance: external-secrets
+
 resources:
   limits:
     cpu: 100m
