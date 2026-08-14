@@ -25,6 +25,23 @@ spec:
       max_prepared_statements: "200"
   template:
     spec:
+      # Hard spread across nodes. All three control-plane nodes carry tuppr's
+      # PreferNoSchedule taint (tuppr.home-operations.com/outdated), so a soft
+      # constraint loses to the taint penalty and both replicas pile onto
+      # talos-worker-01. descheduler's RemoveDuplicates then evicts one every
+      # 5 min and the scheduler puts it straight back — an endless churn loop
+      # that resets pgbouncer connections for authentik/nextcloud/forgejo.
+      # matchLabelKeys keeps old ReplicaSet pods out of the skew math so
+      # rollouts are not blocked.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys:
+            - pod-template-hash
+          labelSelector:
+            matchLabels:
+              cnpg.io/poolerName: cnpg-cluster-pooler-rw
       containers:
         - name: pgbouncer
           resources:

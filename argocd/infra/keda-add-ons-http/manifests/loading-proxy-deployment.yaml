@@ -37,10 +37,19 @@ spec:
         runAsGroup: 101
         seccompProfile:
           type: RuntimeDefault
+      # DoNotSchedule, not ScheduleAnyway: all three control-plane nodes carry
+      # tuppr's PreferNoSchedule taint (tuppr.home-operations.com/outdated), so
+      # a soft constraint loses to the taint penalty and both replicas land on
+      # talos-worker-01. descheduler's RemoveDuplicates then evicts one every
+      # 5 min, the scheduler puts it back on the same node, and the loop never
+      # ends. matchLabelKeys keeps old ReplicaSet pods out of the skew math so
+      # the maxSurge:1 rollout is not blocked.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          matchLabelKeys:
+            - pod-template-hash
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: keda-loading-proxy
