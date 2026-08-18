@@ -1,4 +1,4 @@
 chart: nextcloud
 repoURL: https://nextcloud.github.io/helm
-targetRevision: "9.2.5"
+targetRevision: "9.2.6"
 wave: "2"
