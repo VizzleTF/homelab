@@ -16,16 +16,27 @@ metadata:
   namespace: system-upgrade
 spec:
   talos:
-    # FROZEN at v1.13.7 — v1.13.8 breaks Longhorn iSCSI volume attach on this
-    # hardware (engine "iscsidev StartInitator: Failed to discover", 0 volumes
-    # attachable on v1.13.8 nodes vs healthy on v1.13.7). Same class as Talos
-    # iSCSI regressions siderolabs/talos#12119 (1.11.3) and #12951 (1.12.5).
-    # Incident 2026-08-06: cp-01+worker-01 upgraded to v1.13.8 → storage dead on
-    # them → rolled back to v1.13.7. Renovate is pinned <1.13.8 in renovate.json
-    # (packageRules) so it cannot re-bump this. Bump only after a Talos release is
-    # verified to fix the iSCSI regression.
+    # Unfrozen 2026-08-18 (was pinned to v1.13.7 since the 2026-08-06 incident).
+    #
+    # ROOT CAUSE of that incident — NOT Talos and NOT Longhorn: v1.13.8 bumped the
+    # iscsi-tools extension from open-iscsi 2.1.11 to 2.1.12, which renamed
+    # `node.session.conn_reopen_log_freq` to `node.session.sess_reopen_log_freq`
+    # in a patch release (open-iscsi/open-iscsi#540). The persistent node DB under
+    # /var/lib/iscsi (EPHEMERAL, survives reboot AND `talosctl upgrade`) still held
+    # the old key, and libopeniscsiusr treats an unknown parameter as a hard error
+    # — so every record failed to parse, discovery/login died, and Longhorn reported
+    # `iscsidev StartInitator: Failed to discover`.
+    #
+    # All four nodes were rolled to v1.13.8 by hand on 2026-08-18, wiping
+    # /var/lib/iscsi/{nodes,send_targets} on each while it was still cordoned;
+    # Longhorn recreated the records through 2.1.12 with the new key. Nothing is
+    # left to clean up, so tuppr can drive plain rolling upgrades again.
+    #
+    # BEFORE any future upgrade that changes the open-iscsi version, check whether
+    # the node DB has to be wiped again — see the runbook in
+    # `obsidian/112 ArgoCD/Infrastructure/all/tuppr.md`.
     # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-    version: v1.13.7
+    version: v1.13.8
 
   parallelism: 1
 
@@ -129,6 +140,5 @@ spec:
   talosctl:
     image:
       repository: ghcr.io/siderolabs/talosctl
-      # FROZEN at v1.13.7 — see talos.version note above (Longhorn iSCSI regression).
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.13.7
+      tag: v1.13.8

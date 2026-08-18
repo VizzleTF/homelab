@@ -99,12 +99,6 @@
       "description": "Группа `talos`: версии Talos OS / Kubernetes для bare-metal нод (terraform bootstrap-версия в nodes.yaml). Отдельный batch-PR — апгрейд нод требует ручного `terraform apply` + tuppr enacts rolling-upgrade живого кластера. Держать в синхроне с tuppr CRD image-версиями (installer/talosctl/kubelet).",
       "matchFileNames": ["terraform_talos/configs/**"],
       "groupName": "talos"
-    },
-    {
-      "description": "FREEZE Talos installer/talosctl at v1.13.7 (allowedVersions <1.13.8). v1.13.8 breaks Longhorn iSCSI volume attach on this hardware — engine 'iscsidev StartInitator: Failed to discover', 0 volumes attachable on v1.13.8 nodes (same class as siderolabs/talos#12119 / #12951). Incident 2026-08-06: cp-01+worker-01 rolled back to v1.13.7. Without this, everything auto-merges and tuppr would re-break the cluster. Raise/remove once a Talos release is verified to fix the iSCSI regression (also bump argocd/infra/tuppr/manifests/talos-upgrade.yaml + terraform_talos/configs/nodes.yaml together).",
-      "matchDatasources": ["docker", "github-releases"],
-      "matchPackageNames": ["ghcr.io/siderolabs/installer", "ghcr.io/siderolabs/talosctl", "siderolabs/talos"],
-      "allowedVersions": "<1.13.8"
     }
   ],
   "customManagers": [
