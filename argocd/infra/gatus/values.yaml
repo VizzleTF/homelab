@@ -167,7 +167,7 @@ homelab-common:
                       mountPath: /data
                 - name: gatus-sidecar
                   # renovate: image=ghcr.io/home-operations/gatus-sidecar
-                  image: ghcr.io/home-operations/gatus-sidecar:0.4.0
+                  image: ghcr.io/home-operations/gatus-sidecar:0.4.1
                   imagePullPolicy: IfNotPresent
                   args:
                     # Opt-in HTTPRoute discovery only; writes a single file that
