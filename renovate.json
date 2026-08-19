@@ -130,6 +130,16 @@
       ]
     },
     {
+      "description": "immich-machine-learning: тег = <immich release>-openvino. Docker-datasource на ghcr.io/immich-app/immich-machine-learning отдаёт \"no-result\" — у образа ~187k тегов (PR-билды), GHCR капает n на 1000 и сортирует oldest→newest, поэтому один lookup = 187 последовательных страниц tags/list; walk отваливается даже с аутентифицированным hostRule (RENOVATE_HOST_RULES для ghcr.io, добавлен 2026-07-28, проблему не снял). ML публикуется тем же релизом, что и immich-server, поэтому версию берём из github-releases immich-app/immich, а суффикс `-openvino` держим ВНЕ currentValue, чтобы Renovate заменял только цифры.",
+      "customType": "regex",
+      "managerFilePatterns": ["/argocd/apps/immich/values\\.ya?ml$/"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "immich-app/immich",
+      "matchStrings": [
+        "#\\s*renovate:\\s*immich-ml\\s*\\n\\s*ml_tag:\\s*&ml_tag\\s+[\"'](?<currentValue>v[\\d.]+)-openvino[\"']"
+      ]
+    },
+    {
       "description": "Образы через `# renovate: image=<repo>` коммент (одна строка `image: repo:tag[@sha256:...]`). datasource фиксирован docker. Захватывает только тег + опц. digest.",
       "customType": "regex",
       "managerFilePatterns": [

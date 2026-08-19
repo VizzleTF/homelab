@@ -262,7 +262,12 @@ _shared_config:
   url: &url https://immich.example.com
   # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
   version: &version "v3.1.0"
-  # renovate: datasource=docker depName=ghcr.io/immich-app/immich-machine-learning
+  # ML-образ публикуется тем же релизом, что и immich-server, но docker-datasource
+  # на ghcr.io/immich-app/immich-machine-learning не работает: ~187k тегов = 187
+  # страниц tags/list на каждый lookup, walk отваливается → "no-result" в Dependency
+  # Dashboard (hostRule с PAT не помог). Версию тянем из github-releases immich-app/immich
+  # выделенным customManager'ом (renovate.json), суффикс -openvino живёт вне currentValue.
+  # renovate: immich-ml
   ml_tag: &ml_tag "v3.1.0-openvino"
 
 # Pod-level securityContext + soft affinity for the server component.
