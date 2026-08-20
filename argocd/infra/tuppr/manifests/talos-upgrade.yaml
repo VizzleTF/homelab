@@ -36,7 +36,7 @@ spec:
     # the node DB has to be wiped again — see the runbook in
     # `obsidian/112 ArgoCD/Infrastructure/all/tuppr.md`.
     # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-    version: v1.13.8
+    version: v1.13.9
 
   parallelism: 1
 
@@ -141,4 +141,4 @@ spec:
     image:
       repository: ghcr.io/siderolabs/talosctl
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.13.8
+      tag: v1.13.9
