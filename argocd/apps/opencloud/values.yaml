@@ -233,6 +233,11 @@ homelab-common:
                     # WebFinger tells the clients which OIDC client to use. Authentik
                     # scopes an issuer to one application, so every OpenCloud client
                     # shares the single `opencloud-web` provider.
+                    # The web UI reads its own scope list from config.json, not from
+                    # WebFinger — without `roles` here the claim never arrives and the
+                    # oidc role driver refuses every login.
+                    - name: WEB_OIDC_SCOPE
+                      value: openid profile email roles
                     - name: WEBFINGER_WEB_OIDC_CLIENT_ID
                       value: opencloud-web
                     - name: WEBFINGER_WEB_OIDC_CLIENT_SCOPES
