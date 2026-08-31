@@ -1,0 +1,302 @@
+# OpenCloud — homelab-common.apps (no upstream chart: opencloud-eu/helm is archived).
+# Mirrors the opencloud-compose base stack: one container running
+# `opencloud init || true; opencloud server`, config + data on separate PVCs.
+#
+# Auth: Authentik OIDC. The built-in `idp` service is disabled; the built-in `idm`
+# (LDAP) keeps running as the writable user store that PROXY_AUTOPROVISION_ACCOUNTS
+# writes into on first login.
+homelab-common:
+  externalSecrets:
+    - name: opencloud-app-secrets
+      vaultPath: opencloud/opencloud
+      data:
+        - secretKey: idm_admin_password
+          property: idm_admin_password
+      templateData:
+        IDM_ADMIN_PASSWORD: "{{ .idm_admin_password }}"
+
+  httpRoutes:
+    - name: opencloud
+      hostname: opencloud
+      gateway: external
+      service:
+        name: opencloud
+        port: 9200
+
+  persistentVolumeClaims:
+    # `opencloud init` writes /etc/opencloud/opencloud.yaml with the generated
+    # service secrets — losing this PVC invalidates every issued token.
+    - name: opencloud-config
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 1Gi
+      labels:
+        app: opencloud
+    - name: opencloud-data
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 50Gi
+      labels:
+        app: opencloud
+
+  veleroSchedules:
+    # CSI snapshot + Kopia. The decomposedfs metadata is a tree of small files;
+    # the sync hook flushes dirty pages so the snapshot is crash-consistent.
+    - name: opencloud-daily
+      schedule: "15 2 * * *"
+      template:
+        hooks: &opencloud_hooks
+          resources:
+            - name: sync-buffers
+              includedResources: [pods]
+              labelSelector:
+                matchLabels:
+                  app: opencloud
+              pre:
+                - exec:
+                    command: ["/bin/sh", "-c", "sync"]
+                    onError: Continue
+                    timeout: 30s
+    # Independent off-site copy → OVH (BSL ovh-direct), weekly, 30d.
+    - name: opencloud-offsite
+      schedule: "0 5 * * 0"
+      template:
+        storageLocation: ovh-direct
+        ttl: "720h0m0s"
+        hooks: *opencloud_hooks
+
+  apps:
+    - name: opencloud
+      configMap:
+        # homelab-common forces metadata.name to the app fullname, so this
+        # ConfigMap is called `opencloud` like the Deployment/Service.
+        metadata:
+          labels:
+            app: opencloud
+        data:
+          # Upstream config/opencloud/csp.yaml with the IdP host pinned to Authentik.
+          # frame-src/connect-src for Collabora will be added when the web office lands.
+          csp.yaml: |
+            directives:
+              child-src:
+                - "'self'"
+              connect-src:
+                - "'self'"
+                - 'blob:'
+                - 'https://raw.githubusercontent.com/opencloud-eu/awesome-apps/'
+                - 'https://authentik.example.com/'
+                - 'https://tile.openstreetmap.org/'
+              default-src:
+                - "'none'"
+              font-src:
+                - "'self'"
+              frame-ancestors:
+                - "'self'"
+              frame-src:
+                - "'self'"
+                - 'blob:'
+                - 'https://embed.diagrams.net/'
+                - 'https://docs.opencloud.eu'
+                - 'https://authentik.example.com/'
+              img-src:
+                - "'self'"
+                - 'data:'
+                - 'blob:'
+                - 'https://raw.githubusercontent.com/opencloud-eu/awesome-apps/'
+                - 'https://tile.openstreetmap.org/'
+              manifest-src:
+                - "'self'"
+              media-src:
+                - "'self'"
+              object-src:
+                - "'self'"
+                - 'blob:'
+              script-src:
+                - "'self'"
+                - "'unsafe-inline'"
+                - 'https://authentik.example.com/'
+              style-src:
+                - "'self'"
+                - "'unsafe-inline'"
+                - 'blob:'
+              worker-src:
+                - "'self'"
+                - 'blob:'
+
+      deployment:
+        metadata:
+          labels:
+            app: opencloud
+        spec:
+          replicas: 1
+          strategy:
+            type: Recreate
+          selector:
+            matchLabels:
+              app: opencloud
+          template:
+            metadata:
+              labels:
+                app: opencloud
+            spec:
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                fsGroup: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              containers:
+                - name: opencloud
+                  # renovate: image=opencloudeu/opencloud
+                  image: opencloudeu/opencloud:7.2.4
+                  imagePullPolicy: IfNotPresent
+                  # `opencloud init` fails once the config file exists — ignore it and
+                  # start the server, same as the upstream compose entrypoint.
+                  command: ["/bin/sh"]
+                  args:
+                    - -c
+                    - opencloud init || true; opencloud server
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop:
+                        - ALL
+                  ports:
+                    - name: http
+                      containerPort: 9200
+                      protocol: TCP
+                  envFrom:
+                    - secretRef:
+                        name: opencloud-app-secrets
+                  env:
+                    - name: OC_URL
+                      value: https://opencloud.example.com
+                    - name: PROXY_HTTP_ADDR
+                      value: 0.0.0.0:9200
+                    # TLS terminates on the Cloudflare tunnel / cilium-gateway.
+                    - name: PROXY_TLS
+                      value: "false"
+                    - name: OC_INSECURE
+                      value: "false"
+                    - name: OC_LOG_LEVEL
+                      value: info
+                    - name: IDM_CREATE_DEMO_USERS
+                      value: "false"
+                    - name: FRONTEND_CHECK_FOR_UPDATES
+                      value: "false"
+                    - name: FRONTEND_ARCHIVER_MAX_SIZE
+                      value: "10000000000"
+                    - name: PROXY_CSP_CONFIG_FILE_LOCATION
+                      value: /etc/opencloud-csp/csp.yaml
+                    # --- external IdP (Authentik) ---
+                    # The built-in idp is replaced; idm stays as the LDAP user store.
+                    - name: OC_EXCLUDE_RUN_SERVICES
+                      value: idp
+                    - name: OC_OIDC_ISSUER
+                      value: https://authentik.example.com/application/o/opencloud/
+                    - name: IDP_DOMAIN
+                      value: authentik.example.com
+                    - name: OC_OIDC_CLIENT_ID
+                      value: opencloud-web
+                    - name: PROXY_OIDC_REWRITE_WELLKNOWN
+                      value: "true"
+                    - name: PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD
+                      value: jwt
+                    - name: PROXY_AUTOPROVISION_ACCOUNTS
+                      value: "true"
+                    # `sub` is stable across renames in Authentik, unlike preferred_username.
+                    - name: PROXY_USER_OIDC_CLAIM
+                      value: sub
+                    - name: PROXY_AUTOPROVISION_CLAIM_USERNAME
+                      value: sub
+                    - name: PROXY_USER_CS3_CLAIM
+                      value: username
+                    - name: OC_LDAP_SERVER_WRITE_ENABLED
+                      value: "true"
+                    # Roles come from the `roles` claim (Authentik group names).
+                    # A user in neither opencloudAdmin nor opencloudUser cannot log in.
+                    - name: PROXY_ROLE_ASSIGNMENT_DRIVER
+                      value: oidc
+                    - name: PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM
+                      value: roles
+                    - name: GRAPH_ASSIGN_DEFAULT_USER_ROLE
+                      value: "false"
+                    - name: GRAPH_USERNAME_MATCH
+                      value: none
+                    - name: SETTINGS_SETUP_DEFAULT_ASSIGNMENTS
+                      value: "false"
+                    - name: OC_ADMIN_USER_ID
+                      value: ""
+                    # WebFinger tells the clients which OIDC client to use. Authentik
+                    # scopes an issuer to one application, so every OpenCloud client
+                    # shares the single `opencloud-web` provider.
+                    - name: WEBFINGER_WEB_OIDC_CLIENT_ID
+                      value: opencloud-web
+                    - name: WEBFINGER_WEB_OIDC_CLIENT_SCOPES
+                      value: openid profile email roles
+                    - name: WEBFINGER_DESKTOP_OIDC_CLIENT_ID
+                      value: opencloud-web
+                    - name: WEBFINGER_DESKTOP_OIDC_CLIENT_SCOPES
+                      value: openid profile email roles offline_access
+                    - name: WEB_OPTION_ACCOUNT_EDIT_LINK_HREF
+                      value: https://authentik.example.com/if/user/
+                  resources:
+                    limits:
+                      cpu: "2"
+                      memory: 2Gi
+                    requests:
+                      cpu: 100m
+                      memory: 512Mi
+                  startupProbe:
+                    httpGet:
+                      path: /
+                      port: http
+                    periodSeconds: 5
+                    failureThreshold: 60
+                  readinessProbe:
+                    httpGet:
+                      path: /
+                      port: http
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                  livenessProbe:
+                    tcpSocket:
+                      port: http
+                    periodSeconds: 20
+                    timeoutSeconds: 5
+                    failureThreshold: 6
+                  volumeMounts:
+                    - name: config
+                      mountPath: /etc/opencloud
+                    - name: data
+                      mountPath: /var/lib/opencloud
+                    - name: csp
+                      mountPath: /etc/opencloud-csp
+                      readOnly: true
+              volumes:
+                - name: config
+                  persistentVolumeClaim:
+                    claimName: opencloud-config
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: opencloud-data
+                - name: csp
+                  configMap:
+                    name: opencloud
+
+      service:
+        metadata:
+          labels:
+            app: opencloud
+        spec:
+          type: ClusterIP
+          ports:
+            - port: 9200
+              targetPort: http
+              protocol: TCP
+              name: http
+          selector:
+            app: opencloud
