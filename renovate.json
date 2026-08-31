@@ -4,7 +4,7 @@
     "config:best-practices",
     ":dependencyDashboard"
   ],
-  "description": "rebaseWhen=behind-base-branch (было auto, сменено 2026-07-26): Forgejo branch protection держит block_on_outdated_branch=true, но `auto` на платформе gitea ребейзит только конфликтующие ветки — «отстал от base» Renovate детектит лишь через GitHub-специфичный признак. Ветка устаревала после первого же чужого merge, automerge отдавал 405, PR висел вечно, и очередь упиралась в prConcurrentLimit=10 (10 мёртвых PR = все новые уходят в Rate-Limited на дашборде). Проверено 2026-07-26: 10 открытых PR возрастом до 2 месяцев, все с зелёным CI и automerge:true.",
+  "description": "rebaseWhen=behind-base-branch (было auto, сменено 2026-07-26): Forgejo branch protection держала block_on_outdated_branch=true (выключено 2026-08-02), а `auto` на платформе gitea ребейзит только конфликтующие ветки — «отстал от base» Renovate детектит лишь через GitHub-специфичный признак. Ветка устаревала после первого же чужого merge, automerge отдавал 405, PR висел вечно, и очередь упиралась в prConcurrentLimit=10 (10 мёртвых PR = все новые уходят в Rate-Limited на дашборде). Проверено 2026-07-26: 10 открытых PR возрастом до 2 месяцев, все с зелёным CI и automerge:true.",
   "timezone": "UTC",
   "configMigration": true,
   "osvVulnerabilityAlerts": true,

@@ -16,10 +16,11 @@ spec:
             summary: "Robusta Runner недоступен — алерты не доставляются"
             description: |
               Robusta Runner не отвечает 5 минут. VMAlertmanager продолжает слать webhook-и,
-              но они не обрабатываются. Алерты про сам Runner будут доставлены через
-              telegram-fallback, остальные — потеряются до восстановления.
+              но обрабатывать их некому: Runner — единственный receiver, telegram-fallback
+              снят. До восстановления не доставляется ничего, включая этот алерт —
+              он виден только в UI Alertmanager / VMAlert.
 
         # PlaybookErrors / DiscoveryErrors удалены — transient'ы плюс известная история
         # ложных срабатываний (Vault/ESO transient'ы, sink 404 при перезапуске).
-        # RunnerDown через telegram-fallback покрывает «совсем сломалось» сценарий.
+        # RunnerDown остаётся маркером «совсем сломалось» в UI — доставки при лежащем Runner нет.
         # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #29.

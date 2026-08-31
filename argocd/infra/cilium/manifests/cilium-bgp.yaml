@@ -22,7 +22,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  # Apply to every node — all 3 bare-metal CP nodes peer with OpenWrt for ECMP.
+  # Apply to every node — all 4 bare-metal nodes (3 CP + worker) peer with OpenWrt for ECMP.
   nodeSelector: {}
   bgpInstances:
     - name: openwrt

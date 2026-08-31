@@ -1,7 +1,7 @@
 # Robusta — единый alert hub (enrichment + K8s-native + change tracking + digest).
-# Chart: robusta/robusta 0.37.0
+# Chart: robusta/robusta — версия пинится в config.yaml (targetRevision), Renovate её и двигает.
 # Namespace: robusta
-# Ключи и схема сверялись с `helm show values robusta/robusta --version 0.37.0`.
+# Ключи и схема сверялись с `helm show values robusta/robusta --version <pin из config.yaml>`.
 
 clusterName: "homelab"
 
