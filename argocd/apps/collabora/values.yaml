@@ -1,0 +1,83 @@
+# Collabora Online (CODE) — web office backend for OpenCloud.
+# The WOPI endpoint itself is served by the OpenCloud proxy on opencloud.example.com
+# (/wopi, /collaboration), so only the CODE server needs its own hostname.
+collabora:
+  # WOPI host allowlist — only OpenCloud may drive this server.
+  aliasgroups:
+    - host: "https://opencloud.example.com"
+
+  # ssl.enable=false + ssl.termination=true: TLS ends on cilium-gateway, coolwsd
+  # speaks plain HTTP inside the cluster but still generates https:// URLs.
+  # frame_ancestors limits who may embed the editor.
+  extra_params: >-
+    --o:ssl.enable=false
+    --o:ssl.termination=true
+    --o:welcome.enable=false
+    --o:home_mode.enable=false
+    --o:net.frame_ancestors=opencloud.example.com
+
+  server_name: collabora.example.com
+
+  existingSecret:
+    enabled: true
+    secretName: collabora
+    usernameKey: username
+    passwordKey: password
+
+  # WOPI proof key comes from Vault, NOT from proofKeyGeneration. Under ArgoCD the
+  # chart renders with `helm template` and cannot read the existing secret back, so
+  # generation would mint a fresh key on every sync and break proof validation.
+  proofKeysSecretRef: collabora
+
+# CODE relies on the container's default capabilities for its chroot jails, so no
+# hardening beyond the chart defaults (installCOOLSeccompProfile writes a seccomp
+# profile onto every node via DaemonSet — not worth it for a single-tenant setup).
+resources:
+  limits:
+    cpu: "2"
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 1Gi
+
+# A document lives inside the coolwsd process that opened it, and the Cilium gateway
+# does not hash WOPISrc to a fixed backend, so a second replica would drop editing
+# sessions at random. Chart default is autoscaling on with minReplicas: 2 — off.
+replicaCount: 1
+autoscaling:
+  enabled: false
+
+# HTTPRoute comes from homelab-common like every other app in this repo.
+route:
+  enabled: false
+
+homelab-common:
+  externalSecrets:
+    - name: collabora
+      vaultPath: collabora/collabora
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+        - secretKey: proof_key
+          property: proof_key
+        - secretKey: proof_key_pub
+          property: proof_key_pub
+      templateData:
+        username: "{{ .username }}"
+        password: "{{ .password }}"
+        # The chart mounts these two by subPath; coolwsd reads only the private key.
+        # Vault cannot hold a dotted key (ESO reads `property` as a gjson path), hence
+        # the rename here.
+        proof_key: "{{ .proof_key }}"
+        proof_key.pub: "{{ .proof_key_pub }}"
+
+  httpRoutes:
+    - name: collabora
+      hostname: collabora
+      # The browser loads the editor directly from this host, so it must be external.
+      gateway: external
+      service:
+        name: collabora-collabora-online
+        port: 9980
