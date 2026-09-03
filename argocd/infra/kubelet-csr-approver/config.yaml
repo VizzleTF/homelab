@@ -1,4 +1,4 @@
 chart: kubelet-csr-approver
 repoURL: https://postfinance.github.io/kubelet-csr-approver
-targetRevision: "1.2.14"
+targetRevision: "1.2.15"
 wave: "-3"
