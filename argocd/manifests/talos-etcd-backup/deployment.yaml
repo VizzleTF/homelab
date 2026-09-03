@@ -25,7 +25,7 @@ spec:
       initContainers:
         - name: fetch-talosctl
           # renovate: image=curlimages/curl
-          image: curlimages/curl:8.21.0
+          image: curlimages/curl:8.22.0
           command: [sh, -c]
           args:
             - |
