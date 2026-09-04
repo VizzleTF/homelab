@@ -35,8 +35,8 @@ gpg --quiet --batch --output "$tmp" --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" 
 K0=$(jq -r '.unseal_keys_b64[0]' "$tmp")
 K1=$(jq -r '.unseal_keys_b64[1]' "$tmp")
 K2=$(jq -r '.unseal_keys_b64[2]' "$tmp")
-export VAULT_TOKEN
-VAULT_TOKEN=$(jq -r '.root_token' "$tmp")
+export BAO_TOKEN
+BAO_TOKEN=$(jq -r '.root_token' "$tmp")
 
 is_initialized=$(kubectl -n openbao exec openbao-0 -- bao status -format=json 2>/dev/null | jq -r '.initialized // false')
 
@@ -82,7 +82,7 @@ kubectl -n openbao create secret generic openbao-keys \
   --from-literal=key-2="$K2" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl -n openbao create secret generic openbao-root-token \
-  --from-literal=token="$VAULT_TOKEN" \
+  --from-literal=token="$BAO_TOKEN" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 log_info "installing openbao-autounseal controller"

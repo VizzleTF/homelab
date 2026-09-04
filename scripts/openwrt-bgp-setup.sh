@@ -6,11 +6,11 @@
 # Pairs with:
 #   argocd/infra/cilium/manifests/cilium-bgp.yaml             (Cilium side CRs)
 #   argocd/infra/cilium/manifests/cilium-bgp-externalsecret.yaml (MD5 secret)
-#   Vault: home/homelab/k8s/kube-system/cilium-bgp{password}  (shared MD5)
+#   OpenBao: home/homelab/k8s/kube-system/cilium-bgp{password}  (shared MD5)
 #
 # Subcommands:
 #   install   apk add bird2 + uci firewall rule for TCP/179 on the servers zone
-#   configure render /etc/bird.conf from Vault password, restart BIRD
+#   configure render /etc/bird.conf from the OpenBao password, restart BIRD
 #   verify    birdc show protocols + show route, plus ip route to the LB pool
 #   down      stop+disable BIRD, leave config in place (for rollback drills)
 #
@@ -37,20 +37,20 @@ PEERS=(
 # LB pool — must match cilium-lb-ippool.yaml
 LB_POOL="${LB_POOL:-10.11.10.0/24}"
 
-VAULT_MOUNT="${VAULT_MOUNT:-home}"
-VAULT_PATH="${VAULT_PATH:-homelab/k8s/kube-system/cilium-bgp}"
+BAO_MOUNT="${BAO_MOUNT:-${VAULT_MOUNT:-home}}"
+BAO_PATH="${BAO_PATH:-${VAULT_PATH:-homelab/k8s/kube-system/cilium-bgp}}"
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") <install|configure|verify|down>
 
   install     apk add bird2 + uci firewall rule (TCP/179, servers zone)
-  configure   read MD5 password from Vault, render /etc/bird.conf, restart BIRD
+  configure   read MD5 password from OpenBao, render /etc/bird.conf, restart BIRD
   verify      birdc show protocols/routes + ip route for LB pool
   down        service bird stop && service bird disable (rollback drill)
 
 Env overrides: OWRT_SSH, OWRT_BGP_LOCAL, ASN_CLUSTER, ASN_OWRT, LB_POOL,
-               VAULT_MOUNT, VAULT_PATH
+               BAO_MOUNT, BAO_PATH
 EOF
 }
 

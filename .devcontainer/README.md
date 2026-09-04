@@ -17,7 +17,7 @@ First build: ~3–5 min (downloads pinned binaries + builds `terraform-mcp-serve
 | `helm` | `HELM_VERSION` | `get.helm.sh` |
 | `talosctl` | `TALOSCTL_VERSION` | `github.com/siderolabs/talos` |
 | `terraform` | `TERRAFORM_VERSION` | `releases.hashicorp.com` |
-| `vault` | `VAULT_VERSION` | `releases.hashicorp.com` |
+| `bao` (OpenBao CLI) | `OPENBAO_VERSION` | `github.com/openbao/openbao` |
 | `argocd` | `ARGOCD_VERSION` | `github.com/argoproj/argo-cd` |
 | `gitleaks` | `GITLEAKS_VERSION` | `github.com/gitleaks/gitleaks` (matches `.pre-commit-config.yaml`) |
 | `gh` | `GH_VERSION` | `github.com/cli/cli` |
@@ -35,14 +35,14 @@ All `ARG` lines have `# renovate: ...` comments — Renovate opens PRs as new ve
 |---|---|---|---|
 | `~/.claude` | `/home/vscode/.claude` | RW | memory, user-level skills/agents/rules, settings.json |
 | `~/.claude.json` | `/home/vscode/.claude.json` | RW | Claude Code auth state |
-| `~/.kube` | `/home/vscode/.kube` | RO | kubeconfig (note: local context is **not** homelab — use MCP) |
+| `~/.kube` | `/home/vscode/.kube` | RO | kubeconfig (current context is `admin@homelab`) |
 | `~/.config/argocd` | `/home/vscode/.config/argocd` | RW | argocd CLI tokens |
 | `~/.ssh` | `/home/vscode/.ssh` | RO | SSH key for Forgejo push |
 | `~/.gitconfig` | `/home/vscode/.gitconfig` | RO | git identity |
 
 ## Host env propagated via `remoteEnv`
 
-- `VAULT_ADDR`, `VAULT_TOKEN` — needed by `scripts/forgejo-pr.sh` and most skills
+- `BAO_ADDR`, `BAO_TOKEN` — needed by `scripts/forgejo-pr.sh` and most skills (`bao` also accepts the legacy `VAULT_ADDR`/`VAULT_TOKEN`, which are propagated too)
 - `ANTHROPIC_API_KEY` — if you use it (OAuth login also works without)
 - `KUBECONFIG=/home/vscode/.kube/config` — pinned to mounted path
 - `TFE_ADDRESS=https://app.terraform.io` — for terraform-mcp-server
@@ -63,7 +63,7 @@ kubectl version --client          # matches KUBECTL_VERSION
 helm version --short              # matches HELM_VERSION
 talosctl version --client         # matches TALOSCTL_VERSION
 terraform -version                # matches TERRAFORM_VERSION
-vault version                     # matches VAULT_VERSION
+bao version                       # matches OPENBAO_VERSION
 argocd version --client           # matches ARGOCD_VERSION
 gitleaks version                  # matches GITLEAKS_VERSION (and .pre-commit-config.yaml)
 gh --version                      # matches GH_VERSION
@@ -76,7 +76,7 @@ claude
 > /skills   # 19 project skills (gerund-named) + user-level
 
 # secrets / cluster access
-vault status         # Vault answers (means VAULT_ADDR + VAULT_TOKEN propagated)
+bao status           # OpenBao answers (means BAO_ADDR + token propagated)
 ssh -T git@git.example.com   # Forgejo SSH key works
 ```
 

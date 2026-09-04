@@ -1,40 +1,43 @@
 #!/usr/bin/env bash
-# Vault / OpenBao helpers.
+# OpenBao helpers (`bao` CLI — the `vault` binary is not used anywhere).
 
 # shellcheck disable=SC2034  (sourced)
 : "${BAO_POD_NS:=openbao}"
 : "${BAO_POD:=openbao-0}"
 : "${BAO_ADDR_INTERNAL:=http://127.0.0.1:8200}"
 
-# Read VAULT_TOKEN from env or from decrypted DR pack shamir file.
+# Read BAO_TOKEN from env (legacy VAULT_TOKEN honoured) or from the decrypted
+# DR pack shamir file.
 ensure_bao_token() {
-  if [ -n "${VAULT_TOKEN:-}" ]; then
+  : "${BAO_TOKEN:=${VAULT_TOKEN:-}}"
+  if [ -n "${BAO_TOKEN:-}" ]; then
+    export BAO_TOKEN
     return 0
   fi
   local shamir_gpg="$DR_PACK_DIR/00-shamir.json.gpg"
-  [ -f "$shamir_gpg" ] || die "no VAULT_TOKEN in env and no $shamir_gpg"
+  [ -f "$shamir_gpg" ] || die "no BAO_TOKEN in env and no $shamir_gpg"
   log_info "decrypting Shamir bundle from DR pack"
   local tmp; tmp=$(mktemp)
   trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
   gpg --quiet --batch --output "$tmp" --decrypt "$shamir_gpg" \
     || die "shamir decrypt failed (wrong passphrase?)"
-  export VAULT_TOKEN
-  VAULT_TOKEN=$(jq -r '.root_token' "$tmp")
-  [ -n "$VAULT_TOKEN" ] && [ "$VAULT_TOKEN" != "null" ] \
+  export BAO_TOKEN
+  BAO_TOKEN=$(jq -r '.root_token' "$tmp")
+  [ -n "$BAO_TOKEN" ] && [ "$BAO_TOKEN" != "null" ] \
     || die "decrypted shamir bundle has no root_token"
 }
 
 # Run `bao ...` inside the openbao-0 pod with token + addr injected.
 bao_exec() {
   kubectl -n "$BAO_POD_NS" exec "$BAO_POD" -- \
-    env BAO_TOKEN="$VAULT_TOKEN" BAO_ADDR="$BAO_ADDR_INTERNAL" "$@"
+    env BAO_TOKEN="$BAO_TOKEN" BAO_ADDR="$BAO_ADDR_INTERNAL" "$@"
 }
 
 # Idempotent kv put — only writes if path missing OR fields differ.
 bao_kv_put_if_missing() {
   local path="$1"; shift
   if bao_exec bao kv get "$path" >/dev/null 2>&1; then
-    log_skip "vault path exists: $path"
+    log_skip "openbao path exists: $path"
     return 0
   fi
   bao_exec bao kv put "$path" "$@" >/dev/null

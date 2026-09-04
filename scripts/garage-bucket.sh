@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Wrapper for provisioning Garage S3 buckets + keys on the Synology NAS
-# (memini, 10.11.12.237) and storing credentials in Vault.
+# (memini, 10.11.12.237) and storing credentials in OpenBao (`bao` CLI).
 #
 # The Garage CLI runs on the NAS over SSH because DSM 7.2 noexec /tmp
 # prevents shipping binaries here. The CLI is from the SynoCommunity
 # package:
 #     /volume4/@appstore/garage/bin/garage  -c /volume4/garage/garage/garage.toml
 #
-# Vault path convention: <VAULT_PATH_PREFIX>/<namespace>/s3-<key-name>
+# OpenBao path convention: <BAO_PATH_PREFIX>/<namespace>/s3-<key-name>
 # (default prefix: homelab/k8s; mount: home). Two fields are written:
 # ACCESS_KEY_ID and ACCESS_SECRET_KEY — ExternalSecret consumers read
 # them via ClusterSecretStore openbao-backend-cluster.
@@ -22,8 +22,10 @@ set -euo pipefail
 GARAGE_SSH="${GARAGE_SSH:-ivan@10.11.12.237}"
 GARAGE_CONFIG="${GARAGE_CONFIG:-/volume4/garage/garage/garage.toml}"
 GARAGE_BIN="${GARAGE_BIN:-/volume4/@appstore/garage/bin/garage}"
-VAULT_MOUNT="${VAULT_MOUNT:-home}"
-VAULT_PATH_PREFIX="${VAULT_PATH_PREFIX:-homelab/k8s}"
+BAO_MOUNT="${BAO_MOUNT:-${VAULT_MOUNT:-home}}"
+BAO_PATH_PREFIX="${BAO_PATH_PREFIX:-${VAULT_PATH_PREFIX:-homelab/k8s}}"
+# `bao` also honours the legacy VAULT_ADDR/VAULT_TOKEN if BAO_* are unset.
+export BAO_ADDR="${BAO_ADDR:-${VAULT_ADDR:-https://openbao.example.com}}"
 
 usage() {
   cat >&2 <<EOF
@@ -34,16 +36,17 @@ Usage:
 
 Subcommands:
   create   provision a NEW key + (idempotent) bucket, grant rw+owner,
-           write Vault $VAULT_MOUNT/$VAULT_PATH_PREFIX/<ns>/s3-<key>
+           write OpenBao $BAO_MOUNT/$BAO_PATH_PREFIX/<ns>/s3-<key>
   status   list buckets + keys (no arg) or detail one bucket
-  revoke   delete key from Garage + delete its Vault path
+  revoke   delete key from Garage + delete its OpenBao path
 
 Env:
   GARAGE_SSH         ssh target on the NAS (default: $GARAGE_SSH)
   GARAGE_CONFIG      garage.toml path on NAS (default: $GARAGE_CONFIG)
   GARAGE_BIN         garage binary on NAS (default: $GARAGE_BIN)
-  VAULT_MOUNT        KV v2 mount (default: $VAULT_MOUNT)
-  VAULT_PATH_PREFIX  prefix under mount (default: $VAULT_PATH_PREFIX)
+  BAO_MOUNT          KV v2 mount (default: $BAO_MOUNT; legacy VAULT_MOUNT honoured)
+  BAO_PATH_PREFIX    prefix under mount (default: $BAO_PATH_PREFIX; legacy VAULT_PATH_PREFIX honoured)
+  BAO_ADDR           OpenBao endpoint (default: $BAO_ADDR)
 EOF
 }
 
@@ -74,9 +77,9 @@ probe_health() {
   }
 }
 
-vault_path() {
-  # vault_path <namespace> <key-name>
-  printf '%s/%s/s3-%s' "$VAULT_PATH_PREFIX" "$1" "$2"
+bao_path() {
+  # bao_path <namespace> <key-name>
+  printf '%s/%s/s3-%s' "$BAO_PATH_PREFIX" "$1" "$2"
 }
 
 # Count keys with the given name (Garage allows duplicates by ID; we count by name column).
@@ -127,7 +130,7 @@ cmd_create() {
   done
   [ -n "$namespace" ] || { echo "--namespace is required" >&2; die_usage; }
   require ssh
-  require vault
+  require bao
   require jq
   probe_health
 
@@ -170,9 +173,9 @@ cmd_create() {
     echo "=== 5/6 skip quota (none requested) ==="
   fi
 
-  local vpath; vpath=$(vault_path "$namespace" "$key")
-  echo "=== 6/6 write Vault $VAULT_MOUNT/$vpath ==="
-  vault kv put -mount="$VAULT_MOUNT" "$vpath" \
+  local vpath; vpath=$(bao_path "$namespace" "$key")
+  echo "=== 6/6 write OpenBao $BAO_MOUNT/$vpath ==="
+  bao kv put -mount="$BAO_MOUNT" "$vpath" \
     ACCESS_KEY_ID="$key_id" \
     ACCESS_SECRET_KEY="$secret" >/dev/null
 
@@ -180,8 +183,8 @@ cmd_create() {
   echo "=== verify ==="
   garage_cmd bucket info "$bucket"
   echo
-  vault kv get -mount="$VAULT_MOUNT" -format=json "$vpath" \
-    | jq '{path: "'"$VAULT_MOUNT"/"$vpath"'", access_key_id: .data.data.ACCESS_KEY_ID, secret: "***redacted***"}'
+  bao kv get -mount="$BAO_MOUNT" -format=json "$vpath" \
+    | jq '{path: "'"$BAO_MOUNT"/"$vpath"'", access_key_id: .data.data.ACCESS_KEY_ID, secret: "***redacted***"}'
 
   unset key_id secret
 }
@@ -199,7 +202,7 @@ cmd_revoke() {
   done
   [ -n "$namespace" ] || { echo "--namespace is required" >&2; die_usage; }
   require ssh
-  require vault
+  require bao
   probe_health
 
   local kid; kid=$(key_id_by_name "$key")
@@ -217,9 +220,9 @@ cmd_revoke() {
   echo "=== revoke garage key '$key' (ID $kid) ==="
   garage_cmd key delete "$kid" --yes
 
-  local vpath; vpath=$(vault_path "$namespace" "$key")
-  echo "=== delete Vault $VAULT_MOUNT/$vpath ==="
-  vault kv metadata delete -mount="$VAULT_MOUNT" "$vpath"
+  local vpath; vpath=$(bao_path "$namespace" "$key")
+  echo "=== delete OpenBao $BAO_MOUNT/$vpath ==="
+  bao kv metadata delete -mount="$BAO_MOUNT" "$vpath"
 }
 
 case "${1:-}" in

@@ -6,9 +6,9 @@ Generates and validates the minimal disaster-recovery bundle used by `scripts/dr
 
 | File | Purpose | Sensitivity |
 |---|---|---|
-| `00-shamir.json.gpg` | OpenBao 3 unseal keys + root token, `gpg --symmetric` encrypted. Passphrase lives in Vaultwarden secure note "00 - DR Pack Passphrase". | RED — full Vault root |
-| `01-bootstrap.env` | Pre-Vault bootstrap secrets: `CF_API_TOKEN`, `GARAGE_VELERO_*`, optional `OVH_S3_*`, optional `OPENWRT_*` | RED |
-| `02-vault-raft-snapshot.snap` | Latest OpenBao Raft snapshot pulled from S3 (encrypted at rest by Vault). | RED |
+| `00-shamir.json.gpg` | OpenBao 3 unseal keys + root token, `gpg --symmetric` encrypted. Passphrase lives in Vaultwarden secure note "00 - DR Pack Passphrase". | RED — full OpenBao root |
+| `01-bootstrap.env` | Pre-OpenBao bootstrap secrets: `CF_API_TOKEN`, `GARAGE_VELERO_*`, optional `OVH_S3_*`, optional `OPENWRT_*` | RED |
+| `02-vault-raft-snapshot.snap` | Latest OpenBao Raft snapshot pulled from S3 (encrypted at rest by OpenBao). | RED |
 | `03-cluster.env` | Cluster topology / gateway IPs (non-secret, but pinned for reproducibility) | yellow |
 
 ## Usage
@@ -27,7 +27,7 @@ scripts/dr-pack/verify.sh --drill
 `build.sh` requires:
 
 - `kubectl` access to the live cluster (to dump the current `openbao-keys` Secret).
-- `VAULT_TOKEN` (will read from `~/.vault-token` or env).
+- `BAO_TOKEN` (read from `~/.vault-token` or env; legacy `VAULT_TOKEN` still honoured).
 - `gpg` with the DR pack passphrase available (interactive prompt or `GPG_PASSPHRASE` env).
 - AWS CLI configured with Garage `velero` key (to download the latest Raft snapshot from S3).
 

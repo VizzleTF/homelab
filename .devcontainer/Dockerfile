@@ -27,8 +27,8 @@ ARG HELM_VERSION=v3.16.4
 ARG TALOSCTL_VERSION=v1.9.1
 # renovate: datasource=github-releases depName=hashicorp/terraform
 ARG TERRAFORM_VERSION=1.10.0
-# renovate: datasource=github-releases depName=hashicorp/vault
-ARG VAULT_VERSION=1.20.4
+# renovate: datasource=github-releases depName=openbao/openbao
+ARG OPENBAO_VERSION=2.6.2
 # renovate: datasource=github-releases depName=argoproj/argo-cd
 ARG ARGOCD_VERSION=v3.1.9
 # renovate: datasource=github-releases depName=gitleaks/gitleaks
@@ -91,13 +91,14 @@ RUN arch="$(dpkg --print-architecture)" \
  && chmod +x /usr/local/bin/terraform \
  && rm /tmp/terraform.zip
 
-# vault — same LICENSE.txt collision; extract only the binary.
+# bao (OpenBao CLI) — the cluster runs OpenBao, and every script/skill calls
+# `bao`. The HashiCorp `vault` binary is deliberately NOT installed.
 RUN arch="$(dpkg --print-architecture)" \
- && curl -fsSL -o /tmp/vault.zip \
-      "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_${arch}.zip" \
- && unzip -j -o /tmp/vault.zip vault -d /usr/local/bin \
- && chmod +x /usr/local/bin/vault \
- && rm /tmp/vault.zip
+ && curl -fsSL -o /tmp/openbao.tar.gz \
+      "https://github.com/openbao/openbao/releases/download/v${OPENBAO_VERSION}/openbao_${OPENBAO_VERSION}_linux_${arch}.tar.gz" \
+ && tar -xzf /tmp/openbao.tar.gz -C /usr/local/bin bao \
+ && chmod +x /usr/local/bin/bao \
+ && rm /tmp/openbao.tar.gz
 
 # argocd
 RUN arch="$(dpkg --print-architecture)" \

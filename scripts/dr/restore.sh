@@ -58,7 +58,8 @@ $(list_phases | sed 's/^/  /')
 Env vars:
   DR_PACK_DIR        location of DR pack (default: \$HOME/dr-pack)
   KUBECONFIG         kubeconfig path
-  VAULT_TOKEN        OpenBao root token (alternative to decrypting Shamir bundle)
+  BAO_TOKEN          OpenBao root token (alternative to decrypting the Shamir bundle;
+                     legacy VAULT_TOKEN still honoured)
 EOF
     ;;
 esac

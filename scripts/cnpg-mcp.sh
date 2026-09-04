@@ -16,7 +16,7 @@
 #   psql as superuser:
 #     CREATE ROLE mcp_ro LOGIN PASSWORD '<pw>';
 #     GRANT pg_read_all_data TO mcp_ro;
-#   vault kv put home/homelab/k8s/<ns>/mcp-ro username=mcp_ro password=<pw>
+#   bao kv put home/homelab/k8s/<ns>/mcp-ro username=mcp_ro password=<pw>
 #
 # Usage:  cnpg-mcp.sh <cluster>
 #   cnpg    -> ns cnpg,   svc cnpg-cluster-ro    (nextcloud/authentik/forgejo)
@@ -32,9 +32,11 @@ esac
 
 export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 
-# Read-only role creds from Vault (homelab convention: home/homelab/k8s/<ns>/<app>).
-PGUSER="$(vault kv get -mount=home -field=username "homelab/k8s/${NS}/mcp-ro")"
-PGPASS="$(vault kv get -mount=home -field=password "homelab/k8s/${NS}/mcp-ro")"
+# Read-only role creds from OpenBao (homelab convention: home/homelab/k8s/<ns>/<app>).
+# `bao` also honours the legacy VAULT_ADDR/VAULT_TOKEN if BAO_* are unset.
+export BAO_ADDR="${BAO_ADDR:-${VAULT_ADDR:-https://openbao.example.com}}"
+PGUSER="$(bao kv get -mount=home -field=username "homelab/k8s/${NS}/mcp-ro")"
+PGPASS="$(bao kv get -mount=home -field=password "homelab/k8s/${NS}/mcp-ro")"
 PGDB="${PGDATABASE:-$DBDEF}"
 
 # Deterministic free local port per cluster to avoid collisions.

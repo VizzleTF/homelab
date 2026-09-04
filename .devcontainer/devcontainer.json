@@ -16,6 +16,8 @@
     "source=${localEnv:HOME}/.local/share/chezmoi,target=/home/vscode/.local/share/chezmoi,type=bind"
   ],
   "remoteEnv": {
+    "BAO_ADDR": "${localEnv:BAO_ADDR}",
+    "BAO_TOKEN": "${localEnv:BAO_TOKEN}",
     "VAULT_ADDR": "${localEnv:VAULT_ADDR}",
     "VAULT_TOKEN": "${localEnv:VAULT_TOKEN}",
     "KUBECONFIG": "/home/vscode/.kube/config",

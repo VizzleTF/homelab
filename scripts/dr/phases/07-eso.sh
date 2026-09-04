@@ -32,7 +32,7 @@ bao_exec bao write auth/kubernetes/config \
   disable_iss_validation=true >/dev/null
 
 log_info "writing homelab-universal policy"
-kubectl -n openbao exec -i openbao-0 -- env BAO_TOKEN="$VAULT_TOKEN" BAO_ADDR="$BAO_ADDR_INTERNAL" \
+kubectl -n openbao exec -i openbao-0 -- env BAO_TOKEN="$BAO_TOKEN" BAO_ADDR="$BAO_ADDR_INTERNAL" \
   bao policy write homelab-universal - <<'EOF' >/dev/null
 path "home/*" {
   capabilities = ["create","read","update","delete","list"]

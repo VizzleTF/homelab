@@ -30,8 +30,11 @@
 #   FORGEJO_URL      (default: https://git.example.com)
 #   FORGEJO_REPO     (default: vizzle/homelab)
 #   BASE_BRANCH      (default: main)
-#   VAULT_PATH       (default: homelab/forgejo/vizzle-merge-token) — mount `home`
-#   FORGEJO_TOKEN    if set, skips Vault and uses this value
+#   BAO_ADDR         OpenBao endpoint (default: https://openbao.example.com) — a
+#                    non-interactive shell does not inherit it from the profile
+#   BAO_PATH         (default: homelab/forgejo/vizzle-merge-token) — mount `home`
+#                    (legacy alias VAULT_PATH still honoured)
+#   FORGEJO_TOKEN    if set, skips OpenBao and uses this value
 #   POLL_INTERVAL    seconds between status polls (default: 15)
 #   POLL_TIMEOUT     max seconds in monitor/merge (default: 600)
 #   KEEP_BRANCH      if 1, skip post-merge local branch deletion (default: 0)
@@ -42,7 +45,9 @@ set -euo pipefail
 FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
 FORGEJO_REPO="${FORGEJO_REPO:-vizzle/homelab}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
-VAULT_PATH="${VAULT_PATH:-homelab/forgejo/vizzle-merge-token}"
+BAO_PATH="${BAO_PATH:-${VAULT_PATH:-homelab/forgejo/vizzle-merge-token}}"
+# `bao` needs BAO_ADDR; VAULT_ADDR (legacy binary) is not read by it.
+export BAO_ADDR="${BAO_ADDR:-${VAULT_ADDR:-https://openbao.example.com}}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-600}"
 KEEP_BRANCH="${KEEP_BRANCH:-0}"
@@ -61,8 +66,9 @@ Env:
   FORGEJO_URL    (default: $FORGEJO_URL)
   FORGEJO_REPO   (default: $FORGEJO_REPO)
   BASE_BRANCH    (default: $BASE_BRANCH)
-  VAULT_PATH     (default: $VAULT_PATH) — mount=home, key=token
-  FORGEJO_TOKEN  override Vault lookup
+  BAO_ADDR       OpenBao endpoint (default: $BAO_ADDR)
+  BAO_PATH       (default: $BAO_PATH) — mount=home, key=token
+  FORGEJO_TOKEN  override the OpenBao lookup
   POLL_INTERVAL  seconds between CI polls (default: $POLL_INTERVAL)
   POLL_TIMEOUT   max seconds to wait for CI (default: $POLL_TIMEOUT)
   KEEP_BRANCH    if 1, skip post-merge local branch deletion (default: $KEEP_BRANCH)
@@ -81,11 +87,11 @@ get_token() {
     printf '%s' "$FORGEJO_TOKEN"
     return
   fi
-  require vault
+  require bao
   require jq
   local out
-  out=$(vault kv get -mount=home -format=json "$VAULT_PATH" 2>/dev/null) || {
-    echo "vault read failed for home/$VAULT_PATH" >&2
+  out=$(bao kv get -mount=home -format=json "$BAO_PATH" 2>/dev/null) || {
+    echo "openbao read failed for home/$BAO_PATH (BAO_ADDR=$BAO_ADDR)" >&2
     exit 1
   }
   printf '%s' "$out" | jq -r '.data.data.token // empty'
@@ -95,7 +101,7 @@ __TOKEN=""
 token() {
   if [ -z "$__TOKEN" ]; then
     __TOKEN=$(get_token)
-    [ -n "$__TOKEN" ] || { echo "empty token (vault key 'token' missing?)" >&2; exit 1; }
+    [ -n "$__TOKEN" ] || { echo "empty token (openbao key 'token' missing?)" >&2; exit 1; }
   fi
   printf '%s' "$__TOKEN"
 }
