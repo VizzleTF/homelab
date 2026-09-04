@@ -5,7 +5,7 @@
 [tools]
 helm = "4.2.4"          # keep in sync with .forgejo/workflows/ci.yaml helm install
 kubectl = "1.37.0"       # match cluster k8s version
-talosctl = "1.13.9"
+talosctl = "1.14.0"
 kubeconform = "0.8.0"
 task = "3.53.1"
 jq = "1.8.2"
