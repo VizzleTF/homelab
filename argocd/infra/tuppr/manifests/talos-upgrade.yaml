@@ -111,14 +111,22 @@ spec:
       expr: "status.state != 'attached' || status.robustness == 'healthy'"
       timeout: 45m
 
-    # 3. Longhorn ноды schedulable+ready (storage controller alive).
+    # 3. Longhorn ноды ready (storage controller alive).
+    #
+    # НЕ проверяем condition Schedulable: Longhorn ставит его в False на любой
+    # cordoned ноде, а cordon'ит ноды сам tuppr перед апгрейдом. Если контроллер
+    # теряет in-flight состояние (2026-09-04: Renovate-бамп чарта tuppr приехал
+    # через ArgoCD ровно в maintenance-окно и перекатил Deployment посреди
+    # апгрейда worker-01), нода остаётся cordoned, чек Schedulable не проходит
+    # НИКОГДА, tuppr вечно висит в HealthChecking и не доходит до uncordon.
+    # Дедлок держался 4h, immich-machine-learning (nodeSelector ml=true, нода
+    # одна) всё это время был Pending. Целостность данных гейтит чек #2
+    # (attached volumes healthy) — Schedulable там ничего не добавлял.
     - apiVersion: longhorn.io/v1beta2
       kind: Node
       namespace: longhorn-system
-      description: "Longhorn nodes ready & schedulable"
-      expr: |
-        status.conditions.exists(c, c.type == 'Ready' && c.status == 'True') &&
-        status.conditions.exists(c, c.type == 'Schedulable' && c.status == 'True')
+      description: "Longhorn nodes ready"
+      expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
       timeout: 15m
 
     # 4. CNPG shared cluster (nextcloud + authentik + forgejo) — 3 instance up.
