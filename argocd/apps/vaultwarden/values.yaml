@@ -24,12 +24,19 @@ securityContext:
     drop:
       - ALL
 
+# 2026-09-05: limit raised 128Mi -> 256Mi after the first OOMKill. The process
+# sat at a flat 51-59Mi for the six days before it, then the pod recreated during
+# the Talos v1.13.10 rollout (04.09 10:16 UTC) came back running at 72-126Mi on
+# the same node and the same image (chart untouched since 23.08), and touched the
+# ceiling 31h later. Mechanism unproven — icon cache plus accumulating WebSocket
+# sessions is the likeliest; vaultwarden exports no metrics of its own to tell.
+# Request bumped to 64Mi to match the real steady state (was 32Mi).
 resources:
   requests:
-    memory: 32Mi
+    memory: 64Mi
     cpu: 10m
   limits:
-    memory: 128Mi
+    memory: 256Mi
     cpu: 100m
 
 ingress:
