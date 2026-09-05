@@ -54,6 +54,24 @@ monitoring:
   dashboards:
     enabled: false
 
-# Default tolerations подходят (control-plane NoSchedule + CriticalAddonsOnly).
-# У нас 0 dedicated workers, все workloads на CP, taint снят — tolerations
-# не блокируют, лишь страхуют если taint вернётся.
+# Tolerations переопределены: из дефолта чарта убран `node.kubernetes.io/
+# unschedulable`. Чарт держит его, чтобы контроллер мог жить на cordoned ноде и
+# «раскордонить её после ребута», но у нас это давало ровно обратный эффект —
+# контроллер оставался на ноде, которую сам же драйнит:
+#
+#   2026-09-04 — tuppr cordon'ул worker-01, ArgoCD перекатил его Deployment,
+#     новый под сел обратно на cordoned worker-01, потерял in-flight состояние
+#     и навсегда завис в HealthChecking (см. фикс healthCheck #3).
+#   2026-09-05 — при апгрейде на v1.14.0 tuppr остался единственным не-DaemonSet
+#     подом на драйнящейся worker-01. Drain не может завершиться, пока под жив,
+#     а каждый пересозданный под садился на ту же ноду. Вечный `Draining`.
+#
+# Убирать toleration безопасно: parallelism=1, поэтому cordoned всегда ровно
+# одна нода из четырёх, и контроллеру есть куда сесть. Чтобы снять cordon с
+# ноды, находиться на ней не требуется.
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
