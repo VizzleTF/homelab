@@ -34,9 +34,21 @@ spec:
     #
     # BEFORE any future upgrade that changes the open-iscsi version, check whether
     # the node DB has to be wiped again — see the runbook in
-    # `obsidian/112 ArgoCD/Infrastructure/all/tuppr.md`.
-    # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-    version: v1.13.10
+    # `obsidian/112 ArgoCD/Infrastructure/all/tuppr.md`. Checked for v1.14.0
+    # (2026-09-05): iscsi-tools stays at v0.2.0 — the same version the nodes
+    # already run — and the extensions v1.14.0 release even carries
+    # `fix: preserve open-iscsi node record compatibility`. No wipe needed.
+    #
+    # Datasource fixed 2026-09-05: was `ghcr.io/siderolabs/installer`, whose tag
+    # stream ends at 1.13 — Talos v1.14 renamed the image to `metal-installer`,
+    # so Renovate silently offered patches only and the minor never arrived while
+    # kubernetes-upgrade.yaml had already moved to v1.37.0 (which ships with
+    # Talos v1.14). Tracking github-releases, same as
+    # `terraform_talos/configs/nodes.yaml`. tuppr itself pre-pulls
+    # `factory.talos.dev/metal-installer/<schematic>:<version>` off the node
+    # schematic annotation, so it never used the ghcr image anyway.
+    # renovate: datasource=github-releases depName=siderolabs/talos
+    version: v1.14.0
 
   parallelism: 1
 
@@ -87,6 +99,14 @@ spec:
       # удалять этот entry следующим PR не обязательно (просто dead config).
       - start: "50 22 26 5 *"
         duration: "5h"
+        timezone: "Europe/Moscow"
+      # ONE-SHOT — 2026-09-05 21:00 MSK + 9h, чтобы v1.14.0 уехал этой же ночью,
+      # ДО того как k8s-окно в 10:00 попробует раскатать 1.37 (он ships с 1.14,
+      # не с 1.13 — ради этого весь PR). Открыто задним числом на 40 минут:
+      # окно должно быть активно в момент, когда ArgoCD донесёт CR, иначе tuppr
+      # уйдёт ждать 09:00. Закроется само в 06:00 — dead config после этого.
+      - start: "0 21 5 9 *"
+        duration: "9h"
         timezone: "Europe/Moscow"
 
   # ===== INTERVAL GATE между нодами =====
