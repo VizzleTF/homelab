@@ -35,12 +35,18 @@ spec:
       expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
       timeout: 15m
 
-    - apiVersion: longhorn.io/v1beta2
-      kind: Volume
-      namespace: longhorn-system
-      description: "Longhorn volumes healthy"
-      expr: "status.state != 'attached' || status.robustness == 'healthy'"
-      timeout: 30m
+    # Чек на Longhorn Volume healthy убран 2026-09-06. Он копировался из
+    # talos-upgrade.yaml, где действительно нужен: там ноды драйнятся и уходят в
+    # powercycle, поэтому реплики обязаны догнаться прежде чем трогать следующую.
+    # KubernetesUpgrade же ничего такого не делает — в его CRD нет ни drain, ни
+    # policy (spec: healthChecks/kubernetes/maintenance/talosctl), а
+    # `talosctl upgrade-k8s` перекатывает static-pod'ы control-plane и kubelet
+    # на месте: ни вытеснения подов, ни ребута. Идущий rebuild реплики ничему
+    # тут не мешает, а гейт при этом блокировал апгрейд на часы (2026-09-06:
+    # окно открылось в 10:00, апгрейд стоял из-за 250Gi тома immich, который
+    # пересобирался после ночного инцидента с cp-03).
+    #
+    # Готовность нод (чек выше) остаётся — она здесь и есть осмысленный гейт.
 
   talosctl:
     image:
