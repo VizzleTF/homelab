@@ -85,6 +85,21 @@ spec:
                 - alertname=~"KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch"
               equal: ['namespace']
 
+            # VPN-парк (cluster=vps): скрейпер потерял mesh → молчат все
+            # зависимые проверки. Один алерт вместо восьми.
+            - source_matchers:
+                - alertname="VpsScraperMeshDown"
+              target_matchers:
+                - alertname=~"VpsHostDown|VpsCrowdsecDown|VpsTextfileScrapeError|RemnawavePanelMetricsAbsent|RemnawaveNodeDown|TargetDown"
+
+            # Чартовый TargetDown группируется по (cluster,job,namespace,service)
+            # и для VPS не несёт метки host — наши per-host алерты информативнее.
+            - source_matchers:
+                - alertname=~"VpsHostDown|RemnawavePanelMetricsAbsent"
+              target_matchers:
+                - alertname="TargetDown"
+              equal: ['cluster']
+
             # critical > warning по тому же алерту (для двух-уровневых rule)
             - source_matchers:
                 - severity="critical"

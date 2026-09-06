@@ -1,3 +1,4 @@
 homelabOnly: true
 namespace: crowdsec-scraper
 wave: "3"
+extraManifests: true

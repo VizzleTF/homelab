@@ -1,0 +1,154 @@
+# Алерты по хостам VPN-парка: node_exporter (job=node) и CrowdSec (job=crowdsec),
+# всё с external_label cluster=vps. Скрейпит crowdsec-scraper по netbird mesh.
+#
+# Почему отдельные правила, а не чартовые node-exporter: чартовый набор целится в
+# job="node-exporter" (in-cluster DaemonSet), а VPS приезжают под job="node" —
+# до этого файла у них не было НИ ОДНОГО алерта: полный диск на ноде был нем.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: vps-host
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: vps-host
+      rules:
+        # Один хост недоступен. Условие `< 4` отсекает случай «упал mesh/скрейпер»,
+        # который выносится в отдельный алерт ниже — иначе на каждый обрыв netbird
+        # прилетало бы четыре critical вместо одного.
+        - alert: VpsHostDown
+          expr: |
+            up{job="node"} == 0
+              and on() count(up{job="node"} == 0) < 4
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "VPS {{ $labels.host }} недоступен по mesh >10m"
+            description: |
+              node_exporter на {{ $labels.host }} не отвечает. Хост лёг, либо у него
+              отвалился netbird-peer (тогда SSH по публичному IP ещё работает).
+              ssh {{ $labels.host }} 'uptime; systemctl is-active netbird prometheus-node-exporter'
+
+        - alert: VpsScraperMeshDown
+          expr: count(up{job="node"} == 0) == 4
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Скрейпер потерял mesh — не видно ни одного VPS"
+            description: |
+              Разом пропали все четыре таргета — это почти всегда netbird-sidecar
+              скрейпера, а не четыре одновременно упавших VPS.
+              kubectl -n crowdsec-scraper get pods
+              kubectl -n crowdsec-scraper exec deploy/crowdsec-scraper -c netbird -- netbird status
+
+        - alert: VpsDiskSpaceLow
+          expr: |
+            (
+              1 - node_filesystem_avail_bytes{job="node",fstype=~"ext4|xfs|btrfs"}
+                / node_filesystem_size_bytes{job="node",fstype=~"ext4|xfs|btrfs"}
+            ) * 100 > 80
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: {{ $labels.mountpoint }} занят на {{ $value | humanize }}%"
+            description: |
+              Чаще всего это логи nginx/docker или незачищенные дампы в /opt/remnawave/backups.
+              ssh {{ $labels.host }} 'df -h; du -xhd1 /var/log /opt | sort -h | tail -20'
+
+        - alert: VpsDiskSpaceCritical
+          expr: |
+            (
+              1 - node_filesystem_avail_bytes{job="node",fstype=~"ext4|xfs|btrfs"}
+                / node_filesystem_size_bytes{job="node",fstype=~"ext4|xfs|btrfs"}
+            ) * 100 > 90
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.host }}: {{ $labels.mountpoint }} занят на {{ $value | humanize }}%"
+            description: |
+              На полном диске xray и nginx перестают писать и начинают ронять
+              соединения. Чистить сейчас.
+              ssh {{ $labels.host }} 'df -h; journalctl --disk-usage'
+
+        - alert: VpsMemoryPressure
+          expr: |
+            node_memory_MemAvailable_bytes{job="node"}
+              / node_memory_MemTotal_bytes{job="node"} * 100 < 10
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: доступно {{ $value | humanize }}% памяти"
+            description: |
+              ssh {{ $labels.host }} 'free -h; ps aux --sort=-%mem | head'
+
+        - alert: VpsOOMKill
+          expr: increase(node_vmstat_oom_kill{job="node"}[10m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.host }}: OOM-killer убил процесс"
+            description: |
+              Если жертвой был rw-core или nginx — нода уже не обслуживает клиентов.
+              ssh {{ $labels.host }} 'dmesg -T | grep -i "killed process" | tail'
+
+        # load5 на ядро. Порог 2 — не «занят», а «очередь вдвое длиннее числа ядер».
+        - alert: VpsHighLoad
+          expr: |
+            node_load5{job="node"}
+              / on(host) group_left count by(host) (node_cpu_seconds_total{job="node",mode="idle"}) > 2
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: load5 {{ $value | humanize }} на ядро >30m"
+            description: |
+              ssh {{ $labels.host }} 'uptime; top -bn1 | head -20'
+
+        # node_exporter не смог прочитать .prom-файл textfile-коллектора.
+        # Обычно = скрипт-сборщик пишет файл не атомарно и его поймали пустым.
+        - alert: VpsTextfileScrapeError
+          expr: node_textfile_scrape_error{job="node"} > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: node_exporter не может прочитать textfile-метрики"
+            description: |
+              ssh {{ $labels.host }} 'ls -la /var/lib/prometheus/node-exporter/'
+              Писать .prom строго через временный файл + mv (атомарная замена).
+
+        - alert: VpsCrowdsecDown
+          expr: up{job="crowdsec"} == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: CrowdSec не отвечает"
+            description: |
+              ssh {{ $labels.host }} 'systemctl status crowdsec --no-pager'
+
+        # Скачок локальных банов. На vps-panel http-слой CrowdSec включён (там nginx
+        # фронтит панель и страницу подписки), и сценарий http-crawl-non_statics
+        # принимает чанки XHTTP-туннеля за краулер — то есть банит РЕАЛЬНОГО
+        # подписчика. Симптом у пользователя: «с VPN интернета нет, без VPN есть».
+        # Смысл алерта — посмотреть decisions ДО того, как придёт жалоба.
+        - alert: VpsCrowdsecDecisionsSpike
+          expr: |
+            delta(
+              sum by(host) (cs_active_decisions{job="crowdsec",origin="crowdsec",action="ban"})[30m:1m]
+            ) > 20
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: +{{ $value | humanize }} активных банов за 30m"
+            description: |
+              ssh {{ $labels.host }} 'cscli decisions list'
+              Если в reason преобладает http-crawl-non_statics — это ложный бан
+              подписчика, а не атака: cscli decisions delete --ip <ip>

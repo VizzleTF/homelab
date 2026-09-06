@@ -1,0 +1,95 @@
+# Алерты по метрикам панели Remnawave (job=remnawave-panel, cluster=vps).
+# Источник — vps-panel:9101 (nginx-шлюз к backend :3001), см. ../values.yaml.
+#
+# ВАЖНО: remnawave_node_status несёт ТОЛЬКО node_uuid. Человеческое имя ноды
+# живёт в remnawave_node_basic_info{node_name=...}. Без join в Telegram улетит
+# голый UUID — все правила по нодам джойнят через group_left(node_name).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: remnawave-panel
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: remnawave-panel
+      rules:
+        # Скрейпер молчит → мы не знаем ничего о стенде. Это должно алертить
+        # раньше и громче всего остального в этой группе (§ "живость мониторинга"):
+        # тишина иначе неотличима от здоровья.
+        - alert: RemnawavePanelMetricsAbsent
+          expr: absent(up{job="remnawave-panel"}) == 1 or up{job="remnawave-panel"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Метрики панели Remnawave не приходят >5m"
+            description: |
+              Скрейп vps-panel:9101 не отвечает. Варианты: лёг backend, лёг nginx на
+              vps-panel, отвалился netbird-peer скрейпера, ротировали METRICS_PASS
+              мимо OpenBao (тогда будет 401).
+              kubectl -n crowdsec-scraper exec deploy/crowdsec-scraper -c vmagent -- wget -qO- 127.0.0.1:8429/api/v1/targets
+              ssh vps-panel 'sudo docker ps --filter name=remnawave'
+              ssh vps-panel 'curl -s -o /dev/null -w "%{http_code}\n" http://100.64.0.0:9101/metrics'   # ждём 401
+
+        # Главный сигнал: нода потеряла связь с панелью. Пользователи на ней
+        # прямо сейчас без VPN.
+        - alert: RemnawaveNodeDown
+          expr: |
+            (remnawave_node_status == 0)
+              * on(node_uuid) group_left(node_name) remnawave_node_basic_info
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Нода {{ $labels.node_name }} отвалилась от панели"
+            description: |
+              remnawave_node_status=0 больше 10 минут для node_name={{ $labels.node_name }}
+              (uuid={{ $labels.node_uuid }}).
+              Прежде чем подозревать саму ноду — проверить DNS/регистратора и баны
+              CrowdSec: оба сценария уже случались и выглядели как «нода сломалась».
+              ssh vps-panel 'rwapi GET /api/nodes | jq -r ".response[] | \"\(.name) \(.isConnected)\""'
+              dig +short {{ $labels.node_name }}.vpn.example.org
+
+        # Ноды на связи, но онлайна нет ни на одной — проблема на пути клиента
+        # (подписка, DNS, реалити), а не с нодами. Порог намеренно длинный:
+        # 13 пользователей, ночной провал до нуля — штатное явление.
+        - alert: RemnawaveNoOnlineUsers
+          expr: |
+            sum(remnawave_users_online_stats{metricType="onlineNow"}) == 0
+              and on() sum(remnawave_node_status) > 0
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ни одного онлайн-пользователя >2h при живых нодах"
+            description: |
+              Все ноды на связи с панелью, но онлайн нулевой. Проверить сквозную
+              выдачу подписки (поломка бывает избирательной по User-Agent):
+              ssh vps-panel 'rwsub Ivan'
+              ssh vps-panel 'rwsub Ivan Happ/1.0'
+
+        # Backend перезапускается по кругу — OOM, краш, миграция.
+        # resets() ловит обнуление uptime, единичный рестарт (деплой) не шумит.
+        - alert: RemnawaveBackendFlapping
+          expr: resets(remnawave_process_uptime_seconds[1h]) > 2
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backend панели рестартовал {{ $value }} раз за час"
+            description: |
+              ssh vps-panel 'cd /opt/remnawave && sudo docker compose logs --tail 200 remnawave'
+              Проверить OOM: ssh vps-panel 'sudo dmesg -T | grep -i oom | tail'
+
+        # Event loop встал — backend жив, но API отвечает медленно; подписка и
+        # хендшейки нод начнут таймаутиться раньше, чем что-то упадёт.
+        - alert: RemnawaveEventLoopLag
+          expr: remnawave_process_event_loop_p99_ms > 200
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Event loop p99 {{ $value | humanize }}ms >15m"
+            description: |
+              Backend панели throttled. Смотреть remnawave_process_rss_bytes и
+              remnawave_process_heap_used_bytes рядом — обычно это утечка heap.

@@ -3,7 +3,8 @@
 # свой peer k8s-crowdsec-scraper) + vmagent в общем netns: видит и cluster (VMSingle через
 # eth0/CoreDNS), и mesh-IP VPS (100.104.x.x через wt0). vmagent скрейпит :6060 и remote_write
 # → in-cluster VMSingle. На VPS crowdsec prometheus bind 0.0.0.0, nft пускает :6060 только
-# из 100.64.0.0/16 (см. ../vps/crowdsec.md).
+# из 100.64.0.0/16 (см. ../vps/crowdsec.md). Третий job — метрики панели Remnawave
+# на vps-panel через nginx-шлюз :9101 (см. комментарий у job_name: remnawave-panel).
 homelab-common:
   # netbird identity PVC (/etc/netbird) — отдельный peer, НЕ переиспользовать netbird app.
   veleroSchedules:
@@ -20,6 +21,19 @@ homelab-common:
           property: setup-key
       templateData:
         NB_SETUP_KEY: '{{ index . "setup-key" }}'
+
+    # basic auth панели Remnawave (METRICS_USER / METRICS_PASS из /opt/remnawave/.env
+    # на vps-panel). Секрет монтируется в vmagent файлами и читается через
+    # basic_auth.username_file / password_file — креды НЕ инлайнятся в scrape.yaml,
+    # который лежит в git и уезжает в публичный mirror. Ротация пароля = правка
+    # в OpenBao, ESO обновит secret, kubelet — файлы; рестарт пода не нужен.
+    - name: remnawave-metrics
+      vaultPath: crowdsec-scraper/remnawave-metrics
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
 
   persistentVolumeClaims:
     - name: netbird-peer
@@ -68,6 +82,21 @@ homelab-common:
                     labels: {host: vps-panel}
                   - targets: ["100.64.0.0:9100"]
                     labels: {host: vps-fi}
+              # Remnawave panel (vps-panel). Backend публикует :3001 только на
+              # loopback — docker-опубликованный порт обходит ufw целиком
+              # (цепочка DOCKER-USER пуста), 0.0.0.0:3001 был бы открыт всему
+              # интернету. Наружу в mesh отдаёт host-network nginx на :9101 с
+              # `allow 100.64.0.0/16; deny all` (/opt/remnawave/nginx.conf).
+              # Закрывает разом: связь панель↔ноды (remnawave_node_status),
+              # онлайн, трафик по инбаундам, здоровье backend.
+              - job_name: remnawave-panel
+                metrics_path: /metrics
+                basic_auth:
+                  username_file: /etc/vmagent-secrets/username
+                  password_file: /etc/vmagent-secrets/password
+                static_configs:
+                  - targets: ["100.64.0.0:9101"]
+                    labels: {host: vps-panel}
       deployment:
         metadata:
           labels:
@@ -144,6 +173,9 @@ homelab-common:
                     - name: scrape-config
                       mountPath: /etc/vmagent
                       readOnly: true
+                    - name: remnawave-metrics
+                      mountPath: /etc/vmagent-secrets
+                      readOnly: true
                     - name: rw-queue
                       mountPath: /tmp/vmagent-rw
               volumes:
@@ -157,5 +189,9 @@ homelab-common:
                 - name: scrape-config
                   configMap:
                     name: crowdsec-scraper
+                - name: remnawave-metrics
+                  secret:
+                    secretName: remnawave-metrics
+                    defaultMode: 0444
                 - name: rw-queue
                   emptyDir: {}
