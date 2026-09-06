@@ -50,6 +50,18 @@ configuration:
   defaultVolumesToFsBackup: false
   defaultBackupTTL: "720h"        # 30d — переопределяется per-Schedule
   garbageCollectionFrequency: "1h"
+  # Kopia repo maintenance. Дефолт Velero — 1h на КАЖДЫЙ BackupRepository
+  # (namespace × BSL): 13 ns × 2 BSL = 26 job/час, при keepLatestMaintenanceJobs: 3
+  # это ~78 Completed pod'ов в ns velero постоянно. Для домашнего кластера хватает 24h.
+  # NB: частота вшивается в BackupRepository.spec.maintenanceFrequency при СОЗДАНИИ —
+  # уже существующие репо этот флаг не перечитывают, их надо патчить руками:
+  #   kubectl get backuprepositories -n velero -o name | xargs -I{} \
+  #     kubectl patch {} -n velero --type merge -p '{"spec":{"maintenanceFrequency":"24h"}}'
+  defaultRepoMaintainFrequency: "24h"
+  repositoryMaintenanceJob:
+    repositoryConfigData:
+      global:
+        keepLatestMaintenanceJobs: 1
 
   backupStorageLocation:
     - name: garage-default
