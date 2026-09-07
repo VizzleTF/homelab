@@ -116,7 +116,7 @@ homelab-common:
                 name: "OAuth Mapping: OpenID 'groups' (Velero UI)"
                 scope_name: groups
                 description: "Group memberships"
-                expression: "return list(request.user.ak_groups.values_list('name', flat=True))"
+                expression: "return list(request.user.groups.values_list('name', flat=True))"
 
         02-velero-ui-oidc.yaml: |
           version: 1

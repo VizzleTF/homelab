@@ -17,7 +17,7 @@ homelab-common:
                 name: "OAuth Mapping: OpenID 'groups' (Grafana)"
                 scope_name: groups
                 description: "Group memberships for role-based access"
-                expression: "return list(request.user.ak_groups.values_list('name', flat=True))"
+                expression: "return list(request.user.groups.values_list('name', flat=True))"
 
         # Blueprint 2: create provider + app (references scope via !Find, runs after 01-)
         02-grafana-oidc.yaml: |
@@ -77,7 +77,7 @@ homelab-common:
                 name: "OAuth Mapping: OpenID 'groups' (Immich)"
                 scope_name: groups
                 description: "Group memberships"
-                expression: "return list(request.user.ak_groups.values_list('name', flat=True))"
+                expression: "return list(request.user.groups.values_list('name', flat=True))"
 
         # Blueprint 2: create provider + app (references scope via !Find, runs after 01-)
         02-immich-oidc.yaml: |
@@ -134,7 +134,7 @@ homelab-common:
                 name: "OAuth Mapping: OpenID 'groups' (Nextcloud)"
                 scope_name: groups
                 description: "Group memberships"
-                expression: "return list(request.user.ak_groups.values_list('name', flat=True))"
+                expression: "return list(request.user.groups.values_list('name', flat=True))"
 
         # Blueprint 2: create provider + app (references scope via !Find, runs after 01-)
         02-nextcloud-oidc.yaml: |
@@ -205,7 +205,7 @@ homelab-common:
                 name: "OAuth Mapping: OpenID 'groups' (ArgoCD)"
                 scope_name: groups
                 description: "Group memberships for role-based access"
-                expression: "return list(request.user.ak_groups.values_list('name', flat=True))"
+                expression: "return list(request.user.groups.values_list('name', flat=True))"
 
         # Blueprint 2: create provider + app (references scope via !Find, runs after 01-)
         02-argocd-oidc.yaml: |
@@ -482,7 +482,7 @@ homelab-common:
                 scope_name: roles
                 description: "OpenCloud role assignment (PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM=roles)"
                 expression: |
-                  return {"roles": [group.name for group in request.user.ak_groups.all()]}
+                  return {"roles": [group.name for group in request.user.groups.all()]}
 
             # The mobile apps (iOS/Android) hardcode their scope list to
             # `openid profile email offline_access` — they ignore config.json's
@@ -497,7 +497,7 @@ homelab-common:
                 scope_name: profile
                 description: "OpenCloud role assignment for clients that only request `profile`"
                 expression: |
-                  return {"roles": [group.name for group in request.user.ak_groups.all()]}
+                  return {"roles": [group.name for group in request.user.groups.all()]}
 
         # Blueprint 2: provider + app (references the scope via !Find, runs after 01-).
         # Public client, no secret: every OpenCloud client (web, desktop, mobile) is a
