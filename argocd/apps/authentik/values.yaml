@@ -43,7 +43,7 @@ homelab-common:
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (Grafana)"]]
 
             # Application for Grafana
@@ -102,7 +102,7 @@ homelab-common:
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (Immich)"]]
 
             - model: authentik_core.application
@@ -159,7 +159,7 @@ homelab-common:
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (Nextcloud)"]]
 
             - model: authentik_core.application
@@ -230,7 +230,7 @@ homelab-common:
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (ArgoCD)"]]
 
             - model: authentik_core.application
@@ -276,7 +276,7 @@ homelab-common:
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
 
             - model: authentik_core.application
               identifiers:
@@ -484,6 +484,21 @@ homelab-common:
                 expression: |
                   return {"roles": [group.name for group in request.user.ak_groups.all()]}
 
+            # The mobile apps (iOS/Android) hardcode their scope list to
+            # `openid profile email offline_access` — they ignore config.json's
+            # `scope` and never ask for `roles`. Emitting the same claim from a
+            # second mapping bound to `profile` makes the claim unconditional for
+            # this provider without touching the shared authentik default mapping.
+            - model: authentik_providers_oauth2.scopemapping
+              identifiers:
+                name: "OAuth Mapping: OpenCloud 'roles' (profile)"
+              attrs:
+                name: "OAuth Mapping: OpenCloud 'roles' (profile)"
+                scope_name: profile
+                description: "OpenCloud role assignment for clients that only request `profile`"
+                expression: |
+                  return {"roles": [group.name for group in request.user.ak_groups.all()]}
+
         # Blueprint 2: provider + app (references the scope via !Find, runs after 01-).
         # Public client, no secret: every OpenCloud client (web, desktop, mobile) is a
         # public PKCE client per upstream docs. One provider only — authentik scopes the
@@ -515,14 +530,25 @@ homelab-common:
                     url: http://127.0.0.1
                   - matching_mode: strict
                     url: http://localhost
+                  # OpenCloud iOS/Android use a hardcoded custom-scheme redirect.
+                  # These strings live in the app binaries; the server never
+                  # advertises them (webfinger only returns the issuer relation).
+                  - matching_mode: strict
+                    url: oc://ios.opencloud.eu
+                  - matching_mode: strict
+                    url: oc://android.opencloud.eu
                 # Required: OpenCloud verifies the access token as a JWT
                 # (PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD=jwt).
                 signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
+                  # Desktop and mobile request offline_access; without the mapping
+                  # authentik issues no refresh token and the clients re-login daily.
+                  - !Find [authentik_providers_oauth2.scopemapping, [scope_name, offline_access]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenCloud 'roles'"]]
+                  - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenCloud 'roles' (profile)"]]
 
             - model: authentik_core.application
               identifiers:
