@@ -581,8 +581,6 @@ homelab-common:
           property: nextcloud_oidc_client_secret
         - secretKey: forgejo_oidc_client_secret
           property: forgejo_oidc_client_secret
-        - secretKey: velero_ui_oidc_client_secret
-          property: velero_ui_oidc_client_secret
         - secretKey: trek_oidc_client_secret
           property: trek_oidc_client_secret
       templateData:
@@ -603,7 +601,6 @@ homelab-common:
         IMMICH_OIDC_CLIENT_SECRET: "{{ .immich_oidc_client_secret }}"
         NEXTCLOUD_OIDC_CLIENT_SECRET: "{{ .nextcloud_oidc_client_secret }}"
         FORGEJO_OIDC_CLIENT_SECRET: "{{ .forgejo_oidc_client_secret }}"
-        VELERO_UI_OIDC_CLIENT_SECRET: "{{ .velero_ui_oidc_client_secret }}"
         TREK_OIDC_CLIENT_SECRET: "{{ .trek_oidc_client_secret }}"
 
 
@@ -681,7 +678,6 @@ blueprints:
     - authentik-blueprint-immich
     - authentik-blueprint-nextcloud
     - authentik-blueprint-forgejo
-    - authentik-blueprint-velero-ui
     - authentik-blueprint-trek
     - authentik-blueprint-opencloud
     - authentik-blueprint-enrollment-invitation

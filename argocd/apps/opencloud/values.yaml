@@ -86,32 +86,6 @@ homelab-common:
       labels:
         app: opencloud
 
-  veleroSchedules:
-    # CSI snapshot + Kopia. The decomposedfs metadata is a tree of small files;
-    # the sync hook flushes dirty pages so the snapshot is crash-consistent.
-    - name: opencloud-daily
-      schedule: "15 2 * * *"
-      template:
-        hooks: &opencloud_hooks
-          resources:
-            - name: sync-buffers
-              includedResources: [pods]
-              labelSelector:
-                matchLabels:
-                  app: opencloud
-              pre:
-                - exec:
-                    command: ["/bin/sh", "-c", "sync"]
-                    onError: Continue
-                    timeout: 30s
-    # Independent off-site copy → OVH (BSL ovh-direct), weekly, 30d.
-    - name: opencloud-offsite
-      schedule: "0 5 * * 0"
-      template:
-        storageLocation: ovh-direct
-        ttl: "720h0m0s"
-        hooks: *opencloud_hooks
-
   apps:
     - name: opencloud
       configMap:

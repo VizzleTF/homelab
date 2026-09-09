@@ -49,19 +49,6 @@ homelab-common:
   # netbird identity PVCs (100Mi each) = /etc/netbird per peer. Без бэкапа потеря =
   # re-enroll peer (routes auto-restored via `router` group auto-join). Бэкапим весь ns.
   # Без exec-hook: identity-файлы статичны, CSI snapshot crash-consistent достаточно.
-  veleroSchedules:
-    - name: netbird-daily
-      schedule: "20 2 * * *"
-      template:
-        includedNamespaces: [netbird]
-    # Independent off-site copy → OVH (BSL ovh-direct). Тир низкоценные: weekly, 90d
-    # (identity мелкая, держим дольше).
-    - name: netbird-offsite
-      schedule: "20 4 * * 0"
-      template:
-        includedNamespaces: [netbird]
-        storageLocation: ovh-direct
-        ttl: "2160h0m0s"
 
   externalSecrets:
     # Single reusable setup key (Vault netbird/peer) — both peers enroll with it;

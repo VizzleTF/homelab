@@ -9,7 +9,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: tfstate-bucket-mirror-ovh
-  namespace: velero
+  namespace: tfstate-mirror
   labels:
     app.kubernetes.io/name: tfstate-bucket-mirror
     app.kubernetes.io/component: offsite-mirror
@@ -46,7 +46,7 @@ spec:
                   echo "[$(date -u)] copy complete"
               envFrom:
                 - secretRef:
-                    name: velero-mirror-rclone-env
+                    name: tfstate-mirror-rclone-env
               resources:
                 requests:
                   cpu: 50m

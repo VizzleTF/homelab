@@ -1,0 +1,40 @@
+# Off-site копия terraform state: Garage → OVH.
+#
+# Жила в компоненте velero (ns velero) как побочный CronJob, хотя к Velero
+# отношения не имеет — при выводе Velero (docs/backup-v2.md, фаза 8) вынесена
+# в собственный компонент, чтобы не уехать вместе с ним.
+#
+# Vault-путь `velero/s3-ovh` оставлен как есть: это ключ OVH, переживший
+# Velero; переименование пути потребовало бы синхронной правки в cnpg и
+# snapshot-CronJob'ах.
+homelab-common:
+  externalSecrets:
+    - name: tfstate-mirror-rclone-env
+      data:
+        - secretKey: garage_tfstate_ak
+          vaultPath: terraform/s3-terraform-state
+          property: ACCESS_KEY_ID
+        - secretKey: garage_tfstate_sk
+          vaultPath: terraform/s3-terraform-state
+          property: ACCESS_SECRET_KEY
+        - secretKey: ovh_ak
+          vaultPath: velero/s3-ovh
+          property: ACCESS_KEY_ID
+        - secretKey: ovh_sk
+          vaultPath: velero/s3-ovh
+          property: ACCESS_SECRET_KEY
+      templateData:
+        RCLONE_CONFIG_GARAGE_TFSTATE_TYPE: "s3"
+        RCLONE_CONFIG_GARAGE_TFSTATE_PROVIDER: "Other"
+        RCLONE_CONFIG_GARAGE_TFSTATE_ENDPOINT: "https://s3.example.com"
+        RCLONE_CONFIG_GARAGE_TFSTATE_REGION: "garage"
+        RCLONE_CONFIG_GARAGE_TFSTATE_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_GARAGE_TFSTATE_ACCESS_KEY_ID: "{{ .garage_tfstate_ak }}"
+        RCLONE_CONFIG_GARAGE_TFSTATE_SECRET_ACCESS_KEY: "{{ .garage_tfstate_sk }}"
+        RCLONE_CONFIG_OVH_TYPE: "s3"
+        RCLONE_CONFIG_OVH_PROVIDER: "Other"
+        RCLONE_CONFIG_OVH_ENDPOINT: "https://s3.de.io.cloud.ovh.net"
+        RCLONE_CONFIG_OVH_REGION: "de"
+        RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
+        RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
