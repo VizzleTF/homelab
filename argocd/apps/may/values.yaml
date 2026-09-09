@@ -25,33 +25,6 @@ homelab-common:
       bootstrap:
         repo: garage
 
-  veleroSchedules:
-    # CSI snapshot + Kopia (defaultVolumesToFsBackup=false на сервере).
-    # SQLite WAL crash-consistent при snapshot всего PVC; sync hook
-    # flush'ит OS dirty pages, чтобы -wal/-shm на диске были актуальны.
-    - name: may-daily
-      schedule: "35 2 * * *"
-      template:
-        hooks: &may_hooks
-          resources:
-            - name: sync-buffers
-              includedResources: [pods]
-              labelSelector:
-                matchLabels:
-                  app: may
-              pre:
-                - exec:
-                    command: ["/bin/sh", "-c", "sync"]
-                    onError: Continue
-                    timeout: 30s
-    # Independent off-site copy → OVH (BSL ovh-direct). Тир низкоценные: weekly, 30d.
-    - name: may-offsite
-      schedule: "0 4 * * 0"
-      template:
-        storageLocation: ovh-direct
-        ttl: "720h0m0s"
-        hooks: *may_hooks
-
   externalSecrets:
     - name: may-app-secrets
       vaultPath: may/app-secrets

@@ -30,11 +30,6 @@ homelab-common:
         repo: garage
 
   # netbird identity PVC (/etc/netbird) — отдельный peer, НЕ переиспользовать netbird app.
-  veleroSchedules:
-    - name: crowdsec-scraper-daily
-      schedule: "25 2 * * *"
-      template:
-        includedNamespaces: [crowdsec-scraper]
 
   externalSecrets:
     - name: netbird-peer

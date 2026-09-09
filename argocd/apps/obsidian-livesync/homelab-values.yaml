@@ -65,6 +65,3 @@ homelab-common:
 
   # Crash-consistent snapshot CouchDB PVC. Данные = sync-хаб (не единственная копия),
   # recovery = re-init + Fetch с любого устройства. Daily, Garage BSL.
-  veleroSchedules:
-    - name: obsidian-livesync-daily
-      schedule: "40 2 * * *"

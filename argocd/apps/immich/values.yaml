@@ -41,56 +41,6 @@ homelab-common:
       # один том на 250Gi. Восстановление библиотеки — осознанная операция,
       # destination создаётся вручную по месту.
 
-  veleroSchedules:
-    - name: immich-daily
-      schedule: "0 3 * * *"
-      template:
-        # FSB вместо CSI: 185 GiB clone не успевает за Velero 15m timeout.
-        # node-agent монтит существующий PVC через kubelet hostPath, Kopia
-        # читает напрямую — speed = чистый Garage upload bandwidth.
-        defaultVolumesToFsBackup: true
-        snapshotVolumes: false
-        snapshotMoveData: false
-        itemOperationTimeout: 6h0m0s
-        # Excludes CNPG immich-cluster pgdata PVC (Barman handles Postgres).
-        labelSelector: &immich_lsel
-          matchExpressions:
-            - key: cnpg.io/cluster
-              operator: DoesNotExist
-        # Skip immich-machine-learning PVC (ML model cache, регенерируется).
-        resourcePolicy: &immich_rpol
-          kind: configmap
-          name: immich-fsb-policy
-        hooks: &immich_hooks
-          resources:
-            - name: immich-sync
-              includedResources: [pods]
-              labelSelector:
-                matchLabels:
-                  app.kubernetes.io/name: server
-              pre:
-                - exec:
-                    container: main
-                    command: ["/bin/sh", "-c", "sync"]
-                    onError: Continue
-                    timeout: 30s
-    # Independent off-site copy → OVH (BSL ovh-direct). Immich — самый важный
-    # бэкап: 2×/нед (Wed+Sun), 90d. FSB (как daily), отдельный slot 05:00 (тяжёлый
-    # kopia-scan 250Gi). Отдельный kopia-репо на OVH → независим от wipe Garage.
-    # Те же scalar-флаги + aliases (*immich_lsel/_rpol/_hooks).
-    - name: immich-offsite
-      schedule: "0 5 * * 3,0"
-      template:
-        defaultVolumesToFsBackup: true
-        snapshotVolumes: false
-        snapshotMoveData: false
-        itemOperationTimeout: 6h0m0s
-        storageLocation: ovh-direct
-        ttl: "2160h0m0s"
-        labelSelector: *immich_lsel
-        resourcePolicy: *immich_rpol
-        hooks: *immich_hooks
-
   persistentVolumeClaims:
     - name: immich-library-pvc
       accessModes:
