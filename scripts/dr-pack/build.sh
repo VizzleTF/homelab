@@ -52,19 +52,30 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
   echo "# Refreshed: $(date -Iseconds)"
   echo "CF_API_TOKEN=${CF_API_TOKEN:-MISSING-export-CF_API_TOKEN-first}"
 
-  GARAGE_AK=$(kubectl -n velero get secret velero-garage-creds -o jsonpath='{.data.cloud}' 2>/dev/null \
-    | base64 -d | awk -F' = ' '/aws_access_key_id/{print $2}')
-  GARAGE_SK=$(kubectl -n velero get secret velero-garage-creds -o jsonpath='{.data.cloud}' 2>/dev/null \
-    | base64 -d | awk -F' = ' '/aws_secret_access_key/{print $2}')
-  echo "GARAGE_VELERO_ACCESS_KEY=${GARAGE_AK:-MISSING}"
-  echo "GARAGE_VELERO_SECRET=${GARAGE_SK:-MISSING}"
+  # S3-ключи и пароли restic-репозиториев. Источники — живые Secret'ы,
+  # которые ESO держит в кластере:
+  #   kube-system/snapshots-rclone  — ключи бакета `snapshots` (Garage) и OVH
+  #   <ns>/<app>-restic-garage|ovh  — ключ бакета `restic-apps` + пароли restic
+  # Приложение-донор для restic-кредов настраивается (по умолчанию rsstt —
+  # самый маленький и стабильный том); ключ и пароль общие для всех репозиториев.
+  RESTIC_DONOR_NS="${RESTIC_DONOR_NS:-rsstt}"
+  RESTIC_DONOR_APP="${RESTIC_DONOR_APP:-rss-to-telegram-bot}"
 
-  OVH_AK=$(kubectl -n velero get secret velero-ovh-creds -o jsonpath='{.data.cloud}' 2>/dev/null \
-    | base64 -d | awk -F' = ' '/aws_access_key_id/{print $2}')
-  OVH_SK=$(kubectl -n velero get secret velero-ovh-creds -o jsonpath='{.data.cloud}' 2>/dev/null \
-    | base64 -d | awk -F' = ' '/aws_secret_access_key/{print $2}')
-  echo "OVH_S3_ACCESS_KEY=${OVH_AK:-MISSING}"
-  echo "OVH_S3_SECRET_KEY=${OVH_SK:-MISSING}"
+  sn() { kubectl -n kube-system get secret snapshots-rclone -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d; }
+  rs() { kubectl -n "$RESTIC_DONOR_NS" get secret "${RESTIC_DONOR_APP}-restic-$1" -o jsonpath="{.data.$2}" 2>/dev/null | base64 -d; }
+
+  echo "GARAGE_SNAPSHOTS_ACCESS_KEY=$(sn RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID)"
+  echo "GARAGE_SNAPSHOTS_SECRET=$(sn RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY)"
+  echo "OVH_S3_ACCESS_KEY=$(sn RCLONE_CONFIG_OVH_ACCESS_KEY_ID)"
+  echo "OVH_S3_SECRET_KEY=$(sn RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY)"
+
+  echo "GARAGE_RESTIC_ACCESS_KEY=$(rs garage AWS_ACCESS_KEY_ID)"
+  echo "GARAGE_RESTIC_SECRET=$(rs garage AWS_SECRET_ACCESS_KEY)"
+  # Без этих двух паролей ни один restic-репозиторий не открыть, а OpenBao
+  # (где они лежат в обычной жизни) сам восстанавливается из бэкапа — это
+  # единственная циклическая зависимость всей схемы.
+  echo "RESTIC_PASSWORD_GARAGE=$(rs garage RESTIC_PASSWORD)"
+  echo "RESTIC_PASSWORD_OVH=$(rs ovh RESTIC_PASSWORD)"
 
   OW_HOST=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.host}' 2>/dev/null | base64 -d || true)
   OW_USER=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.username}' 2>/dev/null | base64 -d || true)
@@ -78,12 +89,11 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
 chmod 600 "$DR_PACK_DIR/01-bootstrap.env"
 log_ok "wrote 01-bootstrap.env"
 
-# --- 02 latest Raft snapshot via approle (Velero hook already creates these) ---
+# --- 02 latest Raft snapshot ---
 log_info "fetching latest OpenBao Raft snapshot"
-# The Velero schedule openbao-hourly runs `bao operator raft snapshot save`
-# inside the openbao-0 pod and pushes the snapshot to S3 as part of the
-# scheduled backup. We pull the freshest one straight from the live pod —
-# avoids racing the next backup window.
+# CronJob openbao-raft-snapshot кладёт снапшот в оба S3 ежедневно; здесь
+# снимаем свежий прямо с живого пода, чтобы не гоняться за окном расписания.
+# Фаза 05 DR умеет добрать последний из S3, если этот файл протух.
 kubectl -n openbao exec openbao-0 -- env \
   BAO_TOKEN="$ROOT" BAO_ADDR=http://127.0.0.1:8200 \
   bao operator raft snapshot save /tmp/raft.snap >/dev/null

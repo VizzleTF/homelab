@@ -47,7 +47,7 @@ After Vault is restored, every other secret (Forgejo SSH, OIDC client_secrets, C
 | 02 | storage | git (Longhorn + snapshot-controller charts) |
 | 03 | tls | `01-bootstrap.env` (CF_API_TOKEN), git (cert-manager) |
 | 04 | dns | git (external-dns CF + OpenWrt charts) |
-| 05 | velero-bootstrap | `01-bootstrap.env` (Garage + OVH creds) — minimal install to pull Raft snapshot if needed |
+| 05 | snapshot-fetch | `01-bootstrap.env` (Garage/OVH keys) — pulls the freshest OpenBao Raft snapshot from S3 if the DR pack copy is older than 7 days |
 | 06 | vault-restore | `00-shamir.json.gpg` + `02-vault-raft-snapshot.snap` |
 | 07 | eso | Vault now holds everything else |
 | 08 | cnpg | barman recovery from S3 (creds via ESO) |

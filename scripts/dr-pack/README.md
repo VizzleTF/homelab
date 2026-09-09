@@ -29,7 +29,7 @@ scripts/dr-pack/verify.sh --drill
 - `kubectl` access to the live cluster (to dump the current `openbao-keys` Secret).
 - `BAO_TOKEN` (read from `~/.vault-token` or env; legacy `VAULT_TOKEN` still honoured).
 - `gpg` with the DR pack passphrase available (interactive prompt or `GPG_PASSPHRASE` env).
-- AWS CLI configured with Garage `velero` key (to download the latest Raft snapshot from S3).
+- Nothing extra: phase 05 pulls the latest Raft snapshot from S3 with an in-cluster rclone pod using the keys in `01-bootstrap.env`.
 
 ## Cron candidate
 
