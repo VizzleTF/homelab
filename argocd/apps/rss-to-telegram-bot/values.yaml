@@ -50,6 +50,36 @@ homelab-common:
         app.kubernetes.io/name: rss-to-telegram-bot
         app.kubernetes.io/instance: rss-to-telegram-bot
 
+  # Backup v2 (пилот миграции, см. docs/backup-v2.md). VolSync снимает Longhorn
+  # CSI-снапшот тома и льёт restic в две независимые цели: garage (on-prem) и
+  # ovh (off-site). Velero-расписания выше пока работают параллельно — они
+  # уйдут на фазе 8, после зелёного restore-drill.
+  #
+  # Слоты 01:1x/01:4x выбраны так, чтобы не пересекаться с velero-окном 02:55.
+  # Бот пишет SQLite в /app/config; снапшот тома — crash-consistent, для
+  # SQLite в WAL-режиме этого достаточно (восстановление проигрывает WAL).
+  volsync:
+    - name: rss-to-telegram-bot
+      claim: rss-to-telegram-bot
+      capacity: 1Gi
+      moverSecurityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      targets:
+        - repo: garage
+          schedule: "10 1 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "40 1 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   apps:
     - name: rss-to-telegram-bot
       deployment:
