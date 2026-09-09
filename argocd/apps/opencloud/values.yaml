@@ -6,6 +6,51 @@
 # (LDAP) keeps running as the writable user store that PROXY_AUTOPROVISION_ACCOUNTS
 # writes into on first login.
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
+  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания выше пока работают параллельно, уйдут на фазе 8.
+  volsync:
+    - name: opencloud-config
+      claim: opencloud-config
+      capacity: 1Gi
+      moverSecurityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      targets:
+        - repo: garage
+          schedule: "30 1 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "30 6 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+    - name: opencloud-data
+      claim: opencloud-data
+      capacity: 50Gi
+      moverSecurityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      targets:
+        - repo: garage
+          schedule: "35 1 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "35 6 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   externalSecrets:
     - name: opencloud-app-secrets
       vaultPath: opencloud/opencloud

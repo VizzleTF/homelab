@@ -1,4 +1,29 @@
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
+  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания выше пока работают параллельно, уйдут на фазе 8.
+  volsync:
+    - name: omniroute
+      claim: omniroute-data
+      capacity: 5Gi
+      moverSecurityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      targets:
+        - repo: garage
+          schedule: "30 0 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "30 5 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   veleroSchedules:
     # KEDA scale-to-zero (scaledownPeriod 6h): pod часто отсутствует ночью,
     # поэтому exec hook не задаём — CSI snapshot PVC напрямую, без pod.
