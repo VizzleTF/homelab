@@ -1,0 +1,131 @@
+# etcd snapshot → обе S3-цели напрямую, без Velero и без PVC.
+#
+# Старая схема: Deployment-заглушка спала, снапшот снимал Velero pre-hook, а
+# затем Velero снимал PVC с .snap-файлами (два расписания: garage + ovh). Здесь
+# всё в одном CronJob — talosctl пишет снапшот в emptyDir, rclone раскладывает
+# его по обеим целям и подчищает старое.
+#
+# Snapshot проверяется на месте (`talosctl etcd snapshot` уже валидирует
+# целостность при записи), а имя несёт дату — восстановление выбирает файл
+# глазами, индекс не нужен.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos-etcd-snapshot
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: talos-etcd-snapshot
+spec:
+  schedule: "15 4 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: talos-etcd-snapshot
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: fetch-talosctl
+              # renovate: image=curlimages/curl
+              image: curlimages/curl:8.22.0
+              command: [sh, -c]
+              args:
+                - |
+                  set -eu
+                  # renovate: datasource=github-releases depName=siderolabs/talos
+                  version="v1.14.0"
+                  curl -fsSL "https://github.com/siderolabs/talos/releases/download/${version}/talosctl-linux-amd64" -o /tools/talosctl
+                  chmod +x /tools/talosctl
+                  /tools/talosctl version --client
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - {name: tools, mountPath: /tools}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {cpu: 500m, memory: 128Mi}
+            - name: snapshot
+              image: alpine:3.24
+              command: [sh, -c]
+              args:
+                - |
+                  set -eu
+                  ts=$(date -u +%Y-%m-%dT%H%M)
+                  # Обходим все CP-ноды: снапшот берётся с первой ответившей.
+                  for node in 10.11.11.101 10.11.11.102 10.11.11.103; do
+                    echo "trying $node"
+                    if /tools/talosctl --talosconfig=/config/config -n "$node" -e "$node" \
+                         etcd snapshot "/snap/etcd-${ts}.snap"; then
+                      echo "snapshot taken from $node"
+                      break
+                    fi
+                    echo "node $node failed, next"
+                  done
+                  ls -lh /snap/
+                  test -s "/snap/etcd-${ts}.snap"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - {name: tools, mountPath: /tools, readOnly: true}
+                - {name: talos-config, mountPath: /config, readOnly: true}
+                - {name: snap, mountPath: /snap}
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {cpu: 500m, memory: 256Mi}
+          containers:
+            - name: upload
+              # renovate: image=rclone/rclone
+              image: rclone/rclone:1.75
+              command: [sh, -c]
+              args:
+                - |
+                  set -eu
+                  for dst in garage:snapshots/etcd ovh:vaka-homelab/snapshots/etcd; do
+                    echo "=== copy -> $dst"
+                    rclone copy /snap "$dst" --verbose
+                    echo "=== prune >30d in $dst"
+                    rclone delete "$dst" --min-age 30d --verbose
+                  done
+                  rclone size garage:snapshots/etcd
+                  rclone size ovh:vaka-homelab/snapshots/etcd
+              envFrom:
+                - secretRef:
+                    name: snapshots-rclone
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - {name: snap, mountPath: /snap, readOnly: true}
+              resources:
+                requests: {cpu: 50m, memory: 128Mi}
+                limits: {cpu: 1, memory: 512Mi}
+          volumes:
+            - {name: tools, emptyDir: {}}
+            - {name: snap, emptyDir: {}}
+            - name: talos-config
+              secret:
+                secretName: talos-etcd-backup
+                items:
+                  - {key: config, path: config, mode: 0400}

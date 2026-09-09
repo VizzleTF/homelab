@@ -46,6 +46,107 @@ homelab-common:
         ttl: "2160h0m0s"
         hooks: *openbao_hooks
 
+  # Raft-снапшот в обе S3-цели напрямую (backup v2, см. docs/backup-v2.md).
+  # Раньше снапшот снимал Velero pre-hook, а сам файл вывозился вместе с PVC
+  # data-openbao-0 двумя Schedule'ами. Здесь всё в одном месте: bao пишет
+  # снапшот в emptyDir, rclone раскладывает по garage и ovh.
+  #
+  # Снапшот самодостаточен — это полный слепок Raft-стора, восстанавливаемый
+  # `bao operator raft snapshot restore` в пустой кластер. PVC бэкапить не нужно.
+  # SA `openbao` — под ним же работает StatefulSet, поэтому k8s-auth роль
+  # openbao-snapshot принимает его токен без дополнительных привязок.
+  cronJobs:
+    - name: openbao-raft-snapshot
+      spec:
+        schedule: "5 2 * * *"
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 600
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 3
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            activeDeadlineSeconds: 1800
+            template:
+              spec:
+                restartPolicy: OnFailure
+                serviceAccountName: openbao
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 100
+                  runAsGroup: 1000
+                  fsGroup: 1000
+                  seccompProfile:
+                    type: RuntimeDefault
+                initContainers:
+                  - name: snapshot
+                    # renovate: image=quay.io/openbao/openbao
+                    image: quay.io/openbao/openbao:2.6.2
+                    command: ["/bin/sh", "-c"]
+                    args:
+                      - |
+                        set -eu
+                        export BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
+                        JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                        BAO_TOKEN=$(bao write -field=token auth/kubernetes/login                           role=openbao-snapshot jwt="$JWT")
+                        export BAO_TOKEN
+                        ts=$(date -u +%Y-%m-%dT%H%M)
+                        bao operator raft snapshot save "/snap/raft-${ts}.snap"
+                        ls -lh /snap/
+                        test -s "/snap/raft-${ts}.snap"
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - name: snap
+                        mountPath: /snap
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 128Mi
+                      limits:
+                        cpu: 500m
+                        memory: 512Mi
+                containers:
+                  - name: upload
+                    # renovate: image=rclone/rclone
+                    image: rclone/rclone:1.75
+                    command: ["sh", "-c"]
+                    args:
+                      - |
+                        set -eu
+                        for dst in garage:snapshots/openbao ovh:vaka-homelab/snapshots/openbao; do
+                          echo "=== copy -> $dst"
+                          rclone copy /snap "$dst" --verbose
+                          echo "=== prune >90d in $dst"
+                          rclone delete "$dst" --min-age 90d --verbose
+                        done
+                        rclone size garage:snapshots/openbao
+                    envFrom:
+                      - secretRef:
+                          name: snapshots-rclone
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - name: snap
+                        mountPath: /snap
+                        readOnly: true
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 128Mi
+                      limits:
+                        cpu: 500m
+                        memory: 512Mi
+                volumes:
+                  - name: snap
+                    emptyDir: {}
+
   externalSecrets:
     - name: openbao-approle-credentials
       vaultPath: vault/approle
