@@ -88,9 +88,12 @@ spec:
 {{- if $item.bootstrap }}
 {{- $brepo := index $repos $item.bootstrap.repo }}
 ---
-# Готовый приёмник для восстановления. Триггер manual: сам по себе ничего не
-# делает, пока в spec.trigger.manual не положат новое значение (или пока PVC
-# не сошлётся на него через dataSourceRef при первом создании).
+# Приёмник для восстановления. ВНИМАНИЕ: ReplicationDestination выполняет
+# триггер СРАЗУ при создании, а не ждёт восстановления — если репозиторий ещё
+# не заведён источником, destination и source инициализируют его параллельно
+# и портят config (`ciphertext verification failed`, наблюдалось на may и
+# trek-data 2026-09-09). Поэтому в values приложений эта секция не задаётся:
+# destination создаётся вручную, когда репозиторий уже существует.
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationDestination
 metadata:

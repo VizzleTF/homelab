@@ -27,8 +27,6 @@ homelab-common:
           retain:
             weekly: 12
             monthly: 6
-      bootstrap:
-        repo: garage
     - name: netbird-peer-2
       claim: netbird-peer-2
       capacity: 100Mi
@@ -43,8 +41,6 @@ homelab-common:
           retain:
             weekly: 12
             monthly: 6
-      bootstrap:
-        repo: garage
 
   # netbird identity PVCs (100Mi each) = /etc/netbird per peer. Без бэкапа потеря =
   # re-enroll peer (routes auto-restored via `router` group auto-join). Бэкапим весь ns.

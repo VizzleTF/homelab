@@ -24,8 +24,6 @@ homelab-common:
           retain:
             weekly: 12
             monthly: 6
-      bootstrap:
-        repo: garage
 
   externalSecrets:
     # DB-пароль для самого Forgejo (берём из того же Vault path, что и в cnpg.yaml).
