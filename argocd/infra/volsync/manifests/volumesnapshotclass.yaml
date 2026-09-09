@@ -1,0 +1,15 @@
+# VolumeSnapshotClass для VolSync (`copyMethod: Snapshot`).
+#
+# Отдельный класс, а НЕ переиспользование longhorn-velero: у того
+# `deletionPolicy: Retain`, потому что Velero сам подчищает снапшот после
+# data movement. VolSync удаляет свой VolumeSnapshot по завершении каждого
+# прогона и рассчитывает, что за ним уйдёт и снапшот Longhorn — с Retain
+# они копились бы навсегда (по одному на PVC на прогон).
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: longhorn-volsync
+driver: driver.longhorn.io
+deletionPolicy: Delete
+parameters:
+  type: snap

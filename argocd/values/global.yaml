@@ -24,6 +24,30 @@ global:
       namespace: kube-system
       ip: 10.11.10.139
 
+  # VolSync (backup v2, см. docs/backup-v2.md). Две независимые restic-цели:
+  # garage — on-prem (Synology), ovh — off-site. РАЗНЫЕ пароли репозиториев:
+  # зеркалом они не являются, порча одной не приезжает во вторую.
+  # Пароли обязаны лежать не только в OpenBao, но и в офлайн DR-pack — OpenBao
+  # восстанавливается из бэкапа, зашифрованного этими паролями.
+  volsync:
+    snapshotClass: longhorn-volsync
+    storageClass: longhorn
+    # Кэш индексов restic — node-local, переживать смерть ноды не должен.
+    cacheStorageClass: local-path
+    cacheCapacity: 2Gi
+    repos:
+      garage:
+        endpoint: https://s3.example.com
+        bucket: restic-apps
+        keyVaultPath: shared/s3-restic-apps
+        passwordVaultPath: shared/restic-garage
+      ovh:
+        endpoint: https://s3.de.io.cloud.ovh.net
+        bucket: vaka-homelab
+        prefix: restic-apps
+        keyVaultPath: velero/s3-ovh
+        passwordVaultPath: shared/restic-ovh
+
   storage:
     defaultStorageClass: longhorn
 

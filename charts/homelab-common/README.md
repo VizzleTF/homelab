@@ -12,6 +12,7 @@ Shared Helm chart (`Chart.yaml`: `type: application`) для общих Kubernet
 - **RBAC** — ServiceAccount, ClusterRole, ClusterRoleBinding
 - **LimitRange** — дефолтные лимиты ресурсов
 - **CNPG Database** — CloudNativePG Database манифесты
+- **VolSync** — per-PVC restic бэкапы в несколько S3-целей + ReplicationDestination для bootstrap-restore
 
 ## Использование
 

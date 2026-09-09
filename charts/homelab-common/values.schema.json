@@ -74,6 +74,81 @@
           "properties": {
             "defaultStorageClass": { "type": "string" }
           }
+        },
+        "volsync": {
+          "type": "object",
+          "description": "VolSync backup defaults and named restic repositories (backup v2).",
+          "additionalProperties": false,
+          "properties": {
+            "snapshotClass":     { "type": "string" },
+            "storageClass":      { "type": "string" },
+            "cacheStorageClass": { "type": "string" },
+            "cacheCapacity":     { "type": "string" },
+            "repos": {
+              "type": "object",
+              "description": "Key is referenced by homelab-common.volsync[].targets[].repo.",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["endpoint", "bucket", "keyVaultPath", "passwordVaultPath"],
+                "properties": {
+                  "endpoint":          { "type": "string" },
+                  "bucket":            { "type": "string" },
+                  "prefix":            { "type": "string" },
+                  "keyVaultPath":      { "type": "string" },
+                  "passwordVaultPath": { "type": "string" },
+                  "keyIdProperty":     { "type": "string" },
+                  "keySecretProperty": { "type": "string" },
+                  "passwordProperty":  { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "VolsyncSpec": {
+      "type": "object",
+      "description": "One PVC backed up to one or more restic repositories; optional ReplicationDestination for bootstrap restore.",
+      "additionalProperties": false,
+      "required": ["name", "targets"],
+      "properties": {
+        "name":                    { "type": "string" },
+        "claim":                   { "type": "string", "description": "sourcePVC; defaults to name." },
+        "namespace":               { "type": "string" },
+        "capacity":                { "type": "string", "description": "Required when bootstrap is set." },
+        "copyMethod":              { "type": "string", "enum": ["Snapshot", "Clone", "Direct"] },
+        "accessMode":              { "type": "string" },
+        "storageClassName":        { "type": "string" },
+        "volumeSnapshotClassName": { "type": "string" },
+        "cacheStorageClass":       { "type": "string" },
+        "cacheCapacity":           { "type": "string" },
+        "moverSecurityContext":    { "type": "object" },
+        "moverResources":          { "type": "object" },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["repo", "schedule"],
+            "properties": {
+              "repo":              { "type": "string" },
+              "schedule":          { "type": "string" },
+              "pruneIntervalDays": { "type": "integer" },
+              "retain":            { "type": "object" }
+            }
+          }
+        },
+        "bootstrap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repo"],
+          "properties": {
+            "repo":          { "type": "string" },
+            "copyMethod":    { "type": "string", "enum": ["Snapshot", "Clone", "Direct"] },
+            "manualTrigger": { "type": "string" }
+          }
         }
       }
     },
@@ -127,6 +202,7 @@
         "apps":                   { "type": "array", "items": { "$ref": "#/$defs/AppSpec" } },
         "cronJobs":               { "type": "array", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
         "persistentVolumeClaims": { "type": "array", "items": { "$ref": "#/$defs/PVCSpec" } },
+        "volsync":                { "type": "array", "items": { "$ref": "#/$defs/VolsyncSpec" } },
         "authentikBlueprints":    { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
         "veleroSchedules":        { "type": "array", "items": { "$ref": "#/$defs/VeleroScheduleSpec" } },
         "veleroScheduleDefaults": { "type": "object" }
