@@ -27,6 +27,31 @@ persistence:
 # --- Values для homelab-common ---
 
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
+  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания выше пока работают параллельно, уйдут на фазе 8.
+  volsync:
+    - name: cleanbot
+      claim: cleanbot
+      capacity: 1Gi
+      moverSecurityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      targets:
+        - repo: garage
+          schedule: "10 0 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "10 5 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   veleroSchedules:
     # App-consistent SQLite backup через python3 stdlib (sqlite3.Connection.backup) —
     # тот же C-API что у sqlite3 .backup CLI, который в image отсутствует.

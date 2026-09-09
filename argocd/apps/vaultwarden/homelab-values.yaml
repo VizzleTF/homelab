@@ -1,5 +1,30 @@
 # Только homelab-common (второй источник ApplicationSet). Не смешивать с vaultwarden.yaml — upstream может иметь строгую values schema.
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
+  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания выше пока работают параллельно, уйдут на фазе 8.
+  volsync:
+    - name: vaultwarden
+      claim: vaultwarden-data-vaultwarden-0
+      capacity: 2Gi
+      moverSecurityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      targets:
+        - repo: garage
+          schedule: "50 0 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "50 3 * * *"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   veleroSchedules:
     - name: vaultwarden-daily
       schedule: "50 2 * * *"
