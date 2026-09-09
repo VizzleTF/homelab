@@ -17,18 +17,29 @@ homelab-common:
       capacity: 250Gi
       accessMode: ReadWriteMany
       cacheCapacity: 10Gi
+      # Direct, а не Snapshot: снапшот 250Gi материализуется в клон-PVC, и две
+      # цели давали два клона по 250Gi × 2 реплики = 1 TiB — Longhorn не смог их
+      # разместить (cp-02/cp-03 имеют ~160Gi свободного), тома ушли в faulted.
+      # RWX-том монтируется параллельно, поэтому mover читает боевой PVC прямо
+      # на месте — ровно так же работал Velero FSB для этой библиотеки.
+      # Цена: чтение не атомарно, дозагруженные во время прогона файлы поедут
+      # в следующий снапшот. Для фотоархива это приемлемо.
+      copyMethod: Direct
       targets:
         - repo: garage
           schedule: "30 3 * * *"
           retain:
             daily: 7
             weekly: 4
+        # Смещено на 5 часов от on-prem: два mover'а на одном томе одновременно
+        # ничего не ломают, но делят диск и 1 GbE.
         - repo: ovh
           schedule: "0 8 * * 0"
           retain:
             weekly: 8
-      bootstrap:
-        repo: garage
+      # bootstrap намеренно нет: ReplicationDestination материализовал бы ещё
+      # один том на 250Gi. Восстановление библиотеки — осознанная операция,
+      # destination создаётся вручную по месту.
 
   veleroSchedules:
     - name: immich-daily
