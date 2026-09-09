@@ -75,8 +75,6 @@ homelab-common:
           retain:
             weekly: 12
             monthly: 6
-      bootstrap:
-        repo: garage
     - name: trek-uploads
       claim: trek-uploads
       capacity: 10Gi
@@ -95,8 +93,6 @@ homelab-common:
           retain:
             weekly: 12
             monthly: 6
-      bootstrap:
-        repo: garage
 
   httpRoutes:
     - name: trek

@@ -21,8 +21,6 @@ homelab-common:
           retain:
             weekly: 12
             monthly: 6
-      bootstrap:
-        repo: garage
 
   externalSecrets:
     - name: omniroute-app-secrets

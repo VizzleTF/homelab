@@ -22,8 +22,6 @@ homelab-common:
           retain:
             weekly: 12
             monthly: 6
-      bootstrap:
-        repo: garage
 
   # CouchDB admin creds из OpenBao. Target-секрет с key-именами под couchdb chart
   # (values.yaml: extraSecretName + *Key). Vault: homelab/k8s/obsidian-livesync/couchdb.
