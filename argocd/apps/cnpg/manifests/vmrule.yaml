@@ -1,0 +1,51 @@
+# Алерты на архивацию WAL. До появления VMPodScrape метрик cnpg_* не было
+# вовсе — отказ архивации был невидим, а PITR-окно существовало только на бумаге.
+#
+# NB: `cnpg_collector_last_available_backup_timestamp` для shared-кластера
+# застыл на июне 2026 — это метрика in-tree barman, а кластер с тех пор
+# бэкапится плагином barman-cloud. Алертить по ней нельзя, она врёт про
+# свежесть; актуальность base backup проверяется по Backup CR
+# (`kubectl -n cnpg get backups.postgresql.cnpg.io`) и в restore-drill.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: cnpg-backup
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: cnpg-backup
+      rules:
+        - alert: CnpgWalArchiveBacklog
+          expr: cnpg_collector_pg_wal_archive_status{value="ready"} > 10
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG {{ $labels.namespace }}/{{ $labels.pod }}: WAL не уезжают в S3"
+            description: |
+              Больше 10 сегментов ждут архивации дольше 30 минут — barman отстаёт
+              или не пишет в Garage. PITR-окно перестаёт наполняться, а pg_wal
+              на диске растёт до заполнения тома.
+              kubectl -n {{ $labels.namespace }} logs {{ $labels.pod }} -c postgres --tail=100
+              kubectl -n {{ $labels.namespace }} exec {{ $labels.pod }} -- psql -c 'select * from pg_stat_archiver'
+
+        - alert: CnpgWalArchiveFailing
+          expr: increase(cnpg_collector_pg_wal_archive_status{value="ready"}[2h]) > 50
+          labels:
+            severity: warning
+          annotations:
+            summary: "CNPG {{ $labels.namespace }}/{{ $labels.pod }}: очередь WAL растёт"
+            description: |
+              Очередь на архивацию выросла больше чем на 50 сегментов за два часа —
+              архивация не успевает за нагрузкой.
+
+        - alert: CnpgMetricsDown
+          expr: absent(cnpg_collector_pg_wal_archive_status) == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Метрики CNPG пропали"
+            description: |
+              cnpg_* не скрейпятся >30 минут — состояние архивации WAL снова
+              вслепую. Проверить VMPodScrape cnpg и поды инстансов.
