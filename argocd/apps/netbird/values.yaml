@@ -9,6 +9,43 @@
 # so no single node drain/failure can take out both. HA is two separate peers,
 # NOT replicas=2 — the RWO identity PVC + one-identity-per-peer model forbids it.
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
+  # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания пока работают параллельно, уйдут на фазе 8.
+  volsync:
+    - name: netbird-peer
+      claim: netbird-peer
+      capacity: 100Mi
+      targets:
+        - repo: garage
+          schedule: "20 2 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "20 7 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+    - name: netbird-peer-2
+      claim: netbird-peer-2
+      capacity: 100Mi
+      targets:
+        - repo: garage
+          schedule: "25 2 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "25 7 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   # netbird identity PVCs (100Mi each) = /etc/netbird per peer. Без бэкапа потеря =
   # re-enroll peer (routes auto-restored via `router` group auto-join). Бэкапим весь ns.
   # Без exec-hook: identity-файлы статичны, CSI snapshot crash-consistent достаточно.

@@ -3,6 +3,33 @@
 
 # Общие ресурсы через homelab-common chart
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
+  # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания пока работают параллельно, уйдут на фазе 8.
+  # Библиотека 250Gi (реально ~184Gi), RWX через Longhorn share-manager —
+  # accessMode снапшота обязан быть ReadWriteMany, иначе mover не примонтирует.
+  # Кэш индексов restic поднят до 10Gi: на таком количестве файлов дефолтных
+  # 2Gi не хватает. Off-site — раз в неделю: полная заливка идёт часами.
+  # pgdata CNPG сюда не попадает — это отдельный PVC с barman/pg_dump.
+  volsync:
+    - name: immich-library
+      claim: immich-library-pvc
+      capacity: 250Gi
+      accessMode: ReadWriteMany
+      cacheCapacity: 10Gi
+      targets:
+        - repo: garage
+          schedule: "30 3 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "0 8 * * 0"
+          retain:
+            weekly: 8
+      bootstrap:
+        repo: garage
+
   veleroSchedules:
     - name: immich-daily
       schedule: "0 3 * * *"
