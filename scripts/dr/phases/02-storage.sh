@@ -31,6 +31,6 @@ log_info "applying Longhorn extras (default BackupTarget + longhorn-retain SC)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/longhorn/manifests/"
 
 log_info "applying VolumeSnapshotClass for Velero (driver.longhorn.io)"
-kubectl apply -f "$REPO_ROOT/argocd/infra/velero/manifests/volume-snapshot-class.yaml"
+kubectl apply -f "$REPO_ROOT/argocd/infra/volsync/manifests/volumesnapshotclass.yaml"
 
 log_ok "phase 02 storage complete"

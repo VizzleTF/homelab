@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Phase 09 — restore Forgejo PVC from Velero and let ArgoCD (next phase) own
+# Phase 09 — restore the Forgejo PVC from its VolSync restic repository and
+# let ArgoCD (next phase) own
 # the actual Forgejo Application. We only need the PVC + ServiceAccount in
 # place so ArgoCD's Helm release can adopt them without prune/recreate cycles.
 
@@ -11,22 +12,13 @@ require_kubectl
 
 kubectl create ns forgejo 2>/dev/null || true
 
-LATEST_BACKUP=$(kubectl -n velero exec deploy/velero -- /velero backup get 2>/dev/null \
-  | awk '/^forgejo-daily-/ && $2 == "Completed" {print $1}' \
-  | sort | tail -1)
+# shellcheck source=../lib/volsync-restore.sh
+source "$(dirname "$0")/../lib/volsync-restore.sh"
+load_bootstrap_env
 
-[ -n "$LATEST_BACKUP" ] || die "no Completed forgejo-daily backup found"
-log_info "restoring PVC from $LATEST_BACKUP"
+# forgejo-data: git-репозитории, LFS и conf. Владелец файлов — uid 1000.
+volsync_restore forgejo forgejo forgejo-data 20Gi ReadWriteOnce 1000
 
-RESTORE_NAME="forgejo-data-restore-$(date +%s)"
-kubectl -n velero exec deploy/velero -- /velero restore create "$RESTORE_NAME" \
-  --from-backup "$LATEST_BACKUP" \
-  --include-namespaces forgejo \
-  --include-resources persistentvolumeclaims,persistentvolumes \
-  --wait
-
-wait_for "forgejo-data PVC Bound" \
-  "kubectl -n forgejo get pvc forgejo-data -o jsonpath='{.status.phase}' | grep -q Bound" \
-  120
+wait_for "forgejo-data PVC Bound"   "kubectl -n forgejo get pvc forgejo-data -o jsonpath='{.status.phase}' | grep -q Bound"   120
 
 log_ok "phase 09 forgejo complete — PVC restored; ArgoCD will bring up the rest"

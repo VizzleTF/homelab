@@ -1,69 +1,73 @@
 #!/usr/bin/env bash
-# scripts/dr/restore-app.sh — restore a single application from its latest
-# Velero backup, handling known gotchas (nodeAffinity, PVC volumeName drift,
-# DB ownership, kopia helper pod fallback).
+# scripts/dr/restore-app.sh — восстановить данные одного приложения из
+# restic-репозитория VolSync.
 #
-# Usage:
-#   scripts/dr/restore-app.sh <app-name> [backup-name]
+# Заменил velero-версию (2026-09-09). Отличия, которые стоит знать:
+#   - восстанавливается ТОМ, а не набор объектов: ни pod, ни SA, ни namespace
+#     из бэкапа не приезжают — форму создаёт ArgoCD из git;
+#   - namespace больше не переводится в pod-security privileged и ноды не
+#     лейблятся как worker: mover VolSync работает без этих послаблений
+#     (старый скрипт оставлял кластер ослабленным после каждого восстановления);
+#   - источник выбирается через DR_RESTIC_TARGET=garage|ovh.
+#
+# Usage: scripts/dr/restore-app.sh <app> [repo] [pvc] [size] [accessMode] [uid]
+# Без аргументов сверх <app> берёт значения из таблицы ниже.
 
 set -euo pipefail
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
+# shellcheck source=lib/volsync-restore.sh
+source "$(dirname "$0")/lib/volsync-restore.sh"
 
 APP="${1:-}"
-BACKUP_NAME="${2:-}"
-[ -n "$APP" ] || die "usage: $0 <app-name> [backup-name]"
+[ -n "$APP" ] || die "usage: $0 <app> [repo] [pvc] [size] [accessMode] [uid]"
 
 require_kubectl
+load_bootstrap_env
 
-# 1. Find latest Completed backup if not supplied
-if [ -z "$BACKUP_NAME" ]; then
-  BACKUP_NAME=$(kubectl -n velero exec deploy/velero -- /velero backup get 2>/dev/null \
-    | awk -v app="${APP}-daily-" '$1 ~ "^"app && $2 == "Completed" {print $1}' \
-    | sort | tail -1)
-  [ -n "$BACKUP_NAME" ] || die "no Completed ${APP}-daily-* backup found"
+# app -> repo | pvc | size | accessMode | uid (uid пустой = mover от root)
+lookup() {
+  case "$1" in
+    vaultwarden)        echo "vaultwarden|vaultwarden-data-vaultwarden-0|2Gi|ReadWriteOnce|1001" ;;
+    nextcloud)          echo "nextcloud|nextcloud-nextcloud|10Gi|ReadWriteOnce|33" ;;
+    cleanbot)           echo "cleanbot|cleanbot|1Gi|ReadWriteOnce|10001" ;;
+    may)                echo "may|may|5Gi|ReadWriteOnce|1000" ;;
+    omniroute)          echo "omniroute-data|omniroute-data|5Gi|ReadWriteOnce|1000" ;;
+    rsstt)              echo "rss-to-telegram-bot|rss-to-telegram-bot|1Gi|ReadWriteOnce|1000" ;;
+    immich)             echo "immich-library|immich-library-pvc|250Gi|ReadWriteMany|" ;;
+    forgejo)            echo "forgejo|forgejo-data|20Gi|ReadWriteOnce|1000" ;;
+    opencloud)          echo "opencloud-data|opencloud-data|50Gi|ReadWriteOnce|1000" ;;
+    opencloud-config)   echo "opencloud-config|opencloud-config|1Gi|ReadWriteOnce|1000" ;;
+    trek)               echo "trek-uploads|trek-uploads|10Gi|ReadWriteOnce|1000" ;;
+    trek-data)          echo "trek-data|trek-data|1Gi|ReadWriteOnce|1000" ;;
+    obsidian-livesync)  echo "obsidian-livesync|database-storage-obsidian-livesync-couchdb-0|5Gi|ReadWriteOnce|" ;;
+    *) return 1 ;;
+  esac
+}
+
+if [ -n "${2:-}" ]; then
+  REPO="$2"; PVC="${3:?pvc required}"; SIZE="${4:?size required}"
+  MODE="${5:-ReadWriteOnce}"; UID_="${6:-}"
+else
+  ROW=$(lookup "$APP") || die "unknown app '$APP' — pass repo/pvc/size explicitly"
+  IFS='|' read -r REPO PVC SIZE MODE UID_ <<<"$ROW"
 fi
-log_info "$APP <- $BACKUP_NAME"
 
-# 2. Ensure namespace exists + privileged label
-kubectl create ns "$APP" 2>/dev/null || true
-kubectl label ns "$APP" pod-security.kubernetes.io/enforce=privileged --overwrite >/dev/null
+# Namespace приложения совпадает с именем папки в argocd/apps, кроме rsstt.
+NS="$APP"
+case "$APP" in
+  rsstt) NS="rsstt" ;;
+  opencloud-config) NS="opencloud" ;;
+  trek-data) NS="trek" ;;
+esac
 
-# 3. Some app Pods carry nodeAffinity for `node-role.kubernetes.io/worker`.
-# In a homelab without dedicated workers, label all CP nodes so PodVolumeRestore can attach.
-log_info "labeling CP nodes with node-role.kubernetes.io/worker (idempotent)"
-kubectl get nodes -o name | xargs -I {} kubectl label {} node-role.kubernetes.io/worker= --overwrite >/dev/null
+volsync_restore "$NS" "$REPO" "$PVC" "$SIZE" "$MODE" "$UID_"
 
-# 4. Apply global PVC volumeName-strip ResourceModifier (creates if missing)
-kubectl -n velero get cm strip-pvc-volumename >/dev/null 2>&1 || cat <<'EOF' | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata: {name: strip-pvc-volumename, namespace: velero}
-data:
-  sub.yml: |
-    version: v1
-    resourceModifierRules:
-      - conditions:
-          groupResource: persistentvolumeclaims
-        patches:
-          - operation: remove
-            path: /spec/volumeName
-EOF
-
-# 5. Create the restore.
-RESTORE_NAME="${APP}-restore-$(date +%s)"
-log_info "creating Velero restore: $RESTORE_NAME"
-kubectl -n velero exec deploy/velero -- /velero restore create "$RESTORE_NAME" \
-  --from-backup "$BACKUP_NAME" \
-  --include-namespaces "$APP" \
-  --include-resources pods,persistentvolumeclaims,serviceaccounts \
-  --resource-modifier-configmap strip-pvc-volumename \
-  --wait || log_warn "velero restore exit non-zero — inspect $RESTORE_NAME"
-
-# 6. App-specific post-fixes.
+# Post-fix'ы, пережившие смену механизма: они про состояние приложения, а не
+# про бэкап.
 case "$APP" in
   nextcloud)
-    log_info "fix: update nextcloud config.php dbpassword to match ESO Secret"
+    log_info "fix: config.php dbpassword должен совпасть с ESO Secret"
     PODN=$(kubectl -n nextcloud get pod -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -n "$PODN" ]; then
       kubectl -n nextcloud exec "$PODN" -- bash -c '
@@ -73,7 +77,7 @@ case "$APP" in
     fi
     ;;
   immich)
-    log_info "fix: REASSIGN OWNED on immich DB if old owner exists"
+    log_info "fix: REASSIGN OWNED, если в БД остался старый owner immich_user"
     kubectl -n immich exec immich-cluster-1 -c postgres -- psql -U postgres -d immich \
       -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='immich_user') THEN
           EXECUTE 'REASSIGN OWNED BY immich_user TO immich';
@@ -81,7 +85,7 @@ case "$APP" in
         END IF; END \$\$;" 2>&1 | tail -3 || log_warn "immich REASSIGN skipped"
     ;;
   forgejo)
-    log_info "fix: patch forgejo-init Secret email to non-conflicting value"
+    log_info "fix: forgejo-init email на неконфликтующий"
     SCRIPT=$(kubectl -n forgejo get secret forgejo-init -o jsonpath='{.data.configure_gitea\.sh}' 2>/dev/null | base64 -d \
       | sed 's|gitea@local\.domain|argocd-temp@example.com|g' | base64 -w0)
     if [ -n "$SCRIPT" ]; then
