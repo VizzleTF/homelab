@@ -1,0 +1,72 @@
+# Алерты backup v2. Ключевое отличие от velero-правил, которые они заменяют:
+# off-site покрыт наравне с on-prem. У Velero `VeleroBackupStale` смотрел только
+# `.+-daily`, и молчаливая остановка `*-offsite` осталась бы незамеченной.
+#
+# role="source" — фильтр от bootstrap-приёмников (ReplicationDestination): они
+# намеренно простаивают до ручного триггера и иначе шумели бы вечно.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: volsync
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: volsync
+      rules:
+        - alert: VolsyncControllerDown
+          expr: absent(up{job=~".*volsync.*"}) == 1 or up{job=~".*volsync.*"} == 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VolSync scrape target down"
+            description: |
+              Метрики VolSync недоступны >30 минут — состояние бэкапов вслепую.
+              kubectl -n volsync-system get pods
+              kubectl -n volsync-system logs deploy/volsync
+
+        - alert: VolsyncBackupOutOfSync
+          expr: volsync_volume_out_of_sync{role="source"} == 1
+          for: 3h
+          labels:
+            severity: critical
+          annotations:
+            summary: "VolSync {{ $labels.obj_namespace }}/{{ $labels.obj_name }} не укладывается в расписание"
+            description: |
+              Том не синхронизирован дольше собственного интервала — бэкап
+              отстаёт или падает.
+              kubectl -n {{ $labels.obj_namespace }} describe replicationsource {{ $labels.obj_name }}
+              kubectl -n {{ $labels.obj_namespace }} logs -l volsync.backube/owned-by --tail=50
+
+        - alert: VolsyncMissedIntervals
+          expr: increase(volsync_missed_intervals_total{role="source"}[24h]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "VolSync {{ $labels.obj_namespace }}/{{ $labels.obj_name }} пропустил интервал"
+            description: |
+              Прогон не начался вовремя (предыдущий ещё шёл или mover не стартовал).
+              Единичный пропуск на крупном томе — норма, регулярные — повод поднять
+              расписание или разнести слоты.
+
+        # Порог 36h: все on-prem источники — daily.
+        - alert: VolsyncOnPremBackupStale
+          expr: increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-garage"}[36h]) == 0
+          labels:
+            severity: critical
+          annotations:
+            summary: "Нет успешных прогонов {{ $labels.obj_namespace }}/{{ $labels.obj_name }} за 36 часов"
+            description: |
+              On-prem копия (Garage) не обновлялась больше суток с запасом.
+              kubectl -n {{ $labels.obj_namespace }} describe replicationsource {{ $labels.obj_name }}
+
+        # Порог 9d: самые редкие off-site слоты — weekly.
+        - alert: VolsyncOffsiteBackupStale
+          expr: increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ovh"}[9d]) == 0
+          labels:
+            severity: critical
+          annotations:
+            summary: "Нет успешных off-site прогонов {{ $labels.obj_namespace }}/{{ $labels.obj_name }} за 9 дней"
+            description: |
+              Off-site копия (OVH) не обновлялась дольше самого редкого расписания.
+              Это единственная копия, переживающая потерю NAS — чинить в первую очередь.
