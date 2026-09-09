@@ -1,6 +1,30 @@
 # Только homelab-common (второй источник ApplicationSet). Не смешивать с values.yaml —
 # couchdb chart имеет строгую values schema (config.yaml → homelabValuesFile: homelab-values.yaml).
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
+  # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания пока работают параллельно, уйдут на фазе 8.
+  # CouchDB пишет .couch-файлы под root; moverSecurityContext не задаём —
+  # mover бежит от root и читает снапшот целиком (ns без PSA-ограничений).
+  # Второй уровень защиты у этих данных — живые реплики на устройствах.
+  volsync:
+    - name: obsidian-livesync
+      claim: database-storage-obsidian-livesync-couchdb-0
+      capacity: 5Gi
+      targets:
+        - repo: garage
+          schedule: "10 2 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "10 7 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   # CouchDB admin creds из OpenBao. Target-секрет с key-именами под couchdb chart
   # (values.yaml: extraSecretName + *Key). Vault: homelab/k8s/obsidian-livesync/couchdb.
   externalSecrets:

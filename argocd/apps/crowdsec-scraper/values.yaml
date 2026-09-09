@@ -6,6 +6,29 @@
 # из 100.104.0.0/16 (см. ../vps/crowdsec.md). Третий job — метрики панели Remnawave
 # на cloudru через nginx-шлюз :9101 (см. комментарий у job_name: remnawave-panel).
 homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
+  # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Velero-расписания пока работают параллельно, уйдут на фазе 8.
+  # Ключ netbird-пира: 100Mi, но без него скрапер теряет доступ в mesh.
+  # Off-site раньше не было вовсе — velero гонял только daily в garage.
+  volsync:
+    - name: netbird-peer
+      claim: netbird-peer
+      capacity: 100Mi
+      targets:
+        - repo: garage
+          schedule: "30 2 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "30 7 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+      bootstrap:
+        repo: garage
+
   # netbird identity PVC (/etc/netbird) — отдельный peer, НЕ переиспользовать netbird app.
   veleroSchedules:
     - name: crowdsec-scraper-daily
