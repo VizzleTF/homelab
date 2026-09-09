@@ -1,0 +1,38 @@
+# VolSync — асинхронная репликация PV. Основа backup-схемы v2 (см. docs/backup-v2.md):
+# на каждый PVC два ReplicationSource (restic → Garage, restic → OVH), а
+# ReplicationDestination + `dataSourceRef` в PVC наполняет том ДО старта пода —
+# восстановление становится свойством манифеста, а не ручной процедурой.
+#
+# Wave -3: после csi-snapshotter (-4, ставит snapshot.storage.k8s.io CRD) и
+# Longhorn, до приложений — их ReplicationSource'ы ссылаются на CRD VolSync.
+#
+# Мигрируем постепенно: Velero (wave 0) продолжает писать параллельно до
+# фазы 8 в docs/backup-v2.md.
+
+# CRD (ReplicationSource/Destination) ставит сам чарт.
+manageCRDs: true
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+metrics:
+  # kube-rbac-proxy перед /metrics. VMAgent ходит с SA-токеном — оставляем auth.
+  disableAuth: false
+
+homelab-common:
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 20m
+      memory: 64Mi

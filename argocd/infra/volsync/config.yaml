@@ -1,0 +1,6 @@
+chart: volsync
+repoURL: https://backube.github.io/helm-charts/
+targetRevision: "0.16.0"
+namespace: volsync-system
+wave: "-3"
+extraManifests: true
