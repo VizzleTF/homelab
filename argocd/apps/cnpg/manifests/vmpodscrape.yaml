@@ -1,0 +1,26 @@
+# Метрики CNPG. Инстансы всегда слушают :9187/metrics — `enablePodMonitor` в
+# Cluster CR влияет только на создание PodMonitor, а CRD prometheus-operator
+# в кластере нет (VM-operator работает со своими VMPodScrape). Поэтому
+# скрейпим напрямую, не трогая Cluster CR.
+#
+# До этого метрик cnpg_* в VictoriaMetrics не было вовсе: отказ архивации WAL
+# и провал base backup были невидимы, а заявленное PITR-окно 7d держалось на
+# честном слове. См. docs/backup-v2.md.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: cnpg
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - cnpg
+      - immich
+  selector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
