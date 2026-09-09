@@ -1,33 +1,117 @@
-architecture: standalone
+# Valkey — общий in-cluster кэш (homelab-common.apps workload).
+#
+# Раньше это был чарт bitnami/valkey. Bitnami убрал версионные теги из
+# публичного каталога (остался плавающий `latest`), поэтому образ приходилось
+# пинить дайджестом руками, а Renovate его не видел. Valkey — однопроцессный
+# сервис без обвязки, так что вместо смены одного чужого каталога на другой
+# описываем его своим homelab-common: официальный образ `valkey/valkey` с
+# версионным тегом + Renovate по маркеру `# renovate: image=`.
+#
+# Клиенты ходят на `valkey-primary.valkey.svc.cluster.local:6379`:
+#   DB 0 — ArgoCD cache, authentik, nextcloud
+#   DB 1 — immich
+# Имя Service намеренно сохранено от bitnami-чарта (fullnameOverride), чтобы
+# миграция не тянула правки в четырёх чужих values и рестарт ArgoCD.
+#
+# Persistence: RDB по дефолтным правилам valkey (save 3600/300/60) в /data на
+# local-path — кэш переживает рестарт пода, но не смерть ноды. Это осознанно:
+# данные восстановимы (ArgoCD re-cache + повторный логин в authentik).
+homelab-common:
+  persistentVolumeClaims:
+    - name: valkey-data
+      size: 1Gi
+      storageClassName: local-path
+      accessModes:
+        - ReadWriteOnce
 
-# Bitnami оставил на Docker Hub только плавающий `latest` (дефолт чарта 6.2.7),
-# версионных тегов больше нет. От этого кэша зависят authentik, forgejo, immich
-# и nextcloud, а `latest` мог приехать другой мажоркой на любом рестарте пода.
-# Пинимся дайджестом уже проверенного образа — Valkey 9.1.0, тот же, что крутится
-# сейчас (подтянут 2026-08-09). Апгрейд = осознанная смена дайджеста.
-# Долгосрочно: съезжать с bitnami-каталога.
-image:
-  digest: sha256:a3c580c005e12c3e0f97a3d6d703ca2d361c917457a35b080880de18b0fcd8d3
-
-auth:
-  enabled: false
-
-primary:
-  # Explicit resources instead of resourcesPreset (Bitnami marks presets as not
-  # production-ready). Live usage ~31m/26Mi; serves ArgoCD cache + authentik redis.
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-  persistence:
-    # Valkey is a pure cache (ArgoCD cache + authentik redis, DB-index split) —
-    # rebuildable, so node-local local-path instead of Longhorn. Loss on node
-    # death = ArgoCD re-caches + authentik sessions drop (re-login). RWO, single
-    # standalone replica.
-    storageClass: local-path
-    size: 1Gi
-    annotations:
-      helm.sh/resource-policy: keep
+  apps:
+    - name: valkey
+      # Service/Deployment остаются `valkey-primary` — см. шапку.
+      fullnameOverride: valkey-primary
+      deployment:
+        metadata:
+          labels:
+            app: valkey
+        spec:
+          replicas: 1
+          # RWO PVC на local-path: второй под не примонтирует том, поэтому
+          # Recreate вместо RollingUpdate (иначе новый висит в Pending).
+          strategy:
+            type: Recreate
+          selector:
+            matchLabels:
+              app: valkey
+          template:
+            metadata:
+              labels:
+                app: valkey
+            spec:
+              securityContext:
+                runAsNonRoot: true
+                # Образ valkey/valkey заводит пользователя valkey как uid 999 /
+                # gid 1000 (не 999 — специфика valkey-container Dockerfile).
+                runAsUser: 999
+                runAsGroup: 1000
+                fsGroup: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              containers:
+                - name: valkey
+                  # renovate: image=valkey/valkey
+                  image: valkey/valkey:9.1.2-alpine
+                  imagePullPolicy: IfNotPresent
+                  # CMD образа — `valkey-server` без конфига (дефолты, standalone,
+                  # dir=/data). Отдельный valkey.conf не нужен: auth выключен,
+                  # maxmemory не задаём — nextcloud держит в этом же инстансе
+                  # file locks, а eviction их бы выбрасывал.
+                  ports:
+                    - name: valkey
+                      containerPort: 6379
+                      protocol: TCP
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop:
+                        - ALL
+                  volumeMounts:
+                    - name: data
+                      mountPath: /data
+                  startupProbe:
+                    exec:
+                      command: ["valkey-cli", "ping"]
+                    initialDelaySeconds: 5
+                    periodSeconds: 5
+                    failureThreshold: 12
+                  livenessProbe:
+                    tcpSocket:
+                      port: valkey
+                    periodSeconds: 30
+                  readinessProbe:
+                    exec:
+                      command: ["valkey-cli", "ping"]
+                    periodSeconds: 15
+                  resources:
+                    requests:
+                      cpu: 50m
+                      memory: 128Mi
+                    limits:
+                      cpu: 500m
+                      memory: 256Mi
+              volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: valkey-data
+      service:
+        metadata:
+          labels:
+            app: valkey
+        spec:
+          type: ClusterIP
+          ports:
+            - name: valkey
+              port: 6379
+              targetPort: valkey
+              protocol: TCP
+          selector:
+            app: valkey
