@@ -30,7 +30,14 @@ check "03-cluster.env exists"               "[ -f '$DR_PACK_DIR/03-cluster.env' 
 
 if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
   tmp=$(mktemp)
-  if gpg --quiet --batch --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" > "$tmp" 2>/dev/null; then
+  # --batch без passphrase не спросит её и просто провалится; с GPG_PASSPHRASE
+  # проверка проходит неинтерактивно, без него — обычный pinentry.
+  if [ -n "${GPG_PASSPHRASE:-}" ]; then
+    gpg_decrypt() { gpg --quiet --batch --passphrase "$GPG_PASSPHRASE" --decrypt "$1"; }
+  else
+    gpg_decrypt() { gpg --quiet --decrypt "$1"; }
+  fi
+  if gpg_decrypt "$DR_PACK_DIR/00-shamir.json.gpg" > "$tmp" 2>/dev/null; then
     keys=$(jq -r '.unseal_keys_b64 | length' "$tmp" 2>/dev/null || echo 0)
     root=$(jq -r '.root_token | length' "$tmp" 2>/dev/null || echo 0)
     check "shamir bundle has 3 unseal keys" "[ '$keys' = '3' ]"

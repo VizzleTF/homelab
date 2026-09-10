@@ -50,7 +50,14 @@ log_ok "wrote 00-shamir.json.gpg"
 log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
 {
   echo "# Refreshed: $(date -Iseconds)"
-  echo "CF_API_TOKEN=${CF_API_TOKEN:-MISSING-export-CF_API_TOKEN-first}"
+  # Cloudflare-токен нужен фазам 03 (cert-manager) и 04 (external-dns).
+  # Берём из живого кластера, а не требуем env: в окружении оператора он может
+  # называться как угодно (у нас — CF_AUTH_TOKEN), и пакет молча уезжал с
+  # MISSING. Явный CF_API_TOKEN, если задан, всё ещё имеет приоритет.
+  CF_TOKEN="${CF_API_TOKEN:-}"
+  [ -n "$CF_TOKEN" ] || CF_TOKEN=$(kubectl -n cert-manager get secret cloudflare-api-token     -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d)
+  [ -n "$CF_TOKEN" ] || CF_TOKEN=$(kubectl -n external-dns get secret external-dns-cloudflare     -o jsonpath='{.data.cloudflare_api_token}' 2>/dev/null | base64 -d)
+  echo "CF_API_TOKEN=${CF_TOKEN:-MISSING-cloudflare-token}"
 
   # S3-ключи и пароли restic-репозиториев. Источники — живые Secret'ы,
   # которые ESO держит в кластере:
