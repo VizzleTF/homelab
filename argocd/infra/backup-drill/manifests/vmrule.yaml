@@ -3,6 +3,12 @@
 # Сам факт успеха/провала прилетает в Telegram сразу из CronJob (алерт в
 # Alertmanager -> Robusta). Здесь — вторая линия: она ловит случай, когда
 # drill вообще перестал запускаться и потому ничего не присылает.
+#
+# ВАЖНО про форму выражений: метрики пушатся раз в неделю через
+# /api/v1/import/prometheus, а мгновенный запрос видит точку только внутри
+# lookbehind-окна (5 минут). Поэтому везде max_over_time/last_over_time с
+# окном в 30 дней — без него `homelab_restore_drill_success == 0` не сработал
+# бы никогда, а `absent(...)` фаерил бы через сутки после каждого прогона.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -16,7 +22,7 @@ spec:
         # CronJob уедет один раз и закроется по resolve_timeout, а этот алерт
         # будет висеть, пока том не восстановится успешно.
         - alert: RestoreDrillFailed
-          expr: homelab_restore_drill_success == 0
+          expr: last_over_time(homelab_restore_drill_success[30d]) == 0
           for: 5m
           labels:
             severity: critical
@@ -32,7 +38,7 @@ spec:
           # Ротация из 10 приложений, прогон раз в неделю: конкретный том
           # проверяется примерно раз в 10 недель, поэтому смотрим на самый
           # свежий прогон вообще, а не на каждый по отдельности.
-          expr: time() - max(homelab_restore_drill_timestamp) > 16 * 24 * 3600
+          expr: time() - max(max_over_time(homelab_restore_drill_timestamp[30d])) > 16 * 24 * 3600
           labels:
             severity: critical
           annotations:
@@ -45,7 +51,7 @@ spec:
               kubectl -n backup-drill logs job/<последний>
 
         - alert: RestoreDrillNeverRan
-          expr: absent(homelab_restore_drill_timestamp) == 1
+          expr: absent(max_over_time(homelab_restore_drill_timestamp[30d])) == 1
           for: 24h
           labels:
             severity: warning
