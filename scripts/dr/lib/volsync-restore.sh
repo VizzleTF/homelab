@@ -65,12 +65,16 @@ spec:
       storage: ${size}
 EOF
 
-  local mover_sc=""
-  [ -n "$uid" ] && mover_sc="
+  # По умолчанию mover работает от root: восстановление возвращает файлам
+  # исходных владельцев, а lchown в чужой uid непривилегированному процессу
+  # запрещён (VolSync падает с "operation not permitted"). Конкретный uid имеет
+  # смысл только для тома, где всё принадлежит одному пользователю.
+  local mover_uid="${uid:-0}"
+  local mover_sc="
     moverSecurityContext:
-      runAsUser: ${uid}
-      runAsGroup: ${uid}
-      fsGroup: ${uid}"
+      runAsUser: ${mover_uid}
+      runAsGroup: ${mover_uid}
+      fsGroup: ${mover_uid}"
 
   cat <<EOF | kubectl apply -f - >/dev/null
 apiVersion: volsync.backube/v1alpha1
