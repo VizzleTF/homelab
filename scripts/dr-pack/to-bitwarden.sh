@@ -32,7 +32,7 @@ set -euo pipefail
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 
-BW_FOLDER="${BW_FOLDER:-HomeLab DR}"
+BW_FOLDER="${BW_FOLDER:-Infra / Homelab DR}"
 BAO_MOUNT="${BAO_MOUNT:-home}"
 BAO_PREFIX="${BAO_PREFIX:-homelab/k8s}"
 
@@ -62,13 +62,11 @@ MSG
   echo "client: $CLIENT"
 fi
 
-# name | vault path | поля через запятую
+# Имена продолжают нумерацию существующих записей 01..07 в той же папке.
+# Формат: имя | путь:поля[,поля];путь:поля
 ITEMS='
-restic repository password (Garage on-prem)|shared/restic-garage|password
-restic repository password (OVH off-site)|shared/restic-ovh|password
-S3 key — Garage bucket restic-apps|shared/s3-restic-apps|ACCESS_KEY_ID,ACCESS_SECRET_KEY
-S3 key — Garage bucket snapshots|shared/s3-snapshots|ACCESS_KEY_ID,ACCESS_SECRET_KEY
-S3 key — OVH vaka-homelab|velero/s3-ovh|ACCESS_KEY_ID,ACCESS_SECRET_KEY
+08 - Restic repo passwords (backup v2)|shared/restic-garage:password;shared/restic-ovh:password
+09 - S3 keys backup v2 (restic-apps, snapshots, OVH)|shared/s3-restic-apps:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-snapshots:ACCESS_KEY_ID,ACCESS_SECRET_KEY;velero/s3-ovh:ACCESS_KEY_ID,ACCESS_SECRET_KEY
 '
 
 folder_id=""
@@ -82,20 +80,45 @@ if [ "$DRY_RUN" = "0" ] && [ "$CLIENT" = "bw" ]; then
 fi
 
 upsert() {
-  local name="$1" path="$2" fields="$3"
-  local notes="" f val
+  local name="$1" spec="$2"
+  local notes entry path fields f val missing=0
+  notes="# заполняется scripts/dr-pack/to-bitwarden.sh из OpenBao
+"
 
-  # Значения читаются в переменную и уходят в bw; на stdout не попадают.
-  for f in $(echo "$fields" | tr ',' ' '); do
-    val=$(bao kv get -mount="$BAO_MOUNT" -field="$f" "$BAO_PREFIX/$path" 2>/dev/null) || {
-      echo "  SKIP $name — нет $BAO_MOUNT/$BAO_PREFIX/$path:$f"
-      return 0
-    }
-    notes="${notes}${f}=${val}"$'\n'
+  # Значения читаются в переменную и уходят в клиент; на stdout не попадают.
+  for entry in $(echo "$spec" | tr ';' ' '); do
+    path="${entry%%:*}"; fields="${entry#*:}"
+    notes="${notes}
+[$BAO_MOUNT/$BAO_PREFIX/$path]
+"
+    for f in $(echo "$fields" | tr ',' ' '); do
+      val=$(bao kv get -mount="$BAO_MOUNT" -field="$f" "$BAO_PREFIX/$path" </dev/null 2>/dev/null) || {
+        echo "  SKIP $name — нет $BAO_MOUNT/$BAO_PREFIX/$path:$f"
+        missing=1
+        break 2
+      }
+      notes="${notes}${f}=${val}
+"
+    done
   done
+  if [ "$missing" = "1" ]; then return 0; fi
 
   if [ "$DRY_RUN" = "1" ]; then
-    echo "  DRY  $name  <- $BAO_MOUNT/$BAO_PREFIX/$path ($fields)"
+    echo "  DRY  $name  <- $(echo "$spec" | tr ';' ' ')"
+    return 0
+  fi
+
+  if [ "$CLIENT" = "rbw" ]; then
+    # rbw открывает $EDITOR и берёт первую строку как пароль, остальное — заметка.
+    # Подсовываем "редактор", который пишет payload в переданный файл: значение
+    # живёт в переменной окружения и на stdout не попадает.
+    local action=add
+    if rbw get "$name" >/dev/null 2>&1; then action=edit; fi
+    if RBW_PAYLOAD="$notes"        EDITOR='sh -c "printf %s \"$RBW_PAYLOAD\" > \"$1\"" --'        rbw "$action" --folder "$BW_FOLDER" "$name" </dev/null >/dev/null 2>&1; then
+      if [ "$action" = "edit" ]; then echo "  UPD  $name"; else echo "  NEW  $name"; fi
+    else
+      echo "  ERR  $name — rbw $action не отработал"
+    fi
     return 0
   fi
 
@@ -108,7 +131,7 @@ upsert() {
     '{organizationId:null, folderId:$fid, type:2, name:$n, notes:$notes, secureNote:{type:0}}')
 
   if [ -n "$existing_id" ]; then
-    printf '%s' "$payload" | bw encode | bw edit item "$existing_id" >/dev/null
+    printf '%s' "$payload" | bw encode | bw edit item "$existing_id" >/dev/null 2>&1
     echo "  UPD  $name"
   else
     printf '%s' "$payload" | bw encode | bw create item >/dev/null
@@ -117,10 +140,13 @@ upsert() {
 }
 
 echo "=== DR secrets -> Vaultwarden (folder: $BW_FOLDER) ==="
-echo "$ITEMS" | while IFS='|' read -r name path fields; do
-  [ -z "$name" ] && continue
-  upsert "$name" "$path" "$fields"
-done
+# Цикл читает из here-string, а не из пайпа: клиенты (rbw, bw) забирают stdin
+# себе, и при чтении из пайпа вторая и последующие строки таблицы просто
+# исчезали — запись 09 молча не создавалась.
+while IFS='|' read -r name spec; do
+  if [ -z "$name" ]; then continue; fi
+  upsert "$name" "$spec"
+done <<< "$ITEMS"
 
 cat <<'NOTE'
 
