@@ -34,7 +34,7 @@ jq -n \
   > "$TMP_JSON"
 
 if [ -n "${GPG_PASSPHRASE:-}" ]; then
-  gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+  gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
       --symmetric --cipher-algo AES256 \
       --output "$DR_PACK_DIR/00-shamir.json.gpg" \
       "$TMP_JSON"
