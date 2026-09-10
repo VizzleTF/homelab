@@ -135,22 +135,20 @@ homelab-common:
                   fsGroup: 65532
                   seccompProfile:
                     type: RuntimeDefault
-                containers:
-                  - name: pack
+                initContainers:
+                  # Сбор материала: kubectl+jq+curl есть только в alpine/k8s,
+                  # gpg и rclone — в других образах, отсюда три шага.
+                  - name: collect
                     # renovate: image=alpine/k8s
                     image: alpine/k8s:1.34.1
                     imagePullPolicy: IfNotPresent
                     command: ["/bin/sh", "-c"]
                     env:
-                      - name: VM_URL
-                        value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
                       - name: HOME
                         value: /work
                     envFrom:
                       - secretRef:
                           name: snapshots-rclone
-                      - secretRef:
-                          name: dr-pack-creds
                       - secretRef:
                           name: dr-pack-restic-key
                       - secretRef:
@@ -174,11 +172,11 @@ homelab-common:
                     args:
                       - |
                         set -eu
-                        ts=$(date -u +%Y-%m-%dT%H%M)
                         work=/work/pack
                         mkdir -p "$work"
+                        date -u +%Y-%m-%dT%H%M > /work/ts
 
-                        echo "=== 1/4 Shamir bundle + root token ==="
+                        echo "=== 1/3 Shamir bundle + root token ==="
                         kubectl -n openbao get secret openbao-keys -o json \
                           | jq '{unseal_keys_b64: [.data["key-0"], .data["key-1"], .data["key-2"]] | map(@base64d),
                                  unseal_shares: 3, unseal_threshold: 3}' > "$work/00-shamir.json"
@@ -188,9 +186,9 @@ homelab-common:
                         mv "$work/00-shamir.json.tmp" "$work/00-shamir.json"
                         unset root
 
-                        echo "=== 2/4 raft snapshot ==="
-                        # HTTP API, а не bao CLI: в образе alpine/k8s его нет,
-                        # а тащить второй образ ради одной команды незачем.
+                        echo "=== 2/3 raft snapshot ==="
+                        # HTTP API, а не bao CLI: в этом образе его нет,
+                        # а тащить четвёртый образ ради одной команды незачем.
                         BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
                         JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
                         login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
@@ -200,7 +198,7 @@ homelab-common:
                         unset TOKEN login
                         test -s "$work/02-vault-raft-snapshot.snap"
 
-                        echo "=== 3/4 bootstrap env ==="
+                        echo "=== 3/3 bootstrap env ==="
                         {
                           echo "# generated $(date -u -Iseconds) by dr-pack-offsite CronJob"
                           echo "RESTIC_PASSWORD_GARAGE=$PW_GARAGE"
@@ -214,28 +212,120 @@ homelab-common:
                           cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
                           echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
                         } > "$work/01-bootstrap.env"
-
-                        echo "=== 4/4 pack + encrypt + upload ==="
                         kubectl get nodes -o wide > "$work/03-cluster.txt" 2>/dev/null || true
-                        tar -C "$work" -czf /work/dr-pack.tar.gz .
-                        gpg --batch --yes --pinentry-mode loopback --passphrase "$DR_PACK_PASSPHRASE" \
-                            --symmetric --cipher-algo AES256 --output "/work/dr-pack-${ts}.tar.gz.gpg" /work/dr-pack.tar.gz
-                        rm -rf "$work" /work/dr-pack.tar.gz
-
-                        size=$(stat -c '%s' "/work/dr-pack-${ts}.tar.gz.gpg")
+                        echo "collected $(ls -1 "$work" | wc -l) files"
+                  - name: encrypt
+                    # Единственный образ в кластере с gpg — postgres-бейз от CNPG.
+                    # renovate: image=ghcr.io/cloudnative-pg/postgresql
+                    image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
+                    imagePullPolicy: IfNotPresent
+                    command: ["/bin/sh", "-c"]
+                    env:
+                      - name: HOME
+                        value: /work
+                      - name: GNUPGHOME
+                        value: /work/gnupg
+                    envFrom:
+                      - secretRef:
+                          name: dr-pack-creds
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - name: work
+                        mountPath: /work
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 128Mi
+                      limits:
+                        cpu: "1"
+                        memory: 512Mi
+                    args:
+                      - |
+                        set -eu
+                        ts=$(cat /work/ts)
+                        mkdir -p "$GNUPGHOME"
+                        chmod 700 "$GNUPGHOME"
+                        tar -C /work/pack -czf /work/dr-pack.tar.gz .
+                        gpg --batch --yes --pinentry-mode loopback --passphrase "$DR_PACK_PASSPHRASE" --symmetric --cipher-algo AES256 --output "/work/dr-pack-${ts}.tar.gz.gpg" /work/dr-pack.tar.gz
+                        rm -rf /work/pack /work/dr-pack.tar.gz "$GNUPGHOME"
+                        stat -c '%s' "/work/dr-pack-${ts}.tar.gz.gpg" > /work/size
+                        echo "encrypted dr-pack-${ts}.tar.gz.gpg ($(cat /work/size) bytes)"
+                  - name: upload
+                    # renovate: image=rclone/rclone
+                    image: rclone/rclone:1.75
+                    imagePullPolicy: IfNotPresent
+                    command: ["/bin/sh", "-c"]
+                    env:
+                      - name: HOME
+                        value: /work
+                    envFrom:
+                      - secretRef:
+                          name: snapshots-rclone
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - name: work
+                        mountPath: /work
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 128Mi
+                      limits:
+                        cpu: "1"
+                        memory: 512Mi
+                    args:
+                      - |
+                        set -eu
+                        ts=$(cat /work/ts)
+                        f="/work/dr-pack-${ts}.tar.gz.gpg"
                         for dst in garage:snapshots/dr-pack ovh:vaka-homelab/snapshots/dr-pack; do
                           echo "--- upload -> $dst"
-                          rclone copy "/work/dr-pack-${ts}.tar.gz.gpg" "$dst" --verbose
+                          rclone copy "$f" "$dst" --verbose
                           # Держим 8 последних недельных копий.
-                          keep=$(rclone lsf "$dst" | sort | tail -8)
-                          rclone lsf "$dst" | sort | head -n -8 | while IFS= read -r old; do
-                            [ -n "$old" ] && rclone deletefile "$dst/$old" && echo "pruned $old"
-                          done
+                          n=$(rclone lsf "$dst" | wc -l)
+                          if [ "$n" -gt 8 ]; then
+                            rclone lsf "$dst" | sort | head -n $((n - 8)) | while IFS= read -r old; do
+                              [ -n "$old" ] || continue
+                              rclone deletefile "$dst/$old" && echo "pruned $old"
+                            done
+                          fi
                         done
-                        rm -f "/work/dr-pack-${ts}.tar.gz.gpg"
-
-                        curl -sf -X POST --data-binary "homelab_dr_pack_timestamp $(date -u +%s)
-                        homelab_dr_pack_bytes ${size}" "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
+                        rm -f "$f"
+                containers:
+                  - name: metrics
+                    # renovate: image=curlimages/curl
+                    image: curlimages/curl:8.22.0
+                    imagePullPolicy: IfNotPresent
+                    command: ["/bin/sh", "-c"]
+                    env:
+                      - name: VM_URL
+                        value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - name: work
+                        mountPath: /work
+                    resources:
+                      requests:
+                        cpu: 10m
+                        memory: 32Mi
+                      limits:
+                        cpu: 200m
+                        memory: 128Mi
+                    args:
+                      - |
+                        set -eu
+                        ts=$(cat /work/ts)
+                        size=$(cat /work/size)
+                        printf 'homelab_dr_pack_timestamp %s\nhomelab_dr_pack_bytes %s\n' "$(date -u +%s)" "$size" > /work/metrics.txt
+                        curl -sf -X POST --data-binary @/work/metrics.txt "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
                         echo "dr-pack ${ts} uploaded (${size} bytes)"
 
                 volumes:
