@@ -179,16 +179,22 @@ homelab-common:
                           # Уведомление тем же маршрутом, что и обычные алерты: Alertmanager -> Robusta
                           # -> Telegram. Успех уходит с severity=info и коротким endsAt, поэтому сам
                           # рассасывается и не висит в списке firing.
+                          # endsAt намеренно не задаём: BusyBox date не умеет
+                          # относительные значения ("-d '+10 minutes'" молча
+                          # падает в фолбэк "сейчас", и алерт приезжает уже
+                          # разрешённым — поймано на первом же прогоне).
+                          # Без endsAt Alertmanager сам закрывает алерт по
+                          # resolve_timeout, а провал дополнительно держит
+                          # правило RestoreDrillFailed по метрике.
                           if [ "$ok" = "1" ]; then
-                            name=RestoreDrillSucceeded; sev=info; ends=$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+                            name=RestoreDrillSucceeded; sev=info
                           else
-                            name=RestoreDrillFailed; sev=critical; ends=$(date -u -d '+6 hours' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+                            name=RestoreDrillFailed; sev=critical
                           fi
                           cat <<JSON | curl -sf -X POST -H 'Content-Type: application/json' --data-binary @- "$AM_URL/api/v2/alerts" >/dev/null || echo "WARN: alert push failed"
                         [{
                           "labels": {"alertname":"$name","severity":"$sev","app":"$APP","target":"$TARGET","source":"backup-drill"},
-                          "annotations": {"summary":"Restore drill $APP from $TARGET: $detail","description":"Восстановление тома $APP из репозитория $TARGET заняло ${dur}s. $detail"},
-                          "endsAt": "$ends"
+                          "annotations": {"summary":"Restore drill $APP from $TARGET: $detail","description":"Восстановление тома $APP из репозитория $TARGET заняло ${dur}s. $detail"}
                         }]
                         JSON
                           echo "reported: ok=$ok $detail"
