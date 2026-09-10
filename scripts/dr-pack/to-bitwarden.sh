@@ -67,6 +67,7 @@ fi
 ITEMS='
 08 - Restic repo passwords (backup v2)|shared/restic-garage:password;shared/restic-ovh:password
 09 - S3 keys backup v2 (restic-apps, snapshots, OVH)|shared/s3-restic-apps:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-snapshots:ACCESS_KEY_ID,ACCESS_SECRET_KEY;velero/s3-ovh:ACCESS_KEY_ID,ACCESS_SECRET_KEY
+10 - DR pack passphrase (off-site)|shared/dr-pack:passphrase
 '
 
 folder_id=""
