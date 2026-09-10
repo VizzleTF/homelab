@@ -73,7 +73,9 @@ homelab-common:
       rules:
         - apiGroups: [""]
           resources: ["namespaces"]
-          verbs: ["get", "list", "create", "delete"]
+          # patch — чтобы навесить volsync.backube/privileged-movers на
+          # собственный drill-namespace.
+          verbs: ["get", "list", "create", "delete", "patch"]
         - apiGroups: [""]
           resources: ["persistentvolumeclaims", "secrets", "pods", "pods/log"]
           verbs: ["get", "list", "create", "delete"]
