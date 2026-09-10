@@ -195,6 +195,13 @@ homelab-common:
                         trap 'cleanup' EXIT
 
                         kubectl create ns "$NS" >/dev/null 2>&1 || true
+                        # Восстановление возвращает файлам исходных владельцев,
+                        # а chown в чужой uid требует CAP_CHOWN, которого у
+                        # обычного mover'а нет (VolSync выдаёт drop: [ALL]).
+                        # Привилегированные mover'ы включаются аннотацией на
+                        # namespace — это официальный механизм VolSync, и он
+                        # ограничен нашим одноразовым drill-namespace.
+                        kubectl annotate ns "$NS" volsync.backube/privileged-movers=true --overwrite >/dev/null
                         kubectl -n "$NS" create secret generic drill-restic \
                           --from-literal=RESTIC_REPOSITORY="$REPO_URL" \
                           --from-literal=RESTIC_PASSWORD="$PW" \

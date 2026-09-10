@@ -41,6 +41,10 @@ volsync_restore() {
 
   log_info "restore $ns/$pvc from $target:$repo"
   kubectl create ns "$ns" 2>/dev/null || true
+  # Без этой аннотации mover не имеет CAP_CHOWN и не может вернуть файлам их
+  # владельцев: restic восстановит содержимое, но свалится с "lchown: operation
+  # not permitted" на первом же томе со смешанным владением.
+  kubectl annotate ns "$ns" volsync.backube/privileged-movers=true --overwrite >/dev/null
 
   kubectl -n "$ns" create secret generic "$secret" \
     --from-literal=RESTIC_REPOSITORY="$repo_url" \
