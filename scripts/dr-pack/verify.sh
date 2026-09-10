@@ -33,7 +33,7 @@ if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
   # --batch без passphrase не спросит её и просто провалится; с GPG_PASSPHRASE
   # проверка проходит неинтерактивно, без него — обычный pinentry.
   if [ -n "${GPG_PASSPHRASE:-}" ]; then
-    gpg_decrypt() { gpg --quiet --batch --passphrase "$GPG_PASSPHRASE" --decrypt "$1"; }
+    gpg_decrypt() { gpg --quiet --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --decrypt "$1"; }
   else
     gpg_decrypt() { gpg --quiet --decrypt "$1"; }
   fi
@@ -76,17 +76,38 @@ if [ -f "$DR_PACK_DIR/02-vault-raft-snapshot.snap" ]; then
   check "raft snapshot <7 days old" "[ '$age_days' -lt 7 ]"
 fi
 
-if [ -d "$HOME/.config/Bitwarden CLI" ] || command -v bw >/dev/null 2>&1; then
-  if bw status 2>/dev/null | grep -q '"status":"unlocked"'; then
-    if bw list items 2>/dev/null | jq -e '.[] | select(.name == "00 - DR Pack Passphrase")' >/dev/null; then
-      log_ok "Vaultwarden has '00 - DR Pack Passphrase' note"
+# Что должно лежать в Vaultwarden, чтобы восстановление было возможно без
+# кластера. Парольная фраза пакета отдельной записью НЕ проверяется: она равна
+# мастер-паролю хранилища (см. ~/.zshrc, GPG_PASSPHRASE=$BW_PASSWORD) —
+# записывать её внутрь того же хранилища смысла нет.
+VW_ITEMS='08 - Restic repo passwords (backup v2)
+09 - S3 keys backup v2 (restic-apps, snapshots, OVH)'
+
+vw_client=""
+if command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then
+  vw_client=rbw
+elif command -v bw >/dev/null 2>&1 && bw status 2>/dev/null | grep -q '"status":"unlocked"'; then
+  vw_client=bw
+fi
+
+if [ -n "$vw_client" ]; then
+  [ "$vw_client" = "rbw" ] && rbw sync >/dev/null 2>&1
+  while IFS= read -r item; do
+    if [ -z "$item" ]; then continue; fi
+    if [ "$vw_client" = "rbw" ]; then
+      found=$(rbw list 2>/dev/null | grep -Fxc "$item" || true)
     else
-      log_error "Vaultwarden missing '00 - DR Pack Passphrase' note"
+      found=$(bw list items 2>/dev/null | jq -r '.[].name' | grep -Fxc "$item" || true)
+    fi
+    if [ "${found:-0}" -gt 0 ]; then
+      log_ok "Vaultwarden has '$item'"
+    else
+      log_error "Vaultwarden missing '$item' — run scripts/dr-pack/to-bitwarden.sh"
       fail=$((fail + 1))
     fi
-  else
-    log_warn "bw not unlocked — skipping Vaultwarden passphrase check (run: export BW_SESSION=\$(bw unlock --raw))"
-  fi
+  done <<< "$VW_ITEMS"
+else
+  log_warn "хранилище заблокировано — проверка записей Vaultwarden пропущена (rbw unlock)"
 fi
 
 if [ "$DRILL" -eq 1 ]; then
