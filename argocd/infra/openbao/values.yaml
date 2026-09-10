@@ -189,11 +189,15 @@ homelab-common:
                         unset root
 
                         echo "=== 2/4 raft snapshot ==="
-                        export BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
+                        # HTTP API, а не bao CLI: в образе alpine/k8s его нет,
+                        # а тащить второй образ ради одной команды незачем.
+                        BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
                         JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-                        BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=openbao-snapshot jwt="$JWT")
-                        export BAO_TOKEN
-                        bao operator raft snapshot save "$work/02-vault-raft-snapshot.snap"
+                        login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
+                        TOKEN=$(curl -sf -X POST "$BAO_ADDR/v1/auth/kubernetes/login" -d "$login" | jq -r .auth.client_token)
+                        [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "auth failed"; exit 1; }
+                        curl -sf -H "X-Vault-Token: $TOKEN" "$BAO_ADDR/v1/sys/storage/raft/snapshot" -o "$work/02-vault-raft-snapshot.snap"
+                        unset TOKEN login
                         test -s "$work/02-vault-raft-snapshot.snap"
 
                         echo "=== 3/4 bootstrap env ==="
