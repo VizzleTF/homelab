@@ -25,12 +25,20 @@ wait_for "openbao-0 Running" \
   "kubectl -n openbao get pod openbao-0 -o jsonpath='{.status.phase}' | grep -q Running" \
   180
 
-# Decrypt Shamir bundle
-log_info "decrypting Shamir bundle"
+# Shamir bundle: encrypted on its own in the laptop pack, plain inside the
+# off-site tarball (that one is encrypted as a whole).
 tmp=$(mktemp)
 trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
-gpg --quiet --batch --output "$tmp" --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" \
-  || die "Shamir decrypt failed"
+if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
+  log_info "decrypting Shamir bundle"
+  gpg --quiet --batch --output "$tmp" --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" \
+    || die "Shamir decrypt failed"
+elif [ -f "$DR_PACK_DIR/00-shamir.json" ]; then
+  log_info "reading Shamir bundle (plain — off-site pack)"
+  cat "$DR_PACK_DIR/00-shamir.json" > "$tmp"
+else
+  die "no 00-shamir.json[.gpg] in $DR_PACK_DIR"
+fi
 
 K0=$(jq -r '.unseal_keys_b64[0]' "$tmp")
 K1=$(jq -r '.unseal_keys_b64[1]' "$tmp")

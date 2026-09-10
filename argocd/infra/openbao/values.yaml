@@ -212,7 +212,15 @@ homelab-common:
                           cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
                           echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
                         } > "$work/01-bootstrap.env"
-                        kubectl get nodes -o wide > "$work/03-cluster.txt" 2>/dev/null || true
+                        # Тот же формат, что у scripts/dr-pack/build.sh — фазы 01/04 читают
+                        # именно эти переменные, пакеты взаимозаменяемы.
+                        {
+                          echo "# Refreshed: $(date -u -Iseconds)"
+                          echo "GATEWAY_EXTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
+                          echo "GATEWAY_INTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway-internal -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
+                          echo "GATEWAY_TLS_IP=$(kubectl -n kube-system get gateway cilium-gateway-tls -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
+                        } > "$work/03-cluster.env"
+                        kubectl get nodes -o wide > "$work/04-nodes.txt" 2>/dev/null || true
                         echo "collected $(ls -1 "$work" | wc -l) files"
                   - name: encrypt
                     # Единственный образ в кластере с gpg — postgres-бейз от CNPG.
@@ -391,8 +399,8 @@ homelab-common:
         port: 8200
 
   rbac:
-    # SA для недельного off-site DR-пакета: ровно три секрета по именам и
-    # чтение нод для снимка топологии. Ничего не пишет и не удаляет.
+    # SA для недельного off-site DR-пакета: ровно три секрета по именам,
+    # ноды и Gateway'и для снимка топологии. Ничего не пишет и не удаляет.
     - serviceAccount:
         name: openbao-dr-pack
         create: true
@@ -405,6 +413,9 @@ homelab-common:
             verbs: ["get"]
           - apiGroups: [""]
             resources: ["nodes"]
+            verbs: ["get", "list"]
+          - apiGroups: ["gateway.networking.k8s.io"]
+            resources: ["gateways"]
             verbs: ["get", "list"]
 
     - serviceAccount:

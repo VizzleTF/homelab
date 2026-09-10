@@ -16,7 +16,6 @@ log_ok "kubectl reachable: $(kubectl config current-context)"
 
 log_info "checking DR pack: $DR_PACK_DIR"
 required_files=(
-  "00-shamir.json.gpg"
   "01-bootstrap.env"
   "02-vault-raft-snapshot.snap"
   "03-cluster.env"
@@ -24,21 +23,30 @@ required_files=(
 for f in "${required_files[@]}"; do
   [ -f "$DR_PACK_DIR/$f" ] || die "DR pack missing: $DR_PACK_DIR/$f — run scripts/dr-pack/build.sh"
 done
+# Laptop pack encrypts the bundle on its own; the off-site tarball is encrypted
+# as a whole and unpacks it in the clear.
+[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ] || [ -f "$DR_PACK_DIR/00-shamir.json" ] \
+  || die "DR pack missing: $DR_PACK_DIR/00-shamir.json[.gpg] — run scripts/dr-pack/build.sh"
 log_ok "DR pack files present"
 
 # Validate bootstrap env has required keys
 load_bootstrap_env
-for v in CF_API_TOKEN GARAGE_VELERO_ACCESS_KEY GARAGE_VELERO_SECRET; do
+for v in CF_API_TOKEN GARAGE_RESTIC_ACCESS_KEY GARAGE_RESTIC_SECRET \
+         RESTIC_PASSWORD_GARAGE RESTIC_PASSWORD_OVH; do
   require_env "$v"
 done
-log_ok "bootstrap env has CF + Garage creds"
+log_ok "bootstrap env has CF + restic repo creds"
 
 # Validate Shamir bundle decrypts (caller will be prompted for passphrase only here)
-log_info "validating Shamir bundle decrypts"
+log_info "validating Shamir bundle"
 tmp=$(mktemp)
 trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
-gpg --quiet --batch --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" > "$tmp" 2>/dev/null \
-  || die "Shamir decrypt failed. Check GPG passphrase or DR pack integrity."
+if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
+  gpg --quiet --batch --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" > "$tmp" 2>/dev/null \
+    || die "Shamir decrypt failed. Check GPG passphrase or DR pack integrity."
+else
+  cat "$DR_PACK_DIR/00-shamir.json" > "$tmp"
+fi
 keys=$(jq -r '.unseal_keys_b64 | length' "$tmp")
 [ "$keys" = "3" ] || die "Shamir bundle has $keys keys, expected 3"
 log_ok "Shamir bundle valid (3 unseal keys + root token)"

@@ -28,7 +28,7 @@ scripts/dr/restore.sh phase 06-vault-restore
 ```
 ~/dr-pack/
 ├── 00-shamir.json.gpg          # gpg -c, passphrase in Vaultwarden secure note "00 - DR Pack Passphrase"
-├── 01-bootstrap.env            # CF_API_TOKEN, GARAGE_VELERO_ACCESS_KEY, GARAGE_VELERO_SECRET, OVH_*
+├── 01-bootstrap.env            # CF_API_TOKEN, GARAGE_RESTIC_*, GARAGE_SNAPSHOTS_*, OVH_S3_*, RESTIC_PASSWORD_GARAGE/_OVH
 ├── 02-vault-raft-snapshot.snap # latest Raft snapshot pulled from S3 by build.sh
 ├── 03-cluster.env              # cluster topology: GATEWAY_INTERNAL_IP, GATEWAY_EXTERNAL_IP, GATEWAY_TLS_IP, OPENWRT_HOST
 └── README.md

@@ -7,9 +7,15 @@ Generates and validates the minimal disaster-recovery bundle used by `scripts/dr
 | File | Purpose | Sensitivity |
 |---|---|---|
 | `00-shamir.json.gpg` | OpenBao 3 unseal keys + root token, `gpg --symmetric` encrypted. Passphrase lives in Vaultwarden secure note "00 - DR Pack Passphrase". | RED — full OpenBao root |
-| `01-bootstrap.env` | Pre-OpenBao bootstrap secrets: `CF_API_TOKEN`, `GARAGE_VELERO_*`, optional `OVH_S3_*`, optional `OPENWRT_*` | RED |
+| `01-bootstrap.env` | Pre-OpenBao bootstrap secrets: `CF_API_TOKEN`, `GARAGE_RESTIC_*`, `GARAGE_SNAPSHOTS_*`, `OVH_S3_*`, `RESTIC_PASSWORD_GARAGE`/`_OVH`, optional `OPENWRT_*` | RED |
 | `02-vault-raft-snapshot.snap` | Latest OpenBao Raft snapshot pulled from S3 (encrypted at rest by OpenBao). | RED |
 | `03-cluster.env` | Cluster topology / gateway IPs (non-secret, but pinned for reproducibility) | yellow |
+
+The cluster builds the same pack weekly on its own — CronJob `openbao/openbao-dr-pack-offsite`
+uploads `dr-pack-<ts>.tar.gz.gpg` (the whole tarball encrypted, passphrase in Vault
+`shared/dr-pack`) to both S3 targets. Unpack it into `~/dr-pack/` and the phases accept it:
+`00-shamir.json` comes out in the clear instead of `00-shamir.json.gpg`, and it carries an
+extra `04-nodes.txt`.
 
 ## Usage
 
