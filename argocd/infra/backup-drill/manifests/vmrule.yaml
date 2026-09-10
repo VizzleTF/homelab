@@ -12,6 +12,22 @@ spec:
   groups:
     - name: backup-drill
       rules:
+        # Провал держится метрикой, а не одним push-алертом: сообщение из
+        # CronJob уедет один раз и закроется по resolve_timeout, а этот алерт
+        # будет висеть, пока том не восстановится успешно.
+        - alert: RestoreDrillFailed
+          expr: homelab_restore_drill_success == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Проверка восстановления {{ $labels.app }} из {{ $labels.target }} провалилась"
+            description: |
+              Том не восстановился или восстановился пустым. Это значит, что
+              копия в {{ $labels.target }} непригодна — не «джоба упала».
+              kubectl -n backup-drill logs job/<последний>
+              kubectl get replicationsource -A | grep {{ $labels.app }}
+
         - alert: RestoreDrillStale
           # Ротация из 10 приложений, прогон раз в неделю: конкретный том
           # проверяется примерно раз в 10 недель, поэтому смотрим на самый
