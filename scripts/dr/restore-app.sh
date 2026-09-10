@@ -29,17 +29,17 @@ load_bootstrap_env
 lookup() {
   case "$1" in
     vaultwarden)        echo "vaultwarden|vaultwarden-data-vaultwarden-0|2Gi|ReadWriteOnce|1001" ;;
-    nextcloud)          echo "nextcloud|nextcloud-nextcloud|10Gi|ReadWriteOnce|33" ;;
+    nextcloud)          echo "nextcloud|nextcloud-nextcloud|10Gi|ReadWriteOnce|" ;;
     cleanbot)           echo "cleanbot|cleanbot|1Gi|ReadWriteOnce|10001" ;;
     may)                echo "may|may|5Gi|ReadWriteOnce|1000" ;;
     omniroute)          echo "omniroute-data|omniroute-data|5Gi|ReadWriteOnce|1000" ;;
     rsstt)              echo "rss-to-telegram-bot|rss-to-telegram-bot|1Gi|ReadWriteOnce|1000" ;;
     immich)             echo "immich-library|immich-library-pvc|250Gi|ReadWriteMany|" ;;
-    forgejo)            echo "forgejo|forgejo-data|20Gi|ReadWriteOnce|1000" ;;
-    opencloud)          echo "opencloud-data|opencloud-data|50Gi|ReadWriteOnce|1000" ;;
-    opencloud-config)   echo "opencloud-config|opencloud-config|1Gi|ReadWriteOnce|1000" ;;
-    trek)               echo "trek-uploads|trek-uploads|10Gi|ReadWriteOnce|1000" ;;
-    trek-data)          echo "trek-data|trek-data|1Gi|ReadWriteOnce|1000" ;;
+    forgejo)            echo "forgejo|forgejo-data|20Gi|ReadWriteOnce|" ;;
+    opencloud)          echo "opencloud-data|opencloud-data|50Gi|ReadWriteOnce|" ;;
+    opencloud-config)   echo "opencloud-config|opencloud-config|1Gi|ReadWriteOnce|" ;;
+    trek)               echo "trek-uploads|trek-uploads|10Gi|ReadWriteOnce|" ;;
+    trek-data)          echo "trek-data|trek-data|1Gi|ReadWriteOnce|" ;;
     obsidian-livesync)  echo "obsidian-livesync|database-storage-obsidian-livesync-couchdb-0|5Gi|ReadWriteOnce|" ;;
     *) return 1 ;;
   esac

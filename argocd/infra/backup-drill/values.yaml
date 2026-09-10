@@ -222,6 +222,15 @@ homelab-common:
                             cacheStorageClassName: local-path
                             cacheCapacity: 4Gi
                             cacheAccessModes: [ReadWriteOnce]
+                            # Mover должен восстанавливать исходных владельцев
+                            # файлов, а lchown в чужой uid умеет только root.
+                            # Непривилегированный mover валится с "operation not
+                            # permitted" на любом томе, где владелец не совпадает
+                            # с его собственным uid (поймано на opencloud-data).
+                            moverSecurityContext:
+                              runAsUser: 0
+                              runAsGroup: 0
+                              fsGroup: 0
                         YAML
 
                         echo "waiting for restore..."
