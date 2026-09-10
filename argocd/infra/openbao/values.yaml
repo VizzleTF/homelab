@@ -104,7 +104,176 @@ homelab-common:
                   - name: snap
                     emptyDir: {}
 
+    # Недельная off-site копия DR-пакета (Shamir + raft snapshot + креды S3/CF)
+    # в оба S3. Локальный scripts/dr-pack/build.sh никуда не девается — он
+    # делает офлайн-копию на машине оператора; этот CronJob страхует случай
+    # «пакет на ноутбуке протух, а кластера уже нет».
+    #
+    # Шифруется отдельной фразой (Vault shared/dr-pack), а НЕ мастер-паролем
+    # Vaultwarden: пакет лежит в том же S3, что и бэкапы, и компрометация
+    # S3-ключа не должна давать ещё и доступ к хранилищу паролей.
+    # Фразу держать в Vaultwarden записью "10 - DR pack passphrase (off-site)".
+    - name: dr-pack-offsite
+      spec:
+        schedule: "40 2 * * 0"
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 600
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 3
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            activeDeadlineSeconds: 1800
+            template:
+              spec:
+                restartPolicy: OnFailure
+                serviceAccountName: openbao-dr-pack
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  runAsGroup: 65532
+                  fsGroup: 65532
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: pack
+                    # renovate: image=alpine/k8s
+                    image: alpine/k8s:1.34.1
+                    imagePullPolicy: IfNotPresent
+                    command: ["/bin/sh", "-c"]
+                    env:
+                      - name: VM_URL
+                        value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+                      - name: HOME
+                        value: /work
+                    envFrom:
+                      - secretRef:
+                          name: snapshots-rclone
+                      - secretRef:
+                          name: dr-pack-creds
+                      - secretRef:
+                          name: dr-pack-restic-key
+                      - secretRef:
+                          name: dr-pack-restic-pw
+                      - secretRef:
+                          name: dr-pack-restic-pw-ovh
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop: [ALL]
+                    volumeMounts:
+                      - name: work
+                        mountPath: /work
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 128Mi
+                      limits:
+                        cpu: "1"
+                        memory: 512Mi
+                    args:
+                      - |
+                        set -eu
+                        ts=$(date -u +%Y-%m-%dT%H%M)
+                        work=/work/pack
+                        mkdir -p "$work"
+
+                        echo "=== 1/4 Shamir bundle + root token ==="
+                        kubectl -n openbao get secret openbao-keys -o json \
+                          | jq '{unseal_keys_b64: [.data["key-0"], .data["key-1"], .data["key-2"]] | map(@base64d),
+                                 unseal_shares: 3, unseal_threshold: 3}' > "$work/00-shamir.json"
+                        root=$(kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d \
+                          || kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.root_token}' | base64 -d)
+                        jq --arg rt "$root" '. + {root_token: $rt}' "$work/00-shamir.json" > "$work/00-shamir.json.tmp"
+                        mv "$work/00-shamir.json.tmp" "$work/00-shamir.json"
+                        unset root
+
+                        echo "=== 2/4 raft snapshot ==="
+                        export BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
+                        JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                        BAO_TOKEN=$(bao write -field=token auth/kubernetes/login role=openbao-snapshot jwt="$JWT")
+                        export BAO_TOKEN
+                        bao operator raft snapshot save "$work/02-vault-raft-snapshot.snap"
+                        test -s "$work/02-vault-raft-snapshot.snap"
+
+                        echo "=== 3/4 bootstrap env ==="
+                        {
+                          echo "# generated $(date -u -Iseconds) by dr-pack-offsite CronJob"
+                          echo "RESTIC_PASSWORD_GARAGE=$PW_GARAGE"
+                          echo "RESTIC_PASSWORD_OVH=$PW_OVH"
+                          echo "GARAGE_RESTIC_ACCESS_KEY=$GARAGE_RESTIC_AK"
+                          echo "GARAGE_RESTIC_SECRET=$GARAGE_RESTIC_SK"
+                          echo "GARAGE_SNAPSHOTS_ACCESS_KEY=$RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID"
+                          echo "GARAGE_SNAPSHOTS_SECRET=$RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY"
+                          echo "OVH_S3_ACCESS_KEY=$RCLONE_CONFIG_OVH_ACCESS_KEY_ID"
+                          echo "OVH_S3_SECRET_KEY=$RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY"
+                          cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
+                          echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
+                        } > "$work/01-bootstrap.env"
+
+                        echo "=== 4/4 pack + encrypt + upload ==="
+                        kubectl get nodes -o wide > "$work/03-cluster.txt" 2>/dev/null || true
+                        tar -C "$work" -czf /work/dr-pack.tar.gz .
+                        gpg --batch --yes --pinentry-mode loopback --passphrase "$DR_PACK_PASSPHRASE" \
+                            --symmetric --cipher-algo AES256 --output "/work/dr-pack-${ts}.tar.gz.gpg" /work/dr-pack.tar.gz
+                        rm -rf "$work" /work/dr-pack.tar.gz
+
+                        size=$(stat -c '%s' "/work/dr-pack-${ts}.tar.gz.gpg")
+                        for dst in garage:snapshots/dr-pack ovh:vaka-homelab/snapshots/dr-pack; do
+                          echo "--- upload -> $dst"
+                          rclone copy "/work/dr-pack-${ts}.tar.gz.gpg" "$dst" --verbose
+                          # Держим 8 последних недельных копий.
+                          keep=$(rclone lsf "$dst" | sort | tail -8)
+                          rclone lsf "$dst" | sort | head -n -8 | while IFS= read -r old; do
+                            [ -n "$old" ] && rclone deletefile "$dst/$old" && echo "pruned $old"
+                          done
+                        done
+                        rm -f "/work/dr-pack-${ts}.tar.gz.gpg"
+
+                        curl -sf -X POST --data-binary "homelab_dr_pack_timestamp $(date -u +%s)
+                        homelab_dr_pack_bytes ${size}" "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
+                        echo "dr-pack ${ts} uploaded (${size} bytes)"
+
+                volumes:
+                  - name: work
+                    emptyDir:
+                      medium: Memory
+                      sizeLimit: 512Mi
+
   externalSecrets:
+    # Креды для недельного off-site DR-пакета: фраза шифрования и ключ бакета
+    # restic-apps (он попадает в 01-bootstrap.env внутри пакета).
+    - name: dr-pack-creds
+      vaultPath: shared/dr-pack
+      data:
+        - secretKey: passphrase
+          property: passphrase
+      templateData:
+        DR_PACK_PASSPHRASE: "{{ .passphrase }}"
+    - name: dr-pack-restic-key
+      vaultPath: shared/s3-restic-apps
+      data:
+        - secretKey: ak
+          property: ACCESS_KEY_ID
+        - secretKey: sk
+          property: ACCESS_SECRET_KEY
+      templateData:
+        GARAGE_RESTIC_AK: "{{ .ak }}"
+        GARAGE_RESTIC_SK: "{{ .sk }}"
+    - name: dr-pack-restic-pw
+      vaultPath: shared/restic-garage
+      data:
+        - secretKey: pw
+          property: password
+      templateData:
+        PW_GARAGE: "{{ .pw }}"
+    - name: dr-pack-restic-pw-ovh
+      vaultPath: shared/restic-ovh
+      data:
+        - secretKey: pw
+          property: password
+      templateData:
+        PW_OVH: "{{ .pw }}"
     - name: openbao-approle-credentials
       vaultPath: vault/approle
       targetName: openbao-snapshot-agent-token
@@ -128,6 +297,22 @@ homelab-common:
         port: 8200
 
   rbac:
+    # SA для недельного off-site DR-пакета: ровно три секрета по именам и
+    # чтение нод для снимка топологии. Ничего не пишет и не удаляет.
+    - serviceAccount:
+        name: openbao-dr-pack
+        create: true
+      clusterRole:
+        name: openbao-dr-pack
+        rules:
+          - apiGroups: [""]
+            resources: ["secrets"]
+            resourceNames: ["openbao-keys", "openbao-root-token", "cloudflare-api-token"]
+            verbs: ["get"]
+          - apiGroups: [""]
+            resources: ["nodes"]
+            verbs: ["get", "list"]
+
     - serviceAccount:
         name: openbao
         create: false
