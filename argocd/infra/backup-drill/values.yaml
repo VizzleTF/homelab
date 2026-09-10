@@ -250,11 +250,15 @@ homelab-common:
                         done
                         echo "restore finished at $(kubectl -n "$NS" get replicationdestination drill -o jsonpath='{.status.lastSyncTime}')"
 
+                        # Проверяющий под работает от root: тома приложений часто имеют
+                        # каталоги drwxrwx--- с чужим владельцем, и непривилегированный
+                        # find не заходит внутрь — насчитал бы FILES=0 на полностью
+                        # восстановленном томе (так и случилось на opencloud-data).
                         # Предметная проверка: файлы на месте, и если это SQLite — база открывается
                         # и проходит integrity_check. Пустой том = провал: ровно так молча выглядел
                         # бэкап netbird до 2026-09-10.
                         kubectl -n "$NS" run verify --restart=Never --image=keinos/sqlite3:latest \
-                          --overrides='{"spec":{"containers":[{"name":"verify","image":"keinos/sqlite3:latest","command":["sh","-c","set -e; files=$(find /data -type f -not -path \"*/lost+found/*\" | wc -l); bytes=$(du -sb /data | cut -f1); echo FILES=$files; echo BYTES=$bytes; [ \"$files\" -gt 0 ] || { echo EMPTY; exit 1; }; db=$(find /data -maxdepth 2 -name \"*.sqlite3\" -o -maxdepth 2 -name \"*.db\" | head -1); if [ -n \"$db\" ]; then echo DB=$db; res=$(sqlite3 \"file:$db?mode=ro\" \"PRAGMA integrity_check;\"); echo INTEGRITY=$res; [ \"$res\" = ok ] || exit 1; fi; echo VERIFY_OK"],"volumeMounts":[{"name":"d","mountPath":"/data"}]}],"volumes":[{"name":"d","persistentVolumeClaim":{"claimName":"drill-data"}}],"restartPolicy":"Never"}}' >/dev/null
+                          --overrides='{"spec":{"securityContext":{"runAsUser":0,"runAsGroup":0},"containers":[{"name":"verify","image":"keinos/sqlite3:latest","command":["sh","-c","set -e; files=$(find /data -type f -not -path \"*/lost+found/*\" | wc -l); bytes=$(du -sb /data | cut -f1); echo FILES=$files; echo BYTES=$bytes; [ \"$files\" -gt 0 ] || { echo EMPTY; exit 1; }; db=$(find /data -maxdepth 2 -name \"*.sqlite3\" -o -maxdepth 2 -name \"*.db\" | head -1); if [ -n \"$db\" ]; then echo DB=$db; res=$(sqlite3 \"file:$db?mode=ro\" \"PRAGMA integrity_check;\"); echo INTEGRITY=$res; [ \"$res\" = ok ] || exit 1; fi; echo VERIFY_OK"],"volumeMounts":[{"name":"d","mountPath":"/data"}]}],"volumes":[{"name":"d","persistentVolumeClaim":{"claimName":"drill-data"}}],"restartPolicy":"Never"}}' >/dev/null
 
                         VDEADLINE=$(( $(date -u +%s) + 600 ))
                         while :; do
