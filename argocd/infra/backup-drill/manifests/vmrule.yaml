@@ -1,0 +1,41 @@
+# Алерты вокруг еженедельной проверки восстановления.
+#
+# Сам факт успеха/провала прилетает в Telegram сразу из CronJob (алерт в
+# Alertmanager -> Robusta). Здесь — вторая линия: она ловит случай, когда
+# drill вообще перестал запускаться и потому ничего не присылает.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: backup-drill
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: backup-drill
+      rules:
+        - alert: RestoreDrillStale
+          # Ротация из 10 приложений, прогон раз в неделю: конкретный том
+          # проверяется примерно раз в 10 недель, поэтому смотрим на самый
+          # свежий прогон вообще, а не на каждый по отдельности.
+          expr: time() - max(homelab_restore_drill_timestamp) > 16 * 24 * 3600
+          labels:
+            severity: critical
+          annotations:
+            summary: "Проверка восстановления не запускалась больше двух недель"
+            description: |
+              Последний успешный restore drill старше 16 дней — расписание
+              сломано, CronJob suspend'нут или задание не доходит до отчёта.
+              Бэкапы снова стали предположением.
+              kubectl -n backup-drill get cronjob,job
+              kubectl -n backup-drill logs job/<последний>
+
+        - alert: RestoreDrillNeverRan
+          expr: absent(homelab_restore_drill_timestamp) == 1
+          for: 24h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Нет ни одной метрики restore drill"
+            description: |
+              В VictoriaMetrics нет homelab_restore_drill_timestamp: либо drill
+              ещё ни разу не отработал, либо не может опубликовать метрику.
+              Проверить: kubectl -n backup-drill get job
