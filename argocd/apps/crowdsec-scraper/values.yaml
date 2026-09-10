@@ -8,11 +8,15 @@
 homelab-common:
   # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
   # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
-  # Velero-расписания пока работают параллельно, уйдут на фазе 8.
   # Ключ netbird-пира: 100Mi, но без него скрапер теряет доступ в mesh.
   # Off-site раньше не было вовсе — velero гонял только daily в garage.
+  #
+  # `name` задаёт путь репозитория (restic-apps/<name>) и потому обязан быть
+  # уникальным по всему кластеру. PVC здесь называется так же, как у пиров в ns
+  # netbird, и оба писали в один restic-репозиторий: снапшоты разных томов
+  # вперемешку, общая retention и prune, который чистит чужую историю.
   volsync:
-    - name: netbird-peer
+    - name: crowdsec-netbird-peer
       claim: netbird-peer
       capacity: 100Mi
       targets:
