@@ -163,8 +163,14 @@ homelab-common:
                   volumeMounts:
                     - name: tun
                       mountPath: /dev/net/tun
+                    # PVC монтируется в /var/lib/netbird, а не /etc/netbird:
+                    # клиент netbird хранит там active_profile.json, default.json
+                    # и state.json (идентичность пира и ключи). Со старым путём
+                    # том оставался пустым, а бэкап — бэкапом пустоты: VolSync
+                    # честно писал "Directory is empty skipping backup", Velero
+                    # до него так же молча снимал пустой PVC.
                     - name: state
-                      mountPath: /etc/netbird
+                      mountPath: /var/lib/netbird
                 - name: vmagent
                   # renovate: image=victoriametrics/vmagent
                   image: victoriametrics/vmagent:v1.151.0
