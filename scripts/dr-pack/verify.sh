@@ -49,6 +49,17 @@ if [ -f "$DR_PACK_DIR/01-bootstrap.env" ]; then
   else
     log_ok "01-bootstrap.env has no MISSING markers"
   fi
+  # Без паролей restic пакет бесполезен: репозитории VolSync не открыть, а
+  # OpenBao (где они лежат в обычной жизни) сам восстанавливается из бэкапа,
+  # зашифрованного ими. Проверяем явно, а не только на отсутствие MISSING.
+  for k in RESTIC_PASSWORD_GARAGE RESTIC_PASSWORD_OVH GARAGE_RESTIC_ACCESS_KEY OVH_S3_ACCESS_KEY; do
+    if grep -qE "^${k}=.+" "$DR_PACK_DIR/01-bootstrap.env"; then
+      log_ok "01-bootstrap.env carries $k"
+    else
+      log_error "01-bootstrap.env is missing $k — restore would have no way into the repositories"
+      fail=$((fail + 1))
+    fi
+  done
 fi
 
 if [ -f "$DR_PACK_DIR/02-vault-raft-snapshot.snap" ]; then

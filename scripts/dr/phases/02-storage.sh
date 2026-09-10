@@ -30,7 +30,26 @@ helm_apply snapshot-controller piraeus/snapshot-controller csi-snapshotter \
 log_info "applying Longhorn extras (default BackupTarget + longhorn-retain SC)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/longhorn/manifests/"
 
-log_info "applying VolumeSnapshotClass for Velero (driver.longhorn.io)"
+log_info "applying VolumeSnapshotClass for VolSync (driver.longhorn.io)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/volsync/manifests/volumesnapshotclass.yaml"
+
+# VolSync ставим здесь, а не ждём ArgoCD (фаза 10): восстановление forgejo идёт
+# в фазе 09, то есть РАНЬШЕ. Без оператора и его CRD volsync_restore упал бы на
+# "no matches for kind ReplicationDestination". Установка идемпотентна — ArgoCD
+# потом усыновит релиз как обычно.
+log_info "installing VolSync (needed by phases 09 and 11)"
+helm repo add backube https://backube.github.io/helm-charts/ >/dev/null 2>&1 || true
+helm repo update backube >/dev/null
+# renovate: datasource=helm depName=volsync registryUrl=https://backube.github.io/helm-charts/
+VOLSYNC_CHART_VERSION="0.16.0"
+helm_apply volsync backube/volsync volsync-system \
+  --version "$VOLSYNC_CHART_VERSION" \
+  -f "$REPO_ROOT/argocd/infra/volsync/values.yaml"
+
+wait_for "VolSync CRDs registered" \
+  "kubectl get crd replicationdestinations.volsync.backube >/dev/null 2>&1" \
+  120
+wait_for "volsync deployment Ready" \
+  "kubectl -n volsync-system rollout status deploy/volsync --timeout=180s"
 
 log_ok "phase 02 storage complete"
