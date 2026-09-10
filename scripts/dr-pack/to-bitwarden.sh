@@ -10,14 +10,22 @@
 # Значения секретов передаются из bao в bw через переменные окружения и на
 # экран не выводятся: скрипт печатает только имена записей и статус.
 #
+# Два клиента, выбор автоматический:
+#   rbw — предпочтительный. Официальный bw CLI 2026.8 не открывает хранилище
+#         Vaultwarden 1.37.2: падает с "Master password unlock data is required
+#         is null or undefined" (клиент ждёт поля новой схемы, сервер их не
+#         отдаёт). rbw — независимая реализация, этой зависимости не имеет.
+#   bw  — используется, если задан BW_SESSION и rbw заблокирован.
+#
 # Usage:
-#   export BW_SESSION=$(bw unlock --raw)     # мастер-пароль вводите сами
+#   rbw login && rbw unlock          # мастер-пароль вводите сами, в своём терминале
 #   scripts/dr-pack/to-bitwarden.sh [--dry-run]
 #
 # Env:
 #   BW_FOLDER   имя папки в Vaultwarden (default: HomeLab DR)
 #   BAO_MOUNT   KV-mount OpenBao (default: home)
 #   BAO_PREFIX  префикс путей (default: homelab/k8s)
+#   BW_SESSION  сессия официального CLI (альтернатива rbw)
 
 set -euo pipefail
 
@@ -28,17 +36,30 @@ BW_FOLDER="${BW_FOLDER:-HomeLab DR}"
 BAO_MOUNT="${BAO_MOUNT:-home}"
 BAO_PREFIX="${BAO_PREFIX:-homelab/k8s}"
 
-for c in bw jq bao; do
-  command -v "$c" >/dev/null 2>&1 || { echo "missing dependency: $c" >&2; exit 1; }
-done
+command -v bao >/dev/null 2>&1 || { echo "missing dependency: bao" >&2; exit 1; }
 
+CLIENT=""
 if [ "$DRY_RUN" = "0" ]; then
-  [ -n "${BW_SESSION:-}" ] || {
-    echo "BW_SESSION не задан. Разблокируйте хранилище сами:" >&2
-    echo "  export BW_SESSION=\$(bw unlock --raw)" >&2
+  if command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then
+    CLIENT=rbw
+    rbw sync >/dev/null 2>&1 || true
+  elif [ -n "${BW_SESSION:-}" ] && command -v bw >/dev/null 2>&1; then
+    CLIENT=bw
+    command -v jq >/dev/null 2>&1 || { echo "missing dependency: jq (нужен для bw)" >&2; exit 1; }
+    bw sync --quiet 2>/dev/null || true
+  else
+    cat >&2 <<'MSG'
+Хранилище заблокировано. Разблокируйте сами, в своём терминале:
+
+  rbw login && rbw unlock          # предпочтительно
+  # или, если пользуетесь официальным CLI:
+  export BW_SESSION=$(bw unlock --raw)
+
+Затем запустите скрипт снова. Мастер-пароль через автоматику не проходит.
+MSG
     exit 1
-  }
-  bw sync --quiet 2>/dev/null || true
+  fi
+  echo "client: $CLIENT"
 fi
 
 # name | vault path | поля через запятую
@@ -51,7 +72,7 @@ S3 key — OVH vaka-homelab|velero/s3-ovh|ACCESS_KEY_ID,ACCESS_SECRET_KEY
 '
 
 folder_id=""
-if [ "$DRY_RUN" = "0" ]; then
+if [ "$DRY_RUN" = "0" ] && [ "$CLIENT" = "bw" ]; then
   folder_id=$(bw list folders --search "$BW_FOLDER" 2>/dev/null \
     | jq -r --arg n "$BW_FOLDER" '.[] | select(.name == $n) | .id' | head -1)
   if [ -z "$folder_id" ]; then
