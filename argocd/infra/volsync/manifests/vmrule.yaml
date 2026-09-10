@@ -49,24 +49,25 @@ spec:
               Единичный пропуск на крупном томе — норма, регулярные — повод поднять
               расписание или разнести слоты.
 
-        # Порог 36h: все on-prem источники — daily.
-        - alert: VolsyncOnPremBackupStale
-          expr: increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-garage"}[36h]) == 0
+        # Здесь НЕТ правил вида increase(volsync_sync_duration_seconds_count[36h]) == 0.
+        # Они выглядели логично, но counter живёт в памяти контроллера: любой его
+        # рестарт (обновление чарта, эвикция, ребут ноды) обнуляет счётчик, и
+        # increase честно возвращает 0 — то есть critical-алерт на сутки вперёд
+        # про целые и свежие бэкапы. Проверено 2026-09-10 на живом кластере.
+        #
+        # Отставание от расписания считает сам VolSync и публикует как
+        # volsync_volume_out_of_sync — он знает интервал каждого источника,
+        # включая weekly off-site, и переживает рестарт. Это и есть staleness.
+        - alert: VolsyncSourcesMissing
+          expr: absent(volsync_volume_out_of_sync{role="source"}) == 1
+          for: 30m
           labels:
             severity: critical
           annotations:
-            summary: "Нет успешных прогонов {{ $labels.obj_namespace }}/{{ $labels.obj_name }} за 36 часов"
+            summary: "ReplicationSource'ы исчезли из метрик"
             description: |
-              On-prem копия (Garage) не обновлялась больше суток с запасом.
-              kubectl -n {{ $labels.obj_namespace }} describe replicationsource {{ $labels.obj_name }}
-
-        # Порог 9d: самые редкие off-site слоты — weekly.
-        - alert: VolsyncOffsiteBackupStale
-          expr: increase(volsync_sync_duration_seconds_count{role="source", obj_name=~".+-ovh"}[9d]) == 0
-          labels:
-            severity: critical
-          annotations:
-            summary: "Нет успешных off-site прогонов {{ $labels.obj_namespace }}/{{ $labels.obj_name }} за 9 дней"
-            description: |
-              Off-site копия (OVH) не обновлялась дольше самого редкого расписания.
-              Это единственная копия, переживающая потерю NAS — чинить в первую очередь.
+              Ни одного источника VolSync в метриках >30 минут: либо снесены
+              объекты, либо сломан скрейп. В обоих случаях бэкапов нет, а
+              VolsyncBackupOutOfSync промолчит — ему не на чем сработать.
+              kubectl get replicationsource -A
+              kubectl -n victoria-metrics get vmservicescrape volsync
