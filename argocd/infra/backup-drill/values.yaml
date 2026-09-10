@@ -1,0 +1,253 @@
+# Еженедельная проверка восстановления (restore drill).
+#
+# Бэкап, из которого ни разу не восстанавливались, — это предположение, а не
+# бэкап. CronJob раз в неделю берёт одно приложение из ротации, поднимает его
+# том из restic-репозитория в отдельный namespace, проверяет содержимое
+# предметно и убирает за собой. Цель чередуется по чётности недели, поэтому
+# off-site проверяется наравне с on-prem.
+#
+# Результат уезжает двумя путями:
+#   - метрики в VictoriaMetrics (история + алерт RestoreDrillStale)
+#   - алерт в Alertmanager -> Robusta -> Telegram, и на успех, и на провал
+#     (успех с severity=info и коротким endsAt, чтобы не висел в firing)
+homelab-common:
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 20m
+      memory: 64Mi
+
+  externalSecrets:
+    # Пароли репозиториев и ключи обеих целей — те же, что у VolSync.
+    # Копировать секреты из чужих namespace не нужно: drill формирует
+    # RESTIC_REPOSITORY сам по имени приложения.
+    - name: drill-restic
+      vaultPath: shared/restic-garage
+      data:
+        - secretKey: pw_garage
+          property: password
+      templateData:
+        PW_GARAGE: "{{ .pw_garage }}"
+    - name: drill-restic-ovh
+      vaultPath: shared/restic-ovh
+      data:
+        - secretKey: pw_ovh
+          property: password
+      templateData:
+        PW_OVH: "{{ .pw_ovh }}"
+    - name: drill-s3-garage
+      vaultPath: shared/s3-restic-apps
+      data:
+        - secretKey: ak
+          property: ACCESS_KEY_ID
+        - secretKey: sk
+          property: ACCESS_SECRET_KEY
+      templateData:
+        GARAGE_AK: "{{ .ak }}"
+        GARAGE_SK: "{{ .sk }}"
+    - name: drill-s3-ovh
+      vaultPath: velero/s3-ovh
+      data:
+        - secretKey: ak
+          property: ACCESS_KEY_ID
+        - secretKey: sk
+          property: ACCESS_SECRET_KEY
+      templateData:
+        OVH_AK: "{{ .ak }}"
+        OVH_SK: "{{ .sk }}"
+
+  rbac:
+    serviceAccount:
+      name: backup-drill
+      create: true
+    clusterRole:
+      name: backup-drill
+      # Права широкие по необходимости: drill создаёт и сносит собственные
+      # namespace drill-*, а ограничить RBAC по префиксу имени нельзя.
+      # Компенсация — никаких прав на изменение чужих рабочих нагрузок:
+      # deployments/statefulsets/daemonsets в списке нет.
+      rules:
+        - apiGroups: [""]
+          resources: ["namespaces"]
+          verbs: ["get", "list", "create", "delete"]
+        - apiGroups: [""]
+          resources: ["persistentvolumeclaims", "secrets", "pods", "pods/log"]
+          verbs: ["get", "list", "create", "delete"]
+        - apiGroups: ["volsync.backube"]
+          resources: ["replicationdestinations"]
+          verbs: ["get", "list", "create", "delete"]
+
+  cronJobs:
+    - name: restore-drill
+      spec:
+        # Воскресенье 09:00 UTC — после ночного окна бэкапов и weekly off-site.
+        schedule: "0 9 * * 0"
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 3600
+        successfulJobsHistoryLimit: 3
+        failedJobsHistoryLimit: 3
+        jobTemplate:
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: 3600
+            template:
+              spec:
+                restartPolicy: Never
+                serviceAccountName: backup-drill
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  runAsGroup: 65532
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: drill
+                    # renovate: image=alpine/k8s
+                    image: alpine/k8s:1.34.1
+                    imagePullPolicy: IfNotPresent
+                    command: ["/bin/sh", "-c"]
+                    env:
+                      - name: VM_URL
+                        value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+                      - name: AM_URL
+                        value: http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093
+                      - name: DRILL_SIZE
+                        value: 20Gi
+                      - name: DRILL_TIMEOUT
+                        value: "2400"
+                    envFrom:
+                      - secretRef:
+                          name: drill-restic
+                      - secretRef:
+                          name: drill-restic-ovh
+                      - secretRef:
+                          name: drill-s3-garage
+                      - secretRef:
+                          name: drill-s3-ovh
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: false
+                      capabilities:
+                        drop: [ALL]
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 128Mi
+                      limits:
+                        cpu: 500m
+                        memory: 512Mi
+                    args:
+                      - |
+                        set -eu
+
+                        # Ротация: одно приложение в неделю, цель чередуется по чётности недели —
+                        # так off-site проверяется не реже раза в две недели по каждому тому.
+                        APPS="vaultwarden rss-to-telegram-bot cleanbot may omniroute nextcloud forgejo opencloud-data trek-uploads obsidian-livesync"
+                        set -- $APPS
+                        COUNT=$#
+                        WEEK=$(date -u +%V | sed 's/^0*//')
+                        IDX=$(( WEEK % COUNT ))
+                        i=0
+                        for a in $APPS; do [ $i -eq $IDX ] && APP="$a" && break; i=$((i+1)); done
+                        if [ $(( WEEK % 2 )) -eq 0 ]; then TARGET=garage; else TARGET=ovh; fi
+
+                        case "$TARGET" in
+                          garage) REPO_URL="s3:https://s3.example.com/restic-apps/$APP"; AK="$GARAGE_AK"; SK="$GARAGE_SK"; PW="$PW_GARAGE" ;;
+                          ovh)    REPO_URL="s3:https://s3.de.io.cloud.ovh.net/vaka-homelab/restic-apps/$APP"; AK="$OVH_AK"; SK="$OVH_SK"; PW="$PW_OVH" ;;
+                        esac
+
+                        NS="drill-$APP"
+                        START=$(date -u +%s)
+                        echo "=== restore drill: app=$APP target=$TARGET ns=$NS ==="
+
+                        cleanup() { kubectl delete ns "$NS" --wait=false >/dev/null 2>&1 || true; }
+
+                        report() {
+                          ok="$1"; detail="$2"
+                          now=$(date -u +%s); dur=$((now - START))
+                          # История в VictoriaMetrics: по ней же алертит RestoreDrillStale.
+                          printf 'homelab_restore_drill_success{app="%s",target="%s"} %s\nhomelab_restore_drill_timestamp{app="%s",target="%s"} %s\nhomelab_restore_drill_duration_seconds{app="%s",target="%s"} %s\n' \
+                            "$APP" "$TARGET" "$ok" "$APP" "$TARGET" "$now" "$APP" "$TARGET" "$dur" \
+                            | curl -sf -X POST --data-binary @- "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
+
+                          # Уведомление тем же маршрутом, что и обычные алерты: Alertmanager -> Robusta
+                          # -> Telegram. Успех уходит с severity=info и коротким endsAt, поэтому сам
+                          # рассасывается и не висит в списке firing.
+                          if [ "$ok" = "1" ]; then
+                            name=RestoreDrillSucceeded; sev=info; ends=$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+                          else
+                            name=RestoreDrillFailed; sev=critical; ends=$(date -u -d '+6 hours' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+                          fi
+                          cat <<JSON | curl -sf -X POST -H 'Content-Type: application/json' --data-binary @- "$AM_URL/api/v2/alerts" >/dev/null || echo "WARN: alert push failed"
+                        [{
+                          "labels": {"alertname":"$name","severity":"$sev","app":"$APP","target":"$TARGET","source":"backup-drill"},
+                          "annotations": {"summary":"Restore drill $APP from $TARGET: $detail","description":"Восстановление тома $APP из репозитория $TARGET заняло ${dur}s. $detail"},
+                          "endsAt": "$ends"
+                        }]
+                        JSON
+                          echo "reported: ok=$ok $detail"
+                        }
+
+                        trap 'cleanup' EXIT
+
+                        kubectl create ns "$NS" >/dev/null 2>&1 || true
+                        kubectl -n "$NS" create secret generic drill-restic \
+                          --from-literal=RESTIC_REPOSITORY="$REPO_URL" \
+                          --from-literal=RESTIC_PASSWORD="$PW" \
+                          --from-literal=AWS_ACCESS_KEY_ID="$AK" \
+                          --from-literal=AWS_SECRET_ACCESS_KEY="$SK" >/dev/null
+
+                        cat <<YAML | kubectl apply -f - >/dev/null
+                        apiVersion: v1
+                        kind: PersistentVolumeClaim
+                        metadata: {name: drill-data, namespace: $NS}
+                        spec:
+                          accessModes: [ReadWriteOnce]
+                          storageClassName: longhorn
+                          resources: {requests: {storage: ${DRILL_SIZE:-20Gi}}}
+                        ---
+                        apiVersion: volsync.backube/v1alpha1
+                        kind: ReplicationDestination
+                        metadata: {name: drill, namespace: $NS}
+                        spec:
+                          trigger: {manual: drill-$START}
+                          restic:
+                            repository: drill-restic
+                            destinationPVC: drill-data
+                            copyMethod: Direct
+                            cacheStorageClassName: local-path
+                            cacheCapacity: 4Gi
+                            cacheAccessModes: [ReadWriteOnce]
+                        YAML
+
+                        echo "waiting for restore..."
+                        DEADLINE=$(( $(date -u +%s) + ${DRILL_TIMEOUT:-2400} ))
+                        while [ -z "$(kubectl -n "$NS" get replicationdestination drill -o jsonpath='{.status.lastSyncTime}' 2>/dev/null)" ]; do
+                          [ "$(date -u +%s)" -gt "$DEADLINE" ] && { report 0 "timeout: restore did not finish"; exit 1; }
+                          sleep 20
+                        done
+                        echo "restore finished at $(kubectl -n "$NS" get replicationdestination drill -o jsonpath='{.status.lastSyncTime}')"
+
+                        # Предметная проверка: файлы на месте, и если это SQLite — база открывается
+                        # и проходит integrity_check. Пустой том = провал: ровно так молча выглядел
+                        # бэкап netbird до 2026-09-10.
+                        kubectl -n "$NS" run verify --restart=Never --image=keinos/sqlite3:latest \
+                          --overrides='{"spec":{"containers":[{"name":"verify","image":"keinos/sqlite3:latest","command":["sh","-c","set -e; files=$(find /data -type f -not -path \"*/lost+found/*\" | wc -l); bytes=$(du -sb /data | cut -f1); echo FILES=$files; echo BYTES=$bytes; [ \"$files\" -gt 0 ] || { echo EMPTY; exit 1; }; db=$(find /data -maxdepth 2 -name \"*.sqlite3\" -o -maxdepth 2 -name \"*.db\" | head -1); if [ -n \"$db\" ]; then echo DB=$db; res=$(sqlite3 \"file:$db?mode=ro\" \"PRAGMA integrity_check;\"); echo INTEGRITY=$res; [ \"$res\" = ok ] || exit 1; fi; echo VERIFY_OK"],"volumeMounts":[{"name":"d","mountPath":"/data"}]}],"volumes":[{"name":"d","persistentVolumeClaim":{"claimName":"drill-data"}}],"restartPolicy":"Never"}}' >/dev/null
+
+                        VDEADLINE=$(( $(date -u +%s) + 600 ))
+                        while :; do
+                          phase=$(kubectl -n "$NS" get pod verify -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                          [ "$phase" = "Succeeded" ] && break
+                          [ "$phase" = "Failed" ] && { report 0 "verification failed: $(kubectl -n "$NS" logs verify 2>&1 | tail -3 | tr '\n' ' ')"; exit 1; }
+                          [ "$(date -u +%s)" -gt "$VDEADLINE" ] && { report 0 "verification timed out"; exit 1; }
+                          sleep 10
+                        done
+
+                        SUMMARY=$(kubectl -n "$NS" logs verify 2>&1 | tr '\n' ' ')
+                        echo "$SUMMARY"
+                        report 1 "$SUMMARY"
+
