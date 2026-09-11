@@ -1,0 +1,23 @@
+# StorageClass для временных клонов VolSync (`copyMethod: Snapshot`).
+#
+# Клон живёт минуты: mover читает с него и удаляет. Держать на нём две реплики
+# бессмысленно — это чистая копия боевого тома, который уже реплицирован, — а
+# цена высокая: том на 50Gi резервировал 100Gi scheduling'а в Longhorn.
+# На 11.09.2026 при over-provisioning 100% свободного запаса оставалось ~50Gi
+# на ноду, клон opencloud-data не разместился и ушёл в faulted, а бэкап в
+# Garage висел пять часов.
+#
+# reclaimPolicy: Delete — иначе после каждого прогона оставался бы PV.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-volsync-clone
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "30"
+  fromBackup: ""
+  dataLocality: best-effort
