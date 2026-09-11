@@ -31,7 +31,9 @@ global:
   # восстанавливается из бэкапа, зашифрованного этими паролями.
   volsync:
     snapshotClass: longhorn-volsync
-    storageClass: longhorn
+    # Клон под mover'а — эфемерный и в одну реплику: см. комментарий в
+    # argocd/infra/volsync/manifests/storageclass-clone.yaml.
+    storageClass: longhorn-volsync-clone
     # Кэш индексов restic — node-local, переживать смерть ноды не должен.
     cacheStorageClass: local-path
     cacheCapacity: 2Gi

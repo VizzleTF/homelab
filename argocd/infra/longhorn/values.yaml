@@ -35,6 +35,11 @@ persistence:
 defaultSettings:
   storageMinimalAvailablePercentage: "5"
   defaultReplicaCount: "2"
+  # Тома выделены тонко: при 100% ноды упирались в лимит scheduling'а
+  # (421 из 474Gi зарезервировано) задолго до реального заполнения диска
+  # (144Gi занято) — VolSync-клон на 50Gi перестал размещаться.
+  # storageMinimalAvailablePercentage остаётся страховкой от заполнения.
+  storageOverProvisioningPercentage: "200"
   replicaAutoBalance: "best-effort"
   # CPU для instance-manager: было 2 CPU (2000m), реальное 65m → ставим 100m
   guaranteedInstanceManagerCPU: '{"v1":"0.1","v2":"0.1"}'
