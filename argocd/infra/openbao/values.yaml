@@ -140,7 +140,7 @@ homelab-common:
                   # gpg и rclone — в других образах, отсюда три шага.
                   - name: collect
                     # renovate: image=alpine/k8s
-                    image: alpine/k8s:1.34.1
+                    image: alpine/k8s:1.37.0
                     imagePullPolicy: IfNotPresent
                     command: ["/bin/sh", "-c"]
                     env:
