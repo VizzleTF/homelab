@@ -82,7 +82,7 @@ fi
 
 upsert() {
   local name="$1" spec="$2"
-  local notes entry path fields f val missing=0
+  local notes entry path fields f val missing=0 count=0 last_val="" first_line
   notes="# заполняется scripts/dr-pack/to-bitwarden.sh из OpenBao
 "
 
@@ -100,9 +100,15 @@ upsert() {
       }
       notes="${notes}${f}=${val}
 "
+      count=$((count + 1))
+      last_val="$val"
     done
   done
   if [ "$missing" = "1" ]; then return 0; fi
+
+  # Первая строка payload'а становится полем «пароль». Если значение одно —
+  # кладём его туда, чтобы копировалось одним нажатием; иначе всё в заметке.
+  if [ "$count" = "1" ]; then first_line="$last_val"; else first_line="(see notes)"; fi
 
   if [ "$DRY_RUN" = "1" ]; then
     echo "  DRY  $name  <- $(echo "$spec" | tr ';' ' ')"
@@ -110,12 +116,14 @@ upsert() {
   fi
 
   if [ "$CLIENT" = "rbw" ]; then
-    # rbw открывает $EDITOR и берёт первую строку как пароль, остальное — заметка.
-    # Подсовываем "редактор", который пишет payload в переданный файл: значение
-    # живёт в переменной окружения и на stdout не попадает.
+    # Справка rbw обещает $EDITOR, но при неинтерактивном stdin редактор не
+    # запускается вовсе — payload читается прямо со stdin (первая строка =
+    # пароль, остальное = заметка). Через подменённый EDITOR запись молча
+    # создавалась пустой. Here-string, а не пайп: у цикла вызова свой stdin.
     local action=add
     if rbw get "$name" >/dev/null 2>&1; then action=edit; fi
-    if RBW_PAYLOAD="$notes"        EDITOR='sh -c "printf %s \"$RBW_PAYLOAD\" > \"$1\"" --'        rbw "$action" --folder "$BW_FOLDER" "$name" </dev/null >/dev/null 2>&1; then
+    if rbw "$action" --folder "$BW_FOLDER" "$name" <<< "$first_line
+$notes" >/dev/null 2>&1; then
       if [ "$action" = "edit" ]; then echo "  UPD  $name"; else echo "  NEW  $name"; fi
     else
       echo "  ERR  $name — rbw $action не отработал"
