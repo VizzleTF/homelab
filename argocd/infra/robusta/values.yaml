@@ -92,6 +92,12 @@ sinksConfig:
       bot_token: "{{ env.TG_BOT_TOKEN }}"
       chat_id: 0000000000
       send_files: true
+      # DEBUG — это severity, с которой Robusta шлёт k8s warning events и
+      # прочий поток «что-то произошло». Алерты из VictoriaMetrics приходят
+      # с INFO/LOW/HIGH и фильтр не задевает.
+      scope:
+        exclude:
+          - severity: DEBUG
   - telegram_sink:
       name: telegram_changes
       bot_token: "{{ env.TG_BOT_TOKEN }}"
@@ -144,68 +150,21 @@ customPlaybooks:
       - resource_babysitter: {}
     sinks: [telegram_changes]
 
-  # 4. K8s Warning Events report (замена event-exporter).
-  # NB: `exclude` матчит и reason, и message (case-insensitive) — можно
-  # давить по тексту сообщения, если reason слишком общий.
-  - name: "K8sWarningEvents"
-    triggers:
-      - on_kubernetes_warning_event_create:
-          exclude:
-            - "NodeSysctlChange"
-            - "ReconciliationSucceeded"
-            - "Synced"
-            # Longhorn emit'ит reason=Update на Snapshot CR при markRemoved
-            # cleanup после успешного бэкапа (штатный жизненный цикл).
-            # Reason `Update` у Longhorn слишком общий (используется для real
-            # warnings тоже), поэтому давим по уникальной подстроке message.
-            - "snapshot becomes not ready to use"
-            # Velero CSI backup → Longhorn clone lifecycle (nightly noise 2-5 UTC).
-            # ~10 schedules × 4-5 stages = ~50+ событий за ночь. Все штатные:
-            # clone PVC create → attach → data copy → detach → PV cleanup.
-            # `VolumeFailedDelete` — finalizer race: PV detached позже volumeattachment.
-            # `SnapshotContentMissing` — transient между VolumeSnapshot delete и VSC gc.
-            # `VolumeCloneCopyCompleteAwaitingHealthy` — Longhorn clone awaiting HA replicas.
-            - "VolumeFailedDelete"
-            - "SnapshotContentMissing"
-            - "VolumeCloneCopyCompleteAwaitingHealthy"
-            # Longhorn Engine rebuild/delete churn в Velero CSI datamover window
-            # (02-06 UTC): клон с 2 репликами удаляется до завершения rebuild
-            # 2-й реплики → FailedRebuilding (EOF) / FailedDeleting (connection
-            # refused). Бэкапы проходят успешно = benign. aggregation_key НЕ
-            # схлопывает их в Telegram (только в SaaS UI) → давим reason целиком.
-            # Реальные degraded/faulted volumes теперь покрыты VMRule longhorn
-            # (LonghornVolumeDegraded for:10m / LonghornVolumeFaulted).
-            # См. argocd/infra/longhorn/manifests/vmrule.yaml + docs/longhorn-monitoring.md.
-            - "FailedRebuilding"
-            - "FailedDeleting"
-            # Velero CSI VolumeSnapshotContent gc — transient delete error.
-            - "SnapshotContentObjectDeleteError"
-            # Longhorn snapshot во время Velero-window: engine ещё не attached.
-            - "Waiting for the volume to be attached"
-            # FailedAttachVolume/FailedScheduling — reason shared с real issues,
-            # давим по уникальной подстроке message от Velero backup pod-ов.
-            - "is not ready for workloads"
-            - "pod has unbound immediate PersistentVolumeClaims"
-            # Probe failures от Renovate/ArgoCD-driven pod restarts — pod recreates
-            # → readiness probe фейлится 5-30s до первого pass. Real probe issues
-            # покрываются `KubeContainerWaiting`/`KubePodNotReady` rules (with for:).
-            - "Readiness probe failed"
-            - "Liveness probe failed"
-            - "Startup probe failed"
-    actions:
-      - warning_events_report:
-          warning_event_groups:
-            - aggregation_key: PodLifecycleWarning
-              matchers: [FailedCreatePodSandBox, BackOff, FailedDaemonPod, Evicted]
-            - aggregation_key: NodeHealthWarning
-              matchers: [NodeNotReady, OOMKilling, SystemOOM, NodeShutdown, FreeDiskSpaceFailed]
-            - aggregation_key: ProbeFailure
-              matchers: [Unhealthy, ProbeError]
-            - aggregation_key: SchedulingWarning
-              matchers: [FailedScheduling]
-            - aggregation_key: VolumeWarning
-              matchers: [FailedMount, FailedAttachVolume, VolumeFailedDelete]
-    sinks: [telegram_alerts]
+  # 4. K8s Warning Events report -- ОТКЛЮЧЁН 11.09.2026.
+  #
+  # `warning_events_report` шлёт находки с severity DEBUG, и всё, что
+  # случалось в кластере как Warning event, ехало в Telegram отдельным
+  # сообщением. Список exclude вырос до двух десятков строк и всё равно не
+  # поспевал: последний залп -- VolumeCloneFailed от Longhorn, пока залипший
+  # VolSync-клон пересоздавался каждые полминуты.
+  #
+  # То, ради чего playbook держали, покрыто VMRule'ами с `for:`
+  # (KubePodNotReady, KubeContainerWaiting, KubePodCrashLooping,
+  # LonghornVolumeDegraded/Faulted): они срабатывают на состоянии, а не на
+  # каждом событии, и умеют resolve.
+  #
+  # На синке telegram_alerts дополнительно стоит `scope.exclude: severity
+  # DEBUG` -- чтобы DEBUG не пролез из встроенных плейбуков чарта.
 
   # 5. Job failure с обогащением (info + events + pod logs).
   - name: "JobFailureEnrichment"
