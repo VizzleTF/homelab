@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Homelab — Talos + ArgoCD",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1360,
+      620
+    ]
+  },
+  "components": [
+    {
+      "id": "forgejo",
+      "type": "backend",
+      "label": "Forgejo",
+      "sublabel": "git · Actions · chart-museum",
+      "tag": "ops node",
+      "pos": [
+        50,
+        244
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "github",
+      "type": "external",
+      "label": "GitHub mirror",
+      "sublabel": "read-only · sanitized",
+      "pos": [
+        50,
+        470
+      ],
+      "size": [
+        230,
+        64
+      ]
+    },
+    {
+      "id": "argocd",
+      "type": "backend",
+      "label": "ArgoCD",
+      "sublabel": "App-of-Apps root · 2 standalone",
+      "pos": [
+        430,
+        250
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "infra",
+      "type": "backend",
+      "label": "infra-appset",
+      "sublabel": "33 components",
+      "pos": [
+        760,
+        110
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "apps",
+      "type": "backend",
+      "label": "apps-appset",
+      "sublabel": "22 applications",
+      "pos": [
+        760,
+        250
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "bao",
+      "type": "security",
+      "label": "OpenBao HA",
+      "sublabel": "3-node Raft · ESO",
+      "pos": [
+        760,
+        390
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "cf",
+      "type": "cloud",
+      "label": "Cloudflare",
+      "sublabel": "tunnel · DNS · ACME",
+      "pos": [
+        1080,
+        110
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "garage",
+      "type": "database",
+      "label": "Garage S3",
+      "sublabel": "Synology NAS",
+      "pos": [
+        1080,
+        250
+      ],
+      "size": [
+        200,
+        64
+      ]
+    },
+    {
+      "id": "ovh",
+      "type": "cloud",
+      "label": "OVH Frankfurt",
+      "sublabel": "offsite restic chain",
+      "pos": [
+        1080,
+        390
+      ],
+      "size": [
+        200,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "ops node — NixOS, outside the cluster",
+      "wraps": [
+        "forgejo"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Talos Kubernetes — 3 control-plane + 1 worker",
+      "wraps": [
+        "argocd",
+        "infra",
+        "apps",
+        "bao"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "pull",
+      "from": "forgejo",
+      "to": "argocd",
+      "label": "manifests · charts",
+      "variant": "emphasis"
+    },
+    {
+      "id": "renders-infra",
+      "from": "argocd",
+      "to": "infra"
+    },
+    {
+      "id": "renders-apps",
+      "from": "argocd",
+      "to": "apps"
+    },
+    {
+      "id": "secrets",
+      "from": "bao",
+      "to": "apps",
+      "label": "ESO renders Secrets",
+      "variant": "security"
+    },
+    {
+      "id": "tunnel",
+      "from": "cf",
+      "to": "infra",
+      "label": "catch-all tunnel"
+    },
+    {
+      "id": "backup",
+      "from": "apps",
+      "to": "garage",
+      "label": "VolSync · Barman"
+    },
+    {
+      "id": "offsite",
+      "from": "apps",
+      "to": "ovh",
+      "label": "second restic chain",
+      "variant": "dashed"
+    },
+    {
+      "id": "mirror",
+      "from": "forgejo",
+      "to": "github",
+      "label": "mirror after gitleaks",
+      "variant": "dashed",
+      "labelDy": 30
+    }
+  ]
+}
