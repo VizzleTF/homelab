@@ -39,16 +39,14 @@ extraArgs:
   - --cloudflare-proxied
   - --cloudflare-dns-records-per-page=5000
 
-# v0.22.0 сменил дефолтный префикс аннотаций на external-dns.kubernetes.io/
-# БЕЗ fallback. Наши манифесты (homelab-common httproute/tlsroute, Gateway
-# cilium-gateway) размечены старым alpha-префиксом, поэтому без этой строки
-# target с Gateway перестаёт читаться: вместо CNAME на cfargotunnel уходит
-# A-запись с приватным LB-адресом, Cloudflare её отвергает, а policy: sync
-# следом сносит TXT-реестр и живые записи. Так 12.09.2026 весь внешний DNS
-# лёг на четыре часа. Убирать только вместе с миграцией всех аннотаций.
-annotationPrefix: external-dns.alpha.kubernetes.io/
+# Префикс задан явно, хотя и совпадает с дефолтом v0.22: строка стоит рядом
+# с annotationFilter, где имя аннотации написано целиком, и они обязаны
+# совпадать. Менять только вместе — при рассинхроне external-dns перестаёт
+# видеть target и подставляет адрес Gateway, Cloudflare такую запись
+# отвергает, а policy: sync сносит живые CNAME (так лёг DNS 12.09.2026).
+annotationPrefix: external-dns.kubernetes.io/
 
-annotationFilter: "external-dns.alpha.kubernetes.io/cloudflare-proxied in (true)"
+annotationFilter: "external-dns.kubernetes.io/cloudflare-proxied in (true)"
 
 sources:
   - gateway-httproute
