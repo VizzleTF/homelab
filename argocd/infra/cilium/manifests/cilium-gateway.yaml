@@ -4,7 +4,9 @@ metadata:
   name: cilium-gateway
   namespace: kube-system
   annotations:
+    # Both prefixes during the migration - see charts/homelab-common/templates/httproute.yaml.
     external-dns.alpha.kubernetes.io/target: 9e2d91d4-a689-4ecc-a6c0-fc83be348d59.cfargotunnel.com
+    external-dns.kubernetes.io/target: 9e2d91d4-a689-4ecc-a6c0-fc83be348d59.cfargotunnel.com
 spec:
   gatewayClassName: cilium
   addresses:
