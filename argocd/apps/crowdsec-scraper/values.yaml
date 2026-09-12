@@ -1,4 +1,4 @@
-# crowdsec-scraper — pull CrowdSec :6060 метрик с VPN-VPS парка (dp/ape/cloudru/nexus) в домашний
+# crowdsec-scraper — pull CrowdSec :6060 метрик с cloudru (на dp/ape/nexus CrowdSec выключен) в домашний
 # VictoriaMetrics. Под = netbird sidecar (входит в self-hosted mesh netbird.example.com,
 # свой peer k8s-crowdsec-scraper) + vmagent в общем netns: видит и cluster (VMSingle через
 # eth0/CoreDNS), и mesh-IP VPS (100.104.x.x через wt0). vmagent скрейпит :6060 и remote_write
@@ -77,17 +77,16 @@ homelab-common:
               external_labels:
                 cluster: vps
             scrape_configs:
+              # Остался один таргет: 12.09.2026 CrowdSec выключен на dp, ape и
+              # nexus, метрики оттуда больше не приходят. На cloudru он живой и
+              # нужен — там nginx фронтит панель и страницу подписки, http-слой
+              # CrowdSec банит реальных подписчиков (см. VpsCrowdsecDecisionsSpike).
+              # node_exporter на всех четырёх остался, хосты никуда не делись.
               - job_name: crowdsec
                 metrics_path: /metrics
                 static_configs:
-                  - targets: ["100.104.107.59:6060"]
-                    labels: {host: dp}
-                  - targets: ["100.104.62.15:6060"]
-                    labels: {host: ape}
                   - targets: ["100.104.110.240:6060"]
                     labels: {host: cloudru}
-                  - targets: ["100.104.113.213:6060"]
-                    labels: {host: nexus}
               # node_exporter (apt prometheus-node-exporter) on each VPS — host load
               # (CPU/RAM/disk/net). View via the chart's "Node Exporter Full" dashboard
               # with the job=node selector. :9100 firewalled to mesh (nft, ../vps).
