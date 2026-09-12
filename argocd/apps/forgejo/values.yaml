@@ -21,17 +21,14 @@ persistence:
   annotations:
     helm.sh/resource-policy: keep
 
+# No ssh service: clones and pushes go to the instance on the ops node, and a
+# mirror accepts neither. This also frees port 22 on the shared LB address.
 service:
   http:
     type: ClusterIP
     port: 3000
   ssh:
-    type: LoadBalancer
-    port: 22
-    annotations:
-      lbipam.cilium.io/sharing-key: "internal-shared"
-      lbipam.cilium.io/sharing-cross-namespace: "*"
-      io.cilium/lb-ipam-ips: "10.11.10.138"
+    type: ClusterIP
 
 ingress:
   enabled: false
@@ -68,9 +65,7 @@ gitea:
       DOMAIN: git-mirror.example.com
       ROOT_URL: https://git-mirror.example.com/
       SSH_DOMAIN: git-mirror.example.com
-      START_SSH_SERVER: true
-      SSH_LISTEN_PORT: 2222
-      SSH_PORT: 22
+      START_SSH_SERVER: false
       LANDING_PAGE: login
       OFFLINE_MODE: true
     database:
