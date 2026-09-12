@@ -10,12 +10,12 @@
 # DR pack shamir file.
 ensure_bao_token() {
   : "${BAO_TOKEN:=${VAULT_TOKEN:-}}"
-  if [ -n "${BAO_TOKEN:-}" ]; then
+  if [[ -n "${BAO_TOKEN:-}" ]]; then
     export BAO_TOKEN
     return 0
   fi
   local shamir_gpg="$DR_PACK_DIR/00-shamir.json.gpg"
-  [ -f "$shamir_gpg" ] || die "no BAO_TOKEN in env and no $shamir_gpg"
+  [[ -f "$shamir_gpg" ]] || die "no BAO_TOKEN in env and no $shamir_gpg"
   log_info "decrypting Shamir bundle from DR pack"
   local tmp; tmp=$(mktemp)
   trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
@@ -23,7 +23,7 @@ ensure_bao_token() {
     || die "shamir decrypt failed (wrong passphrase?)"
   export BAO_TOKEN
   BAO_TOKEN=$(jq -r '.root_token' "$tmp")
-  [ -n "$BAO_TOKEN" ] && [ "$BAO_TOKEN" != "null" ] \
+  [[ -n "$BAO_TOKEN" ]] && [[ "$BAO_TOKEN" != "null" ]] \
     || die "decrypted shamir bundle has no root_token"
 }
 

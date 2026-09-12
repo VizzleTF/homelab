@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/../dr/lib/common.sh"
 
 DRILL=0
-[ "${1:-}" = "--drill" ] && DRILL=1
+[[ "${1:-}" = "--drill" ]] && DRILL=1
 
 fail=0
 
@@ -28,14 +28,14 @@ check "01-bootstrap.env exists"             "[ -f '$DR_PACK_DIR/01-bootstrap.env
 check "02-vault-raft-snapshot.snap exists"  "[ -f '$DR_PACK_DIR/02-vault-raft-snapshot.snap' ]"
 check "03-cluster.env exists"               "[ -f '$DR_PACK_DIR/03-cluster.env' ]"
 
-if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
+if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]]; then
   tmp=$(mktemp)
   # --batch без passphrase не спросит её и просто провалится; с GPG_PASSPHRASE
   # проверка проходит неинтерактивно, без него — обычный pinentry.
-  if [ -n "${GPG_PASSPHRASE:-}" ]; then
-    gpg_decrypt() { gpg --quiet --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --decrypt "$1"; }
+  if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
+    gpg_decrypt() { local file="$1"; gpg --quiet --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --decrypt "$file"; }
   else
-    gpg_decrypt() { gpg --quiet --decrypt "$1"; }
+    gpg_decrypt() { local file="$1"; gpg --quiet --decrypt "$file"; }
   fi
   if gpg_decrypt "$DR_PACK_DIR/00-shamir.json.gpg" > "$tmp" 2>/dev/null; then
     keys=$(jq -r '.unseal_keys_b64 | length' "$tmp" 2>/dev/null || echo 0)
@@ -49,7 +49,7 @@ if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
   shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
 fi
 
-if [ -f "$DR_PACK_DIR/01-bootstrap.env" ]; then
+if [[ -f "$DR_PACK_DIR/01-bootstrap.env" ]]; then
   if grep -q 'MISSING' "$DR_PACK_DIR/01-bootstrap.env"; then
     log_error "01-bootstrap.env contains MISSING placeholders"
     fail=$((fail + 1))
@@ -69,7 +69,7 @@ if [ -f "$DR_PACK_DIR/01-bootstrap.env" ]; then
   done
 fi
 
-if [ -f "$DR_PACK_DIR/02-vault-raft-snapshot.snap" ]; then
+if [[ -f "$DR_PACK_DIR/02-vault-raft-snapshot.snap" ]]; then
   size=$(stat -c '%s' "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
   age_days=$(( ( $(date +%s) - $(stat -c '%Y' "$DR_PACK_DIR/02-vault-raft-snapshot.snap") ) / 86400 ))
   check "raft snapshot >1KB"        "[ '$size' -gt 1024 ]"
@@ -90,16 +90,16 @@ elif command -v bw >/dev/null 2>&1 && bw status 2>/dev/null | grep -q '"status":
   vw_client=bw
 fi
 
-if [ -n "$vw_client" ]; then
-  [ "$vw_client" = "rbw" ] && rbw sync >/dev/null 2>&1
+if [[ -n "$vw_client" ]]; then
+  [[ "$vw_client" = "rbw" ]] && rbw sync >/dev/null 2>&1
   while IFS= read -r item; do
-    if [ -z "$item" ]; then continue; fi
-    if [ "$vw_client" = "rbw" ]; then
+    if [[ -z "$item" ]]; then continue; fi
+    if [[ "$vw_client" = "rbw" ]]; then
       found=$(rbw list 2>/dev/null | grep -Fxc "$item" || true)
     else
       found=$(bw list items 2>/dev/null | jq -r '.[].name' | grep -Fxc "$item" || true)
     fi
-    if [ "${found:-0}" -gt 0 ]; then
+    if [[ "${found:-0}" -gt 0 ]]; then
       log_ok "Vaultwarden has '$item'"
     else
       log_error "Vaultwarden missing '$item' — run scripts/dr-pack/to-bitwarden.sh"
@@ -110,12 +110,12 @@ else
   log_warn "хранилище заблокировано — проверка записей Vaultwarden пропущена (rbw unlock)"
 fi
 
-if [ "$DRILL" -eq 1 ]; then
+if [[ "$DRILL" -eq 1 ]]; then
   log_info "drill mode — would now spawn kind cluster + replay phases 00-06"
   log_warn "drill replay not implemented yet (TODO)"
 fi
 
-if [ "$fail" -eq 0 ]; then
+if [[ "$fail" -eq 0 ]]; then
   log_ok "DR pack verification PASSED"
   exit 0
 else

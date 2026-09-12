@@ -83,7 +83,7 @@ require() {
 }
 
 get_token() {
-  if [ -n "${FORGEJO_TOKEN:-}" ]; then
+  if [[ -n "${FORGEJO_TOKEN:-}" ]]; then
     printf '%s' "$FORGEJO_TOKEN"
     return
   fi
@@ -99,9 +99,9 @@ get_token() {
 
 __TOKEN=""
 token() {
-  if [ -z "$__TOKEN" ]; then
+  if [[ -z "$__TOKEN" ]]; then
     __TOKEN=$(get_token)
-    [ -n "$__TOKEN" ] || { echo "empty token (openbao key 'token' missing?)" >&2; exit 1; }
+    [[ -n "$__TOKEN" ]] || { echo "empty token (openbao key 'token' missing?)" >&2; exit 1; }
   fi
   printf '%s' "$__TOKEN"
 }
@@ -114,7 +114,7 @@ forgejo_api() {
   local t; t=$(token)
   local tmp; tmp=$(mktemp)
   local code
-  if [ -n "$data" ]; then
+  if [[ -n "$data" ]]; then
     code=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" \
       -H "Authorization: token $t" \
       -H "Content-Type: application/json" \
@@ -125,7 +125,7 @@ forgejo_api() {
       -H "Authorization: token $t" \
       "$FORGEJO_URL$path") || code=0
   fi
-  if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+  if [[ "$code" -ge 200 ]] && [[ "$code" -lt 300 ]]; then
     cat "$tmp"
     rm -f "$tmp"
     return 0
@@ -189,7 +189,7 @@ poll_loop() {
     state=$(jq -r '.state' <<<"$payload")
     lines=$(printf '%s' "$payload" | format_statuses)
 
-    if [ "$verbose" = "1" ] && [ "$lines" != "$prev" ]; then
+    if [[ "$verbose" = "1" ]] && [[ "$lines" != "$prev" ]]; then
       diff <(printf '%s\n' "$prev") <(printf '%s\n' "$lines") \
         | sed -n 's/^> //p' >&2
       prev="$lines"
@@ -202,7 +202,7 @@ poll_loop() {
       *)              echo "unknown CI state: $state" >&2; return 1 ;;
     esac
 
-    if [ $((SECONDS - start)) -ge "$POLL_TIMEOUT" ]; then
+    if [[ $((SECONDS - start)) -ge "$POLL_TIMEOUT" ]]; then
       echo "timeout after ${POLL_TIMEOUT}s (state=$state)" >&2
       return 2
     fi
@@ -217,8 +217,8 @@ poll_loop() {
 # non-fatal so a cleanup hiccup never masks a successful merge.
 cleanup_local_branch() {
   local branch="${1:-}"
-  [ "$KEEP_BRANCH" = "1" ] && return 0
-  [ -n "$branch" ] || return 0
+  [[ "$KEEP_BRANCH" = "1" ]] && return 0
+  [[ -n "$branch" ]] || return 0
   command -v git >/dev/null 2>&1 || return 0
   git rev-parse --git-dir >/dev/null 2>&1 || return 0
 
@@ -230,7 +230,7 @@ cleanup_local_branch() {
   # If the merged branch is checked out, move to BASE_BRANCH first.
   local current
   current=$(git symbolic-ref --short -q HEAD || echo "")
-  if [ "$current" = "$branch" ]; then
+  if [[ "$current" = "$branch" ]]; then
     if ! git checkout "$BASE_BRANCH" >/dev/null 2>&1; then
       echo "could not switch off '$branch' (uncommitted changes?) — local branch kept" >&2
       return 0
@@ -255,12 +255,12 @@ cleanup_local_branch() {
 
 cmd_open() {
   local branch="${1:-}"
-  [ -n "$branch" ] || die_usage
+  [[ -n "$branch" ]] || die_usage
   shift
-  [ "${1:-}" = "--" ] || { echo "expected '--' after branch" >&2; die_usage; }
+  [[ "${1:-}" = "--" ]] || { echo "expected '--' after branch" >&2; die_usage; }
   shift
   local title="${1:-}" body="${2:-}"
-  [ -n "$title" ] || { echo "title is required" >&2; die_usage; }
+  [[ -n "$title" ]] || { echo "title is required" >&2; die_usage; }
 
   require curl
   require jq
@@ -284,7 +284,7 @@ cmd_status() {
 
   local meta; meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
   local sha; sha=$(jq -r '.head.sha' <<<"$meta")
-  if [ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]; then
+  if [[ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]]; then
     echo "note: PR #$pr branch is behind $BASE_BRANCH (outdated) — block_on_outdated_branch will reject merge until updated (UPDATE_OUTDATED=1)" >&2
   fi
   local payload; payload=$(fetch_status "$sha")
@@ -332,7 +332,7 @@ cmd_merge() {
   meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
   merged=$(jq -r '.merged' <<<"$meta")
   head_ref=$(jq -r '.head.ref' <<<"$meta")
-  if [ "$merged" = "true" ]; then
+  if [[ "$merged" = "true" ]]; then
     echo "PR #$pr already merged — skipping merge API call" >&2
     printf '%s\n' "$meta" \
       | jq '{number, merged, merged_by: (.merged_by.login // null), merge_commit_sha}'
@@ -343,8 +343,8 @@ cmd_merge() {
   # block_on_outdated_branch: an outdated branch passes CI yet 405s on merge.
   # Surface it up front (and optionally update the branch) so the failure isn't
   # an opaque "HTTP 405" after the CI wait.
-  if [ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]; then
-    if [ "$UPDATE_OUTDATED" = "1" ]; then
+  if [[ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]]; then
+    if [[ "$UPDATE_OUTDATED" = "1" ]]; then
       echo "PR #$pr branch is behind $BASE_BRANCH — merging $BASE_BRANCH in (UPDATE_OUTDATED=1)..." >&2
       if ! update_pr_branch "$pr"; then
         echo "branch update failed — merge would be rejected as outdated" >&2
@@ -364,7 +364,7 @@ cmd_merge() {
 
   local rc=0
   poll_loop "$sha" 1 || rc=$?
-  if [ $rc -ne 0 ]; then
+  if [[ $rc -ne 0 ]]; then
     echo "merge aborted: CI not green (rc=$rc)" >&2
     return $rc
   fi
@@ -391,11 +391,11 @@ cmd_merge() {
       rc=0; break
     fi
     rc=$?
-    if [ "$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" 2>/dev/null | jq -r '.merged')" = "true" ]; then
+    if [[ "$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" 2>/dev/null | jq -r '.merged')" = "true" ]]; then
       echo "merge attempt $attempt returned HTTP $rc but PR #$pr is merged — treating as success" >&2
       rc=0; break
     fi
-    if { [ "$rc" = "405" ] || [ "$rc" = "409" ]; } && [ "$attempt" -lt 5 ]; then
+    if { [[ "$rc" = "405" ]] || [[ "$rc" = "409" ]]; } && [[ "$attempt" -lt 5 ]]; then
       echo "merge attempt $attempt got HTTP $rc (BP/mergeability not ready); retrying in 30s..." >&2
       sleep 30
       continue
@@ -412,7 +412,7 @@ cmd_merge() {
 
 cmd_full() {
   local branch="${1:-}"
-  [ -n "$branch" ] || die_usage
+  [[ -n "$branch" ]] || die_usage
 
   local open_resp pr_number
   open_resp=$(cmd_open "$@")

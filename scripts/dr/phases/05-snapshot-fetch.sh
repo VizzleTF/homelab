@@ -20,7 +20,7 @@ load_bootstrap_env
 SNAP="$DR_PACK_DIR/02-vault-raft-snapshot.snap"
 MAX_AGE_DAYS="${SNAPSHOT_MAX_AGE_DAYS:-7}"
 
-if [ -f "$SNAP" ] && [ -z "$(find "$SNAP" -mtime "+$MAX_AGE_DAYS" 2>/dev/null)" ]; then
+if [[ -f "$SNAP" ]] && [[ -z "$(find "$SNAP" -mtime "+$MAX_AGE_DAYS" 2>/dev/null)" ]]; then
   log_skip "DR pack snapshot younger than ${MAX_AGE_DAYS}d — keeping it"
   exit 0
 fi
@@ -72,5 +72,5 @@ kubectl -n dr-fetch cp snapshot-fetch:/tmp/raft.snap "$SNAP"
 kubectl -n dr-fetch delete pod snapshot-fetch --wait=false >/dev/null 2>&1 || true
 kubectl delete ns dr-fetch --wait=false >/dev/null 2>&1 || true
 
-[ -s "$SNAP" ] || die "snapshot download produced an empty file"
+[[ -s "$SNAP" ]] || die "snapshot download produced an empty file"
 log_ok "phase 05 snapshot-fetch complete — $(ls -lh "$SNAP" | awk '{print $5}') at $SNAP"

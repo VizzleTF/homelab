@@ -20,7 +20,7 @@ source "$(dirname "$0")/lib/common.sh"
 source "$(dirname "$0")/lib/volsync-restore.sh"
 
 APP="${1:-}"
-[ -n "$APP" ] || die "usage: $0 <app> [repo] [pvc] [size] [accessMode] [uid]"
+[[ -n "$APP" ]] || die "usage: $0 <app> [repo] [pvc] [size] [accessMode] [uid]"
 
 require_kubectl
 load_bootstrap_env
@@ -45,7 +45,7 @@ lookup() {
   esac
 }
 
-if [ -n "${2:-}" ]; then
+if [[ -n "${2:-}" ]]; then
   REPO="$2"; PVC="${3:?pvc required}"; SIZE="${4:?size required}"
   MODE="${5:-ReadWriteOnce}"; UID_="${6:-}"
 else
@@ -59,12 +59,13 @@ case "$APP" in
   rsstt) NS="rsstt" ;;
   opencloud-config) NS="opencloud" ;;
   trek-data) NS="trek" ;;
+  *) ;;  # every other app lives in a namespace named after it
 esac
 
 # Защита от запуска на живом кластере: скрипт создаёт PVC с продовым именем в
 # продовом namespace и наливает в него данные из репозитория. На пустом кластере
 # это ровно то, что нужно; на работающем — перезапись тома под живым подом.
-if kubectl -n "$NS" get pvc "$PVC" >/dev/null 2>&1 && [ "${DR_FORCE:-0}" != "1" ]; then
+if kubectl -n "$NS" get pvc "$PVC" >/dev/null 2>&1 && [[ "${DR_FORCE:-0}" != "1" ]]; then
   MOUNTED=$(kubectl -n "$NS" get pods -o json 2>/dev/null \
     | grep -c "\"claimName\": *\"$PVC\"" || true)
   die "PVC $NS/$PVC уже существует (подов, использующих его: $MOUNTED).
@@ -82,7 +83,7 @@ case "$APP" in
   nextcloud)
     log_info "fix: config.php dbpassword должен совпасть с ESO Secret"
     PODN=$(kubectl -n nextcloud get pod -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-    if [ -n "$PODN" ]; then
+    if [[ -n "$PODN" ]]; then
       kubectl -n nextcloud exec "$PODN" -- bash -c '
         sed -i "s/'\''dbpassword'\'' =>.*$/'\''dbpassword'\'' => '\''$POSTGRES_PASSWORD'\'',/" /var/www/html/config/config.php
       ' || log_warn "nextcloud sed-fix failed"
@@ -101,7 +102,7 @@ case "$APP" in
     log_info "fix: forgejo-init email на неконфликтующий"
     SCRIPT=$(kubectl -n forgejo get secret forgejo-init -o jsonpath='{.data.configure_gitea\.sh}' 2>/dev/null | base64 -d \
       | sed 's|gitea@local\.domain|argocd-temp@example.com|g' | base64 -w0)
-    if [ -n "$SCRIPT" ]; then
+    if [[ -n "$SCRIPT" ]]; then
       kubectl -n forgejo patch secret forgejo-init --type=json \
         -p="[{\"op\":\"replace\",\"path\":\"/data/configure_gitea.sh\",\"value\":\"$SCRIPT\"}]" >/dev/null || true
     fi

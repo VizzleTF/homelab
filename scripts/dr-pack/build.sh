@@ -25,7 +25,7 @@ K2=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.key-2}' | ba
 ROOT=$(kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.token}' | base64 -d \
   || kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.root_token}' | base64 -d)
 
-[ -n "$K0" ] && [ -n "$K1" ] && [ -n "$K2" ] && [ -n "$ROOT" ] \
+[[ -n "$K0" ]] && [[ -n "$K1" ]] && [[ -n "$K2" ]] && [[ -n "$ROOT" ]] \
   || die "openbao Secrets incomplete — cannot rebuild Shamir bundle"
 
 jq -n \
@@ -33,7 +33,7 @@ jq -n \
   '{unseal_keys_b64: [$k0,$k1,$k2], unseal_shares: 3, unseal_threshold: 3, root_token: $rt}' \
   > "$TMP_JSON"
 
-if [ -n "${GPG_PASSPHRASE:-}" ]; then
+if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
   gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
       --symmetric --cipher-algo AES256 \
       --output "$DR_PACK_DIR/00-shamir.json.gpg" \
@@ -55,8 +55,8 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
   # называться как угодно (у нас — CF_AUTH_TOKEN), и пакет молча уезжал с
   # MISSING. Явный CF_API_TOKEN, если задан, всё ещё имеет приоритет.
   CF_TOKEN="${CF_API_TOKEN:-}"
-  [ -n "$CF_TOKEN" ] || CF_TOKEN=$(kubectl -n cert-manager get secret cloudflare-api-token     -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d)
-  [ -n "$CF_TOKEN" ] || CF_TOKEN=$(kubectl -n external-dns get secret external-dns-cloudflare     -o jsonpath='{.data.cloudflare_api_token}' 2>/dev/null | base64 -d)
+  [[ -n "$CF_TOKEN" ]] || CF_TOKEN=$(kubectl -n cert-manager get secret cloudflare-api-token     -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d)
+  [[ -n "$CF_TOKEN" ]] || CF_TOKEN=$(kubectl -n external-dns get secret external-dns-cloudflare     -o jsonpath='{.data.cloudflare_api_token}' 2>/dev/null | base64 -d)
   echo "CF_API_TOKEN=${CF_TOKEN:-MISSING-cloudflare-token}"
 
   # S3-ключи и пароли restic-репозиториев. Источники — живые Secret'ы,
@@ -68,8 +68,8 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
   RESTIC_DONOR_NS="${RESTIC_DONOR_NS:-rsstt}"
   RESTIC_DONOR_APP="${RESTIC_DONOR_APP:-rss-to-telegram-bot}"
 
-  sn() { kubectl -n kube-system get secret snapshots-rclone -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d; }
-  rs() { kubectl -n "$RESTIC_DONOR_NS" get secret "${RESTIC_DONOR_APP}-restic-$1" -o jsonpath="{.data.$2}" 2>/dev/null | base64 -d; }
+  sn() { local key="$1"; kubectl -n kube-system get secret snapshots-rclone -o jsonpath="{.data.${key}}" 2>/dev/null | base64 -d; }
+  rs() { local target="$1" key="$2"; kubectl -n "$RESTIC_DONOR_NS" get secret "${RESTIC_DONOR_APP}-restic-${target}" -o jsonpath="{.data.${key}}" 2>/dev/null | base64 -d; }
 
   echo "GARAGE_SNAPSHOTS_ACCESS_KEY=$(sn RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID)"
   echo "GARAGE_SNAPSHOTS_SECRET=$(sn RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY)"
@@ -87,7 +87,7 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
   OW_HOST=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.host}' 2>/dev/null | base64 -d || true)
   OW_USER=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.username}' 2>/dev/null | base64 -d || true)
   OW_PASS=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)
-  if [ -n "$OW_HOST" ]; then
+  if [[ -n "$OW_HOST" ]]; then
     echo "OPENWRT_HOST=$OW_HOST"
     echo "OPENWRT_USER=$OW_USER"
     echo "OPENWRT_PASS=$OW_PASS"

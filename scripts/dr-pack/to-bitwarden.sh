@@ -30,7 +30,7 @@
 set -euo pipefail
 
 DRY_RUN=0
-[ "${1:-}" = "--dry-run" ] && DRY_RUN=1
+[[ "${1:-}" = "--dry-run" ]] && DRY_RUN=1
 
 BW_FOLDER="${BW_FOLDER:-Infra / Homelab DR}"
 BAO_MOUNT="${BAO_MOUNT:-home}"
@@ -39,11 +39,11 @@ BAO_PREFIX="${BAO_PREFIX:-homelab/k8s}"
 command -v bao >/dev/null 2>&1 || { echo "missing dependency: bao" >&2; exit 1; }
 
 CLIENT=""
-if [ "$DRY_RUN" = "0" ]; then
+if [[ "$DRY_RUN" = "0" ]]; then
   if command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then
     CLIENT=rbw
     rbw sync >/dev/null 2>&1 || true
-  elif [ -n "${BW_SESSION:-}" ] && command -v bw >/dev/null 2>&1; then
+  elif [[ -n "${BW_SESSION:-}" ]] && command -v bw >/dev/null 2>&1; then
     CLIENT=bw
     command -v jq >/dev/null 2>&1 || { echo "missing dependency: jq (нужен для bw)" >&2; exit 1; }
     bw sync --quiet 2>/dev/null || true
@@ -71,10 +71,10 @@ ITEMS='
 '
 
 folder_id=""
-if [ "$DRY_RUN" = "0" ] && [ "$CLIENT" = "bw" ]; then
+if [[ "$DRY_RUN" = "0" ]] && [[ "$CLIENT" = "bw" ]]; then
   folder_id=$(bw list folders --search "$BW_FOLDER" 2>/dev/null \
     | jq -r --arg n "$BW_FOLDER" '.[] | select(.name == $n) | .id' | head -1)
-  if [ -z "$folder_id" ]; then
+  if [[ -z "$folder_id" ]]; then
     echo "creating folder: $BW_FOLDER"
     folder_id=$(jq -nc --arg n "$BW_FOLDER" '{name: $n}' | bw encode | bw create folder | jq -r .id)
   fi
@@ -104,18 +104,18 @@ upsert() {
       last_val="$val"
     done
   done
-  if [ "$missing" = "1" ]; then return 0; fi
+  if [[ "$missing" = "1" ]]; then return 0; fi
 
   # Первая строка payload'а становится полем «пароль». Если значение одно —
   # кладём его туда, чтобы копировалось одним нажатием; иначе всё в заметке.
-  if [ "$count" = "1" ]; then first_line="$last_val"; else first_line="(see notes)"; fi
+  if [[ "$count" = "1" ]]; then first_line="$last_val"; else first_line="(see notes)"; fi
 
-  if [ "$DRY_RUN" = "1" ]; then
+  if [[ "$DRY_RUN" = "1" ]]; then
     echo "  DRY  $name  <- $(echo "$spec" | tr ';' ' ')"
     return 0
   fi
 
-  if [ "$CLIENT" = "rbw" ]; then
+  if [[ "$CLIENT" = "rbw" ]]; then
     # Справка rbw обещает $EDITOR, но при неинтерактивном stdin редактор не
     # запускается вовсе — payload читается прямо со stdin (первая строка =
     # пароль, остальное = заметка). Через подменённый EDITOR запись молча
@@ -124,7 +124,7 @@ upsert() {
     if rbw get "$name" >/dev/null 2>&1; then action=edit; fi
     if rbw "$action" --folder "$BW_FOLDER" "$name" <<< "$first_line
 $notes" >/dev/null 2>&1; then
-      if [ "$action" = "edit" ]; then echo "  UPD  $name"; else echo "  NEW  $name"; fi
+      if [[ "$action" = "edit" ]]; then echo "  UPD  $name"; else echo "  NEW  $name"; fi
     else
       echo "  ERR  $name — rbw $action не отработал"
     fi
@@ -139,7 +139,7 @@ $notes" >/dev/null 2>&1; then
   payload=$(jq -nc --arg n "$name" --arg notes "$notes" --arg fid "$folder_id" \
     '{organizationId:null, folderId:$fid, type:2, name:$n, notes:$notes, secureNote:{type:0}}')
 
-  if [ -n "$existing_id" ]; then
+  if [[ -n "$existing_id" ]]; then
     printf '%s' "$payload" | bw encode | bw edit item "$existing_id" >/dev/null 2>&1
     echo "  UPD  $name"
   else
@@ -153,7 +153,7 @@ echo "=== DR secrets -> Vaultwarden (folder: $BW_FOLDER) ==="
 # себе, и при чтении из пайпа вторая и последующие строки таблицы просто
 # исчезали — запись 09 молча не создавалась.
 while IFS='|' read -r name spec; do
-  if [ -z "$name" ]; then continue; fi
+  if [[ -z "$name" ]]; then continue; fi
   upsert "$name" "$spec"
 done <<< "$ITEMS"
 
