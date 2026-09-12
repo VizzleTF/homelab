@@ -32,6 +32,7 @@
     path = [
       pkgs.restic
       pkgs.coreutils
+      pkgs.findutils
     ];
     script = ''
       set -euo pipefail
@@ -61,6 +62,13 @@
 
       ship "$OVH_KEY" "$OVH_SECRET" "$OVH_RESTIC_PASSWORD" \
            "s3:https://s3.de.io.cloud.ovh.net/vaka-homelab/restic-apps/forgejo-ops"
+
+      # Only now that both copies exist, drop the local ones. A dump is ~675 MB
+      # and Forgejo writes a new one daily, so without this the disk fills
+      # quietly over a year. Two days are kept as a hedge against a dump that
+      # shipped but turns out to be unreadable.
+      find /var/lib/forgejo/dump -name '*.tar.zst' -mtime +2 -delete
+      echo "local dumps kept: $(ls -1 /var/lib/forgejo/dump/*.tar.zst 2>/dev/null | wc -l)"
     '';
   };
 
