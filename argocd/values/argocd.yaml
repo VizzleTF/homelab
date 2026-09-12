@@ -67,14 +67,15 @@ homelab-common:
           property: telegram-chat-id
 
     # Forgejo SSH access — отдельная ed25519 keypair для argocd-bot user в Forgejo.
-    # Cluster-internal endpoint: forgejo-ssh.forgejo.svc:22 (containerPort 2222 за service port 22).
+    # Forgejo now lives on the ops node outside the cluster; git.example.com is a
+    # static record in OpenWrt pointing at 10.11.11.153 (see docs/ops-node.md).
     - name: argocd-repo-ssh-forgejo-default
       vaultPath: argocd/repo-ssh-forgejo
       templateMetadata:
         labels:
           argocd.argoproj.io/secret-type: repository
       templateData:
-        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git"
+        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
         type: git
         project: default
         sshPrivateKey: "{{ .sshPrivateKey }}"
@@ -88,7 +89,7 @@ homelab-common:
         labels:
           argocd.argoproj.io/secret-type: repository
       templateData:
-        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git"
+        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
         type: git
         project: applications
         sshPrivateKey: "{{ .sshPrivateKey }}"
@@ -102,7 +103,7 @@ homelab-common:
         labels:
           argocd.argoproj.io/secret-type: repository
       templateData:
-        url: "ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git"
+        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
         type: git
         project: infrastructure
         sshPrivateKey: "{{ .sshPrivateKey }}"
@@ -147,6 +148,11 @@ controller:
 configs:
   ssh:
     extraHosts: |
+      # git.example.com resolves to the ops node; the in-cluster entry below stays
+      # until the old Forgejo is retired, so a DNS flip either way keeps working.
+      git.example.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCmYbWoHzeQjI+yW8iYcTTidXVSCIMtx4lUsY5rd5U69MK9M4gnIK4ytLNNnRm45iFX9NdUCl7wF6+7A9Yj+7XDL/6qHk7KzlgBBZkff68Md7aA2m0rZwoPTSsY9AiOdJup039ilFAEputUTxJ1qrLK9yF4kZNuClCgvLe6o5mL6yUcltBowDkvMyRh69xlbMR9ZHb/5tLmgBb8hVRCB5UghqnFiGjFZ6g9XoyEFXzOdBkC7my2I6COq0epADkRfEE28pLrBpASSKjKE8q4iZFhBnDZKvAcKopvOQG0+49aX/sqlqvxPXH5u7GttQFNDDOcUG6Ip/A7Um5P2EtohXFrPo4WbCKQE7atpctBsTpssDGVRV6+dHUtK3TUc4+aFfyh7RTp68t/QU3zAFkhAalTBcTVOsMkO96GM04QC3ppoWnKQqf9GOpirhTQNNoGmXEUkVRVmqPAtO/JSNmmtz9itGVQMf2omJIJXzhHprkglaK3Wc4Fa8/H9CQkIreyw05XCY/J+c4ZMGkKyJcLJa2zaKc9I0JyrF6AHLqhdsFi9DM/ptD2/0h3/O8xBjSUCZmnOTnkZdKqrvdlbSdf1aTHRhk1VP4bsd1yJpgDydjHTHk3xo74Zo7gWaTmmE/SaTGLy+0cg/oLLo/AKTahb6VvfoNykSwPQ5l663+bPWgiPw==
+      git.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeIktqiiqI/CPq562yq7ikPn7pXJ20yO9S3N7iyooCP
+      git.example.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDBXme0XrIiYwFilxI26jKrTeaei+1yJQ0999nO73xKT3ZMaLq76zUrvuPobeZ6UJcFWEOSLKVAzExYdrtLK/TXAJ8YMS+GQTQRaBHBW9svxyif4G/tmD2OwjqOJXGZsjVfCffxGmmorv5D2/h8sv6/VbF2L7BugvKtWLN3nimgdRffjxlaWYR8+ouvrZ27QMe7eW6jTP+zJ78tJT5ebjZzmkTAa35sps9ldPf6kE3kt11yfAJPD4kZ73keeSy3h8W1XC5/Lo9piiEO/vRB3GRjowKQdxsQlP2Go2MYnfb09dZfmezzTla0lyXjGBREQDh84LE2fzXfK5ML1I7LPX0Wx2V6NB8sxSg4fWvSMB5P/cZakmIFM/lwe65r8DPs9xlo3cM7noLD7RM1zXj9uiJ60beqD8e3CxH4KQN2YOVRQohqcJXtRnF7X/6LMg6Apcwzwq4lfr1I93zc91GoJihRG4bKyd/RiFy/VJJAMC5BYYQ8oVSsivIi0bHBveoUDGEJyvWlgEUn6fxF0lJ1E1rRsw2SISEI9U0Gi9CeStLAFXeqQuj5mgb5N6qeDQ6JdZOw/Kc/zdPfruoJKFt5cATzCAQpKegNbXQaKzyuoTpMCbGNpZqTe2zdWES+LAFR8tzlOvIwfsqpUoQY2NzngsSWdR2SnDnijdnUWVXBfAPi6Q==
       forgejo-ssh.forgejo.svc.cluster.local ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDBXme0XrIiYwFilxI26jKrTeaei+1yJQ0999nO73xKT3ZMaLq76zUrvuPobeZ6UJcFWEOSLKVAzExYdrtLK/TXAJ8YMS+GQTQRaBHBW9svxyif4G/tmD2OwjqOJXGZsjVfCffxGmmorv5D2/h8sv6/VbF2L7BugvKtWLN3nimgdRffjxlaWYR8+ouvrZ27QMe7eW6jTP+zJ78tJT5ebjZzmkTAa35sps9ldPf6kE3kt11yfAJPD4kZ73keeSy3h8W1XC5/Lo9piiEO/vRB3GRjowKQdxsQlP2Go2MYnfb09dZfmezzTla0lyXjGBREQDh84LE2fzXfK5ML1I7LPX0Wx2V6NB8sxSg4fWvSMB5P/cZakmIFM/lwe65r8DPs9xlo3cM7noLD7RM1zXj9uiJ60beqD8e3CxH4KQN2YOVRQohqcJXtRnF7X/6LMg6Apcwzwq4lfr1I93zc91GoJihRG4bKyd/RiFy/VJJAMC5BYYQ8oVSsivIi0bHBveoUDGEJyvWlgEUn6fxF0lJ1E1rRsw2SISEI9U0Gi9CeStLAFXeqQuj5mgb5N6qeDQ6JdZOw/Kc/zdPfruoJKFt5cATzCAQpKegNbXQaKzyuoTpMCbGNpZqTe2zdWES+LAFR8tzlOvIwfsqpUoQY2NzngsSWdR2SnDnijdnUWVXBfAPi6Q==
   params:
     # Cap concurrent manifest generations on repo-server. Default unlimited

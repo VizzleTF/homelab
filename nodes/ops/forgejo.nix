@@ -38,6 +38,23 @@
 
     lfs.enable = true;
 
+    # Carried over from the in-cluster instance during the migration. They key
+    # everything the database stores encrypted — mirror credentials, OAuth
+    # secrets, 2FA — so a freshly generated set would quietly invalidate all of
+    # it. Files live outside git, mode 0600, owned by root.
+    secrets = {
+      security = {
+        SECRET_KEY = lib.mkForce "/var/lib/secrets/forgejo/SECRET_KEY";
+        INTERNAL_TOKEN = lib.mkForce "/var/lib/secrets/forgejo/INTERNAL_TOKEN";
+      };
+      oauth2.JWT_SECRET = lib.mkForce "/var/lib/secrets/forgejo/JWT_SECRET";
+      server.LFS_JWT_SECRET = lib.mkForce "/var/lib/secrets/forgejo/LFS_JWT_SECRET";
+      packages = {
+        MINIO_ACCESS_KEY_ID = "/var/lib/secrets/forgejo/MINIO_ACCESS_KEY_ID";
+        MINIO_SECRET_ACCESS_KEY = "/var/lib/secrets/forgejo/MINIO_SECRET_ACCESS_KEY";
+      };
+    };
+
     settings = {
       DEFAULT.APP_NAME = "Forgejo — example.com";
 
@@ -77,6 +94,23 @@
       indexer = {
         REPO_INDEXER_ENABLED = true;
         ISSUE_INDEXER_TYPE = "bleve";
+      };
+
+      # Packages (the homelab-common chart museum and OCI images) keep their
+      # blobs in Garage on the NAS — 563 MB across 211 blobs — while the
+      # database only holds metadata. Pointing this anywhere else would leave
+      # every package in the restored database dangling. Use the [packages]
+      # section, not [storage.packages]: the latter makes bucket init hang for
+      # 30s against Garage.
+      packages = {
+        ENABLED = true;
+        STORAGE_TYPE = "minio";
+        MINIO_ENDPOINT = "s3.example.com";
+        MINIO_BUCKET = "forgejo-packages";
+        MINIO_LOCATION = "garage";
+        MINIO_USE_SSL = true;
+        MINIO_BUCKET_LOOKUP = "path";
+        MINIO_BASE_PATH = "packages/";
       };
 
       # Push mirror to the NAS Gitea copy targets an RFC1918 address, which
