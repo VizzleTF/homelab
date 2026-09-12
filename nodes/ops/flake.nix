@@ -20,6 +20,7 @@
           ./configuration.nix
           ./forgejo.nix
           ./forgejo-backup.nix
+          ./etcd-snapshot.nix
         ];
       };
     };
