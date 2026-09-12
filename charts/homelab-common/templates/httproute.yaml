@@ -39,11 +39,6 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
-    # Оба префикса на время миграции: external-dns v0.22 читает только
-    # external-dns.kubernetes.io/, инстансы пока запущены с alpha. Alpha-набор
-    # уходит следующим шагом, когда оба перейдут на новый префикс.
-    external-dns.alpha.kubernetes.io/hostname: {{ $hostname }}
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: {{ .cloudflareProxied | default "true" | quote }}
     external-dns.kubernetes.io/hostname: {{ $hostname }}
     external-dns.kubernetes.io/cloudflare-proxied: {{ .cloudflareProxied | default "true" | quote }}
     {{- with .annotations }}
@@ -83,9 +78,6 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
-    external-dns.alpha.kubernetes.io/hostname: {{ $hostname }}
-    external-dns.alpha.kubernetes.io/target: {{ $internalTarget | quote }}
-    external-dns.alpha.kubernetes.io/internal-dns: "true"
     external-dns.kubernetes.io/hostname: {{ $hostname }}
     external-dns.kubernetes.io/target: {{ $internalTarget | quote }}
     external-dns.kubernetes.io/internal-dns: "true"
