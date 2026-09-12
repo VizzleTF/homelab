@@ -69,6 +69,12 @@ gitea:
 
   config:
     APP_NAME: "Forgejo — example.com"
+    # Цепочка снаружи: клиент -> Cloudflare -> cloudflared (под в 10.244/16)
+    # -> Envoy Gateway -> forgejo. Без доверия к прокси forgejo пишет в журнал
+    # аудита и в rate-limit адрес пода, а не человека.
+    security:
+      REVERSE_PROXY_TRUSTED_PROXIES: 10.244.0.0/16
+      REVERSE_PROXY_LIMIT: 1
     server:
       DOMAIN: git.example.com
       ROOT_URL: https://git.example.com/

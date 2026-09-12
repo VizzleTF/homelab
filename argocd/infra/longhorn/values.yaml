@@ -49,6 +49,11 @@ defaultSettings:
   # customized default пропускался, а в логе на каждый reconcile висел warning.
   # Формат совпадает с дефолтом чарта.
   disableRevisionCounter: '{"v1":"true"}'
+  # fsfreeze на момент снятия снапшота: без него CSI-снимок crash-consistent,
+  # и восстановление SQLite/БД равнозначно старту после отключения питания.
+  # Freeze делает его FS-consistent ценой паузы I/O в доли секунды. Формат —
+  # только ключ v1, как у disableRevisionCounter выше.
+  freezeFilesystemForSnapshot: '{"v1":"true"}'
   # Автоочистка системных снапшотов
   autoCleanupSystemGeneratedSnapshot: "true"
   # Лимит одновременных rebuild операций

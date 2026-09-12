@@ -46,9 +46,15 @@ spec:
   # CONFIG_TCP_MD5SIG, and BIRD logs "Kernel does not support TCP MD5 signatures"
   # if a password is configured. Cluster subnet 10.11.11.0/24 is a trusted L2
   # segment; security model matches the existing L2-announce baseline.
+  # GR прикрывает рестарт cilium-agent: eBPF-датаплейн продолжает работать, и
+  # BIRD не должен убирать маршрут. Но helper держит маршруты stale ровно
+  # столько, сколько мы здесь объявили, — а при kernel panic ноды stale-маршрут
+  # это чёрная дыра для 1/4 потоков (BIRD ставит все четыре ноды в ECMP).
+  # 120 с (дефолт) было на два порядка больше, чем занимает рестарт агента.
+  # BFD, который снял бы вопрос, в OSS Cilium отсутствует — только Enterprise.
   gracefulRestart:
     enabled: true
-    restartTimeSeconds: 120
+    restartTimeSeconds: 30
   timers:
     connectRetryTimeSeconds: 12
     holdTimeSeconds: 9
