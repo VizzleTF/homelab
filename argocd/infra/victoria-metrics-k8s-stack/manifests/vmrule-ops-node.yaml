@@ -1,0 +1,64 @@
+# Alerts for the ops node.
+#
+# The node holds the GitOps source of truth and runs every backup timer, so the
+# failures worth waking up for are: it stopped reporting at all, a backup went
+# stale, or it is about to run out of disk for the next dump (~675 MB nightly).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: ops-node
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: ops-node
+      rules:
+        - alert: OpsNodeDown
+          # The node itself being unreachable is also covered by Gatus, which
+          # keeps working when this stack does not. This one exists so the
+          # condition shows up in the same place as every other alert.
+          expr: up{job="ops-node"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ops node is not scrapeable"
+            description: "Метрики ноды ops не собираются 10 минут. На ней Forgejo (источник истины GitOps), бэкапы и watchdog."
+
+        - alert: OpsBackupStale
+          # 26h, not 24h: the dump runs at 01:30 and ships at 02:15, and a
+          # tighter window would fire on every slow night.
+          expr: time() - homelab_ops_backup_timestamp > 26 * 3600
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Backup on the ops node is stale: {{ $labels.job }}"
+            description: "Задача {{ $labels.job }} не отчитывалась более 26 часов. Бэкап, который тихо перестал делаться, выглядит как рабочий до дня восстановления."
+
+        - alert: OpsBackupFailed
+          expr: homelab_ops_backup_success == 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Backup on the ops node failed: {{ $labels.job }}"
+            description: "Последний прогон {{ $labels.job }} завершился с ошибкой. Подробности: journalctl -u {{ $labels.job }} на 10.11.11.153."
+
+        - alert: OpsNodeDiskFilling
+          expr: |
+            node_filesystem_avail_bytes{job="ops-node",mountpoint="/"} < 20 * 1024 * 1024 * 1024
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ops node is running low on disk"
+            description: "На / осталось меньше 20 ГБ. Ночной дамп Forgejo занимает ~675 МБ, локально хранятся двое суток."
+
+        - alert: OpsNodeUnitFailed
+          expr: node_systemd_unit_state{job="ops-node",state="failed"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Failed unit on the ops node: {{ $labels.name }}"
+            description: "Юнит {{ $labels.name }} в состоянии failed."
