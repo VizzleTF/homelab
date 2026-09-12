@@ -24,6 +24,7 @@
           ./watchdog.nix
           ./netbird.nix
           ./metrics.nix
+          ./runner.nix
         ];
       };
     };
