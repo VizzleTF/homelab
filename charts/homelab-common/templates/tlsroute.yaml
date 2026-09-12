@@ -19,10 +19,6 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
-    # See the comment in httproute.yaml: both prefixes during the migration.
-    external-dns.alpha.kubernetes.io/hostname: {{ $hostname }}
-    external-dns.alpha.kubernetes.io/target: {{ $gwTlsTarget | quote }}
-    external-dns.alpha.kubernetes.io/internal-dns: "true"
     external-dns.kubernetes.io/hostname: {{ $hostname }}
     external-dns.kubernetes.io/target: {{ $gwTlsTarget | quote }}
     external-dns.kubernetes.io/internal-dns: "true"
