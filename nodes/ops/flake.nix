@@ -23,6 +23,7 @@
           ./etcd-snapshot.nix
           ./watchdog.nix
           ./netbird.nix
+          ./metrics.nix
         ];
       };
     };
