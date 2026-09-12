@@ -23,7 +23,7 @@ spec:
         valueFiles:
           - $values/argocd/values/global.yaml
           - $values/argocd/values/argocd.yaml
-    - repoURL: ssh://git@forgejo-ssh.forgejo.svc.cluster.local:22/vizzle/homelab.git
+    - repoURL: ssh://git@git.example.com:22/vizzle/homelab.git
       targetRevision: HEAD
       ref: values
   destination:

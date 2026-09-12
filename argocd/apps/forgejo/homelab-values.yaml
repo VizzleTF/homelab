@@ -72,13 +72,10 @@ homelab-common:
         - secretKey: secretKey
           property: secretKey
 
-  httpRoutes:
-    - name: forgejo
-      hostname: git
-      gateway: internal
-      service:
-        name: forgejo-http
-        port: 3000
+  # HTTPRoute removed with the move to the ops node: git.example.com is a static
+  # record in OpenWrt pointing at 10.11.11.153, and external-dns must not claim
+  # the name back. This instance keeps serving inside the cluster on its
+  # Service, which is all a pull mirror needs.
 
   # Декларативный provisioning OIDC application/provider в Authentik.
   # FORGEJO_OIDC_CLIENT_SECRET резолвится через !Env из authentik-config secret
