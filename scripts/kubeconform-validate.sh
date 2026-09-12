@@ -40,7 +40,7 @@ mapfile -t RAW < <(
   find argocd/apps argocd/infra -path '*/manifests/*.yaml' -type f
   find argocd/standalone argocd/manifests -name '*.yaml' -type f
 )
-if [ "${#RAW[@]}" -gt 0 ]; then
+if [[ "${#RAW[@]}" -gt 0 ]]; then
   kc "${RAW[@]}"
 else
   echo "  (no raw manifests found)"
@@ -51,7 +51,7 @@ fails=0
 for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps/*/cnpg-values.yaml \
          argocd/infra/*/values.yaml argocd/infra/*/homelab-values.yaml \
          argocd/values/argocd.yaml; do
-  [ -f "$f" ] || continue
+  [[ -f "$f" ]] || continue
   grep -qE '^homelab-common:|^global:' "$f" || continue
   if ! helm template test charts/homelab-common \
         -f argocd/values/global.yaml -f "$f" 2>/dev/null \
@@ -61,7 +61,7 @@ for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps
   fi
 done
 
-if [ "$fails" -gt 0 ]; then
+if [[ "$fails" -gt 0 ]]; then
   echo "kubeconform: $fails rendered values file(s) failed validation"
   exit 1
 fi

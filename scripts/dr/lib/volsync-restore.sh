@@ -103,4 +103,5 @@ EOF
     900
 
   log_ok "$ns/$pvc restored from $target"
+  return 0
 }

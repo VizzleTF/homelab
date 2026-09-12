@@ -21,11 +21,11 @@ required_files=(
   "03-cluster.env"
 )
 for f in "${required_files[@]}"; do
-  [ -f "$DR_PACK_DIR/$f" ] || die "DR pack missing: $DR_PACK_DIR/$f — run scripts/dr-pack/build.sh"
+  [[ -f "$DR_PACK_DIR/$f" ]] || die "DR pack missing: $DR_PACK_DIR/$f — run scripts/dr-pack/build.sh"
 done
 # Laptop pack encrypts the bundle on its own; the off-site tarball is encrypted
 # as a whole and unpacks it in the clear.
-[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ] || [ -f "$DR_PACK_DIR/00-shamir.json" ] \
+[[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]] || [[ -f "$DR_PACK_DIR/00-shamir.json" ]] \
   || die "DR pack missing: $DR_PACK_DIR/00-shamir.json[.gpg] — run scripts/dr-pack/build.sh"
 log_ok "DR pack files present"
 
@@ -41,19 +41,19 @@ log_ok "bootstrap env has CF + restic repo creds"
 log_info "validating Shamir bundle"
 tmp=$(mktemp)
 trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
-if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
+if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]]; then
   gpg --quiet --batch --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" > "$tmp" 2>/dev/null \
     || die "Shamir decrypt failed. Check GPG passphrase or DR pack integrity."
 else
   cat "$DR_PACK_DIR/00-shamir.json" > "$tmp"
 fi
 keys=$(jq -r '.unseal_keys_b64 | length' "$tmp")
-[ "$keys" = "3" ] || die "Shamir bundle has $keys keys, expected 3"
+[[ "$keys" = "3" ]] || die "Shamir bundle has $keys keys, expected 3"
 log_ok "Shamir bundle valid (3 unseal keys + root token)"
 
 # Validate Raft snapshot is non-empty
 size=$(stat -c '%s' "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
-[ "$size" -gt 1024 ] || die "Raft snapshot suspiciously small: ${size} bytes"
+[[ "$size" -gt 1024 ]] || die "Raft snapshot suspiciously small: ${size} bytes"
 log_ok "Raft snapshot present (${size} bytes)"
 
 log_ok "preflight passed"

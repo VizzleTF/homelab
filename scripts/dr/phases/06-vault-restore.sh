@@ -29,11 +29,11 @@ wait_for "openbao-0 Running" \
 # off-site tarball (that one is encrypted as a whole).
 tmp=$(mktemp)
 trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
-if [ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]; then
+if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]]; then
   log_info "decrypting Shamir bundle"
   gpg --quiet --batch --output "$tmp" --decrypt "$DR_PACK_DIR/00-shamir.json.gpg" \
     || die "Shamir decrypt failed"
-elif [ -f "$DR_PACK_DIR/00-shamir.json" ]; then
+elif [[ -f "$DR_PACK_DIR/00-shamir.json" ]]; then
   log_info "reading Shamir bundle (plain — off-site pack)"
   cat "$DR_PACK_DIR/00-shamir.json" > "$tmp"
 else
@@ -48,7 +48,7 @@ BAO_TOKEN=$(jq -r '.root_token' "$tmp")
 
 is_initialized=$(kubectl -n openbao exec openbao-0 -- bao status -format=json 2>/dev/null | jq -r '.initialized // false')
 
-if [ "$is_initialized" = "false" ]; then
+if [[ "$is_initialized" = "false" ]]; then
   log_warn "OpenBao reports uninitialized — Raft will be empty, restoring from snapshot will populate it"
   log_info "running bao operator init (NEW cluster — generates throwaway keys, we will restore the snapshot over it)"
   # NOTE: init is required even when restoring from snapshot — Raft needs an
