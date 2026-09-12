@@ -222,7 +222,12 @@ homelab-common:
                         metadata: {name: drill-data, namespace: $NS}
                         spec:
                           accessModes: [ReadWriteOnce]
-                          storageClassName: longhorn
+                          # Класс с reclaimPolicy Delete и одной репликой: том
+                          # живёт минуты и удаляется вместе с namespace. В
+                          # обычном longhorn (Retain) каждый прогон оставлял бы
+                          # осиротевший PV — за трое суток так набежало 100 штук
+                          # на 993Gi зарезервированного scheduling'а.
+                          storageClassName: longhorn-volsync-clone
                           resources: {requests: {storage: ${DRILL_SIZE:-20Gi}}}
                         ---
                         apiVersion: volsync.backube/v1alpha1
