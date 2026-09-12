@@ -4,7 +4,7 @@ metadata:
   name: cilium-gateway-internal
   namespace: kube-system
   annotations:
-    external-dns.alpha.kubernetes.io/target: 10.11.10.138
+    external-dns.kubernetes.io/target: 10.11.10.138
 spec:
   addresses:
     - type: IPAddress

@@ -4,7 +4,7 @@ metadata:
   name: cilium-gateway-tls
   namespace: kube-system
   annotations:
-    external-dns.alpha.kubernetes.io/target: 10.11.10.139
+    external-dns.kubernetes.io/target: 10.11.10.139
 spec:
   gatewayClassName: cilium
   addresses:
