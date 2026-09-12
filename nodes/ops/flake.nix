@@ -22,6 +22,7 @@
           ./forgejo-backup.nix
           ./etcd-snapshot.nix
           ./watchdog.nix
+          ./netbird.nix
         ];
       };
     };
