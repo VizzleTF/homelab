@@ -28,6 +28,12 @@
   "rebaseWhen": "behind-base-branch",
   "packageRules": [
     {
+      "description": "external-dns закреплён на чарте 1.21.x до 12.09.2026+: в 1.22.0 (external-dns v0.22.0) source gateway-httproute перестал читать external-dns.alpha.kubernetes.io/target с Gateway и вместо CNAME на cfargotunnel создаёт A-запись с приватным IP. Cloudflare её отвергает, policy:sync сносит TXT-реестр, все внешние сервисы остаются без DNS. Разблокировать, когда найдётся штатный способ задать target в новом source.",
+      "matchPackageNames": ["external-dns"],
+      "matchDatasources": ["helm"],
+      "allowedVersions": "<1.22.0"
+    },
+    {
       "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. minimumReleaseAge УБРАН 2026-06-14: Renovate default minimumReleaseAgeBehaviour=timestamp-required держал вечно pending GHCR-образы без OCI `created` timestamp (may/omniroute/cnpg-postgresql застряли — debug dry-run подтвердил 'Marking N release(s) as pending, do not have a releaseTimestamp'). Buffer ломал трекинг тише, чем защищал. CI+ArgoCD health — реальный gate.",
       "matchUpdateTypes": ["major", "minor", "patch", "pin"],
       "automerge": true,
