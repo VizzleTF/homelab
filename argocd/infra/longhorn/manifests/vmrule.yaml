@@ -50,3 +50,22 @@ spec:
             description: |
               Longhorn manager на ноде {{ $labels.node }} не ready >5m — реплики на ней недоступны.
               kubectl -n longhorn-system get nodes.longhorn.io {{ $labels.node }} -o yaml
+
+        # Регресс-детектор на утечку томов. Штатно Released PV быть не должно:
+        # эфемерные тома (VolSync-клоны, drill) живут в классе с reclaimPolicy
+        # Delete, а боевые PVC в longhorn (Retain) удаляются вручную и редко.
+        # Двузначное число Released означает, что что-то снова создаёт тома в
+        # Retain-классе и они копятся.
+        - alert: OrphanedReleasedPVs
+          expr: count(kube_persistentvolume_status_phase{phase="Released"} == 1) > 10
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "В кластере {{ $value }} Released PV — утечка томов"
+            description: |
+              Released PV копятся: значит эфемерные тома создаются в классе с
+              reclaimPolicy Retain. Найти виновника:
+              kubectl get pv -o json | jq -r '.items[] | select(.status.phase=="Released")
+                | "\(.spec.claimRef.namespace)/\(.spec.claimRef.name) \(.spec.storageClassName)"' | sort | uniq -c
+

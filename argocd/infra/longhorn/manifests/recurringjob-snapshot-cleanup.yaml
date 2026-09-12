@@ -1,0 +1,30 @@
+# Daily purge of removed snapshots across ALL Longhorn volumes.
+#
+# VolSync deletes its VolumeSnapshot after each run and the CSI driver marks the
+# underlying Longhorn snapshot `markRemoved: true` — but marking is not merging.
+# Nothing triggers the purge on its own, so the layers pile up: on 2026-09-12
+# there were 29 marked-but-unmerged snapshots, one of them immich's 184 GiB from
+# the bootstrap run three days earlier. Every layer keeps the pre-overwrite
+# version of any block rewritten since it was taken.
+#
+# `snapshot-cleanup` deletes system-generated snapshots and purges everything
+# already marked for removal; it never touches a live snapshot, so `retain: 0`
+# is the required value for this task.
+#
+# groups: [default] — same idiom as the trim job: longhorn-manager keeps that
+# label on every Volume, so new volumes are covered without any labelling.
+#
+# Schedule: 05:00 UTC daily — after the nightly backup window (00:10-03:36) and
+# before the Sunday trim at 04:00 has to share the disk with it.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: snapshot-cleanup
+  namespace: longhorn-system
+spec:
+  task: snapshot-cleanup
+  cron: "0 5 * * *"
+  groups:
+    - default
+  concurrency: 2
+  retain: 0
