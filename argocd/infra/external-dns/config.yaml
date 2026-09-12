@@ -1,12 +1,4 @@
 chart: external-dns
 repoURL: https://kubernetes-sigs.github.io/external-dns/
-# ПИН 12.09.2026: чарт 1.22.0 (external-dns v0.22.0) перестал учитывать
-# external-dns.alpha.kubernetes.io/target на Gateway при source
-# gateway-httproute — вместо CNAME на <tunnel>.cfargotunnel.com он создаёт
-# A-запись с приватным 10.11.10.137, Cloudflare её отвергает
-# ("Target ... is not allowed for a proxied record"), а следом policy: sync
-# сносит TXT-реестр и живые CNAME. Итог — все внешние сервисы без DNS.
-# Renovate этот пин не трогает (см. renovate.json). Снимать после того,
-# как найдётся замена target-аннотации в новом source.
-targetRevision: "1.21.1"
+targetRevision: "1.22.0"
 wave: "-2"
