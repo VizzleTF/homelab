@@ -9,6 +9,20 @@
 # annotation `gatus.home-operations.com/enabled: "true"` produce an endpoint.
 # Annotating app HTTPRoutes is a follow-up.
 homelab-common:
+  externalSecrets:
+    # Same Telegram bot as ArgoCD notifications and the watchdog on the ops
+    # node. Gatus reads these as ${...} from its config.
+    - name: gatus-telegram
+      vaultPath: argocd/notifications
+      data:
+        - secretKey: token
+          property: telegram-token
+        - secretKey: chatid
+          property: telegram-chat-id
+      templateData:
+        TELEGRAM_BOT_TOKEN: "{{ .token }}"
+        TELEGRAM_CHAT_ID: "{{ .chatid }}"
+
   persistentVolumeClaims:
     # SQLite store for gatus history (storage.path /data/data.db).
     - name: gatus-data
@@ -61,6 +75,14 @@ homelab-common:
             web:
               port: 8080
             metrics: true
+            alerting:
+              telegram:
+                token: "${TELEGRAM_BOT_TOKEN}"
+                id: "${TELEGRAM_CHAT_ID}"
+                default-alert:
+                  failure-threshold: 3
+                  success-threshold: 2
+                  send-on-resolved: true
             endpoints:
               - name: gatus
                 group: internal
@@ -68,6 +90,40 @@ homelab-common:
                 interval: 60s
                 conditions:
                   - "[STATUS] == 200"
+              # The ops node runs the GitOps source of truth and its own
+              # watchdog — but that watchdog dies with the node it lives on.
+              # These checks are the other half of the pair: the node watches
+              # the cluster, the cluster watches the node.
+              - name: forgejo on ops node
+                group: ops-node
+                url: https://git.example.com/api/healthz
+                interval: 2m
+                conditions:
+                  - "[STATUS] == 200"
+                alerts:
+                  - type: telegram
+                    description: "Forgejo on the ops node is down — GitOps is blind"
+              - name: ops node ssh
+                group: ops-node
+                # TCP rather than HTTP: proves the machine is up even when
+                # every service on it is broken, which is when you need to get in.
+                url: "tcp://10.11.11.153:22"
+                interval: 2m
+                conditions:
+                  - "[CONNECTED] == true"
+                alerts:
+                  - type: telegram
+                    description: "Ops node is unreachable"
+              - name: ops node watchdog
+                group: ops-node
+                # If this is down, nobody is watching the cluster from outside.
+                url: http://10.11.11.153:8080/health
+                interval: 5m
+                conditions:
+                  - "[STATUS] == 200"
+                alerts:
+                  - type: telegram
+                    description: "Watchdog on the ops node is down — nothing watches the cluster from outside"
 
       service:
         metadata:
@@ -133,6 +189,9 @@ homelab-common:
                   env:
                     - name: GATUS_CONFIG_PATH
                       value: /config
+                  envFrom:
+                    - secretRef:
+                        name: gatus-telegram
                   ports:
                     - name: http
                       containerPort: 8080
