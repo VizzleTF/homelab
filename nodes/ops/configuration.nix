@@ -81,16 +81,25 @@
 
   security.sudo.wheelNeedsPassword = false;
 
+  # DR workstation: scripts/dr/ and the recovery runbooks are driven from a
+  # shell, and until now that shell had to be a laptop that happened to have
+  # the right tools installed. The node is the one machine guaranteed to be up
+  # when the cluster is not, so the toolbox lives here.
   environment.systemPackages = with pkgs; [
     curl
     git
     htop
-    # Recovery happens by hand from this shell, and the backup runbook assumes
-    # restic is here — inside the systemd unit it is not enough.
+    jq
+    kubectl
+    kubernetes-helm
+    openbao # the `bao` CLI; the HashiCorp vault binary is deliberately absent
+    rclone
     restic
     rsync
+    talosctl
     tmux
     vim
+    yq-go
   ];
 
   system.stateVersion = "26.05";
