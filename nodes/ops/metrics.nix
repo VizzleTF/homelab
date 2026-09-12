@@ -30,11 +30,16 @@
 
   # The backup units write their outcome here, so "the dump stopped happening"
   # becomes a metric that can go stale and fire an alert, instead of silence.
+  #
+  # The label is `backup`, not `job`: the scrape sets job="ops-node" itself, and
+  # a textfile metric carrying its own `job` gets renamed to `exported_job` on
+  # ingest — alerts would then report the scrape name instead of the task that
+  # actually failed.
   systemd.services.forgejo-dump-offsite.postStop = ''
     d=/var/lib/node-exporter/textfile
     ok=0
     [ "$EXIT_STATUS" = "0" ] && ok=1
-    printf 'homelab_ops_backup_success{job="forgejo-dump-offsite"} %s\nhomelab_ops_backup_timestamp{job="forgejo-dump-offsite"} %s\n' \
+    printf 'homelab_ops_backup_success{backup="forgejo-dump-offsite"} %s\nhomelab_ops_backup_timestamp{backup="forgejo-dump-offsite"} %s\n' \
       "$ok" "$(date +%s)" > "$d/forgejo-dump-offsite.prom.tmp"
     mv "$d/forgejo-dump-offsite.prom.tmp" "$d/forgejo-dump-offsite.prom"
   '';
@@ -43,7 +48,7 @@
     d=/var/lib/node-exporter/textfile
     ok=0
     [ "$EXIT_STATUS" = "0" ] && ok=1
-    printf 'homelab_ops_backup_success{job="etcd-snapshot"} %s\nhomelab_ops_backup_timestamp{job="etcd-snapshot"} %s\n' \
+    printf 'homelab_ops_backup_success{backup="etcd-snapshot"} %s\nhomelab_ops_backup_timestamp{backup="etcd-snapshot"} %s\n' \
       "$ok" "$(date +%s)" > "$d/etcd-snapshot.prom.tmp"
     mv "$d/etcd-snapshot.prom.tmp" "$d/etcd-snapshot.prom"
   '';
