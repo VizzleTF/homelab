@@ -51,17 +51,6 @@ deployment:
         secretKeyRef:
           name: forgejo-db-credentials
           key: password
-    # Garage S3 credentials for the [packages] section (Forgejo Packages OCI registry).
-    - name: FORGEJO__packages__MINIO_ACCESS_KEY_ID
-      valueFrom:
-        secretKeyRef:
-          name: forgejo-garage-s3
-          key: accessKey
-    - name: FORGEJO__packages__MINIO_SECRET_ACCESS_KEY
-      valueFrom:
-        secretKeyRef:
-          name: forgejo-garage-s3
-          key: secretKey
 
 gitea:
   admin:
@@ -76,9 +65,9 @@ gitea:
       REVERSE_PROXY_TRUSTED_PROXIES: 10.244.0.0/16
       REVERSE_PROXY_LIMIT: 1
     server:
-      DOMAIN: git.example.com
-      ROOT_URL: https://git.example.com/
-      SSH_DOMAIN: git.example.com
+      DOMAIN: git-mirror.example.com
+      ROOT_URL: https://git-mirror.example.com/
+      SSH_DOMAIN: git-mirror.example.com
       START_SSH_SERVER: true
       SSH_LISTEN_PORT: 2222
       SSH_PORT: 22
@@ -107,9 +96,10 @@ gitea:
     repository:
       DEFAULT_PRIVATE: private
       DISABLE_HTTP_GIT: false
+    # Read-only mirror: CI belongs to the instance on the ops node, and a second
+    # runner pool here would race it for the same jobs.
     actions:
-      ENABLED: true
-      DEFAULT_ACTIONS_URL: github
+      ENABLED: false
     indexer:
       REPO_INDEXER_ENABLED: true
       ISSUE_INDEXER_TYPE: bleve
@@ -121,28 +111,16 @@ gitea:
     # used as DR-bootstrap mirror — see scripts/dr/phases).
     migrations:
       ALLOW_LOCALNETWORKS: true
-    # Forgejo Packages OCI registry on Garage S3.
-    # Use the [packages] subsystem section, NOT [storage.packages]:
-    # the latter triggers a 30s timeout on bucket init against Garage.
-    # Access keys come from FORGEJO__packages__MINIO_*KEY_ID env vars
-    # injected from the forgejo-garage-s3 ExternalSecret.
+    # Packages disabled on the mirror: the blobs live in one Garage bucket and
+    # the instance on the ops node owns it. Two writers to the same bucket is a
+    # corruption waiting to happen, and a mirror serves no registry anyway.
     packages:
-      ENABLED: true
-      STORAGE_TYPE: minio
-      MINIO_ENDPOINT: s3.example.com
-      MINIO_BUCKET: forgejo-packages
-      MINIO_LOCATION: garage
-      MINIO_USE_SSL: true
-      MINIO_BUCKET_LOOKUP: path
-      MINIO_BASE_PATH: packages/
+      ENABLED: false
 
-  oauth:
-    - name: Authentik
-      provider: openidConnect
-      existingSecret: forgejo-oidc-credentials
-      autoDiscoverUrl: https://authentik.example.com/application/o/forgejo/.well-known/openid-configuration
-      iconUrl: https://authentik.example.com/static/dist/assets/icons/icon.png
-      scopes: openid profile email
+  # OAuth deliberately absent. The chart's init container revalidates the OIDC
+  # provider on every start and dies when Authentik is unreachable — that is how
+  # an external-dns outage blinded GitOps on 2026-09-12. A mirror has no logins
+  # to serve, so the dependency simply goes away.
 
   metrics:
     enabled: true
