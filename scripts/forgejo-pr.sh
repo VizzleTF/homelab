@@ -108,7 +108,12 @@ token() {
 
 # forgejo_api <method> <path> [json-body]
 # stdout: response body on 2xx. stderr: HTTP code + body on non-2xx.
-# Returns the raw HTTP status code (0 if curl itself failed).
+# Returns 0 on 2xx and 1 otherwise; the HTTP status of the call is left in
+# FORGEJO_HTTP_CODE (0 if curl itself failed). The status is deliberately not
+# the return value: exit statuses are taken modulo 256, which turns 405 into
+# 149 and a curl failure (0) into success. FORGEJO_HTTP_CODE is only visible to
+# a caller that invokes forgejo_api directly, not through $(...).
+FORGEJO_HTTP_CODE=0
 forgejo_api() {
   local method="$1" path="$2" data="${3:-}"
   local t; t=$(token)
@@ -125,6 +130,7 @@ forgejo_api() {
       -H "Authorization: token $t" \
       "$FORGEJO_URL$path") || code=0
   fi
+  FORGEJO_HTTP_CODE="$code"
   if [[ "$code" -ge 200 ]] && [[ "$code" -lt 300 ]]; then
     cat "$tmp"
     rm -f "$tmp"
@@ -134,7 +140,7 @@ forgejo_api() {
   cat "$tmp" >&2
   echo >&2
   rm -f "$tmp"
-  return "$code"
+  return 1
 }
 
 get_pr_sha() {
@@ -285,7 +291,7 @@ cmd_status() {
   local meta; meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
   local sha; sha=$(jq -r '.head.sha' <<<"$meta")
   if [[ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]]; then
-    echo "note: PR #$pr branch is behind $BASE_BRANCH (outdated) — block_on_outdated_branch will reject merge until updated (UPDATE_OUTDATED=1)" >&2
+    echo "note: PR #$pr branch is behind $BASE_BRANCH — this only blocks the merge if block_on_outdated_branch is on (then use UPDATE_OUTDATED=1)" >&2
   fi
   local payload; payload=$(fetch_status "$sha")
   # Combined .state is authoritative for Forgejo Actions (per-context entries
@@ -354,8 +360,8 @@ cmd_merge() {
       meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
       echo "branch updated; CI re-runs on new head $(jq -r '.head.sha' <<<"$meta")" >&2
     else
-      echo "WARNING: PR #$pr branch is behind $BASE_BRANCH; block_on_outdated_branch=true will 405 the merge." >&2
-      echo "         re-run with UPDATE_OUTDATED=1 to merge $BASE_BRANCH in first (re-triggers CI)." >&2
+      echo "note: PR #$pr branch is behind $BASE_BRANCH. If block_on_outdated_branch is on, the merge will 405;" >&2
+      echo "      re-run with UPDATE_OUTDATED=1 to merge $BASE_BRANCH in first (re-triggers CI)." >&2
     fi
   fi
 
@@ -387,10 +393,13 @@ cmd_merge() {
   # re-check the authoritative .merged flag before giving up.
   local attempt rc=0
   for attempt in 1 2 3 4 5; do
-    if forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$pr/merge" "$payload" >/dev/null 2>&1; then
+    # Called directly, not in $(...), so FORGEJO_HTTP_CODE survives. Capturing
+    # $? here would read the status of the `if` itself, which is always 0.
+    # stderr stays visible: the response body says why a merge was refused.
+    if forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$pr/merge" "$payload" >/dev/null; then
       rc=0; break
     fi
-    rc=$?
+    rc="$FORGEJO_HTTP_CODE"
     if [[ "$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" 2>/dev/null | jq -r '.merged')" = "true" ]]; then
       echo "merge attempt $attempt returned HTTP $rc but PR #$pr is merged — treating as success" >&2
       rc=0; break
