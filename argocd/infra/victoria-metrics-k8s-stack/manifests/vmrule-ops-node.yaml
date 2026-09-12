@@ -32,8 +32,8 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "Backup on the ops node is stale: {{ $labels.job }}"
-            description: "Задача {{ $labels.job }} не отчитывалась более 26 часов. Бэкап, который тихо перестал делаться, выглядит как рабочий до дня восстановления."
+            summary: "Backup on the ops node is stale: {{ $labels.backup }}"
+            description: "Задача {{ $labels.backup }} не отчитывалась более 26 часов. Бэкап, который тихо перестал делаться, выглядит как рабочий до дня восстановления."
 
         - alert: OpsBackupFailed
           expr: homelab_ops_backup_success == 0
@@ -41,8 +41,8 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "Backup on the ops node failed: {{ $labels.job }}"
-            description: "Последний прогон {{ $labels.job }} завершился с ошибкой. Подробности: journalctl -u {{ $labels.job }} на 10.11.11.153."
+            summary: "Backup on the ops node failed: {{ $labels.backup }}"
+            description: "Последний прогон {{ $labels.backup }} завершился с ошибкой. Подробности: journalctl -u {{ $labels.backup }} на 10.11.11.153."
 
         - alert: OpsNodeDiskFilling
           expr: |
