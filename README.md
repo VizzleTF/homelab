@@ -2,7 +2,7 @@
 
 # 🏠 Homelab — Talos + ArgoCD
 
-A single-tenant home cluster. Three bare-metal Talos nodes managed by ArgoCD, with OpenBao as the only source of truth for secrets. Provisioned by Terraform, monitored by VictoriaMetrics, backed up to Garage S3 on a Synology NAS.
+A single-tenant home cluster. Four bare-metal Talos nodes managed by ArgoCD, with OpenBao as the only source of truth for secrets. Provisioned by Terraform, monitored by VictoriaMetrics, backed up to Garage S3 on a Synology NAS.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VizzleTF/homelab)
 
@@ -17,7 +17,8 @@ A single-tenant home cluster. Three bare-metal Talos nodes managed by ArgoCD, wi
 ## 📖 Design choices
 
 - Single operator. No PR review process, no second admin account, no destructive-op guards.
-- Three N100-class boxes running Talos directly, not a rack. RAM is the binding constraint, not CPU.
+- Four N100-class boxes running Talos directly, not a rack. RAM is the binding constraint, not CPU.
+- Origin git is off-cluster. Forgejo runs on a fifth box (`ops`, NixOS, declarative) so a dead cluster cannot take the GitOps source of truth with it.
 - The Synology NAS is independent of the cluster: its own TLS (`acme.sh`), its own DNS (OpenWrt), its own reverse-proxy (DSM nginx). Cluster failure does not affect stored data.
 
 ---
@@ -34,7 +35,7 @@ A single-tenant home cluster. Three bare-metal Talos nodes managed by ArgoCD, wi
 | TLS                   | cert-manager + Cloudflare DNS-01        | One wildcard secret in `kube-system`, every Gateway references it    |
 | Storage               | Longhorn                                | Default class, 2 replicas, `Retain` reclaim                          |
 | Secrets               | OpenBao HA + External Secrets Operator  | MPL 2.0 fork of Vault 1.14.x, API-compatible; KV v2 mount `home`     |
-| Databases             | CloudNativePG                           | Shared PG17, plus a dedicated Immich cluster for `pgvector`          |
+| Databases             | CloudNativePG                           | Shared PG18, plus a dedicated Immich cluster for `pgvector`          |
 | GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
 | Observability         | VictoriaMetrics + VictoriaLogs + Vector | Grafana, Alertmanager into Telegram, Robusta for K8s-aware enrichment |
 | Dependency updates    | Renovate                                | In-cluster CronJob, opens PRs against Forgejo                        |
@@ -44,12 +45,14 @@ A single-tenant home cluster. Three bare-metal Talos nodes managed by ArgoCD, wi
 
 ## 📊 CNCF maturity
 
-Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/):
+Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/), and who owns the parts that are not on it:
 
-| Layer             | Project                | CNCF maturity                       |
+| Layer             | Project                | Governance                          |
 |-------------------|------------------------|-------------------------------------|
+| Cluster OS        | Talos Linux            | Sidero Labs (not CNCF)               |
 | CNI               | Cilium                 | ✅ Graduated                         |
 | Container runtime | containerd (via Talos) | ✅ Graduated                         |
+| Ingress           | Gateway API            | Kubernetes SIG (under K8s Graduated) |
 | GitOps            | Argo CD                | ✅ Graduated                         |
 | TLS               | cert-manager           | ✅ Graduated                         |
 | Autoscaling       | KEDA                   | ✅ Graduated                         |
@@ -60,38 +63,22 @@ Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/):
 | Secrets backend   | OpenBao                | OpenSSF sandbox (MPL 2.0, fork of Vault 1.14.x) |
 | Backup            | VolSync                | Red Hat / backube (not CNCF)         |
 | CSI snapshotter   | kubernetes-csi/external-snapshotter | Kubernetes SIG (under K8s Graduated) |
+| Scheduling        | Descheduler            | Kubernetes SIG (under K8s Graduated) |
+| Metrics API       | Metrics Server         | Kubernetes SIG (under K8s Graduated) |
 | Observability     | VictoriaMetrics / Logs | Not CNCF                             |
+| Log shipper       | Vector                 | Datadog (not CNCF)                   |
 
 ---
 
 ## 🗺️ Architecture
 
-```mermaid
-flowchart LR
-    subgraph HW["3× bare-metal hosts"]
-        Nodes["3× Talos nodes<br/>(CP + worker, no separate workers yet)"]
-    end
+![Architecture — Forgejo on the ops node, ArgoCD App-of-Apps, two independent backup chains](assets/architecture.svg)
 
-    subgraph K8s["Talos Kubernetes"]
-        Root["root-application.yaml<br/>(App-of-Apps)"]
-        Root --> InfraSet["infra-appset.yaml<br/>~26 components"]
-        Root --> AppsSet["apps-appset.yaml<br/>~15 apps"]
-        Root --> Standalone["3 standalone:<br/>argocd · gateway-api · talos-etcd-backup"]
-        Bao[("OpenBao HA<br/>3-node Raft · Shamir auto-unseal")]
-    end
-
-    subgraph Out["Outside the cluster"]
-        Forgejo[("Forgejo<br/>git + Actions + OCI registry")]
-        Garage[("Garage S3<br/>on Synology NAS")]
-        CF[("Cloudflare<br/>tunnel + DNS + ACME")]
-    end
-
-    HW --> K8s
-    Forgejo -- "ArgoCD pulls" --> K8s
-    Bao  -- "ESO renders Secrets via openbao-backend-cluster" --> K8s
-    K8s    -- "VolSync (restic) · Barman · etcd + Raft snapshots" --> Garage
-    CF     -- "catch-all tunnel" --> K8s
-```
+Origin git lives on a separate NixOS box (`ops`) outside the cluster, so ArgoCD never
+depends on a service it deploys itself. Everything else — the App-of-Apps root, both
+ApplicationSets, OpenBao — runs on Talos. The SVG is generated from
+[`assets/architecture.archify.json`](assets/architecture.archify.json) and follows the
+reader's color scheme.
 
 ---
 
@@ -158,14 +145,16 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 
 ## 🖥️ Hardware
 
-Three bare-metal hosts running Talos directly (ex-Proxmox machines, no
-hypervisor underneath):
+Bare-metal hosts running Talos directly (ex-Proxmox machines, no
+hypervisor underneath), plus one NixOS box that is deliberately not a cluster member:
 
-| Role          | Count | Notes                                          |
-|---------------|-------|------------------------------------------------|
-| control-plane | 3     | talos-cp-{01,02,03} on 10.11.11.{101,102,103}  |
+| Role          | Count | Notes                                                  |
+|---------------|-------|--------------------------------------------------------|
+| control-plane | 3     | talos-cp-{01,02,03} on 10.11.11.{101,102,103}          |
+| worker        | 1     | talos-worker-01 on 10.11.11.111                        |
+| ops node      | 1     | NixOS, outside the cluster — Forgejo, backup timers, watchdog, a second Actions runner (`nodes/ops/`) |
 
-Workers join later as additional hardware comes online. Per-node storage is Longhorn (2 replicas, default class). Cold storage and backups live off-cluster on a Synology NAS, exposed as Garage S3 on a dedicated DSM volume with a local certificate.
+More workers join as additional hardware comes online. Per-node storage is Longhorn (2 replicas, default class). Cold storage and backups live off-cluster on a Synology NAS, exposed as Garage S3 on a dedicated DSM volume with a local certificate.
 
 ---
 
@@ -188,7 +177,7 @@ Three L3 subnets, no L2 announcements:
 | `10.11.11.0/24` | Servers VLAN — k8s nodes, Talos VIP                |
 | `10.11.12.0/24` | LAN — Wi-Fi/DHCP clients, NAS Synology, router mgmt |
 
-Cilium peers eBGP with OpenWrt (BIRD2) from every node (ASN `65010` ↔ `65000`). Each LB IP is advertised as a `/32` with ECMP across all six nodes; `externalTrafficPolicy: Local` services are advertised only from the node hosting the pod, so single-replica workloads keep source IP without a kube-proxy hop. BIRD config is generated from `scripts/openwrt-bgp-setup.sh` — see `obsidian/111 Memory/Cilium BGP.md` for the operational guide.
+Cilium peers eBGP with OpenWrt (BIRD2) from every node (ASN `65010` ↔ `65000`). Each LB IP is advertised as a `/32` with ECMP across all cluster nodes; `externalTrafficPolicy: Local` services are advertised only from the node hosting the pod, so single-replica workloads keep source IP without a kube-proxy hop. BIRD config is generated from `scripts/openwrt-bgp-setup.sh` — see `obsidian/111 Memory/Cilium BGP.md` for the operational guide.
 
 One wildcard cert lives in `kube-system/wildcard-tls`; every Gateway references it. cert-manager renews it via Cloudflare DNS-01.
 
@@ -277,7 +266,7 @@ Runbooks: `obsidian/113 Backups/` (overview, DR automation, CNPG recovery), plan
 
 ## 🛠️ Forgejo-first workflow
 
-Origin is a self-hosted Forgejo instance. The GitHub mirror is read-only.
+Origin is a self-hosted Forgejo instance on the `ops` node, outside the cluster. The in-cluster copy is a read-only pull mirror, and so is GitHub.
 
 ```
 local branch
