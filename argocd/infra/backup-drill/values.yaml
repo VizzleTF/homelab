@@ -148,7 +148,7 @@ homelab-common:
 
                         # Ротация: одно приложение в неделю, цель чередуется по чётности недели —
                         # так off-site проверяется не реже раза в две недели по каждому тому.
-                        APPS="vaultwarden rss-to-telegram-bot cleanbot may omniroute nextcloud forgejo opencloud-data trek-uploads obsidian-livesync"
+                        APPS="vaultwarden rss-to-telegram-bot cleanbot may omniroute nextcloud forgejo-ops opencloud-data trek-uploads obsidian-livesync"
                         set -- $APPS
                         COUNT=$#
                         WEEK=$(date -u +%V | sed 's/^0*//')
@@ -203,6 +203,31 @@ homelab-common:
                         trap 'cleanup' EXIT
 
                         kubectl create ns "$NS" >/dev/null 2>&1 || true
+
+                        # forgejo-ops is not a PVC snapshot: the ops node ships a tar.zst made by
+                        # `forgejo dump`, so there is nothing for VolSync to restore. Verify the
+                        # archive itself — it must exist, be plausibly large, and actually contain
+                        # the database and the repositories. A dump that restic accepted but that
+                        # unpacks to nothing would otherwise pass unnoticed.
+                        if [ "$APP" = "forgejo-ops" ]; then
+                          kubectl -n "$NS" create secret generic drill-restic                             --from-literal=RESTIC_REPOSITORY="$REPO_URL"                             --from-literal=RESTIC_PASSWORD="$PW"                             --from-literal=AWS_ACCESS_KEY_ID="$AK"                             --from-literal=AWS_SECRET_ACCESS_KEY="$SK" >/dev/null
+
+                          kubectl -n "$NS" run verify-dump --restart=Never --image=alpine:3.24                             --overrides='{"spec":{"securityContext":{"runAsUser":0,"runAsGroup":0},"containers":[{"name":"verify-dump","image":"alpine:3.24","command":["sh","-c","set -e; apk add --no-cache restic zstd tar >/dev/null; restic restore latest --target /restore; f=$(find /restore -name \"forgejo-dump-*.tar.zst\" | head -1); [ -n \"$f\" ] || { echo NO_DUMP; exit 1; }; sz=$(stat -c%s \"$f\"); echo SIZE=$sz; [ \"$sz\" -gt 104857600 ] || { echo TOO_SMALL; exit 1; }; tar --zstd -tf \"$f\" > /tmp/l; grep -q gitea-db.sql /tmp/l || { echo NO_DB; exit 1; }; grep -q \"^repos/\" /tmp/l || { echo NO_REPOS; exit 1; }; echo ENTRIES=$(wc -l < /tmp/l); echo VERIFY_OK"],"envFrom":[{"secretRef":{"name":"drill-restic"}}],"volumeMounts":[{"name":"r","mountPath":"/restore"}]}],"volumes":[{"name":"r","emptyDir":{"sizeLimit":"8Gi"}}],"restartPolicy":"Never"}}' >/dev/null
+
+                          DDEADLINE=$(( $(date -u +%s) + 1200 ))
+                          while :; do
+                            phase=$(kubectl -n "$NS" get pod verify-dump -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                            [ "$phase" = "Succeeded" ] && break
+                            [ "$phase" = "Failed" ] && { report 0 "dump verification failed: $(kubectl -n "$NS" logs verify-dump 2>&1 | tail -3 | tr '\n' ' ')"; exit 1; }
+                            [ "$(date -u +%s)" -gt "$DDEADLINE" ] && { report 0 "dump verification timed out"; exit 1; }
+                            sleep 15
+                          done
+
+                          SUMMARY=$(kubectl -n "$NS" logs verify-dump 2>&1 | grep -E "SIZE=|ENTRIES=|VERIFY_OK" | tr '\n' ' ')
+                          echo "$SUMMARY"
+                          report 1 "$SUMMARY"
+                          exit 0
+                        fi
                         # Восстановление возвращает файлам исходных владельцев,
                         # а chown в чужой uid требует CAP_CHOWN, которого у
                         # обычного mover'а нет (VolSync выдаёт drop: [ALL]).
@@ -283,4 +308,3 @@ homelab-common:
                         SUMMARY=$(kubectl -n "$NS" logs verify 2>&1 | tr '\n' ' ')
                         echo "$SUMMARY"
                         report 1 "$SUMMARY"
-
