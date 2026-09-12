@@ -111,6 +111,24 @@ homelab-common:
         - secretKey: sshPrivateKey
           property: sshPrivateKey
 
+    # The root Application lives in its own AppProject, and repository
+    # credentials are project-scoped: without this entry ArgoCD finds no key for
+    # the repo and falls back to an ssh agent that does not exist, failing with
+    # "SSH agent requested but SSH_AUTH_SOCK not-specified".
+    - name: argocd-repo-ssh-forgejo-root
+      vaultPath: argocd/repo-ssh-forgejo
+      templateMetadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      templateData:
+        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
+        type: git
+        project: root
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+      data:
+        - secretKey: sshPrivateKey
+          property: sshPrivateKey
+
   limitRange:
     enabled: true
     name: default-limits
