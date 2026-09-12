@@ -85,6 +85,9 @@
     curl
     git
     htop
+    # Recovery happens by hand from this shell, and the backup runbook assumes
+    # restic is here — inside the systemd unit it is not enough.
+    restic
     rsync
     tmux
     vim
