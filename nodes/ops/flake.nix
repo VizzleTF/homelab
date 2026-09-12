@@ -19,6 +19,7 @@
           ./disko.nix
           ./configuration.nix
           ./forgejo.nix
+          ./forgejo-backup.nix
         ];
       };
     };
