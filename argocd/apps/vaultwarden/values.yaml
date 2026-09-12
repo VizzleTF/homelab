@@ -10,6 +10,12 @@ storage:
 
 domain: "https://pass.example.com"
 
+# Cloudflared проксирует HTTP и ставит CF-Connecting-IP; X-Real-IP (дефолт
+# чарта) не шлёт никто, поэтому vaultwarden логировал IP пода cloudflared —
+# и «неудачный вход с 10.244.2.121» не говорил ни о чём. Envoy заголовок не
+# трогает: gatewayAPI.useRemoteAddress=false у cilium.
+ipHeader: "CF-Connecting-IP"
+
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1001
@@ -50,35 +56,6 @@ initContainers:
       runAsUser: 0
       runAsNonRoot: false
       allowPrivilegeEscalation: false
-    volumeMounts:
-      - name: vaultwarden-data
-        mountPath: /data
-
-# Sidecar mounts /data вместе с vaultwarden и даёт sqlite3 CLI
-# для app-consistent backup (Velero pre-hook → sqlite3 .backup).
-# Upstream vaultwarden/server:1.36.0-alpine не содержит sqlite3 CLI.
-# Берём pre-built образ — apk add at runtime требует root, а
-# podSecurityContext.runAsNonRoot:true это блокирует.
-sidecars:
-  - name: sqlite-helper
-    image: keinos/sqlite3:3.53.4
-    command: ["/bin/sh", "-c", "exec sleep infinity"]
-    securityContext:
-      runAsUser: 1001
-      runAsGroup: 1001
-      runAsNonRoot: true
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop: [ALL]
-      seccompProfile:
-        type: RuntimeDefault
-    resources:
-      requests:
-        cpu: 1m
-        memory: 8Mi
-      limits:
-        cpu: 100m
-        memory: 32Mi
     volumeMounts:
       - name: vaultwarden-data
         mountPath: /data
