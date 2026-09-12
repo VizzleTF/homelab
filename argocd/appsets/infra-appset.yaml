@@ -3,6 +3,11 @@ kind: ApplicationSet
 metadata:
   name: infrastructure
   namespace: argocd
+  annotations:
+    # Страховка от каскада: даже если корень снова получит финалайзер или
+    # prune, ArgoCD не удалит этот AppSet. Его удаление уносит по
+    # ownerReferences все дочерние Application, а те — свои namespace'ы и PVC.
+    argocd.argoproj.io/sync-options: Delete=false
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]

@@ -3,8 +3,15 @@ kind: Application
 metadata:
   name: root
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io/background
+  # Без resources-finalizer намеренно. С ним удаление root запускает каскад:
+  # ArgoCD сносит оба ApplicationSet, k8s GC по ownerReferences убирает 55
+  # дочерних Application, и финалайзер каждого из них удаляет уже сами
+  # ресурсы — namespace'ы и PVC. Попутно исчезает и сам ArgoCD (standalone
+  # argocd-application), так что уборка обрывается на середине.
+  # preserveResourcesOnDeletion в AppSet тут не спасает: он лишь не даёт AppSet
+  # самому проставить финалайзер, а в нашем шаблоне Application тот задан явно.
+  # Без финалайзера удаление root оставляет всё осиротевшим и работающим —
+  # ровно то, что нужно, пока чинишь git.
 spec:
   project: root
   sources:
@@ -27,7 +34,11 @@ spec:
         - /status
   syncPolicy:
     automated:
-      prune: true
+      # prune: false — корень не удаляет то, что пропало из git. Иначе любая
+      # потерянная директория (или ошибка в CI) уносит AppProject/AppSet/
+      # standalone вместе с их ресурсами. Цена: удалённые из git объекты этих
+      # трёх типов надо убирать руками — операция редкая и осознанная.
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
