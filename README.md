@@ -38,7 +38,7 @@ A single-tenant home cluster. Three bare-metal Talos nodes managed by ArgoCD, wi
 | GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
 | Observability         | VictoriaMetrics + VictoriaLogs + Vector | Grafana, Alertmanager into Telegram, Robusta for K8s-aware enrichment |
 | Dependency updates    | Renovate                                | In-cluster CronJob, opens PRs against Forgejo                        |
-| Backups               | Velero + Barman                         | Velero handles PVCs and K8s state (CSI snapshot data movement through Kopia, with `talosctl etcd snapshot` running as a Velero pre-hook for the control plane); Barman handles Postgres WAL+PITR. Everything lands in one Garage bucket, mirrored daily to OVH Frankfurt. |
+| Backups               | VolSync + Barman                        | VolSync backs every PVC into two independent restic chains — Garage on the NAS and OVH Frankfurt — each with its own encryption key; Barman handles Postgres WAL+PITR. etcd and OpenBao Raft go to both targets as plain snapshot files. |
 
 ---
 
@@ -58,7 +58,7 @@ Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/):
 | Database operator | CloudNativePG          | 🟢 Sandbox                           |
 | DNS sync          | ExternalDNS            | Kubernetes SIG (under K8s Graduated) |
 | Secrets backend   | OpenBao                | OpenSSF sandbox (MPL 2.0, fork of Vault 1.14.x) |
-| Backup            | Velero                 | 🟢 Sandbox                           |
+| Backup            | VolSync                | Red Hat / backube (not CNCF)         |
 | CSI snapshotter   | kubernetes-csi/external-snapshotter | Kubernetes SIG (under K8s Graduated) |
 | Observability     | VictoriaMetrics / Logs | Not CNCF                             |
 
@@ -89,7 +89,7 @@ flowchart LR
     HW --> K8s
     Forgejo -- "ArgoCD pulls" --> K8s
     Bao  -- "ESO renders Secrets via openbao-backend-cluster" --> K8s
-    K8s    -- "Velero (CSI + Kopia) · Barman · etcd snapshots" --> Garage
+    K8s    -- "VolSync (restic) · Barman · etcd + Raft snapshots" --> Garage
     CF     -- "catch-all tunnel" --> K8s
 ```
 
@@ -145,7 +145,7 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 |---------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | **-10** | ArgoCD self-management, Gateway API CRDs, PreSync `ExternalSecret`s for charts with pre-install hooks   | ArgoCD reconciles itself first; Gateway API CRDs before any Gateway resource; hook-time ESO secrets must exist before chart `pre-install` Jobs run |
 | **-5**  | Cilium, cert-manager (+ ClusterIssuer)                                                                  | Networking and cert plumbing first; everything HTTP-facing depends on this                                                                       |
-| **-4**  | Longhorn, OpenBao, csi-snapshotter                                                                      | Storage before stateful workloads; OpenBao before ESO can resolve any external secret; CSI snapshotter (kubernetes-csi external-snapshotter) ships VolumeSnapshot CRDs which Velero needs |
+| **-4**  | Longhorn, OpenBao, csi-snapshotter                                                                      | Storage before stateful workloads; OpenBao before ESO can resolve any external secret; CSI snapshotter (kubernetes-csi external-snapshotter) ships the VolumeSnapshot CRDs VolSync snapshots depend on |
 | **-3**  | kubelet-csr-approver, metrics-server                                                                    | Cluster-wide utilities the rest of the stack assumes                                                                                             |
 | **-2**  | External Secrets Operator, CNPG operator, KEDA, External DNS (Cloudflare + OpenWrt), VictoriaMetrics    | ESO before any `ExternalSecret` reconciles; operators before instances                                                                           |
 | **-1**  | Node Feature Discovery, intel-device-plugins operator, KEDA HTTP add-on, VictoriaLogs                   | Layered atop the wave -2 prerequisites                                                                                                           |
@@ -204,56 +204,74 @@ OpenBao (MPL 2.0 fork of HashiCorp Vault 1.14.x under OpenSSF sandbox, API-compa
 
 External Secrets Operator renders Kubernetes `Secret` objects on demand from OpenBao paths shaped like `home/homelab/k8s/<ns>/<app>`.
 
-Backups go to dedicated Garage S3 buckets on Synology (`s3.example.com` — `velero-backups`, `cnpg-backups`, `terraform-state`), each mirrored daily to OVH Frankfurt. Two non-overlapping layers cover everything — see [Backups](#-backups) below.
+Backups go to Garage S3 buckets on Synology (`s3.example.com` — `restic-apps`, `snapshots`, `cnpg-backups`, `terraform-state`) and, independently, to OVH Frankfurt. See [Backups](#-backups) below.
 
-Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400. This catches every S3 client (Barman, Velero AWS plugin, Terraform S3 backend, rclone OVH-mirror CronJobs).
+Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400. This catches every S3 client (Barman, restic movers, Terraform S3 backend, rclone CronJobs).
 
 ---
 
 ## 💾 Backups
 
-Primary bucket is Garage on Synology (`velero-backups` + `cnpg-backups`), each with a daily off-site mirror to OVH Frankfurt. Two non-overlapping layers: Velero handles PVCs, K8s state and `talosctl etcd snapshot` (control plane, via Velero pre-hook on a holder pod); CNPG Barman handles Postgres WAL+PITR.
+Two targets, and neither is a copy of the other: **Garage** on the Synology (`s3.example.com`) and **OVH Frankfurt**
+are both written to directly, each with its own restic repository and its own encryption password. Losing one
+target — or the key to it — leaves the other intact and readable.
 
-| Workload | Backup CR | Cron UTC | TTL | Method | Hook |
-|---|---|---|---|---|---|
-| OpenBao Raft state | `openbao-daily` | 02:05 | 30d | CSI snapshot data movement | pre: `bao operator raft snapshot save` drops a consistent `.snap` file into the PVC right before the CSI snapshot fires. Policy `snapshot` needs `read+sudo` on `sys/storage/raft/snapshot`. |
-| Cleanbot data PVC (SQLite) | `cleanbot-daily` | 02:25 | 30d | CSI snapshot data movement | pre: `python3 -c 'sqlite3.Connection.backup(...)'` — the image lacks `sqlite3` CLI but ships Python, whose stdlib exposes the same SQLite online-backup C API; post-hook removes the `.bak` from the PVC |
-| Nextcloud data PVC | `nextcloud-daily` | 02:30 | 30d | CSI snapshot data movement | pre: `occ maintenance:mode --on`, post: `--off \|\| true` (the `\|\| true` keeps the site from getting stuck in read-only if the post-hook fails) |
-| May data PVC (SQLite) | `may-daily` | 02:35 | 30d | CSI snapshot data movement | pre: `sync` — SQLite WAL gives crash-consistent recovery over the atomic PVC snapshot |
-| Forgejo data PVC (git + LFS + attachments) | `forgejo-daily` | 02:40 | 30d | CSI snapshot data movement | pre: `forgejo manager flush-queues --timeout 30s; sync` — drains in-memory webhook/indexer queues before the snapshot fires; repo Postgres metadata sits on CNPG Barman |
-| Omniroute data PVC (SQLite) | `omniroute-daily` | 02:45 | 30d | CSI snapshot data movement | — KEDA scales the pod to zero, so there's no container to exec into; CSI snapshots the PVC directly |
-| Vaultwarden data PVC (SQLite) | `vaultwarden-daily` | 02:50 | 30d | CSI snapshot data movement | pre: `sqlite3 /data/db.sqlite3 ".backup /data/db.sqlite3.bak"` from a tiny alpine+sqlite sidecar (`sqlite-helper`) — the upstream Debian-slim image has no `sqlite3` CLI; post-hook removes the `.bak` from the PVC |
-| Rss-to-telegram-bot data PVC (SQLite) | `rss-to-telegram-bot-daily` | 02:55 | 30d | CSI snapshot data movement | pre: `sync` |
-| Immich library (~185 GiB) | `immich-daily` | 03:00 | 30d | **File System Backup** — Longhorn can't clone a 185 GiB RWX volume within Velero's 15-min timeout, so node-agent mounts the live PVC via kubelet hostPath and Kopia reads straight from it. `resourcePolicy` skips the ML model cache PVC. | pre: `sync` |
-| etcd (Talos control plane) | `talos-etcd-daily` (Velero) | 04:15 | 30d | A holder Deployment (`talos-etcd-snapshotter`, kube-system) keeps a Longhorn PVC mounted. The Velero pre-hook execs `talosctl etcd snapshot` on the pod, iterating over CP nodes `10.11.11.{101,102,103}` until one responds, then writes `etcd-<ts>.snap` to the PVC. Velero captures the PVC via CSI to Garage; the OVH mirror picks it up next morning. Local on-PVC retain is 7 snapshots, off-PVC retention rides on Velero TTL. Only path back if the cluster is gone — Velero talks to apiserver, not etcd. | pre: `talosctl etcd snapshot /backup/.velero/etcd-<ts>.snap` |
-| Postgres (cnpg + immich-cluster) | CNPG Barman | continuous WAL + scheduled base | 7d | `s3://cnpg-backups/<cluster>/`. PITR down to the minute. | — |
-| K8s runtime state (Secrets, CR `.status`, ESO renders, cert-manager Orders) | `cluster-state-weekly` | sun 04:00 | 90d | Manifests only, no PVC data. About 100 KB per backup. | — |
-| Off-site mirror (Garage → OVH Frankfurt) | `velero-bucket-mirror-ovh` CronJob | 06:00 | — | `rclone sync garage:velero-backups → ovh:vaka-homelab/velero/`. Mounted as a second BSL `ovh-backup` with `accessMode: ReadOnly`, so a compromised cluster credential can't wipe the off-site copy. | — |
+| Layer | What | Where | Schedule UTC | Retention |
+|---|---|---|---|---|
+| PVC data | 16 volumes across 13 apps, `ReplicationSource` per target | `restic-apps/<name>` on both | Garage nightly 00:10–03:36, OVH Sundays 01:40–08:00 | Garage 7 daily + 4 weekly, OVH 12 weekly + 6 monthly |
+| Postgres | cnpg-cluster + immich-cluster, Barman WAL + base backups | `cnpg-backups/` on Garage | continuous WAL, base backup daily | 7d, PITR to the minute |
+| Postgres, off-site | `pg_dump -Fc` per database, independent of Barman | `pg-logical/` on OVH | 03:50 | 90d |
+| etcd | `talosctl etcd snapshot`, straight to S3 | `snapshots/etcd/` on both | 04:15 | 30d |
+| OpenBao | Raft snapshot over the HTTP API | `snapshots/openbao/` on both | 02:05 | 90d |
+| DR pack | Shamir keys, root token, Raft snapshot, bootstrap creds — one GPG file | `snapshots/dr-pack/` on both | Sundays 02:40 | last 8 |
+| Terraform state | Garage → OVH mirror | `terraform-state/` | 08:00 | — |
 
-### Velero specifics
+### How the PVC layer works
 
-- **Schedule CRs live per-app**, rendered by the `homelab-common` chart 1.8.4 (`veleroSchedules:` section in each app's values). Only the cluster-wide `cluster-state-weekly` lives in `argocd/infra/velero/manifests/`.
-- **Chart defaults** (any field overridable per-app): ttl 720h, storageLocation garage-default, snapshotMoveData true, csiSnapshotTimeout 15m, itemOperationTimeout 4h, defaultVolumesToFsBackup false. `includedNamespaces` defaults to `[.Release.Namespace]`.
-- **node-agent DaemonSet** runs on workers only (`nodeSelector: node-role.kubernetes.io/worker`).
-- **Data-mover backup pods** also land on workers — `node-agent-config` ConfigMap (`loadAffinity` with `control-plane: DoesNotExist`), wired up through the `--node-agent-configmap=node-agent-config` flag on node-agent. The ConfigMap value must be **JSON**, not YAML — Velero parses it with `json.Unmarshal` and silently falls back to defaults on YAML.
-- **CSI snapshotter**: kubernetes-csi/external-snapshotter v8.5.0 deployed standalone. Longhorn 1.11 ships the driver but not the CRDs, so they have to come from somewhere.
-- **Kopia repo encryption**: passphrase lives in the `velero-repo-credentials` Secret, Velero generates it on first backup. Lose that Secret and the backups in Garage are unreadable.
+Each volume declares a `volsync:` block in its app values; the `homelab-common` chart renders one
+`ReplicationSource` per target plus the `ExternalSecret` holding that repository's credentials.
+
+- **`copyMethod: Snapshot`** for everything except immich: VolSync takes a Longhorn CSI snapshot, clones it, and
+  the restic mover reads the clone, so the application never pauses. Clones live in `longhorn-volsync-clone`
+  (one replica, `reclaimPolicy: Delete`) — the default class retains, and a retained clone per volume per night
+  is how you wake up to 100 orphaned PVs.
+- **`copyMethod: Direct`** for the immich library (185 GiB): two 250 GiB clones would not fit the disks. The mover
+  reads the live RWX volume in place, so files written mid-run land in the next snapshot instead.
+- Longhorn freezes the filesystem for the snapshot, so a restored SQLite database opens cleanly rather than
+  replaying a WAL as if the power had been cut.
+- Repository names are cluster-unique — the name *is* the path under `restic-apps/`, and two volumes sharing one
+  would interleave their snapshots and prune each other's history.
+
+### Verifying that any of this works
+
+A weekly drill (`backup-drill`, Sundays 09:00) restores one app into a throwaway namespace, alternating targets
+by week and rotating through ten volumes. It checks the restored data (`PRAGMA integrity_check` for SQLite),
+pushes `homelab_restore_drill_*` to VictoriaMetrics and fires an alert either way. Three more rules watch the
+drill itself: failed, stale for over 16 days, or never seen at all.
+
+Manual restores verified so far: rss-to-telegram-bot from Garage (26 s) and vaultwarden from OVH (30 s, 661
+ciphers intact).
 
 ### Restore
 
 ```bash
-# Into a test namespace (safe):
-velero restore create --from-backup <name> \
-  --namespace-mappings vaultwarden:vw-test
+# One app, into its own namespace, from either target:
+DR_RESTIC_TARGET=garage scripts/dr/restore-app.sh vaultwarden
 
-# In-place (DANGEROUS — overwrites live data):
-velero restore create --from-backup <name> --existing-resource-policy=update
+# Whole cluster, once fresh Talos is up (terraform_talos apply):
+scripts/dr/restore.sh all
 ```
 
-Full runbook in `obsidian/113 Backups/Velero Operator Guide.md`. Two scenarios it covers:
+`restore-app.sh` creates the repository Secret, the PVC and a `ReplicationDestination`, then waits for the mover.
+The full playbook runs twelve phases: network → storage → TLS → DNS → snapshot fetch → OpenBao (Shamir + Raft) →
+ESO → CNPG → Forgejo → ArgoCD adoption → per-app restore.
 
-- single namespace lost → `velero restore` with a namespace mapping into a sandbox, verify, then redo in-place
-- whole cluster gone → see `obsidian/113 Backups/DR Recovery Automation.md` — automated via `scripts/dr/restore.sh all` once a fresh Talos cluster is up (`terraform_talos apply`). Phases: network → storage → TLS → DNS → Velero bootstrap → OpenBao restore (Shamir + Raft snapshot) → ESO → CNPG operator → ArgoCD adoption → per-app Velero PVC overlay.
+The circular dependency worth knowing about: restic passwords live in OpenBao, and OpenBao itself is restored
+from a backup encrypted with them. That is what the DR pack is for — it carries both, encrypted with a
+passphrase that lives in Vaultwarden and in OpenBao, never in the pack itself.
+
+Runbooks: `obsidian/113 Backups/` (overview, DR automation, CNPG recovery), plan and journal in
+`docs/backup-v2.md`.
 
 ---
 
