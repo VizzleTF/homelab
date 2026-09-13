@@ -19,7 +19,7 @@
 #   bao kv put home/homelab/k8s/<ns>/mcp-ro username=mcp_ro password=<pw>
 #
 # Usage:  cnpg-mcp.sh <cluster>
-#   cnpg    -> ns cnpg,   svc cnpg-cluster-ro    (nextcloud/authentik/forgejo)
+#   cnpg    -> ns cnpg,   svc cnpg-cluster-ro    (authentik/forgejo/atuin)
 #   immich  -> ns immich, svc immich-cluster-ro  (immich + vectorchord)
 set -euo pipefail
 

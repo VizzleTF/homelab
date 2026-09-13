@@ -149,7 +149,7 @@ spec:
       expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
       timeout: 15m
 
-    # 4. CNPG shared cluster (nextcloud + authentik + forgejo) — 3 instance up.
+    # 4. CNPG shared cluster (authentik + forgejo + atuin) — 3 instance up.
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
       namespace: cnpg

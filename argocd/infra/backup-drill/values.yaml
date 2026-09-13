@@ -148,7 +148,7 @@ homelab-common:
 
                         # Ротация: одно приложение в неделю, цель чередуется по чётности недели —
                         # так off-site проверяется не реже раза в две недели по каждому тому.
-                        APPS="vaultwarden rss-to-telegram-bot cleanbot may omniroute nextcloud forgejo-ops opencloud-data trek-uploads obsidian-livesync"
+                        APPS="vaultwarden rss-to-telegram-bot cleanbot may omniroute forgejo-ops opencloud-data trek-uploads obsidian-livesync"
                         set -- $APPS
                         COUNT=$#
                         WEEK=$(date -u +%V | sed 's/^0*//')

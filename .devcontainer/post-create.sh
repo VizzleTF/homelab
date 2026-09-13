@@ -27,7 +27,6 @@ declare -A REPOS=(
   [lampac]="https://vizzletf.github.io/lampac_helm"
   [longhorn]="https://charts.longhorn.io"
   [metrics-server]="https://kubernetes-sigs.github.io/metrics-server"
-  [nextcloud]="https://nextcloud.github.io/helm"
   [nfd]="https://kubernetes-sigs.github.io/node-feature-discovery/charts"
   [renovate]="https://docs.renovatebot.com/helm-charts"
   [robusta]="https://robusta-charts.storage.googleapis.com"

@@ -17,7 +17,6 @@ require_kubectl
 # (/var/lib/netbird), это известная дыра, а не потеря бэкапа.
 APPS_TO_RESTORE=(
   vaultwarden
-  nextcloud
   cleanbot
   may
   omniroute

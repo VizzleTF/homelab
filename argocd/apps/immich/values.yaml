@@ -311,7 +311,7 @@ controllers:
               secretKeyRef:
                 name: immich-db-credentials
                 key: password
-          # Valkey connection — shared instance (ns valkey), Immich on DB index 1 to isolate from argocd/authentik/nextcloud (DB 0)
+          # Valkey connection — shared instance (ns valkey), Immich on DB index 1 to isolate from argocd/authentik (DB 0)
           REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
           REDIS_DBINDEX: "1"
           # Machine Learning service URL

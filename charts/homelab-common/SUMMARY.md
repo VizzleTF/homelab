@@ -81,7 +81,6 @@ spec:
 
 - Immich ✅
 - May ✅
-- Nextcloud ✅
 - Openclaw ✅
 - Vaultwarden ✅
 - Vault ✅

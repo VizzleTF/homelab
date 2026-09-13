@@ -15,17 +15,6 @@ homelab-common:
         password: "{{ .password }}"
         postgres-password: "{{ .password }}"
 
-    - name: nextcloud-db-credentials
-      vaultPath: nextcloud/nextcloud
-      data:
-        - secretKey: username
-          property: username
-        - secretKey: password
-          property: password
-      templateData:
-        username: "{{ .username }}"
-        password: "{{ .password }}"
-
     # CNPG-side credentials for shared cluster roles. Apps continue to read their
     # own secrets from their namespaces; these copies live in ns cnpg so the
     # Cluster CR can reference them via roles[].passwordSecret. CNPG expects a
@@ -87,11 +76,6 @@ homelab-common:
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
 
-  cnpgDatabase:
-    name: nextcloud
-    owner: nextcloud
-    clusterName: cnpg-cluster
-
   cnpgDatabases:
     - name: forgejo
       owner: forgejo
@@ -151,16 +135,11 @@ homelab-common:
                           PGPASSWORD="$3" pg_dump -h cnpg-cluster-rw -U "$2" -Fc -d "$1" \
                             -f "/dump/$1-$ts.dump"
                         }
-                        dump nextcloud "$NC_USER" "$NC_PASS"
                         dump authentik "$AK_USER" "$AK_PASS"
                         dump forgejo   "$FJ_USER" "$FJ_PASS"
                         dump atuin     "$AT_USER" "$AT_PASS"
                         ls -lh /dump
                     env:
-                      - name: NC_USER
-                        valueFrom: { secretKeyRef: { name: nextcloud-db-credentials, key: username } }
-                      - name: NC_PASS
-                        valueFrom: { secretKeyRef: { name: nextcloud-db-credentials, key: password } }
                       - name: AK_USER
                         valueFrom: { secretKeyRef: { name: authentik-db-credentials, key: username } }
                       - name: AK_PASS

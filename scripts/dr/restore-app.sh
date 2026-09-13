@@ -29,7 +29,6 @@ load_bootstrap_env
 lookup() {
   case "$1" in
     vaultwarden)        echo "vaultwarden|vaultwarden-data-vaultwarden-0|2Gi|ReadWriteOnce|1001" ;;
-    nextcloud)          echo "nextcloud|nextcloud-nextcloud|10Gi|ReadWriteOnce|" ;;
     cleanbot)           echo "cleanbot|cleanbot|1Gi|ReadWriteOnce|10001" ;;
     may)                echo "may|may|5Gi|ReadWriteOnce|1000" ;;
     omniroute)          echo "omniroute-data|omniroute-data|5Gi|ReadWriteOnce|1000" ;;
@@ -80,16 +79,6 @@ volsync_restore "$NS" "$REPO" "$PVC" "$SIZE" "$MODE" "$UID_"
 # Post-fix'ы, пережившие смену механизма: они про состояние приложения, а не
 # про бэкап.
 case "$APP" in
-  nextcloud)
-    log_info "fix: config.php dbpassword должен совпасть с ESO Secret"
-    PODN=$(kubectl -n nextcloud get pod -l app.kubernetes.io/name=nextcloud -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-    if [[ -n "$PODN" ]]; then
-      kubectl -n nextcloud exec "$PODN" -- bash -c '
-        sed -i "s/'\''dbpassword'\'' =>.*$/'\''dbpassword'\'' => '\''$POSTGRES_PASSWORD'\'',/" /var/www/html/config/config.php
-      ' || log_warn "nextcloud sed-fix failed"
-      kubectl -n nextcloud delete pod "$PODN" --force --grace-period=0 >/dev/null 2>&1 || true
-    fi
-    ;;
   immich)
     log_info "fix: REASSIGN OWNED, если в БД остался старый owner immich_user"
     kubectl -n immich exec immich-cluster-1 -c postgres -- psql -U postgres -d immich \

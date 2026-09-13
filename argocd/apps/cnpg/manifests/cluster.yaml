@@ -1,4 +1,4 @@
-# Shared cnpg-cluster (nextcloud / authentik / forgejo).
+# Shared cnpg-cluster (authentik / forgejo / atuin).
 # Managed as a raw manifest (not the cloudnative-pg/cluster chart) because that
 # chart (≤0.6.1) cannot emit .spec.plugins, required for the Barman Cloud Plugin
 # after PG18 GA images dropped in-tree barman. Spec mirrors the prior
@@ -52,12 +52,10 @@ spec:
 
   managed:
     roles:
+      # Nextcloud removed 2026-09-13. Drops the role once the nextcloud
+      # database is gone; delete this entry after that.
       - name: nextcloud
-        ensure: present
-        login: true
-        createdb: true
-        passwordSecret:
-          name: nextcloud-db-credentials
+        ensure: absent
       - name: authentik
         ensure: present
         login: true
