@@ -83,9 +83,19 @@ resources:
     cpu: 1000m
     # Bumped 1536→2048Mi: first-attempt OOM observed during full repo scan
     # (Node.js heap 1024 + child processes for cargo/yarn/github-actions
-    # extractors). Renovate runs ~10-15 min/day, +512Mi peak fits comfortably
-    # on bare-metal CP nodes.
+    # extractors).
     memory: 2048Mi
+
+# Keep the scan off the control plane. etcd shares the single SATA SSD with
+# everything else on a CP node, and a run on talos-cp-03 (the etcd leader)
+# pushed apply latency to 600ms at 06:00:13 on 2026-09-13: every controller
+# with leader election lost its lease and restarted.
+#
+# The cache PV below is local-path, pinned to whichever node first mounted
+# it. Changing this selector means deleting the renovate-cache PVC so it is
+# provisioned again on the new node.
+nodeSelector:
+  kubernetes.io/hostname: talos-worker-01
 
 serviceAccount:
   create: true
