@@ -52,10 +52,6 @@ spec:
 
   managed:
     roles:
-      # Nextcloud removed 2026-09-13. Drops the role once the nextcloud
-      # database is gone; delete this entry after that.
-      - name: nextcloud
-        ensure: absent
       - name: authentik
         ensure: present
         login: true
