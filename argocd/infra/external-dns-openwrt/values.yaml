@@ -35,19 +35,11 @@ provider:
       tag: "v0.7.0"
       pullPolicy: IfNotPresent
 
-    livenessProbe:
-      httpGet:
-        path: /ping
-        port: 8888
-      initialDelaySeconds: 10
-      timeoutSeconds: 5
-
-    readinessProbe:
-      httpGet:
-        path: /ping
-        port: 8888
-      initialDelaySeconds: 10
-      timeoutSeconds: 5
+    # Пробы не переопределяем: с v0.7.0 webhook слушает API только на
+    # 127.0.0.1:8888, а /healthz и метрики — на :8080, ровно как дефолтные
+    # пробы чарта (/healthz на http-webhook). Старые пробы в podIP:8888/ping
+    # получали connection refused, liveness убивал webhook, а external-dns
+    # падал следом (CrashLoopBackOff 13.09.2026).
 
     env:
       # `restart` = `/etc/init.d/dnsmasq restart` через rpc/sys.
