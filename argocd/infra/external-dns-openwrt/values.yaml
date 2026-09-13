@@ -32,7 +32,7 @@ provider:
       # Исходники: https://github.com/VizzleTF/external-dns-openwrt-next
       # renovate: datasource=docker depName=ghcr.io/vizzletf/external-dns-openwrt-next
       repository: ghcr.io/vizzletf/external-dns-openwrt-next
-      tag: "v0.6.1"
+      tag: "v0.7.0"
       pullPolicy: IfNotPresent
 
     livenessProbe:
