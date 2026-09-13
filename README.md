@@ -138,7 +138,7 @@ ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.y
 | **-1**  | Node Feature Discovery, intel-device-plugins operator, KEDA HTTP add-on, VictoriaLogs                   | Layered atop the wave -2 prerequisites                                                                                                           |
 | **0**   | Cloudflared, descheduler, intel-device-plugins-gpu, **velero**, reloader                                | Optional / leaf infrastructure                                                                                                                   |
 | **1**   | CNPG clusters, valkey, Robusta, openbao-autounseal, talos-etcd-backup, **velero-ui**                    | DB instances after the operator; tunnel + observability after the cluster is up                                                                  |
-| **2**   | Apps (authentik, forgejo, nextcloud, immich, vaultwarden, lampac, may, omniroute, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
+| **2**   | Apps (authentik, forgejo, immich, vaultwarden, lampac, may, omniroute, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
 | **3**   | forgejo-runner, netbird                                                                                 | forgejo-runner needs the Forgejo server reachable first; netbird routing peer joins the self-hosted mesh after core apps are up                  |
 
 ---

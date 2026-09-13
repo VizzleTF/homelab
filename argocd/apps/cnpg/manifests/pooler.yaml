@@ -1,7 +1,7 @@
 # PgBouncer pooler in front of the shared cnpg-cluster. Consumers: authentik,
-# nextcloud, forgejo (their values point at cnpg-cluster-pooler-rw). Transaction
-# pooling keeps PG backend count low while 3 chatty apps share one cluster.
-# max_prepared_statements: forgejo (xorm) and nextcloud (PDO) use protocol-level
+# forgejo (their values point at cnpg-cluster-pooler-rw). Transaction
+# pooling keeps PG backend count low while chatty apps share one cluster.
+# max_prepared_statements: forgejo (xorm) uses protocol-level
 # prepared statements, unsupported by transaction mode without this knob.
 # Authentik additionally sets AUTHENTIK_POSTGRESQL__USE_PGBOUNCER=true to
 # disable server-side cursors.
@@ -30,7 +30,7 @@ spec:
       # constraint loses to the taint penalty and both replicas pile onto
       # talos-worker-01. descheduler's RemoveDuplicates then evicts one every
       # 5 min and the scheduler puts it straight back — an endless churn loop
-      # that resets pgbouncer connections for authentik/nextcloud/forgejo.
+      # that resets pgbouncer connections for authentik/forgejo.
       # matchLabelKeys keeps old ReplicaSet pods out of the skew math so
       # rollouts are not blocked.
       topologySpreadConstraints:
