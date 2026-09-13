@@ -24,6 +24,14 @@ spec:
     metadata:
       name: "{{ .path.basename }}"
       namespace: argocd
+      annotations:
+        # Resources created before ServerSideApply=true still list
+        # argocd-application-controller (operation Update) as a co-owner.
+        # SSA then keeps any field that owner shares with argocd-controller
+        # after it disappears from values: a removed blueprint volume stayed
+        # in authentik-worker on 2026-09-13. On sync, ArgoCD hands those
+        # fields over to argocd-controller.
+        argocd.argoproj.io/client-side-apply-migration-manager: argocd-application-controller
     spec:
       project: applications
       destination:
