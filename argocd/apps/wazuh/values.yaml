@@ -112,12 +112,25 @@ cluster:
       # HTTP and no BackendTLSPolicy is needed. Operator bug #63 (bool fields
       # with omitempty snapping back to their default) is fixed in 2026.9.1.
       enableSSL: false
+      # Keep the dashboard off the control-plane nodes. OpenSearch Dashboards is
+      # CPU-bound while it optimises bundles on boot, and on a saturated N100
+      # control-plane node it never opened :5601 inside the liveness window
+      # (60s + 3x30s) — the pod crash-looped there while an identical pod on the
+      # worker came up fine.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
       resources:
         requests:
           cpu: 100m
           memory: 512Mi
         limits:
-          cpu: 500m
+          # 500m was not enough to finish the boot-time optimise step promptly.
+          cpu: "1"
           memory: 1Gi
 
 homelab-common:
