@@ -135,19 +135,15 @@ cluster:
 
 homelab-common:
   externalSecrets:
-    # Canonical name and keys the operator's pod builders expect for the Wazuh
-    # API (verified on the rendered pod spec: API_USERNAME reads 'api-username').
-    # Nothing else creates this secret, so there is no ownership race with the
-    # operator, and the password stays in OpenBao.
-    - name: wazuh-api-credentials
-      vaultPath: wazuh/wazuh-api
-      data:
-        - secretKey: api-username
-          property: username
-        - secretKey: api-password
-          property: password
+    # NOTE: the API credentials are NOT managed here. The operator creates
+    # wazuh-api-credentials itself (user "wazuh", 20-char generated password) as
+    # soon as the CR exists, and it owns the Secret — an ExternalSecret aimed at
+    # the same name just fails with "failed to take ownership of target secret".
+    # Same story as the indexer admin password. Both generated values are copied
+    # into OpenBao for reference only; the operator stays the source of truth.
 
     # Agent enrollment password, referenced from manager.config.auth above.
+    # This one has no operator-side counterpart, so ESO owns it cleanly.
     - name: wazuh-authd-pass
       vaultPath: wazuh/authd
       data:
