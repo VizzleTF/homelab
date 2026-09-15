@@ -11,36 +11,20 @@ sizing:
   profile: ""
   storageClassName: longhorn
 
-# Credentials come from OpenBao via the ExternalSecrets declared in the
-# homelab-common section below. The operator does NOT create ExternalSecrets —
-# it only reads the K8s Secret that ESO produces under the same name
-# (internal/secrets/resolver.go), so the names here must match those targets.
-# They are deliberately different from the operator's own auto-generated names
-# (<cluster>-indexer-credentials, <cluster>-api-credentials, <cluster>-authd-pass)
-# to avoid two owners for one Secret.
+# The chart's externalSecrets block is deliberately NOT used (operator 2026.9.1).
+# It only puts an externalSecretRef into the CR, and that path is half-wired:
+# ensureAPICredentialsSecret() returns early without creating anything, while the
+# dashboard and manager pod builders hardcode the canonical secret names
+# (constants.APICredentialsName / IndexerCredentialsName). The result is pods stuck
+# in CreateContainerConfigError on a missing wazuh-api-credentials.
+#
+# Instead the OpenBao-backed ExternalSecret below targets the canonical name
+# directly, with the canonical keys from docs/usage/features/credentials.md. The
+# indexer admin password stays operator-generated: its secret already exists and
+# the security index is initialised from it, so a second owner would only cause
+# churn.
 externalSecrets:
-  enabled: true
-  indexerAdmin:
-    name: wazuh-eso-indexer-admin
-    secretStoreRef:
-      name: openbao-backend-cluster
-      kind: ClusterSecretStore
-    remoteRef:
-      key: homelab/k8s/wazuh/indexer-admin
-  wazuhApi:
-    name: wazuh-eso-api
-    secretStoreRef:
-      name: openbao-backend-cluster
-      kind: ClusterSecretStore
-    remoteRef:
-      key: homelab/k8s/wazuh/wazuh-api
-  wazuhAuthd:
-    name: wazuh-eso-authd
-    secretStoreRef:
-      name: openbao-backend-cluster
-      kind: ClusterSecretStore
-    remoteRef:
-      key: homelab/k8s/wazuh/authd
+  enabled: false
 
 cluster:
   enabled: true
@@ -84,6 +68,15 @@ cluster:
         # Workers only scale agent-event ingestion horizontally; the master
         # accepts events itself and ~10 agents do not need a second node.
         replicas: 0
+      config:
+        auth:
+          # Agents must present a password to enroll. The chart only wires this
+          # up for its own inline/ESO secrets, so it is set explicitly here and
+          # points at the OpenBao-backed secret created below.
+          usePassword: true
+          passwordSecretRef:
+            name: wazuh-authd-pass
+            key: password
 
     dashboard:
       replicas: 1
@@ -101,23 +94,20 @@ cluster:
 
 homelab-common:
   externalSecrets:
-    - name: wazuh-eso-indexer-admin
-      vaultPath: wazuh/indexer-admin
-      data:
-        - secretKey: username
-          property: username
-        - secretKey: password
-          property: password
-
-    - name: wazuh-eso-api
+    # Canonical name and keys the operator's pod builders expect for the Wazuh
+    # API (verified on the rendered pod spec: API_USERNAME reads 'api-username').
+    # Nothing else creates this secret, so there is no ownership race with the
+    # operator, and the password stays in OpenBao.
+    - name: wazuh-api-credentials
       vaultPath: wazuh/wazuh-api
       data:
-        - secretKey: username
+        - secretKey: api-username
           property: username
-        - secretKey: password
+        - secretKey: api-password
           property: password
 
-    - name: wazuh-eso-authd
+    # Agent enrollment password, referenced from manager.config.auth above.
+    - name: wazuh-authd-pass
       vaultPath: wazuh/authd
       data:
         - secretKey: password
