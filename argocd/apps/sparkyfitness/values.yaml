@@ -1,0 +1,120 @@
+# SparkyFitness — self-hosted nutrition / exercise tracker (Node server + nginx frontend).
+# Upstream chart security defaults are already hardened (server UID 1000, frontend
+# UID 101, read-only rootfs, drop ALL) — not overridden. See docs/sparkyfitness.md.
+
+config:
+  frontendUrl: https://fitness.example.com
+  # Flip to true once the first account is registered (site is exposed externally).
+  disableSignup: false
+  # Authentik SSO. forceEmailLogin stays at the chart default (true) as the
+  # lockout fail-safe while OIDC is being verified.
+  oidc:
+    enabled: true
+    providerSlug: authentik
+    providerName: Authentik
+    issuerUrl: https://authentik.example.com/application/o/sparkyfitness/
+    secrets:
+      existingSecret: sparkyfitness-oidc
+
+# DB lives in the shared cnpg-cluster instead of the bundled helmforge/postgresql.
+postgresql:
+  enabled: false
+
+# Direct to cnpg-cluster-rw, not the pooler: startup migrations + RLS session
+# settings don't survive pgbouncer transaction-mode pooling.
+externalDatabase:
+  host: cnpg-cluster-rw.cnpg.svc.cluster.local
+  database: sparkyfitness
+  auth:
+    existingSecret: sparkyfitness-db
+
+# All chart secrets come from ESO (homelab-common below). With existingSecret set
+# the chart skips its lookup-generated Secrets, which would otherwise rotate the
+# encryption keys on every `helm template` render under ArgoCD.
+server:
+  secrets:
+    existingSecret: sparkyfitness-app
+  # The runtime role is pre-created as a CNPG managed role, so the app skips
+  # CREATE ROLE and the owner doesn't need CREATEROLE.
+  appDatabase:
+    existingSecret: sparkyfitness-appdb
+
+homelab-common:
+  externalSecrets:
+    - name: sparkyfitness-app
+      vaultPath: sparkyfitness/sparkyfitness
+      data:
+        - secretKey: api_encryption_key
+          property: api_encryption_key
+        - secretKey: better_auth_secret
+          property: better_auth_secret
+
+    # DB owner (migrations, schema, RLS policies).
+    - name: sparkyfitness-db
+      vaultPath: sparkyfitness/sparkyfitness
+      data:
+        - secretKey: password
+          property: db_password
+      templateData:
+        username: sparkyfitness
+        password: "{{ .password }}"
+
+    # Limited-privilege runtime user.
+    - name: sparkyfitness-appdb
+      vaultPath: sparkyfitness/sparkyfitness
+      data:
+        - secretKey: password
+          property: app_db_password
+      templateData:
+        username: sparkyfitness_app
+        password: "{{ .password }}"
+
+    # Dual-written with authentik/authentik:sparkyfitness_oidc_client_secret.
+    - name: sparkyfitness-oidc
+      vaultPath: sparkyfitness/sparkyfitness/oidc
+      data:
+        - secretKey: client_id
+          property: client_id
+        - secretKey: client_secret
+          property: client_secret
+
+  httpRoutes:
+    - name: sparkyfitness
+      hostname: fitness  # -> fitness.example.com
+      gateway: both
+      # Frontend nginx proxies /api, /uploads, /health-data and /mcp to the server.
+      service:
+        name: sparkyfitness-frontend
+        port: 80
+
+  # Backup v2 (см. docs/backup-v2.md): profile/exercise images on the chart-owned
+  # uploads PVC. The `backup` PVC holds the app's own DB dumps — covered by CNPG.
+  volsync:
+    - name: sparkyfitness-uploads
+      claim: sparkyfitness-server-uploads
+      capacity: 10Gi
+      moverSecurityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      targets:
+        - repo: garage
+          schedule: "50 1 * * *"
+          retain:
+            daily: 7
+            weekly: 4
+        - repo: ovh
+          schedule: "50 6 * * 0"
+          retain:
+            weekly: 12
+            monthly: 6
+
+  limitRange:
+    enabled: true
+    name: default-limits
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi

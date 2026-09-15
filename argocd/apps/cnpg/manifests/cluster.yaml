@@ -1,4 +1,4 @@
-# Shared cnpg-cluster (authentik / forgejo / atuin).
+# Shared cnpg-cluster (authentik / forgejo / atuin / sparkyfitness).
 # Managed as a raw manifest (not the cloudnative-pg/cluster chart) because that
 # chart (≤0.6.1) cannot emit .spec.plugins, required for the Barman Cloud Plugin
 # after PG18 GA images dropped in-tree barman. Spec mirrors the prior
@@ -68,6 +68,18 @@ spec:
         login: true
         passwordSecret:
           name: atuin-db-credentials
+      # SparkyFitness: both roles pre-created so the app skips CREATE ROLE and the
+      # owner needs no CREATEROLE (upstream "Option B").
+      - name: sparkyfitness
+        ensure: present
+        login: true
+        passwordSecret:
+          name: sparkyfitness-db-credentials
+      - name: sparkyfitness_app
+        ensure: present
+        login: true
+        passwordSecret:
+          name: sparkyfitness-app-db-credentials
 
   # init-only; ignored on the existing cluster. Mirrors live to avoid SSA churn.
   bootstrap:

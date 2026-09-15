@@ -50,6 +50,27 @@ homelab-common:
         username: atuin
         password: "{{ .password }}"
 
+    # SparkyFitness uses two roles: owner (migrations) + limited runtime user.
+    - name: sparkyfitness-db-credentials
+      templateType: kubernetes.io/basic-auth
+      data:
+        - secretKey: password
+          vaultPath: sparkyfitness/sparkyfitness
+          property: db_password
+      templateData:
+        username: sparkyfitness
+        password: "{{ .password }}"
+
+    - name: sparkyfitness-app-db-credentials
+      templateType: kubernetes.io/basic-auth
+      data:
+        - secretKey: password
+          vaultPath: sparkyfitness/sparkyfitness
+          property: app_db_password
+      templateData:
+        username: sparkyfitness_app
+        password: "{{ .password }}"
+
     - name: cnpg-s3-backup
       vaultPath: shared/s3-cnpg-backup
       data:
@@ -82,6 +103,9 @@ homelab-common:
       clusterName: cnpg-cluster
     - name: atuin
       owner: atuin
+      clusterName: cnpg-cluster
+    - name: sparkyfitness
+      owner: sparkyfitness
       clusterName: cnpg-cluster
 
   limitRange:
@@ -138,6 +162,7 @@ homelab-common:
                         dump authentik "$AK_USER" "$AK_PASS"
                         dump forgejo   "$FJ_USER" "$FJ_PASS"
                         dump atuin     "$AT_USER" "$AT_PASS"
+                        dump sparkyfitness "$SF_USER" "$SF_PASS"
                         ls -lh /dump
                     env:
                       - name: AK_USER
@@ -152,6 +177,10 @@ homelab-common:
                         valueFrom: { secretKeyRef: { name: atuin-db-credentials, key: username } }
                       - name: AT_PASS
                         valueFrom: { secretKeyRef: { name: atuin-db-credentials, key: password } }
+                      - name: SF_USER
+                        valueFrom: { secretKeyRef: { name: sparkyfitness-db-credentials, key: username } }
+                      - name: SF_PASS
+                        valueFrom: { secretKeyRef: { name: sparkyfitness-db-credentials, key: password } }
                     volumeMounts:
                       - name: dump
                         mountPath: /dump
