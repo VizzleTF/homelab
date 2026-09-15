@@ -609,6 +609,17 @@ worker:
     limits:
       cpu: "1"
       memory: 1Gi
+  # `ak healthcheck` forks a Python process; under load it needs more than the
+  # chart's 3s, and the liveness kills (exit 137, not OOM) restarted the worker
+  # every ~20min. Same treatment as server above.
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+  startupProbe:
+    timeoutSeconds: 5
 
 # Mount blueprints ConfigMaps (top-level chart setting, not under authentik:)
 blueprints:
