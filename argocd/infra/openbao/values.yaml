@@ -467,13 +467,19 @@ server:
   # катится последним. См. memory reference-openbao-autounseal-broken-full-reboot.
   updateStrategyType: "RollingUpdate"
 
+  # 200m limit throttled every pod (~25% of CFS periods) — the exec readiness
+  # probe `bao status` then blew its 3s timeout, flapping the STS 3/3↔2/3 and the
+  # ArgoCD app Progressing↔Healthy.
   resources:
     requests:
       memory: 250Mi
-      cpu: 80m
+      cpu: 150m
     limits:
       memory: 540Mi
-      cpu: 200m
+      cpu: 500m
+
+  readinessProbe:
+    timeoutSeconds: 5
 
   extraEnvironmentVars:
     GOMEMLIMIT: "460MiB"
