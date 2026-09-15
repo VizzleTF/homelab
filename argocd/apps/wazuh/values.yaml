@@ -1,0 +1,132 @@
+# WazuhCluster (manager + indexer + dashboard) rendered by the wazuh-cluster
+# chart into a single CR; the wazuh-operator (argocd/infra/wazuh-operator)
+# reconciles it. See docs/security-stack.md for the whole stack design.
+namespace: wazuh
+# ArgoCD creates the namespace (CreateNamespace=true).
+createNamespace: false
+
+# No sizing profile: homelab sizing is set explicitly below (profile XS is close
+# but pins indexer storage at 10Gi and master at 5Gi, too small for 30d of alerts).
+sizing:
+  profile: ""
+  storageClassName: longhorn
+
+# Credentials come from OpenBao via the ExternalSecrets declared in the
+# homelab-common section below. The operator does NOT create ExternalSecrets —
+# it only reads the K8s Secret that ESO produces under the same name
+# (internal/secrets/resolver.go), so the names here must match those targets.
+# They are deliberately different from the operator's own auto-generated names
+# (<cluster>-indexer-credentials, <cluster>-api-credentials, <cluster>-authd-pass)
+# to avoid two owners for one Secret.
+externalSecrets:
+  enabled: true
+  indexerAdmin:
+    name: wazuh-eso-indexer-admin
+    secretStoreRef:
+      name: openbao-backend-cluster
+      kind: ClusterSecretStore
+    remoteRef:
+      key: homelab/k8s/wazuh/indexer-admin
+  wazuhApi:
+    name: wazuh-eso-api
+    secretStoreRef:
+      name: openbao-backend-cluster
+      kind: ClusterSecretStore
+    remoteRef:
+      key: homelab/k8s/wazuh/wazuh-api
+  wazuhAuthd:
+    name: wazuh-eso-authd
+    secretStoreRef:
+      name: openbao-backend-cluster
+      kind: ClusterSecretStore
+    remoteRef:
+      key: homelab/k8s/wazuh/authd
+
+cluster:
+  enabled: true
+  name: wazuh
+  spec:
+    version: "4.14.7"
+    storageClassName: longhorn
+
+    indexer:
+      # Single node: green health is impossible with replicas, so indices stay
+      # yellow — that is expected and not a degraded state here.
+      replicas: 1
+      storageSize: 30Gi
+      javaOpts: "-Xms1500m -Xmx1500m -Dlog4j2.formatMsgNoLookups=true"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 3Gi
+
+    manager:
+      master:
+        storageSize: 20Gi
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            cpu: "1"
+            memory: 2Gi
+        # Agent enrollment (1515) and agent events (1514) for hosts outside the
+        # cluster: VPS over the NetBird mesh, ops, Synology, OpenWrt syslog.
+        # BGP announces the pool from every node, so the IP is reachable on LAN.
+        service:
+          type: LoadBalancer
+          annotations:
+            io.cilium/lb-ipam-ips: "10.11.10.140"
+      workers:
+        # Workers only scale agent-event ingestion horizontally; the master
+        # accepts events itself and ~10 agents do not need a second node.
+        replicas: 0
+
+    dashboard:
+      replicas: 1
+      # TLS terminates at cilium-gateway-internal, so the dashboard serves plain
+      # HTTP and no BackendTLSPolicy is needed. Operator bug #63 (bool fields
+      # with omitempty snapping back to their default) is fixed in 2026.9.1.
+      enableSSL: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+
+homelab-common:
+  externalSecrets:
+    - name: wazuh-eso-indexer-admin
+      vaultPath: wazuh/indexer-admin
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+
+    - name: wazuh-eso-api
+      vaultPath: wazuh/wazuh-api
+      data:
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+
+    - name: wazuh-eso-authd
+      vaultPath: wazuh/authd
+      data:
+        - secretKey: password
+          property: password
+
+  httpRoutes:
+    - name: wazuh
+      hostname: wazuh  # -> wazuh.example.com
+      gateway: internal  # SIEM stays off the public tunnel
+      service:
+        name: wazuh-dashboard
+        port: 5601

@@ -1,0 +1,37 @@
+# Wazuh operator (MaximeWewer) — reconciles the WazuhCluster CR deployed by
+# argocd/apps/wazuh. CRDs ship as regular templates; wazuhclusters.yaml alone is
+# ~2.7MB, so the AppSet's ServerSideApply=true is mandatory (client-side apply
+# would blow the 256KB last-applied annotation limit).
+crds:
+  install: true
+
+operator:
+  # vm.max_map_count for the OpenSearch-based indexer is set by a privileged
+  # init container the operator injects — no Talos sysctl patch needed.
+  vmMaxMapCount: 262144
+
+  logging:
+    format: json
+    level: info
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Metrics are exposed, but scraping is wired through VMServiceScrape in the
+  # victoria-metrics stack, not the chart's ServiceMonitor (prometheus-operator
+  # CRDs are not installed).
+  metrics:
+    enabled: true
+  serviceMonitor:
+    enabled: false
+  prometheusRules:
+    enabled: false
+
+# ArgoCD creates the namespace (CreateNamespace=true in the AppSet).
+namespace:
+  create: false
