@@ -1,0 +1,6 @@
+# Pinned (not "*"): the server runs DB migrations on startup, so upgrades go
+# through Renovate PRs. Chart version tracks the app release (1.7.1 = v1.7.1).
+chart: sparkyfitness
+repoURL: ghcr.io/codewithcj/charts
+targetRevision: "1.7.1"
+wave: "2"
