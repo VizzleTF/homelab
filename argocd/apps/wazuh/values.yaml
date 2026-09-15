@@ -60,10 +60,38 @@ cluster:
         # Agent enrollment (1515) and agent events (1514) for hosts outside the
         # cluster: VPS over the NetBird mesh, ops, Synology, OpenWrt syslog.
         # BGP announces the pool from every node, so the IP is reachable on LAN.
+        #
+        # ports REPLACES the operator's default set rather than extending it
+        # (applyManagerServiceSpec → WithPorts), so every port the manager needs
+        # is listed here — dropping one would silently unpublish it.
         service:
           type: LoadBalancer
           annotations:
             io.cilium/lb-ipam-ips: "10.11.10.140"
+          ports:
+            - name: api
+              port: 55000
+            - name: agent-events
+              port: 1514
+            - name: agent-auth
+              port: 1515
+            - name: cluster
+              port: 1516
+            # Devices that cannot run an agent (OpenWrt, DSM) ship syslog here.
+            - name: syslog
+              port: 514
+              protocol: UDP
+        # The CRD models <remote> as a single object, so the syslog listener is
+        # added as raw XML; the operator appends it inside <ossec_config>.
+        # allowed-ips is mandatory: without it wazuh-remoted drops every message.
+        extraConfig: |
+          <remote>
+            <connection>syslog</connection>
+            <port>514</port>
+            <protocol>udp</protocol>
+            <allowed-ips>10.11.0.0/16</allowed-ips>
+            <allowed-ips>100.104.0.0/16</allowed-ips>
+          </remote>
       workers:
         # Workers only scale agent-event ingestion horizontally; the master
         # accepts events itself and ~10 agents do not need a second node.
