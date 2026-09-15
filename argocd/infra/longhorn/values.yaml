@@ -41,8 +41,15 @@ defaultSettings:
   # storageMinimalAvailablePercentage остаётся страховкой от заполнения.
   storageOverProvisioningPercentage: "200"
   replicaAutoBalance: "best-effort"
-  # CPU для instance-manager: было 2 CPU (2000m), реальное 65m → ставим 100m
-  guaranteedInstanceManagerCPU: '{"v1":"0.1","v2":"0.1"}'
+  # CPU reservation for instance-manager. NOTE the units: for the V1 data engine
+  # this is a PERCENTAGE of the node's allocatable CPU (not millicores), while
+  # V2 takes millicores. "0.1" therefore meant 0.1% — 4m on a 3600m node, not
+  # the 100m the old comment assumed. Instance-manager then lost the CPU race
+  # against etcd/apiserver on the control-plane nodes, its `nc localhost 8500-8503`
+  # liveness probe timed out, kubelet killed it, every iSCSI target on the node
+  # died, and Postgres hit `EXT4-fs error ... Detected aborted journal`.
+  # Back to the Longhorn defaults: 12% (~432m here) and 1250 millicores for V2.
+  guaranteedInstanceManagerCPU: '{"v1":"12","v2":"1250"}'
   # Отключаем ревизионные счетчики для снижения нагрузки.
   # Только ключ v1: с 1.12.1 Longhorn отвергает `v2` для этой настройки
   # ("mismatched data engines for setting Disable Revision Counter") — весь
