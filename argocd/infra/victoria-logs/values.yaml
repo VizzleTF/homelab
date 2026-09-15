@@ -75,6 +75,18 @@ vector:
           pod_annotations: ""
         namespace_annotation_fields:
           namespace_labels: ""
+
+      # kube-apiserver audit log. Talos пишет его на CP-ноды в /var/log/audit/kube,
+      # а Vector уже монтирует /var/log с хоста — дополнительный том не нужен.
+      # На worker'е файлов нет, source там просто простаивает.
+      # read_from: end обязателен: файлы ротируются по 100MB, читать их с начала
+      # значит залить SIEM историей за сутки при каждом рестарте пода.
+      kube_audit:
+        type: file
+        include:
+          - /var/log/audit/kube/kube-apiserver*.log
+        read_from: end
+        ignore_older_secs: 600
     transforms:
       filter_noise:
         type: filter
@@ -92,3 +104,33 @@ vector:
         source: |
           .log = parse_json(.message) ?? .message
           del(.message)
+
+      # Только то, что имеет смысл держать в SIEM: изменения секретов и RBAC
+      # плюс exec/attach/port-forward в поды. Полный audit — это ~100MB за пару
+      # часов на каждой CP-ноде, такой поток Wazuh не нужен и вреден.
+      kube_audit_security:
+        type: filter
+        inputs: [kube_audit]
+        condition: |
+          a = parse_json(.message) ?? {}
+          res = to_string(get(a, ["objectRef", "resource"]) ?? "") ?? ""
+          sub = to_string(get(a, ["objectRef", "subresource"]) ?? "") ?? ""
+          verb = to_string(get(a, ["verb"]) ?? "") ?? ""
+          stage = to_string(get(a, ["stage"]) ?? "") ?? ""
+          sensitive = includes(["secrets", "roles", "rolebindings", "clusterroles", "clusterrolebindings", "serviceaccounts"], res)
+          mutating = includes(["create", "update", "patch", "delete", "deletecollection"], verb)
+          escalation = includes(["exec", "attach", "portforward"], sub)
+          stage == "ResponseComplete" && ((sensitive && mutating) || escalation)
+
+    sinks:
+      # Talos не умеет audit-webhook в сторону Falco/Wazuh, поэтому события едут
+      # в менеджер обычным syslog (LoadBalancer 10.11.10.140:514/udp, см. [[wazuh]]).
+      # Логи в VictoriaLogs при этом идут своим путём — VM-чарт сам добавляет
+      # sinks.vlogs, эта секция его не отменяет.
+      wazuh_syslog:
+        type: socket
+        inputs: [kube_audit_security]
+        address: 10.11.10.140:514
+        mode: udp
+        encoding:
+          codec: text
