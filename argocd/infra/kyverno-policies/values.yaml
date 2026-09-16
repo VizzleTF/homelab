@@ -1,0 +1,23 @@
+# Pod Security Standards as Kyverno policies.
+#
+# Separate component from the engine on purpose: the policies get edited far
+# more often than Kyverno itself, and a bad policy should never require
+# touching the controller's release.
+
+# Baseline, not restricted: restricted would flag almost everything here
+# (Longhorn, Cilium, Falco and the Wazuh operator all need privileges by
+# design), and a report nobody can act on is noise.
+podSecurityStandard: baseline
+
+# Audit only. The point right now is to see what actually violates the
+# baseline; turning this to Enforce before reading those reports would break
+# workloads on the next pod restart, not at apply time.
+validationFailureAction: Audit
+
+# Ignore, not the chart's default Fail. With Fail, a Kyverno outage turns into
+# a cluster-wide admission outage — nothing new can be scheduled while the
+# controller is down. Not a trade worth making for policies that only audit.
+failurePolicy: Ignore
+
+# Report on what is already running, not just on new admissions.
+background: true

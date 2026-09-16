@@ -1,0 +1,47 @@
+# Policy engine for the cluster.
+#
+# PodSecurity admission is effectively off here: Talos defaults to `privileged`
+# and no namespace carries enforcement labels, so any workload can ask for
+# privileged, hostPath or hostNetwork and nothing objects. Kyverno makes that
+# visible first (policies run in Audit — see argocd/infra/kyverno-policies)
+# and gives a place to enforce later.
+
+# Single replica per controller: this is a four-node homelab, and the policies
+# run in Audit, so a brief controller restart costs reports, not admissions.
+admissionController:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      # Chart default caps at 128Mi, which is tight once policies and the
+      # resource cache grow.
+      memory: 384Mi
+
+backgroundController:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+reportsController:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+
+cleanupController:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
