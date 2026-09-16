@@ -61,25 +61,50 @@ falcosidekick:
     # Falco decoders, so events would land as unparsed strings that match no
     # rule. Wiring that properly means custom WazuhDecoder/WazuhRule objects.
 
-# Noise control. Two of Falco's stock rules fire on normal Kubernetes behaviour
-# and drowned the Telegram channel within minutes of the first rollout:
-# 180 hits of one and 121 of the other in ten minutes.
+# Noise control.
+#
+# Three stock rules fire constantly on normal behaviour here. The first attempt
+# at this excluded them by k8s.ns.name and silenced almost nothing: the two
+# loudest sources carry no Kubernetes metadata at all, so every ns-based
+# exception was dead code. What they actually are:
+#
+#   * cilium-cni  — containerd runs the CNI plugin for every pod sandbox. It is
+#     a host process (container.id=runtime, no pod, no namespace), and Cilium
+#     writes the binary into /opt/cni/bin at agent start, so it is genuinely
+#     "not part of a base image". ~60 events per node per 30 min.
+#   * CI job containers — the Forgejo runner spawns them through its dind
+#     sidecar, so they are nested under dockerd and invisible to the CRI the
+#     container plugin talks to. Enrichment works fine for ordinary pods (a
+#     probe pod reports ns and image correctly); these simply are not pods.
+#
+# Exceptions therefore key on fields that exist for these events. Priorities
+# are Critical, so raising falcosidekick's minimumpriority would not help.
 customRules:
   homelab-noise.yaml: |-
     # Every pod with a service account talks to the API server — ArgoCD, Vector,
     # OpenBao, ESO, the lot. In a cluster this rule has no signal at all.
     - rule: Contact K8S API Server From Container
       enabled: false
+      override:
+        enabled: replace
 
-    # Fires whenever a container runs a binary that was not in its image. That
-    # is precisely what CI does: the Forgejo runner pulls kubeconform, helm and
-    # friends per job. Keep the rule for everything else — this is one of the
-    # more useful ones.
+    # Keep the rule — catching a container fetch-and-run a payload is one of the
+    # more useful things Falco does — but drop the two benign sources.
+    #
+    # /workspace/<owner>/<repo> is the Forgejo Actions job workspace, so the cwd
+    # test scopes the exception to CI containers. It is a deliberate blind spot:
+    # a process that chdirs there is not reported. Narrowing it to this one
+    # Forgejo org keeps the hole small, and if the org is ever renamed the noise
+    # simply comes back rather than the exception silently widening.
     - rule: Drop and execute new binary in container
-      append: true
-      condition: and not k8s.ns.name in (forgejo, argocd)
+      condition: and not proc.exepath = /opt/cni/bin/cilium-cni
+                 and not proc.cwd startswith /workspace/vizzle/
+      override:
+        condition: append
 
-    # Cilium's agent creates packet sockets by design.
+    # Cilium's agent creates packet sockets by design, and so does the dind
+    # sidecar backing the Forgejo runner while it sets up job networking.
     - rule: Packet socket created in container
-      append: true
-      condition: and not k8s.ns.name = "kube-system"
+      condition: and not k8s.ns.name in (kube-system, forgejo)
+      override:
+        condition: append
