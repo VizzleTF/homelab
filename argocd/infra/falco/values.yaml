@@ -60,3 +60,26 @@ falcosidekick:
     # Deliberately no syslog output to Wazuh yet: the 4.14 ruleset ships no
     # Falco decoders, so events would land as unparsed strings that match no
     # rule. Wiring that properly means custom WazuhDecoder/WazuhRule objects.
+
+# Noise control. Two of Falco's stock rules fire on normal Kubernetes behaviour
+# and drowned the Telegram channel within minutes of the first rollout:
+# 180 hits of one and 121 of the other in ten minutes.
+customRules:
+  homelab-noise.yaml: |-
+    # Every pod with a service account talks to the API server — ArgoCD, Vector,
+    # OpenBao, ESO, the lot. In a cluster this rule has no signal at all.
+    - rule: Contact K8S API Server From Container
+      enabled: false
+
+    # Fires whenever a container runs a binary that was not in its image. That
+    # is precisely what CI does: the Forgejo runner pulls kubeconform, helm and
+    # friends per job. Keep the rule for everything else — this is one of the
+    # more useful ones.
+    - rule: Drop and execute new binary in container
+      append: true
+      condition: and not k8s.ns.name in (forgejo, argocd)
+
+    # Cilium's agent creates packet sockets by design.
+    - rule: Packet socket created in container
+      append: true
+      condition: and not k8s.ns.name = "kube-system"
