@@ -25,6 +25,7 @@
           ./netbird.nix
           ./metrics.nix
           ./runner.nix
+          ./wazuh.nix
         ];
       };
     };
