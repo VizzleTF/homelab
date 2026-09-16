@@ -133,6 +133,57 @@ cluster:
           cpu: "1"
           memory: 1Gi
 
+# Sign-in through Authentik. The dashboard keeps its local login as well: the
+# operator forces the basic auth domain on and it is what `kibanaserver` uses to
+# talk to the indexer, so removing it takes the dashboard down with it (operator
+# issue #57). Only one domain may issue the WWW-Authenticate challenge, hence
+# basic keeps challenge=true and OIDC leaves it false.
+opensearchAuthConfig:
+  enabled: true
+  name: wazuh-auth
+  spec:
+    clusterRefs:
+      - name: wazuh
+        namespace: wazuh
+    oidc:
+      enabled: true
+      httpEnabled: true
+      order: 1
+      clientId: wazuh
+      clientSecretRef:
+        name: wazuh-oidc
+        key: client_secret
+      connectURL: https://authentik.example.com/application/o/wazuh/.well-known/openid-configuration
+      logoutUrl: https://authentik.example.com/application/o/wazuh/end-session/
+      scope: openid profile email groups
+      subjectKey: preferred_username
+      # Authentik emits group names in this claim via the "OpenID 'groups'
+      # (Wazuh)" scope mapping; OpenSearch treats each entry as a backend role,
+      # which is what opensearchRoleMappings below matches on.
+      rolesKey: groups
+      dashboard:
+        rootUrl: https://wazuh.example.com
+        cookiePasswordRef:
+          name: wazuh-oidc
+          key: cookie_password
+
+# wazuh-admins -> full access. There is no viewer mapping on purpose: an
+# OpenSearch role only governs index reads, while the Wazuh app reaches the
+# manager API through one shared account with run_as disabled, so a read-only
+# OpenSearch role would still leave agent restarts and active response available
+# from the UI. Real separation needs runAs plus Wazuh API RBAC rules, and this
+# operator exposes no CRD for those.
+opensearchRoleMappings:
+  - name: all-access-wazuh-admins
+    spec:
+      clusterRefs:
+        - name: wazuh
+          namespace: wazuh
+      roleName: all_access
+      description: "Authentik group wazuh-admins -> all_access"
+      backendRoles:
+        - wazuh-admins
+
 homelab-common:
   externalSecrets:
     # NOTE: the API credentials are NOT managed here. The operator creates
@@ -149,6 +200,18 @@ homelab-common:
       data:
         - secretKey: password
           property: password
+
+    # OIDC client secret and the dashboard's session-cookie signing password,
+    # referenced from opensearchAuthConfig above. The same client_secret is
+    # written to the authentik bootstrap path so the blueprint's !Env resolves
+    # to the identical value.
+    - name: wazuh-oidc
+      vaultPath: wazuh/oidc
+      data:
+        - secretKey: client_secret
+          property: client_secret
+        - secretKey: cookie_password
+          property: cookie_password
 
   httpRoutes:
     - name: wazuh
