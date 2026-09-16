@@ -1,0 +1,50 @@
+# CVE visibility for everything running in the cluster.
+#
+# Renovate keeps chart and image versions moving, but that is not the same
+# thing: it does not know whether the image running right now carries a
+# critical CVE. With ~57 applications deployed, nothing looked at that at all.
+#
+# Reports land as CRDs (VulnerabilityReport per workload) and as metrics, so
+# alerting can hang off them later without another UI to log into.
+
+operator:
+  # One scan at a time. The default is 10, and the scan jobs are what make this
+  # operator infamous for memory spikes — on a cluster whose control-plane
+  # nodes already sit near their CPU ceiling, parallel scans are a bad trade.
+  scanJobsConcurrentLimit: 1
+  scanJobTimeout: 10m
+
+  # SBOM generation doubles the work and the stored objects, and nothing here
+  # consumes an SBOM today.
+  sbomGenerationEnabled: false
+
+  # Per-finding metrics are the point: they let vmalert fire on new criticals.
+  metricsFindingsEnabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+trivy:
+  # Only what can actually be acted on: unfixed CVEs are noise in a homelab —
+  # there is no patch to apply, and they would drown the fixable ones.
+  ignoreUnfixed: true
+  severity: HIGH,CRITICAL
+  timeout: "10m0s"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Scraping goes through VMServiceScrape (VictoriaMetrics operator), not the
+# prometheus-operator ServiceMonitor CRD — that CRD is not installed here.
+serviceMonitor:
+  enabled: false
