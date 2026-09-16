@@ -1,0 +1,5 @@
+chart: falco
+repoURL: https://falcosecurity.github.io/charts
+targetRevision: "9.1.0"
+namespace: falco
+wave: "1"

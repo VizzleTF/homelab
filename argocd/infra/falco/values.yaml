@@ -1,0 +1,62 @@
+# Runtime detection for the cluster — the blind spot Wazuh cannot cover on Talos.
+# Wazuh watches hosts through agents, but Talos takes no agent, so nothing sees
+# what happens *inside* containers: a shell in a pod, a read of /etc/shadow, a
+# process writing to a binary directory. Falco reads syscalls and does.
+#
+# Kubernetes audit events are NOT collected here — Vector already ships the
+# interesting ones to Wazuh (argocd/infra/victoria-logs). Falco covers syscalls.
+
+driver:
+  # Explicit: the chart defaults to "auto", which probes for a kernel module
+  # first. Talos ships a 6.18 kernel with BTF, so the modern eBPF probe needs
+  # no driver build and no kernel headers — nothing to compile on an immutable OS.
+  kind: modern_ebpf
+
+# The chart's defaults (1 CPU / 1Gi per node) are sized for busy clusters; that
+# would reserve 4Gi across the four nodes here. Falco with the modern probe sits
+# around 200-300MB in practice.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
+
+# Control-plane nodes run workloads here, so they need watching too.
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+falco:
+  # Structured output: the sidekick parses it, and it reads better in logs.
+  json_output: true
+  json_include_output_property: true
+
+falcosidekick:
+  enabled: true
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+  config:
+    # Findings travel the same path as every other alert in this cluster:
+    # Alertmanager -> Robusta -> Telegram. No second notification channel.
+    alertmanager:
+      hostport: http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093
+      # VM's Alertmanager speaks the v2 API; the chart still defaults to v1.
+      endpoint: /api/v2/alerts
+      # Falco's own noise floor is "debug"/"informational"; anything below
+      # notice is not worth waking anyone up for.
+      minimumpriority: notice
+
+    # Deliberately no syslog output to Wazuh yet: the 4.14 ruleset ships no
+    # Falco decoders, so events would land as unparsed strings that match no
+    # rule. Wiring that properly means custom WazuhDecoder/WazuhRule objects.
