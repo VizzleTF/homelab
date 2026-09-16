@@ -27,6 +27,27 @@ operator:
   # only stops a scanner that never returned a result.
   clusterComplianceEnabled: false
 
+  # EXPERIMENT (2026-09-16) — run scans against a built-in Trivy server.
+  #
+  # A scan job starts one trivy process per container of the target, init
+  # containers included, all at once and all sharing --cache-dir
+  # /tmp/trivy/.cache. They race for the file lock on that cache and lose:
+  #
+  #   FATAL unable to initialize fs cache: cache may be in use by another
+  #   process: timeout
+  #
+  # scanJobsConcurrentLimit does not help — it serialises jobs, not the
+  # processes inside one. It hits every multi-container workload (cilium, wazuh,
+  # forgejo, the monitoring stack): 25 of 105 workloads, baseline coverage 34 of
+  # 70 containers, 43 lock errors and 16 BackoffLimitExceeded in an hour.
+  #
+  # In ClientServer mode the vulnerability DB lives on the server, so jobs stop
+  # downloading and opening it themselves. Whether that also ends the lock race
+  # is NOT known: the client still analyses image layers and may keep a local
+  # cache for that. Success means zero "Failed to acquire cache" over a full
+  # rescan and coverage well above 34/70. If not, revert this flag.
+  builtInTrivyServer: true
+
   resources:
     requests:
       cpu: 50m
@@ -41,6 +62,12 @@ trivy:
   ignoreUnfixed: true
   severity: HIGH,CRITICAL
   timeout: "10m0s"
+
+  # The built-in server keeps its DB on a 5Gi PVC. The default class is Longhorn
+  # with Retain and two replicas — 10Gi of replicated storage for data that is
+  # simply re-downloaded, and a volume left orphaned if this experiment is
+  # reverted. local-path deletes on release and does not replicate.
+  storageClassName: local-path
 
   resources:
     requests:
