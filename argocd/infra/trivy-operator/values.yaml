@@ -21,15 +21,10 @@ operator:
   # Per-finding metrics are the point: they let vmalert fire on new criticals.
   metricsFindingsEnabled: true
 
-  # Cluster compliance (CIS/NSA/PSS) needs the node-collector job, which reads
-  # node configuration through host paths. That cannot work on Talos: the job
-  # dies with `mkdir /etc/systemd: read-only file system`, since the OS is
-  # immutable and has no systemd to inspect. All four ClusterComplianceReports
-  # sat with an empty status while the job retried, so nothing was lost by
-  # switching it off — it had never produced a result.
-  #
-  # Infra assessment stays on: it reads control-plane *pod specs* rather than
-  # the node, needs no collector, and is already returning reports.
+  # Cluster compliance (CIS/NSA/PSS) consumes node-collector output, which this
+  # cluster cannot produce (see nodeCollector.excludeNodes below). All four
+  # ClusterComplianceReports sat with an empty status the whole time, so this
+  # only stops a scanner that never returned a result.
   clusterComplianceEnabled: false
 
   resources:
@@ -59,3 +54,24 @@ trivy:
 # prometheus-operator ServiceMonitor CRD — that CRD is not installed here.
 serviceMonitor:
   enabled: false
+
+nodeCollector:
+  # Node scanning is switched off by excluding every node, because it cannot
+  # work on Talos at all. The collector mounts host paths — /etc/systemd,
+  # /lib/systemd, /etc/kubernetes, /var/lib/{etcd,kubelet,kube-scheduler,
+  # kube-controller-manager} — to read node configuration for the CIS checks.
+  # Talos is immutable and has no systemd, so the job never starts:
+  #
+  #   failed to apply OCI options: failed to mkdir "/etc/systemd":
+  #   mkdir /etc/systemd: read-only file system
+  #
+  # It retried per node and left pods in CreateContainerError, which is what
+  # KubeContainerWaiting fired on. Disabling clusterCompliance alone did not
+  # stop it: the jobs are labelled trivy-operator.resource.kind=Node and are
+  # driven by the node side of the infra-assessment scanner, not by compliance.
+  #
+  # Excluding by kubernetes.io/os=linux covers all four nodes today and any node
+  # added later — the whole cluster is Talos, so none of them can ever run it.
+  # Pod-level InfraAssessmentReports are unaffected: they read control-plane pod
+  # specs rather than the host, and keep being produced.
+  excludeNodes: kubernetes.io/os=linux
