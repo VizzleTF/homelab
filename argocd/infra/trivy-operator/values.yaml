@@ -21,6 +21,17 @@ operator:
   # Per-finding metrics are the point: they let vmalert fire on new criticals.
   metricsFindingsEnabled: true
 
+  # Cluster compliance (CIS/NSA/PSS) needs the node-collector job, which reads
+  # node configuration through host paths. That cannot work on Talos: the job
+  # dies with `mkdir /etc/systemd: read-only file system`, since the OS is
+  # immutable and has no systemd to inspect. All four ClusterComplianceReports
+  # sat with an empty status while the job retried, so nothing was lost by
+  # switching it off — it had never produced a result.
+  #
+  # Infra assessment stays on: it reads control-plane *pod specs* rather than
+  # the node, needs no collector, and is already returning reports.
+  clusterComplianceEnabled: false
+
   resources:
     requests:
       cpu: 50m
