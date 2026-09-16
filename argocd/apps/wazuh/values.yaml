@@ -149,17 +149,26 @@ opensearchAuthConfig:
     # does NOT preserve a default: the operator emits a config.yml holding only
     # the domains named here, so omitting it produced activeAuthDomains=["oidc"]
     # and removed local sign-in — including kibanaserver's, which is how the
-    # dashboard reaches the indexer. Only one domain may issue the
-    # WWW-Authenticate challenge, so basic keeps it and OIDC leaves it false.
+    # dashboard reaches the indexer.
+    #
+    # challenge MUST be false once OIDC is in play, despite the CRD advising to
+    # keep it on. With challenge=true this domain answers a request carrying no
+    # Basic credentials by returning 401 WWW-Authenticate immediately, which
+    # ends the auth-domain walk before the OIDC domain is ever reached: a valid
+    # bearer token produced 336 checks against internal/0 and not one against
+    # the OIDC domain, with no JWT parsing at TRACE level. Local accounts stay
+    # usable — the dashboard's login form sends credentials explicitly, and
+    # challenge only governs the browser's basic-auth prompt.
     basicAuth:
       enabled: true
       httpEnabled: true
-      challenge: true
-      order: 0
+      challenge: false
+      order: 1
     oidc:
       enabled: true
       httpEnabled: true
-      order: 1
+      # Evaluated before basic so a bearer token is examined first.
+      order: 0
       clientId: wazuh
       clientSecretRef:
         name: wazuh-oidc
