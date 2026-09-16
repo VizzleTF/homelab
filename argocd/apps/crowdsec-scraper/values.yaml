@@ -153,6 +153,25 @@ homelab-common:
                       value: "k8s-crowdsec-scraper"
                     - name: NB_LOG_LEVEL
                       value: "info"
+                    # Do not accept the LAN routes NetBird hands out. The peers
+                    # advertise 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16 —
+                    # mirroring the router, which sends all of 10/8 into the
+                    # work VPN on tun0 — and the client installs them in table
+                    # 7120 at rule priority 110, ahead of main. Inside a pod
+                    # that swallows the cluster itself: pod CIDR 10.244.0.0/16
+                    # and service CIDR 10.96.0.0/12 both fall in 10/8, so every
+                    # in-cluster address routes into the mesh and disappears.
+                    # vmagent then scrapes fine but cannot reach vmsingle to
+                    # ship anything, and CoreDNS is unreachable too.
+                    #
+                    # This scraper only ever talks to mesh peers by their
+                    # 100.104.x addresses, which come from the kernel route on
+                    # wt0 and are unaffected. Narrowing the advertised route is
+                    # not an option: the router cannot enumerate what lives
+                    # behind the corporate tunnel, so any narrower prefix
+                    # silently cuts something off.
+                    - name: NB_DISABLE_CLIENT_ROUTES
+                      value: "true"
                   envFrom:
                     - secretRef:
                         name: netbird-peer
