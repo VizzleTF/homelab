@@ -145,6 +145,17 @@ opensearchAuthConfig:
     clusterRefs:
       - name: wazuh
         namespace: wazuh
+    # The basic domain has to be declared explicitly. Leaving this block out
+    # does NOT preserve a default: the operator emits a config.yml holding only
+    # the domains named here, so omitting it produced activeAuthDomains=["oidc"]
+    # and removed local sign-in — including kibanaserver's, which is how the
+    # dashboard reaches the indexer. Only one domain may issue the
+    # WWW-Authenticate challenge, so basic keeps it and OIDC leaves it false.
+    basicAuth:
+      enabled: true
+      httpEnabled: true
+      challenge: true
+      order: 0
     oidc:
       enabled: true
       httpEnabled: true
@@ -167,12 +178,19 @@ opensearchAuthConfig:
           name: wazuh-oidc
           key: cookie_password
 
-# wazuh-admins -> full access. There is no viewer mapping on purpose: an
-# OpenSearch role only governs index reads, while the Wazuh app reaches the
-# manager API through one shared account with run_as disabled, so a read-only
-# OpenSearch role would still leave agent restarts and active response available
-# from the UI. Real separation needs runAs plus Wazuh API RBAC rules, and this
-# operator exposes no CRD for those.
+# The operator REPLACES a role mapping with exactly what is listed here; it does
+# not merge into the existing one. Leaving "admin" out of all_access is a
+# lockout, not a tidy-up: the operator authenticates as admin, so the moment it
+# drops that entry it can no longer read or write any mapping (403 "does not
+# have any role privileged for admin access"), cannot undo its own change, and
+# every dashboard query fails. Recovery takes the admin certificate. Keep admin
+# and the admin cert DN listed for as long as this mapping is managed here.
+#
+# No viewer mapping on purpose: an OpenSearch role only governs index reads,
+# while the Wazuh app reaches the manager API through one shared account with
+# run_as disabled, so a read-only role would still leave agent restarts and
+# active response reachable from the UI. Real separation needs runAs plus Wazuh
+# API RBAC rules, and this operator exposes no CRD for those.
 opensearchRoleMappings:
   - name: all-access-wazuh-admins
     spec:
@@ -180,9 +198,13 @@ opensearchRoleMappings:
         - name: wazuh
           namespace: wazuh
       roleName: all_access
-      description: "Authentik group wazuh-admins -> all_access"
+      description: "admin + Authentik group wazuh-admins -> all_access"
       backendRoles:
+        - admin
         - wazuh-admins
+      users:
+        # Required by the certificate hot-reload API.
+        - "CN=admin,OU=Security,O=Wazuh,L=San Francisco,ST=California,C=US"
 
 homelab-common:
   externalSecrets:
