@@ -82,11 +82,11 @@ cluster:
               port: 514
               protocol: UDP
         #
-        # externalTrafficPolicy is NOT in the CRD, but the operator keeps an
-        # existing value when the desired one is empty. It is patched to Local
-        # by hand (kubectl patch svc wazuh-manager-master ...) so syslog keeps
-        # its real source IP; with Cluster every datagram was SNATed to the
-        # node that took it, so ops showed up as 10.11.11.100 and .102.
+        # Syslog arrives SNATed to whichever node took the datagram (ECMP over
+        # all four), so `location` is a node IP, not the sender; the sender is
+        # in predecoder.hostname. externalTrafficPolicy: Local would keep the
+        # source but was tried and reverted: the LB IP vanished from the
+        # router's BGP table and every agent disconnected.
         #
         # The CRD models <remote> as a single object, so the syslog listener is
         # added as raw XML; the operator appends it inside <ossec_config>.
@@ -414,7 +414,7 @@ wazuhRules:
           </rule>
           <rule id="100402" level="8">
             <if_sid>100401</if_sid>
-            <field name="user.username" negate="yes">^system:</field>
+            <field name="user.username" negate="yes">^system:|^talos:</field>
             <description>K8s: $(user.username) ran $(objectRef.subresource) in $(objectRef.namespace)/$(objectRef.name)</description>
             <group>k8s_exec,</group>
           </rule>
@@ -427,7 +427,7 @@ wazuhRules:
           </rule>
           <rule id="100404" level="10">
             <if_sid>100403</if_sid>
-            <field name="user.username" negate="yes">^system:</field>
+            <field name="user.username" negate="yes">^system:|^talos:</field>
             <description>K8s RBAC changed by a person: $(user.username) $(verb) $(objectRef.resource) $(objectRef.name)</description>
             <group>k8s_rbac,</group>
           </rule>
@@ -437,7 +437,7 @@ wazuhRules:
           <rule id="100405" level="8">
             <if_sid>100400</if_sid>
             <field name="objectRef.resource">^secrets$</field>
-            <field name="user.username" negate="yes">^system:</field>
+            <field name="user.username" negate="yes">^system:|^talos:</field>
             <description>K8s secret changed by a person: $(user.username) $(verb) $(objectRef.namespace)/$(objectRef.name)</description>
             <group>k8s_secrets,</group>
           </rule>
