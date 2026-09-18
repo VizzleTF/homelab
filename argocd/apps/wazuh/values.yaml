@@ -94,9 +94,15 @@ cluster:
         #
         # The operator renders no <vulnerability-detection>, no <command> and no
         # <active-response>, so all three live here too.
-        #  - vulnerability-detection matches the syscollector package inventory
-        #    against the Wazuh CTI feed (cti.wazuh.com, reachable from the pod)
-        #    and writes wazuh-states-vulnerabilities-*.
+        #  - vulnerability-detection is OFF on purpose (2026-09-18). It unpacks
+        #    a ~4.2GB CVE database into queue/vd on the manager PVC, again on
+        #    every manager restart. That PVC is Longhorn with replicas on the
+        #    control-plane disks, and the writes starved etcd: WAL fsync p99
+        #    3s, ~150 leader changes in an hour, control-plane pods and every
+        #    leader-elected controller restarting. Explicit <enabled>no</enabled>
+        #    rather than no block, so no module default can turn it on.
+        #    Re-enable only
+        #    once the manager PVC lives off the control-plane disks.
         #  - firewall-drop is the agent's built-in script, so no
         #    WazuhActiveResponse (which only ships a script to the manager) is
         #    needed. SSH brute force only: 100204 (non-existent users; the
@@ -119,9 +125,7 @@ cluster:
             <allowed-ips>10.244.0.0/16</allowed-ips>
           </remote>
           <vulnerability-detection>
-            <enabled>yes</enabled>
-            <index-status>yes</index-status>
-            <feed-update-interval>60m</feed-update-interval>
+            <enabled>no</enabled>
           </vulnerability-detection>
           <global>
             <white_list>127.0.0.1</white_list>
