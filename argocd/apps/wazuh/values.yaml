@@ -376,7 +376,7 @@ wazuhRules:
 
           <!-- PAM session bookkeeping. Logins are already recorded by sshd (5715),
                sudo (5402/5407) and su; the session open/close pair around them, plus
-               every cron job and systemd --user instance, only doubles the count. -->
+               every cron job and systemd user instance, only doubles the count. -->
           <rule id="100211" level="2">
             <if_sid>5502</if_sid>
             <description>PAM: session closed (silenced)</description>
