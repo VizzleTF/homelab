@@ -100,7 +100,9 @@ cluster:
         #  - firewall-drop is the agent's built-in script, so no
         #    WazuhActiveResponse (which only ships a script to the manager) is
         #    needed. SSH brute force only: 100204 (non-existent users; the
-        #    homelab-noise rebuild of 5712) and 5763 (valid user, failed auth). Web-scan rules are left out on purpose —
+        #    homelab-noise rebuild of 5712), 100208 (repeated preauth failures,
+        #    i.e. root guessing on key-only hosts) and 5763 (valid user,
+        #    failed password). Web-scan rules are left out on purpose —
         #    the VPS terminate VPN traffic and a CGNAT neighbour would get
         #    banned with the scanner. CrowdSec runs on cloudru as well; a double
         #    ban there is harmless.
@@ -149,7 +151,7 @@ cluster:
           <active-response>
             <command>firewall-drop</command>
             <location>local</location>
-            <rules_id>100204,5763</rules_id>
+            <rules_id>100204,100208,5763</rules_id>
             <timeout>3600</timeout>
           </active-response>
       workers:
@@ -278,11 +280,12 @@ opensearchRoleMappings:
 # Detection content. The chart fills in clusterRefs for every entry. Each
 # change rolls the manager StatefulSet (content is subPath-mounted).
 wazuhRules:
-  # Noise control, checked with wazuh-logtest against real events. Before
-  # this ~70% of indexed alerts were four sources: nginx 4xx from scanners on
-  # the VPS, the provider agent crash-looping on cloudru, internet-wide SSH
-  # user guessing, and Forgejo git-over-ssh sessions on ops tripping the
-  # "non-business hours" policy. That policy file is excluded outright in
+  # Noise control, checked with wazuh-logtest against real events. What is
+  # left after it: sshd/sudo/su logins, FIM changes, SCA score summaries,
+  # brute-force bans, Falco, k8s audit by people, and anything unusual.
+  # Before it ~95% of indexed alerts were internet background on the public
+  # VPS (web scanners, SSH guessing), the provider agent crash-looping on
+  # cloudru, PAM/cron bookkeeping and Forgejo git-over-ssh on ops. That policy file is excluded outright in
   # extraConfig above; everything else is here.
   - name: homelab-noise
     spec:
@@ -293,39 +296,71 @@ wazuhRules:
           <!-- The operator only accepts rule IDs >= 100000, so stock rules cannot be
                overwritten. Noise is silenced with children instead. A child becomes
                the event's final rule, which starves any stock if_matched_sid
-               correlation on the parent, so the two correlations that matter are
-               rebuilt on top of the children (100202, 100204). Those children are
-               level 2, not 0: below log_alert_level (3) they are never indexed, but
-               level-0 events do not feed if_matched_sid at all (checked in logtest).
+               correlation on the parent, so the correlations that matter are
+               rebuilt on top of the children. Silencing children are level 2, not 0:
+               below log_alert_level (3) they are never indexed, but level-0 events
+               do not feed if_matched_sid at all (checked in logtest). Stock children
+               of a parent load before these, so they still win where they match. -->
 
-               Public VPS: plain 4xx from scanners. Stock children of 31101 (SQL
-               injection, XSS, common web attack, ...) load first and still win. -->
+          <!-- Public VPS web: every nginx there is a decoy that answers 200 to any
+               path, so "attack returned 200" is as meaningless as the 4xx noise.
+               Scanners hit all of it around the clock. -->
           <rule id="100201" level="2">
             <if_sid>31101</if_sid>
-            <description>Web server 4xx (silenced; see 100202)</description>
+            <description>Web server 4xx (silenced)</description>
             <group>web,accesslog,</group>
           </rule>
-          <rule id="100202" level="6" frequency="14" timeframe="90">
-            <if_matched_sid>100201</if_matched_sid>
-            <same_source_ip />
-            <description>Multiple web server 400 error codes from same source ip.</description>
-            <mitre>
-              <id>T1595.002</id>
-            </mitre>
-            <group>web_scan,recon,</group>
+          <rule id="100202" level="2">
+            <if_sid>31103,31104,31105,31106,31110,31516</if_sid>
+            <description>Web attack pattern against decoy nginx (silenced)</description>
+            <group>web,accesslog,</group>
+          </rule>
+          <rule id="100205" level="2">
+            <if_sid>31533</if_sid>
+            <description>POST flood against decoy nginx (silenced)</description>
+            <group>web,accesslog,</group>
+          </rule>
+          <rule id="100206" level="2">
+            <if_sid>31301,31302</if_sid>
+            <description>Nginx error/warning (silenced)</description>
+            <group>nginx,</group>
           </rule>
 
-          <!-- Internet-wide SSH user guessing. The brute-force correlation that used
-               to be 5712 is 100204; firewall-drop triggers on it. -->
+          <!-- Internet-wide SSH noise on the VPS: user guessing, preauth resets and
+               key-exhaustion disconnects. Two correlations replace what the
+               silencing breaks, both drive firewall-drop (extraConfig): 100204 for
+               non-existent users (was 5712) and 100208 for everything preauth,
+               which is how root brute force looks on key-only servers. Level 6:
+               the ban is the action, the alert is only a record. -->
           <rule id="100203" level="2">
             <if_sid>5710</if_sid>
             <description>sshd: non-existent user (silenced; see 100204)</description>
             <group>authentication_failed,invalid_login,</group>
           </rule>
-          <rule id="100204" level="10" frequency="8" timeframe="120" ignore="60">
+          <rule id="100204" level="6" frequency="8" timeframe="120" ignore="60">
             <if_matched_sid>100203</if_matched_sid>
             <same_source_ip />
             <description>sshd: brute force trying to get access to the system. Non existent user.</description>
+            <mitre>
+              <id>T1110</id>
+            </mitre>
+            <group>authentication_failures,attack,</group>
+          </rule>
+          <rule id="100207" level="2">
+            <if_sid>5758,5762,5740</if_sid>
+            <description>sshd: preauth disconnect (silenced; see 100208)</description>
+            <group>homelab_ssh_preauth,</group>
+          </rule>
+          <rule id="100209" level="2">
+            <if_sid>2501</if_sid>
+            <match>[preauth]</match>
+            <description>sshd: too many authentication failures (silenced; see 100208)</description>
+            <group>homelab_ssh_preauth,</group>
+          </rule>
+          <rule id="100208" level="6" frequency="8" timeframe="120" ignore="60">
+            <if_matched_group>homelab_ssh_preauth</if_matched_group>
+            <same_source_ip />
+            <description>sshd: brute force, repeated preauth failures from same source ip.</description>
             <mitre>
               <id>T1110</id>
             </mitre>
@@ -339,17 +374,52 @@ wazuhRules:
             <description>cloudru: osconfig.service crash loop (known, provider agent)</description>
           </rule>
 
-          <!-- ops: every Forgejo git-over-ssh fetch (ArgoCD, Renovate, runners). -->
-          <rule id="100211" level="0">
-            <if_sid>5501,5502</if_sid>
-            <user>^git$</user>
-            <description>PAM session for the Forgejo git user</description>
+          <!-- PAM session bookkeeping. Logins are already recorded by sshd (5715),
+               sudo (5402/5407) and su; the session open/close pair around them, plus
+               every cron job and systemd --user instance, only doubles the count. -->
+          <rule id="100211" level="2">
+            <if_sid>5502</if_sid>
+            <description>PAM: session closed (silenced)</description>
           </rule>
-          <rule id="100212" level="0">
+          <rule id="100213" level="2">
+            <if_sid>5501</if_sid>
+            <match>(cron:session)|(systemd-user:session)|(sshd:session)|(sudo:session)</match>
+            <description>PAM: cron/systemd-user/sshd/sudo session opened (silenced)</description>
+          </rule>
+          <!-- ops: Forgejo git-over-ssh from the LAN (ArgoCD, Renovate, runners). -->
+          <rule id="100212" level="2">
             <if_sid>5715</if_sid>
             <user>^git$</user>
             <srcip>10.11.0.0/16</srcip>
-            <description>sshd: Forgejo git-over-ssh from the LAN</description>
+            <description>sshd: Forgejo git-over-ssh from the LAN (silenced)</description>
+          </rule>
+          <!-- ops: the scheduled Forgejo backup restore test runs psql/pg_restore as
+               postgres through sudo, dozens of times a day. -->
+          <rule id="100214" level="2">
+            <if_sid>5402,5407</if_sid>
+            <field name="command" type="pcre2">^/run/current-system/sw/bin/(psql|pg_restore|pg_dump|pg_dumpall|createdb|dropdb) </field>
+            <description>sudo: Forgejo backup restore test on ops (silenced)</description>
+          </rule>
+
+          <!-- Unattended upgrades on the VPS. Package state is covered by the
+               syscollector inventory and vulnerability detection. -->
+          <rule id="100215" level="2">
+            <if_sid>2902,2904</if_sid>
+            <description>dpkg: package installed / half configured (silenced)</description>
+            <group>dpkg,</group>
+          </rule>
+          <rule id="100216" level="2">
+            <if_sid>591</if_sid>
+            <description>Log file rotated (silenced)</description>
+          </rule>
+
+          <!-- SCA re-reports every failed/passed/not-applicable check on each scan.
+               The results live in the SCA tab (read from the manager API, not from
+               alerts); the per-scan score summary (19003/19004) still alerts. -->
+          <rule id="100217" level="2">
+            <if_sid>19007,19008,19009</if_sid>
+            <description>SCA check result (silenced; see SCA tab)</description>
+            <group>sca,</group>
           </rule>
         </group>
 
@@ -419,7 +489,7 @@ wazuhRules:
             <group>k8s_exec,</group>
           </rule>
 
-          <rule id="100403" level="3">
+          <rule id="100403" level="2">
             <if_sid>100400</if_sid>
             <field name="objectRef.resource">^roles$|^rolebindings$|^clusterroles$|^clusterrolebindings$|^serviceaccounts$</field>
             <description>K8s RBAC: $(verb) $(objectRef.resource) $(objectRef.namespace)/$(objectRef.name) by $(user.username)</description>
@@ -534,6 +604,8 @@ wazuhAgentGroups:
             <directories realtime="yes">/etc/ssh,/etc/sudoers,/etc/sudoers.d,/etc/pam.d,/etc/cron.d,/etc/systemd/system</directories>
             <directories realtime="yes">/root/.ssh</directories>
             <ignore>/etc/ssh/ssh_config.d/99-netbird.conf</ignore>
+            <!-- rewritten by every ldconfig run, i.e. every package upgrade -->
+            <ignore>/etc/ld.so.cache</ignore>
           </syscheck>
         </agent_config>
 
