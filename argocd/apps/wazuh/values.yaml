@@ -81,9 +81,31 @@ cluster:
             - name: syslog
               port: 514
               protocol: UDP
+        #
+        # externalTrafficPolicy is NOT in the CRD, but the operator keeps an
+        # existing value when the desired one is empty. It is patched to Local
+        # by hand (kubectl patch svc wazuh-manager-master ...) so syslog keeps
+        # its real source IP; with Cluster every datagram was SNATed to the
+        # node that took it, so ops showed up as 10.11.11.100 and .102.
+        #
         # The CRD models <remote> as a single object, so the syslog listener is
         # added as raw XML; the operator appends it inside <ossec_config>.
         # allowed-ips is mandatory: without it wazuh-remoted drops every message.
+        #
+        # The operator renders no <vulnerability-detection>, no <command> and no
+        # <active-response>, so all three live here too.
+        #  - vulnerability-detection matches the syscollector package inventory
+        #    against the Wazuh CTI feed (cti.wazuh.com, reachable from the pod)
+        #    and writes wazuh-states-vulnerabilities-*.
+        #  - firewall-drop is the agent's built-in script, so no
+        #    WazuhActiveResponse (which only ships a script to the manager) is
+        #    needed. SSH brute force only: 100204 (non-existent users; the
+        #    homelab-noise rebuild of 5712) and 5763 (valid user, failed auth). Web-scan rules are left out on purpose —
+        #    the VPS terminate VPN traffic and a CGNAT neighbour would get
+        #    banned with the scanner. CrowdSec runs on cloudru as well; a double
+        #    ban there is harmless.
+        #  - white_list is what the manager checks before sending a response:
+        #    LAN, pod network and the NetBird mesh are never banned.
         extraConfig: |
           <remote>
             <connection>syslog</connection>
@@ -91,7 +113,45 @@ cluster:
             <protocol>udp</protocol>
             <allowed-ips>10.11.0.0/16</allowed-ips>
             <allowed-ips>100.104.0.0/16</allowed-ips>
+            <!-- pod network: falcosidekick sends over the ClusterIP, no SNAT -->
+            <allowed-ips>10.244.0.0/16</allowed-ips>
           </remote>
+          <vulnerability-detection>
+            <enabled>yes</enabled>
+            <index-status>yes</index-status>
+            <feed-update-interval>60m</feed-update-interval>
+          </vulnerability-detection>
+          <global>
+            <white_list>127.0.0.1</white_list>
+            <white_list>10.0.0.0/8</white_list>
+            <white_list>100.64.0.0/10</white_list>
+          </global>
+          <command>
+            <name>firewall-drop</name>
+            <executable>firewall-drop</executable>
+            <timeout_allowed>yes</timeout_allowed>
+          </command>
+          <!-- 0215-policy_rules.xml = "login during non-business hours" /
+               "weekend". Meaningless for one user, and ~11k alerts a week from
+               Forgejo git-over-ssh alone. A child rule cannot silence it: the
+               rules are if_group children of every authentication_success rule,
+               so a level-0 child would swallow every night-time login too.
+               A second <ruleset> that only held rule_exclude dropped etc/rules
+               in logtest, so the directories are repeated here (no duplicate
+               loading: loader warnings are unchanged). -->
+          <ruleset>
+            <decoder_dir>ruleset/decoders</decoder_dir>
+            <decoder_dir>etc/decoders</decoder_dir>
+            <rule_dir>ruleset/rules</rule_dir>
+            <rule_dir>etc/rules</rule_dir>
+            <rule_exclude>0215-policy_rules.xml</rule_exclude>
+          </ruleset>
+          <active-response>
+            <command>firewall-drop</command>
+            <location>local</location>
+            <rules_id>100204,5763</rules_id>
+            <timeout>3600</timeout>
+          </active-response>
       workers:
         # Workers only scale agent-event ingestion horizontally; the master
         # accepts events itself and ~10 agents do not need a second node.
@@ -214,6 +274,306 @@ opensearchRoleMappings:
       users:
         # Required by the certificate hot-reload API.
         - "CN=admin,OU=Security,O=Wazuh,L=San Francisco,ST=California,C=US"
+
+# Detection content. The chart fills in clusterRefs for every entry. Each
+# change rolls the manager StatefulSet (content is subPath-mounted).
+wazuhRules:
+  # Noise control, checked with wazuh-logtest against real events. Before
+  # this ~70% of indexed alerts were four sources: nginx 4xx from scanners on
+  # the VPS, the provider agent crash-looping on cloudru, internet-wide SSH
+  # user guessing, and Forgejo git-over-ssh sessions on ops tripping the
+  # "non-business hours" policy. That policy file is excluded outright in
+  # extraConfig above; everything else is here.
+  - name: homelab-noise
+    spec:
+      ruleName: homelab_noise
+      description: "Silence known-benign high-volume events"
+      rules: |
+        <group name="homelab_noise,">
+          <!-- The operator only accepts rule IDs >= 100000, so stock rules cannot be
+               overwritten. Noise is silenced with children instead. A child becomes
+               the event's final rule, which starves any stock if_matched_sid
+               correlation on the parent, so the two correlations that matter are
+               rebuilt on top of the children (100202, 100204). Those children are
+               level 2, not 0: below log_alert_level (3) they are never indexed, but
+               level-0 events do not feed if_matched_sid at all (checked in logtest).
+
+               Public VPS: plain 4xx from scanners. Stock children of 31101 (SQL
+               injection, XSS, common web attack, ...) load first and still win. -->
+          <rule id="100201" level="2">
+            <if_sid>31101</if_sid>
+            <description>Web server 4xx (silenced; see 100202)</description>
+            <group>web,accesslog,</group>
+          </rule>
+          <rule id="100202" level="6" frequency="14" timeframe="90">
+            <if_matched_sid>100201</if_matched_sid>
+            <same_source_ip />
+            <description>Multiple web server 400 error codes from same source ip.</description>
+            <mitre>
+              <id>T1595.002</id>
+            </mitre>
+            <group>web_scan,recon,</group>
+          </rule>
+
+          <!-- Internet-wide SSH user guessing. The brute-force correlation that used
+               to be 5712 is 100204; firewall-drop triggers on it. -->
+          <rule id="100203" level="2">
+            <if_sid>5710</if_sid>
+            <description>sshd: non-existent user (silenced; see 100204)</description>
+            <group>authentication_failed,invalid_login,</group>
+          </rule>
+          <rule id="100204" level="10" frequency="8" timeframe="120" ignore="60">
+            <if_matched_sid>100203</if_matched_sid>
+            <same_source_ip />
+            <description>sshd: brute force trying to get access to the system. Non existent user.</description>
+            <mitre>
+              <id>T1110</id>
+            </mitre>
+            <group>authentication_failures,attack,</group>
+          </rule>
+
+          <!-- cloudru: the provider's Cloud VMManager Agent exits 1 every 10s. -->
+          <rule id="100210" level="0">
+            <if_sid>40704</if_sid>
+            <match>osconfig.service</match>
+            <description>cloudru: osconfig.service crash loop (known, provider agent)</description>
+          </rule>
+
+          <!-- ops: every Forgejo git-over-ssh fetch (ArgoCD, Renovate, runners). -->
+          <rule id="100211" level="0">
+            <if_sid>5501,5502</if_sid>
+            <user>^git$</user>
+            <description>PAM session for the Forgejo git user</description>
+          </rule>
+          <rule id="100212" level="0">
+            <if_sid>5715</if_sid>
+            <user>^git$</user>
+            <srcip>10.11.0.0/16</srcip>
+            <description>sshd: Forgejo git-over-ssh from the LAN</description>
+          </rule>
+        </group>
+
+  # falcosidekick ships Falco events here over syslog (argocd/infra/falco).
+  # Levels stay at 11 or below on purpose: Falco already alerts through
+  # Alertmanager, and the Alertmanager integration below starts at 12, so a
+  # Falco event is searchable in Wazuh without a second Telegram message.
+  - name: falco
+    spec:
+      ruleName: falco
+      description: "Falco runtime events from falcosidekick"
+      rules: |
+        <group name="falco,">
+          <rule id="100300" level="3">
+            <decoded_as>falcosidekick</decoded_as>
+            <description>Falco: $(rule)</description>
+          </rule>
+          <rule id="100301" level="5">
+            <if_sid>100300</if_sid>
+            <field name="priority">^Notice$</field>
+            <description>Falco notice: $(rule)</description>
+          </rule>
+          <rule id="100302" level="7">
+            <if_sid>100300</if_sid>
+            <field name="priority">^Warning$</field>
+            <description>Falco warning: $(rule)</description>
+          </rule>
+          <rule id="100303" level="10">
+            <if_sid>100300</if_sid>
+            <field name="priority">^Error$</field>
+            <description>Falco error: $(rule)</description>
+          </rule>
+          <rule id="100304" level="11">
+            <if_sid>100300</if_sid>
+            <field name="priority">^Critical$|^Alert$|^Emergency$</field>
+            <description>Falco critical: $(rule)</description>
+          </rule>
+        </group>
+
+  # Kubernetes audit events that Vector forwards over syslog. Before this they
+  # were decoded as JSON and then dropped: no stock rule matches them.
+  - name: k8s-audit
+    spec:
+      ruleName: k8s_audit
+      description: "Kubernetes audit: exec, RBAC and secret changes"
+      rules: |
+        <group name="kubernetes,k8s_audit,">
+          <!-- Vector (argocd/infra/victoria-logs) already filters the audit stream to
+               RBAC/secret mutations and exec/attach/port-forward. Base level 2 keeps
+               the raw event out of the index; only the children below alert. -->
+          <rule id="100400" level="2">
+            <decoded_as>json</decoded_as>
+            <field name="apiVersion">^audit.k8s.io/</field>
+            <description>K8s audit: $(verb) $(objectRef.resource) by $(user.username)</description>
+          </rule>
+
+          <rule id="100401" level="5">
+            <if_sid>100400</if_sid>
+            <field name="objectRef.subresource">^exec$|^attach$|^portforward$</field>
+            <description>K8s: $(objectRef.subresource) into $(objectRef.namespace)/$(objectRef.name) by $(user.username)</description>
+            <group>k8s_exec,</group>
+          </rule>
+          <rule id="100402" level="8">
+            <if_sid>100401</if_sid>
+            <field name="user.username" negate="yes">^system:</field>
+            <description>K8s: $(user.username) ran $(objectRef.subresource) in $(objectRef.namespace)/$(objectRef.name)</description>
+            <group>k8s_exec,</group>
+          </rule>
+
+          <rule id="100403" level="3">
+            <if_sid>100400</if_sid>
+            <field name="objectRef.resource">^roles$|^rolebindings$|^clusterroles$|^clusterrolebindings$|^serviceaccounts$</field>
+            <description>K8s RBAC: $(verb) $(objectRef.resource) $(objectRef.namespace)/$(objectRef.name) by $(user.username)</description>
+            <group>k8s_rbac,</group>
+          </rule>
+          <rule id="100404" level="10">
+            <if_sid>100403</if_sid>
+            <field name="user.username" negate="yes">^system:</field>
+            <description>K8s RBAC changed by a person: $(user.username) $(verb) $(objectRef.resource) $(objectRef.name)</description>
+            <group>k8s_rbac,</group>
+          </rule>
+
+          <!-- Controllers (ESO, cert-manager, ArgoCD) rewrite secrets all day; only a
+               person touching one is worth an alert. -->
+          <rule id="100405" level="8">
+            <if_sid>100400</if_sid>
+            <field name="objectRef.resource">^secrets$</field>
+            <field name="user.username" negate="yes">^system:</field>
+            <description>K8s secret changed by a person: $(user.username) $(verb) $(objectRef.namespace)/$(objectRef.name)</description>
+            <group>k8s_secrets,</group>
+          </rule>
+        </group>
+
+wazuhDecoders:
+  # falcosidekick formats the timestamp as RFC 3339 with a "Z" suffix, which
+  # Wazuh's pre-decoder does not recognise, so there is no program_name to key
+  # on. The prematch anchors on the tag instead and the JSON body after it is
+  # decoded as-is (priority, rule, output, output_fields.*).
+  - name: falcosidekick
+    spec:
+      decoderName: falcosidekick
+      description: "Falco JSON over syslog (falcosidekick)"
+      decoders: |
+        <decoder name="falcosidekick">
+          <prematch type="pcre2">Falco\[\d+\]: </prematch>
+          <plugin_decoder offset="after_prematch">JSON_Decoder</plugin_decoder>
+        </decoder>
+
+wazuhIntegrations:
+  # Level 12+ goes to Alertmanager, which already routes to Robusta ->
+  # Telegram with grouping, inhibition and silences. Nothing in the last week
+  # reached 12, so this is a quiet channel by design.
+  - name: alertmanager
+    spec:
+      name: alertmanager
+      scriptExtension: py
+      targetNodes: master
+      level: 12
+      alertFormat: json
+      hookURL: http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093/api/v2/alerts
+      script: |
+        #!/var/ossec/framework/python/bin/python3
+        # wazuh-integratord calls: <script> <alert_file> [<api_key>] <hook_url> ...
+        # No api_key is configured, so the hook URL is found by its scheme rather
+        # than by position.
+        import datetime
+        import json
+        import sys
+        import urllib.request
+
+        alert_file = sys.argv[1]
+        hook_url = next(a for a in sys.argv[2:] if a.startswith("http"))
+
+        with open(alert_file) as f:
+            alert = json.load(f)
+
+        rule = alert.get("rule", {})
+        agent = alert.get("agent", {})
+        level = int(rule.get("level", 0))
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        payload = [{
+            "labels": {
+                "alertname": "WazuhAlert",
+                "service": "wazuh",
+                "severity": "critical" if level >= 13 else "warning",
+                "rule_id": str(rule.get("id", "")),
+                # instance keeps the global critical>warning inhibit scoped per host.
+                "instance": agent.get("name", ""),
+            },
+            "annotations": {
+                "summary": rule.get("description", ""),
+                "description": (alert.get("full_log") or json.dumps(alert.get("data", {})))[:1000],
+                "level": str(level),
+                "location": alert.get("location", ""),
+            },
+            "startsAt": now.isoformat(),
+            # A Wazuh alert is a point event; let it resolve on its own.
+            "endsAt": (now + datetime.timedelta(hours=1)).isoformat(),
+            "generatorURL": "https://wazuh.example.com/app/threat-hunting",
+        }]
+
+        req = urllib.request.Request(
+            hook_url,
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+        sys.exit(0)
+
+wazuhAgentGroups:
+  # Every agent sits in "default". Before this its agent.conf was empty and
+  # each host ran on its local ossec.conf defaults.
+  - name: default
+    spec:
+      groupName: default
+      description: "Baseline for all agents"
+      agentConf: |
+        <agent_config os="Linux">
+          <syscheck>
+            <directories realtime="yes">/etc/ssh,/etc/sudoers,/etc/sudoers.d,/etc/pam.d,/etc/cron.d,/etc/systemd/system</directories>
+            <directories realtime="yes">/root/.ssh</directories>
+            <ignore>/etc/ssh/ssh_config.d/99-netbird.conf</ignore>
+          </syscheck>
+        </agent_config>
+
+opensearchISMPolicies:
+  # Nothing deleted indices before this. The template only attaches the policy
+  # to indices created after it exists; older ones were attached by hand.
+  - name: wazuh-alerts-retention
+    spec:
+      description: "Delete wazuh-alerts-* after 90 days"
+      defaultState: hot
+      states:
+        - name: hot
+          transitions:
+            - stateName: delete
+              conditions:
+                minIndexAge: 90d
+        - name: delete
+          actions:
+            - config:
+                delete: {}
+      ismTemplate:
+        - indexPatterns: ["wazuh-alerts-*"]
+          priority: 100
+  - name: wazuh-internal-retention
+    spec:
+      description: "Delete wazuh-monitoring-* and wazuh-statistics-* after 30 days"
+      defaultState: hot
+      states:
+        - name: hot
+          transitions:
+            - stateName: delete
+              conditions:
+                minIndexAge: 30d
+        - name: delete
+          actions:
+            - config:
+                delete: {}
+      ismTemplate:
+        - indexPatterns: ["wazuh-monitoring-*", "wazuh-statistics-*"]
+          priority: 100
 
 homelab-common:
   externalSecrets:

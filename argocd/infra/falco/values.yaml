@@ -57,9 +57,16 @@ falcosidekick:
       # notice is not worth waking anyone up for.
       minimumpriority: notice
 
-    # Deliberately no syslog output to Wazuh yet: the 4.14 ruleset ships no
-    # Falco decoders, so events would land as unparsed strings that match no
-    # rule. Wiring that properly means custom WazuhDecoder/WazuhRule objects.
+    # Second copy of every event to Wazuh, for search and correlation next to
+    # the host logs. Decoded by the falcosidekick WazuhDecoder and mapped to
+    # levels <= 11 by the falco WazuhRule (argocd/apps/wazuh), so Wazuh never
+    # re-notifies what Alertmanager already sent. ClusterIP, not the LB IP:
+    # the source stays the pod IP, which the syslog allowed-ips cover.
+    syslog:
+      host: wazuh-manager-master.wazuh.svc
+      port: "514"
+      protocol: udp
+      minimumpriority: notice
 
 # Noise control.
 #
