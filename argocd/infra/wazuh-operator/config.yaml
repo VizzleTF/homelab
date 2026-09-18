@@ -3,3 +3,17 @@ repoURL: ghcr.io/maximewewer/charts
 targetRevision: "2026.9.1"
 namespace: wazuh-operator
 wave: "-1"
+# TEMPORARY: the operator is scaled to 0 by hand (kubectl scale ... --replicas=0)
+# and ArgoCD must leave that alone. The chart cannot express 0 itself
+# (`replicaCount | default 1`). Reason: 2026.9.1 renders the *bool wazuhPlugin
+# fields with %v, so wazuh.yml gets pointer addresses that differ on every pass;
+# the rewritten owned Secret re-triggers reconcile (~1.5s loop), and each pass
+# PUTs run_as on the dashboard's API user, which revokes its tokens -> the
+# dashboard fails with "3002 - Request failed with status code 401".
+# Drop this block and scale back to 1 once upstream ships a fix.
+ignoreDiff: |
+  - group: apps
+    kind: Deployment
+    name: wazuh-operator-controller-manager
+    jsonPointers:
+      - /spec/replicas
