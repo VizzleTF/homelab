@@ -57,6 +57,33 @@ cluster:
           limits:
             cpu: "1"
             memory: 2Gi
+        # The manager unpacks a ~4.2GB CVE database into queue/vd and redoes it
+        # on every restart. On the shared Longhorn volume (2 replicas, both on
+        # control-plane disks) that write load starved etcd on 2026-09-18: WAL
+        # fsync p99 3s, ~150 leader changes in an hour, control-plane static
+        # pods and every leader-elected controller restarting, three volumes
+        # degraded. The database is a rebuildable cache, so it gets its own
+        # node-local PVC instead: no replication, no traffic to other nodes,
+        # nothing near etcd. Everything else (client.keys, alerts, SQLite)
+        # stays on Longhorn.
+        #
+        # local-path is WaitForFirstConsumer and Delete, so the volume is
+        # created on the node the pod lands on and goes away with the PVC. If
+        # that node is ever lost, delete the PVC and let the scanner refetch.
+        volumeClaims:
+          - path: /var/ossec/queue/vd
+            size: 15Gi
+            storageClass: local-path
+        # Pin the manager off the control-plane nodes: required by the
+        # node-local PVC above, and it keeps the manager's own I/O away from
+        # the etcd disks. Only talos-worker-01 matches.
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
         # Agent enrollment (1515) and agent events (1514) for hosts outside the
         # cluster: VPS over the NetBird mesh, ops, Synology, OpenWrt syslog.
         # BGP announces the pool from every node, so the IP is reachable on LAN.
@@ -94,15 +121,11 @@ cluster:
         #
         # The operator renders no <vulnerability-detection>, no <command> and no
         # <active-response>, so all three live here too.
-        #  - vulnerability-detection is OFF on purpose (2026-09-18). It unpacks
-        #    a ~4.2GB CVE database into queue/vd on the manager PVC, again on
-        #    every manager restart. That PVC is Longhorn with replicas on the
-        #    control-plane disks, and the writes starved etcd: WAL fsync p99
-        #    3s, ~150 leader changes in an hour, control-plane pods and every
-        #    leader-elected controller restarting. Explicit <enabled>no</enabled>
-        #    rather than no block, so no module default can turn it on.
-        #    Re-enable only
-        #    once the manager PVC lives off the control-plane disks.
+        #  - vulnerability-detection matches the syscollector package inventory
+        #    against the Wazuh CTI feed and writes wazuh-states-vulnerabilities-*.
+        #    Its ~4.2GB CVE database lives on a dedicated node-local PVC (see
+        #    volumeClaims below) - on the shared Longhorn volume it took the
+        #    control plane down on 2026-09-18.
         #  - firewall-drop is the agent's built-in script, so no
         #    WazuhActiveResponse (which only ships a script to the manager) is
         #    needed. SSH brute force only: 100204 (non-existent users; the
@@ -125,7 +148,9 @@ cluster:
             <allowed-ips>10.244.0.0/16</allowed-ips>
           </remote>
           <vulnerability-detection>
-            <enabled>no</enabled>
+            <enabled>yes</enabled>
+            <index-status>yes</index-status>
+            <feed-update-interval>60m</feed-update-interval>
           </vulnerability-detection>
           <global>
             <white_list>127.0.0.1</white_list>
