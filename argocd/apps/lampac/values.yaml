@@ -98,8 +98,6 @@ configMaps:
             "OnlineENG",
             "OnlineGEO",
             "OnlinePaid",
-            "SISI",
-            "Adult",
             "WatchTogether",
             "MsxNative",
             "ForkPlayerXML",
