@@ -91,20 +91,14 @@ spec:
       # (см. `kubectl -n velero get schedules.velero.io`). 09:00 — после всех
       # morning backups (cnpg-cluster в 08:15 — последний).
       #
-      # PAUSED 2026-09-16 — do NOT re-enable until etcd latency is back to normal.
-      # The v1.14.1 roll left cp-03 and worker-01 upgraded and cp-01/cp-02 still
-      # on v1.14.0. While it ran, etcd WAL fsync p99 climbed from its usual
-      # ~100ms to 2-7s with 16-25 leader changes an hour, because Longhorn gave
-      # up waiting for worker-01's replicas (replica-replenishment-wait-interval)
-      # and rebuilt ~30 volumes onto the control-plane disks etcd lives on.
-      # The health checks below gate on Node/Longhorn state only, not on etcd,
-      # so the moment the last volume healed tuppr would have rebooted an etcd
-      # member while the other two were still struggling — a quorum-loss risk.
-      # The one-shot windows that remain are all in the past, so the list stays
-      # non-empty with nothing open. Restore this entry once fsync p99 is stable.
-      # - start: "0 9 * * *"
-      #   duration: "6h"
-      #   timezone: "Europe/Moscow"
+      # Paused 2026-09-16..19: the v1.14.1 roll stalled half-way while etcd WAL
+      # fsync p99 hit 2-7s, because Longhorn gave up waiting for worker-01's
+      # replicas and rebuilt ~30 volumes onto the control-plane disks etcd lives
+      # on. cp-01/cp-02 were finished by hand on 2026-09-19. The health checks
+      # below still gate on Node/Longhorn state only, not on etcd.
+      - start: "0 9 * * *"
+        duration: "6h"
+        timezone: "Europe/Moscow"
       # ONE-SHOT — окно открывается 2026-05-26 в 22:50 MSK для немедленного
       # rolling upgrade на v1.13.3. Date-specific cron: `50 22 26 5 *` =
       # 22:50 26 мая (любого года). После 03:50 27 мая окно закрывается само —
