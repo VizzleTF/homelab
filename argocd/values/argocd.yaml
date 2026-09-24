@@ -190,21 +190,22 @@ configs:
       clientID: argocd
       clientSecret: $oidc.argocd.clientSecret
       requestedScopes: ["openid", "profile", "email", "groups"]
+    # No parentRefs[] entries here: every route renders group/kind explicitly,
+    # and with RespectIgnoreDifferences an ignored path inside parentRefs[]
+    # made ArgoCD keep the live parentRefs array wholesale — sectionName
+    # (homelab-common 1.16.0) never reached the cluster. Same trap as the
+    # ExternalSecret data[] one.
     resource.customizations.ignoreDifferences.gateway.networking.k8s.io_HTTPRoute: |
       jqPathExpressions:
         - '.spec.rules[]?.backendRefs[]?.group'
         - '.spec.rules[]?.backendRefs[]?.kind'
         - '.spec.rules[]?.backendRefs[]?.weight'
         - '.spec.rules[]?.filters[]?.type'
-        - '.spec.parentRefs[]?.group'
-        - '.spec.parentRefs[]?.kind'
     resource.customizations.ignoreDifferences.gateway.networking.k8s.io_TLSRoute: |
       jqPathExpressions:
         - '.spec.rules[]?.backendRefs[]?.group'
         - '.spec.rules[]?.backendRefs[]?.kind'
         - '.spec.rules[]?.backendRefs[]?.weight'
-        - '.spec.parentRefs[]?.group'
-        - '.spec.parentRefs[]?.kind'
     resource.customizations.ignoreDifferences.gateway.networking.k8s.io_Gateway: |
       jqPathExpressions:
         - '.spec.addresses'
