@@ -532,6 +532,24 @@ kubelet:
 # API Server scraping
 kubeApiServer:
   enabled: true
+  # ~49% of all series (241k of 495k, 2026-09-24) were apiserver/etcd-client
+  # histograms that no rule or dashboard reads: dashboards use the _sum/_count
+  # of apiserver_request_duration_seconds and the SLO rules use
+  # apiserver_request_sli_duration_seconds_bucket, which stays. Helm replaces
+  # lists, so the chart's endpoint is repeated here in full.
+  vmScrape:
+    spec:
+      endpoints:
+        - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+          port: https
+          scheme: https
+          tlsConfig:
+            caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            serverName: kubernetes
+          metricRelabelConfigs:
+            - action: drop
+              source_labels: [__name__]
+              regex: "(apiserver_request_duration_seconds_bucket|etcd_request_duration_seconds_bucket|apiserver_watch_events_dispatch_duration_seconds_bucket|apiserver_request_body_size_bytes_bucket|apiserver_response_sizes_bucket|apiserver_storage_list_.*|apiserver_watch_list_.*|apiserver_watch_cache_.*)"
 
 # CoreDNS scraping
 coreDns:
