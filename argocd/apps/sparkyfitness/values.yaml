@@ -4,8 +4,8 @@
 
 config:
   frontendUrl: https://fitness.example.com
-  # Flip to true once the first account is registered (site is exposed externally).
-  disableSignup: false
+  # Public site, the account exists — no open registration.
+  disableSignup: true
   # Authentik SSO. forceEmailLogin stays at the chart default (true) as the
   # lockout fail-safe while OIDC is being verified.
   oidc:

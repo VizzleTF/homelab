@@ -10,6 +10,10 @@ storage:
 
 domain: "https://pass.example.com"
 
+# pass.example.com is public: no open registration. New people join through an
+# organization invitation (invitationsAllowed stays at the chart default).
+signupsAllowed: false
+
 # Cloudflared проксирует HTTP и ставит CF-Connecting-IP; X-Real-IP (дефолт
 # чарта) не шлёт никто, поэтому vaultwarden логировал IP пода cloudflared —
 # и «неудачный вход с 10.244.2.121» не говорил ни о чём. Envoy заголовок не
