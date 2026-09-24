@@ -1,0 +1,41 @@
+{{- $np := (index .Values "homelab-common" | default dict).networkPolicy }}
+{{- if and $np $np.enabled }}
+{{- /* Default-deny ingress for the release namespace. Always allowed: the
+     namespace itself, node/API-server traffic (probes, webhooks, exec), the
+     Cilium gateway (host/ingress identities) and cilium-health. Anything else
+     is listed in networkPolicy.allow. Egress is not touched. */}}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-ingress
+  namespace: {{ .Release.Namespace }}
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
+    - fromEntities:
+        - host
+        - remote-node
+        - kube-apiserver
+        - ingress
+        - health
+    {{- range $np.allow | default list }}
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: In
+              values:
+                {{- toYaml .namespaces | nindent 16 }}
+      {{- with .ports }}
+      toPorts:
+        - ports:
+            {{- range . }}
+            - port: {{ . | quote }}
+              protocol: TCP
+            {{- end }}
+      {{- end }}
+    {{- end }}
+{{- end }}

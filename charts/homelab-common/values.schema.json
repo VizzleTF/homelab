@@ -120,7 +120,8 @@
         "cronJobs": { "type": "array", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
         "persistentVolumeClaims": { "type": "array", "items": { "$ref": "#/$defs/PVCSpec" } },
         "volsync": { "type": "array", "items": { "$ref": "#/$defs/VolsyncSpec" } },
-        "authentikBlueprints": { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } }
+        "authentikBlueprints": { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
+        "networkPolicy": { "$ref": "#/$defs/NetworkPolicySpec" }
       }
     },
     "ExternalSecretSpec": {
@@ -316,6 +317,25 @@
       "properties": {
         "name": { "type": "string" },
         "blueprints": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "NetworkPolicySpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["namespaces"],
+            "properties": {
+              "namespaces": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+              "ports": { "type": "array", "items": { "type": ["integer", "string"] } }
+            }
+          }
+        }
       }
     },
     "PassThroughResource": {
