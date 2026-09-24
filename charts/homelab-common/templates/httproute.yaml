@@ -43,6 +43,12 @@ spec:
       kind: Gateway
       name: {{ $gw.name }}
       namespace: {{ $gw.namespace }}
+      {{- if eq $kind "internal" }}
+      {{- /* HTTPS only on the LAN gateway; its http listener just redirects
+           (argocd/infra/cilium/manifests/cilium-gateway-internal-redirect.yaml).
+           External routes stay on both: cloudflared reaches origin over :80. */}}
+      sectionName: https
+      {{- end }}
   hostnames:
     - {{ $hostname }}
   rules:
