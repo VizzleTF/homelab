@@ -1,0 +1,27 @@
+# Ingress to OpenBao only from itself (raft :8201, autounseal, snapshot and
+# DR-pack jobs), External Secrets, and node/gateway traffic (kubelet probes,
+# the API server, the Cilium gateway that fronts openbao.example.com).
+# Built from 10 minutes of Hubble flows (2026-09-24). Egress unchanged.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: openbao-ingress
+  namespace: openbao
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: openbao
+    - fromEntities:
+        - host
+        - remote-node
+        - kube-apiserver
+        - ingress
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: external-secrets-system
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
