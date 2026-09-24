@@ -69,3 +69,16 @@ spec:
               kubectl get pv -o json | jq -r '.items[] | select(.status.phase=="Released")
                 | "\(.spec.claimRef.namespace)/\(.spec.claimRef.name) \(.spec.storageClassName)"' | sort | uniq -c
 
+        # KubePersistentVolumeFillingUp sees single PVCs, not the node disk that
+        # holds every replica (and, on the control-plane nodes, etcd too).
+        - alert: LonghornNodeDiskFilling
+          expr: max by (node) (longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes) > 0.85
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn: диск ноды {{ $labels.node }} занят на {{ $value | humanizePercentage }}"
+            description: |
+              Реплики всех томов ноды и (на control-plane) etcd на одном разделе.
+              Разгрузить: удалить лишние снапшоты или перенести реплики на talos-worker-01.
+

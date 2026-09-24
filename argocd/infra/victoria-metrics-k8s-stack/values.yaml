@@ -237,11 +237,18 @@ defaultRules:
     # Keep one of AlertingRulesError/RecordingRulesError; drop the other for noise reduction
     RecordingRulesError: {enabled: false}
 
+  # The etcd mixin source follows kubeEtcd.enabled, which is false because
+  # etcd is scraped by our own vmnodescrape-etcd.yaml. Turn the rules on here.
+  sources:
+    etcd:
+      enabled: true
+
   groups:
     # vmoperator group — self-healing operator, only ServiceDown matters (in vm-health)
     vmoperator: {enabled: false}
-    # Disable etcd rules if not using it
-    etcd: {enabled: false}
+    # etcd stays enabled: it is scraped (manifests/vmnodescrape-etcd.yaml,
+    # job=etcd) and slow fsync on the shared SATA SSDs is behind every
+    # control-plane incident so far (NoLeader / HighFsync / LeaderChanges).
     # vmcluster disabled — using vmsingle
     vmcluster: {enabled: false}
     # NOTE: the chart's rule sync-job honors GROUP-level `enabled: false` but
@@ -274,16 +281,23 @@ vmsingle:
     storageMetadata:
       annotations:
         helm.sh/resource-policy: keep
+    # 2026-09-24: vmalert lost 914 rule evaluations in 7 days to
+    # "-search.maxConcurrentRequests=2 concurrent requests are executed", and
+    # memory peaked at 1.85Gi of 2Gi. More concurrency and headroom instead
+    # of silently skipped alerts.
+    extraArgs:
+      search.maxConcurrentRequests: "8"
+      search.maxQueueDuration: "30s"
     resources:
       requests:
         cpu: 250m
-        memory: 1Gi
+        memory: 1536Mi
       limits:
         cpu: 1000m
-        memory: 2Gi
+        memory: 3Gi
     extraEnvs:
       - name: GOMEMLIMIT
-        value: "1700MiB"
+        value: "2600MiB"
     storage:
       accessModes:
         - ReadWriteOnce
@@ -303,6 +317,9 @@ vmalert:
     replicaCount: 1
     notifier:
       url: "http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093"
+    # Was 20s; the heavy default groups (k8s.rules.*, burnrate) took up to 49s
+    # per iteration and kept missing slots. Alerts keep their `for:`.
+    evaluationInterval: 1m
     resources:
       requests:
         cpu: 20m
@@ -390,14 +407,14 @@ grafana:
       mountPath: /etc/secrets/grafana-oidc
       readOnly: true
 
-  # Resources
+  # Resources — 7d max 468Mi of 512Mi and p95 CPU 162m (throttled 12%).
   resources:
     requests:
-      cpu: 15m
-      memory: 320Mi
+      cpu: 50m
+      memory: 384Mi
     limits:
-      cpu: 200m
-      memory: 512Mi
+      cpu: 500m
+      memory: 768Mi
 
   # Grafana state is fully declarative: dashboards via sidecar+ConfigMaps and grafana.com,
   # datasources via Helm chart provisioning, users via Authentik OIDC (allow_sign_up).
@@ -460,7 +477,8 @@ prometheus-node-exporter:
       cpu: 15m
       memory: 105Mi
     limits:
-      cpu: 200m
+      # 200m throttled 27-48% of periods; scrapes took up to 0.58s.
+      cpu: 500m
       memory: 105Mi
   extraArgs:
     - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)

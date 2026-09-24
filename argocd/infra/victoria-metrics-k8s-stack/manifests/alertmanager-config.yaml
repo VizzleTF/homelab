@@ -10,21 +10,16 @@ spec:
   secretStoreRef:
     name: openbao-backend-cluster
     kind: ClusterSecretStore
-  # ESO v1 rejects an ExternalSecret carrying neither `data` nor `dataFrom`
-  # ("either data or dataFrom should be specified"), even when the whole payload
-  # comes from target.template. Without this block the Replace=true annotation
-  # above made every sync of this app fail — which also kept the chart's PostSync
-  # rules sync-job from running. The keys themselves are vestigial: Telegram
-  # delivery moved to Robusta, so the template below references no variables.
+  # Robusta's bot token, for the telegram-direct receiver below: alerts about
+  # the delivery path itself (Robusta down, notifications failing) must not go
+  # through that path. The old victoria-metrics-bot token was revoked.
+  # Replace=true (above) also makes new data[] entries apply — SSA with the
+  # ESO ignoreDifferences would drop them.
   data:
-    - secretKey: token
+    - secretKey: bot_token
       remoteRef:
-        key: home/data/homelab/k8s/telegram/victoria-metrics-bot
-        property: token
-    - secretKey: chat_id
-      remoteRef:
-        key: home/data/homelab/k8s/telegram/victoria-metrics-bot
-        property: chat_id
+        key: homelab/k8s/robusta/telegram
+        property: bot_token
   target:
     name: alertmanager-config
     creationPolicy: Owner
@@ -41,6 +36,10 @@ spec:
             group_interval: 10s
             repeat_interval: 12h
             receiver: 'robusta'
+            routes:
+              - matchers:
+                  - alertname=~"RobustaRunnerDown|AlertmanagerNotificationsFailing"
+                receiver: 'telegram-direct'
 
           # ─── Inhibit rules: «1 событие = 1 алерт» ───
           # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md
@@ -100,17 +99,13 @@ spec:
                 - severity="warning"
               equal: ['alertname', 'namespace', 'instance']
 
-            # vmsingle/vmalert pod restart (Renovate auto-update / ArgoCD sync)
-            # вызывает короткий outage → AlertingRulesError + RemoteWriteDroppingData
-            # каскадом. VMSingleDown/VMAlertDown с `for: 5m` сами не fire'ят на
-            # быстрых restart'ах, но дочерние rule errors уже спам'ят. Inhibit:
-            - source_matchers:
-                - alertname=~"VMSingleDown|VMAlertDown"
-              target_matchers:
-                - alertname=~"AlertingRulesError|RemoteWriteDroppingData|ConfigurationReloadFailure|TargetDown"
-
           receivers:
             - name: 'robusta'
               webhook_configs:
                 - url: http://robusta-runner.robusta.svc.cluster.local/api/alerts
+                  send_resolved: true
+            - name: 'telegram-direct'
+              telegram_configs:
+                - bot_token: '{{ .bot_token }}'
+                  chat_id: 0000000000
                   send_resolved: true
