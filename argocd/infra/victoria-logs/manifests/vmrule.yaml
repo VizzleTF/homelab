@@ -20,6 +20,19 @@ spec:
               kubectl -n victoria-logs get pods
               kubectl -n victoria-logs logs sts/victoria-logs-server
 
+        # Server and Vector can both be "up" while nothing is written (sink
+        # errors, backpressure). ~20-30 rows/s is normal; zero is never normal.
+        - alert: VictoriaLogsNoIngestion
+          expr: sum(rate(vl_rows_ingested_total[15m])) == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VictoriaLogs не принимает логи"
+            description: |
+              15 минут ни одной строки — Vector жив, но не доставляет.
+              kubectl -n victoria-logs logs ds/victoria-logs-vector --tail=100
+
         - alert: VictoriaLogsDiskUsageHigh
           expr: |
             vl_data_size_bytes / vl_free_disk_space_bytes > 0.8

@@ -1,0 +1,54 @@
+# Alerts for failure modes that were silent until the 2026-09-24 audit:
+# the delivery path itself and CronJobs that quietly stop running.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: coverage-gaps
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: alert-delivery
+      rules:
+        # Routed to telegram-direct (alertmanager-config.yaml), not Robusta:
+        # if Robusta is the thing failing, a Robusta notification never lands.
+        - alert: AlertmanagerNotificationsFailing
+          expr: sum by (integration) (rate(alertmanager_notifications_failed_total[15m])) > 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Alertmanager не может доставить уведомления ({{ $labels.integration }})"
+            description: |
+              Уведомления через {{ $labels.integration }} падают 15+ минут — алерты
+              никуда не уходят. Проверить robusta-runner и логи vmalertmanager:
+              kubectl -n victoria-metrics logs vmalertmanager-victoria-metrics-k8s-stack-0 -c alertmanager --tail=50
+
+    - name: cronjobs
+      rules:
+        # KubeJobFailed only sees a Job that ran and failed. These two catch the
+        # rest: the last scheduled run did not succeed, or nothing has succeeded
+        # for longer than the longest schedule here (weekly).
+        - alert: CronJobLastRunNotSuccessful
+          expr: (kube_cronjob_status_last_schedule_time - kube_cronjob_status_last_successful_time) > 2 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }}: последний запуск не завершился успешно"
+            description: |
+              Последний запуск по расписанию был больше двух часов назад позже
+              последнего успешного — задача висит, падает или не стартует.
+              kubectl -n {{ $labels.namespace }} get jobs --sort-by=.metadata.creationTimestamp | tail -3
+
+        - alert: CronJobStale
+          expr: |
+            (time() - kube_cronjob_status_last_successful_time) > 8 * 86400
+            unless on (namespace, cronjob) kube_cronjob_spec_suspend == 1
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }}: нет успешного запуска 8+ дней"
+            description: |
+              Самое редкое расписание в кластере — раз в неделю, так что 8 дней
+              без успеха означают, что задача перестала запускаться.
