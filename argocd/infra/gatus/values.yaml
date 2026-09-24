@@ -181,6 +181,53 @@ homelab-common:
                     - name: base
                       mountPath: /tmp/base
                       readOnly: true
+                # Native sidecar (starts before gatus, keeps running). Gatus
+                # compares config mtimes in whole seconds against its load
+                # time: a sidecar file written in the same second as the load
+                # was never picked up (immich/longhorn endpoints vanished on
+                # 2026-09-24). wait-for-sidecar below closes that race.
+                - name: gatus-sidecar
+                  restartPolicy: Always
+                  # renovate: image=ghcr.io/home-operations/gatus-sidecar
+                  image: ghcr.io/home-operations/gatus-sidecar:0.5.2
+                  imagePullPolicy: IfNotPresent
+                  args:
+                    # Opt-in HTTPRoute discovery only; writes a single file that
+                    # gatus merges from the /config directory.
+                    - --enable-httproute
+                    - --output=/config/gatus-sidecar.yaml
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop: ["ALL"]
+                  resources:
+                    requests:
+                      cpu: 10m
+                      memory: 32Mi
+                    limits:
+                      memory: 128Mi
+                  volumeMounts:
+                    - name: config
+                      mountPath: /config
+                - name: wait-for-sidecar
+                  image: busybox:1.38
+                  imagePullPolicy: IfNotPresent
+                  command:
+                    - sh
+                    - -c
+                    - |
+                      i=0
+                      until [ -s /config/gatus-sidecar.yaml ] || [ $i -ge 30 ]; do sleep 1; i=$((i+1)); done
+                      sleep 1
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop: ["ALL"]
+                  volumeMounts:
+                    - name: config
+                      mountPath: /config
               containers:
                 - name: app
                   # renovate: image=ghcr.io/twin/gatus
@@ -224,29 +271,6 @@ homelab-common:
                       mountPath: /config
                     - name: data
                       mountPath: /data
-                - name: gatus-sidecar
-                  # renovate: image=ghcr.io/home-operations/gatus-sidecar
-                  image: ghcr.io/home-operations/gatus-sidecar:0.5.2
-                  imagePullPolicy: IfNotPresent
-                  args:
-                    # Opt-in HTTPRoute discovery only; writes a single file that
-                    # gatus merges from the /config directory.
-                    - --enable-httproute
-                    - --output=/config/gatus-sidecar.yaml
-                  securityContext:
-                    allowPrivilegeEscalation: false
-                    readOnlyRootFilesystem: true
-                    capabilities:
-                      drop: ["ALL"]
-                  resources:
-                    requests:
-                      cpu: 10m
-                      memory: 32Mi
-                    limits:
-                      memory: 128Mi
-                  volumeMounts:
-                    - name: config
-                      mountPath: /config
               volumes:
                 - name: config
                   emptyDir: {}
