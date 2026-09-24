@@ -64,6 +64,18 @@ initContainers:
 homelab-common:
   # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
   # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Step 1 of moving off RWX: SQLite on Longhorn RWX runs over NFS
+  # (share-manager), where its locking is unreliable. The data is copied into
+  # this RWO volume by a PreSync job when the app switches to it.
+  persistentVolumeClaims:
+    - name: vaultwarden-data-rwo
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 2Gi
+      labels:
+        app.kubernetes.io/name: vaultwarden
+
   volsync:
     - name: vaultwarden
       claim: vaultwarden-data-vaultwarden-0
