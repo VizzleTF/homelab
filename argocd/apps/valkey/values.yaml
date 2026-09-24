@@ -8,14 +8,14 @@
 # версионным тегом + Renovate по маркеру `# renovate: image=`.
 #
 # Клиенты ходят на `valkey-primary.valkey.svc.cluster.local:6379`:
-#   DB 0 — ArgoCD cache, authentik
+#   DB 0 — ArgoCD cache
 #   DB 1 — immich
 # Имя Service намеренно сохранено от bitnami-чарта (fullnameOverride), чтобы
 # миграция не тянула правки в четырёх чужих values и рестарт ArgoCD.
 #
 # Persistence: RDB по дефолтным правилам valkey (save 3600/300/60) в /data на
 # local-path — кэш переживает рестарт пода, но не смерть ноды. Это осознанно:
-# данные восстановимы (ArgoCD re-cache + повторный логин в authentik).
+# данные восстановимы (ArgoCD re-cache, immich очереди).
 homelab-common:
   # Password of the ACL user `app` (OpenBao homelab/k8s/valkey/valkey).
   externalSecrets:
@@ -24,6 +24,13 @@ homelab-common:
       data:
         - secretKey: password
           property: password
+
+  # Only the Valkey clients (ArgoCD, immich) may reach 6379.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [argocd, immich]
+        ports: [6379]
 
   persistentVolumeClaims:
     - name: valkey-data
@@ -70,9 +77,8 @@ homelab-common:
                   imagePullPolicy: IfNotPresent
                   # ACL: clients (ArgoCD, immich) log in as `app`. The ACL file
                   # is rendered at start from env into an emptyDir (rootfs is
-                  # read-only). VALKEY_DEFAULT_USER is the rule for the
-                  # passwordless `default` user: open during the client switch,
-                  # then `off`. maxmemory не задаём; dir=/data (RDB).
+                  # read-only). VALKEY_DEFAULT_USER=off disables the
+                  # passwordless `default` user. maxmemory не задаём; dir=/data (RDB).
                   command:
                     - sh
                     - -ec
@@ -82,7 +88,7 @@ homelab-common:
                       exec valkey-server --aclfile /acl/users.acl
                   env:
                     - name: VALKEY_DEFAULT_USER
-                      value: "on nopass ~* &* +@all"
+                      value: "off"
                     - name: VALKEY_APP_PASSWORD
                       valueFrom:
                         secretKeyRef:

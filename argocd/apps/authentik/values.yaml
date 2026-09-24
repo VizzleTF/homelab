@@ -665,7 +665,6 @@ homelab-common:
         AUTHENTIK_POSTGRESQL__USER: "authentik"
         AUTHENTIK_POSTGRESQL__NAME: "authentik"
         AUTHENTIK_POSTGRESQL__PASSWORD: "{{ .db_password }}"
-        AUTHENTIK_REDIS__HOST: "valkey-primary.valkey.svc.cluster.local"
         AUTHENTIK_COOKIE_DOMAIN: "example.com"
         AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS: "0.0.0.0/0"
         AUTHENTIK_SERVER__FROM_HEADER: "true"
