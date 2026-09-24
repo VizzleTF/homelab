@@ -14,9 +14,6 @@ homelab-common:
           schedule: "20 0 * * *"
         - repo: ovh
           schedule: "20 5 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   externalSecrets:
     - name: may-app-secrets
