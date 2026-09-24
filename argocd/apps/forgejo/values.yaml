@@ -11,15 +11,11 @@ image:
 
 persistence:
   enabled: true
-  create: true
+  # RWO volume from homelab-common (persistentVolumeClaims below). The old RWX
+  # forgejo-data PV is Retain-ed as the rollback.
+  create: false
   mount: true
-  claimName: forgejo-data
-  size: 20Gi
-  accessModes:
-    - ReadWriteMany
-  storageClass: longhorn
-  annotations:
-    helm.sh/resource-policy: keep
+  claimName: forgejo-data-rwo
 
 # No ssh service: clones and pushes go to the instance on the ops node, and a
 # mirror accepts neither. This also frees port 22 on the shared LB address.
@@ -128,9 +124,8 @@ homelab-common:
   networkPolicy:
     enabled: true
 
-  # Step 1 of leaving RWX: the data volume goes over NFS (share-manager pod)
-  # for no reason, only one pod mounts it. Filled by a one-off copy job, then
-  # the chart switches to it (step 2).
+  # Forgejo data. Was a chart-made RWX volume served over NFS (share-manager)
+  # for a single pod; moved here as RWO 2026-09-24.
   persistentVolumeClaims:
     - name: forgejo-data-rwo
       accessModes:
