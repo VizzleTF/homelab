@@ -72,9 +72,6 @@ homelab-common:
           schedule: "50 0 * * *"
         - repo: ovh
           schedule: "50 3 * * *"
-          retain:
-            weekly: 12
-            monthly: 6
 
   httpRoutes:
     - name: vaultwarden

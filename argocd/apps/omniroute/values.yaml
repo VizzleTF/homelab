@@ -13,9 +13,6 @@ homelab-common:
           schedule: "30 0 * * *"
         - repo: ovh
           schedule: "30 5 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   externalSecrets:
     - name: omniroute-app-secrets

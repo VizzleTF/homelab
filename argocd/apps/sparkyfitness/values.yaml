@@ -101,9 +101,6 @@ homelab-common:
           schedule: "50 1 * * *"
         - repo: ovh
           schedule: "50 6 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   limitRange:
     enabled: true

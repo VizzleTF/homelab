@@ -20,9 +20,6 @@ homelab-common:
           schedule: "30 1 * * *"
         - repo: ovh
           schedule: "30 6 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
     - name: opencloud-data
       claim: opencloud-data
       moverSecurityContext:
@@ -34,9 +31,6 @@ homelab-common:
           schedule: "35 1 * * *"
         - repo: ovh
           schedule: "35 6 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   externalSecrets:
     - name: opencloud-app-secrets

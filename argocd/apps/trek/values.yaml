@@ -67,9 +67,6 @@ homelab-common:
           schedule: "40 0 * * *"
         - repo: ovh
           schedule: "40 5 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
     - name: trek-uploads
       claim: trek-uploads
       moverSecurityContext:
@@ -81,9 +78,6 @@ homelab-common:
           schedule: "45 0 * * *"
         - repo: ovh
           schedule: "45 5 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   httpRoutes:
     - name: trek

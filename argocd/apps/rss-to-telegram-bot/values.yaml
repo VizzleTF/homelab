@@ -43,9 +43,6 @@ homelab-common:
           schedule: "10 1 * * *"
         - repo: ovh
           schedule: "40 1 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   apps:
     - name: rss-to-telegram-bot
