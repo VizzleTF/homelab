@@ -1,5 +1,12 @@
 # CouchDB chart values (apache/couchdb). Backend для Obsidian Self-hosted LiveSync.
 
+# Chart default is busybox:latest with pullPolicy Always: a mutable tag pulled
+# on every restart, invisible to Renovate. Same pin as the other init containers.
+initImage:
+  repository: busybox
+  tag: "1.38.0"
+  pullPolicy: IfNotPresent
+
 # Single-node: LiveSync требует single_node=true, кластер не нужен.
 clusterSize: 1
 
