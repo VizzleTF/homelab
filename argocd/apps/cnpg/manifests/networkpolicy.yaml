@@ -1,0 +1,50 @@
+# Ingress to the shared Postgres (cluster pods + pooler) only from the
+# namespaces that own a database here, plus what the cluster itself needs.
+# Built from 10 minutes of Hubble flows (2026-09-24) and the Database CRs.
+# Egress is not restricted (barman to S3, replication, DNS).
+# A new app that needs Postgres: add its namespace to the 5432 rule.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cnpg-ingress
+  namespace: cnpg
+spec:
+  endpointSelector: {}
+  ingress:
+    # replication, pooler -> instances, pglogical offsite job
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg
+    # kubelet probes (:8000), API server (webhooks, exec/port-forward)
+    - fromEntities:
+        - host
+        - remote-node
+        - kube-apiserver
+    # CNPG operator and the barman-cloud plugin talk to the instance manager
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+    # metrics: postgres exporter :9187, pgbouncer exporter :9127
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: victoria-metrics
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+            - port: "9127"
+              protocol: TCP
+    # database clients
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: In
+              values:
+                - authentik
+                - forgejo
+                - atuin
+                - sparkyfitness
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
