@@ -53,7 +53,8 @@ vector:
     limits:
       # 512Mi → OOM на старте (burst чтения существующих /var/log/pods/* с начала
       # плюс 70+ NFD-лейблов на событие до drop-фильтра node_labels).
-      memory: 1Gi
+      # 1Gi → стартовый burst на worker дошёл до 1018Mi (2026-09), поднято.
+      memory: 1536Mi
 
   # Метрики prom-exporter :9090 — через VMPodScrape (vmpodscrape-vector.yaml).
   # Service не нужен — скрейпим pod'ы напрямую.

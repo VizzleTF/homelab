@@ -17,5 +17,6 @@ resources:
     cpu: 10m
     memory: 32Mi
   limits:
-    cpu: 100m
+    # Scrape bursts were throttled 56-77% of periods at 100m.
+    cpu: 300m
     memory: 64Mi

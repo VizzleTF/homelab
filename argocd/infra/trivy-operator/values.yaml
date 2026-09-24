@@ -48,13 +48,15 @@ operator:
   # rescan and coverage well above 34/70. If not, revert this flag.
   builtInTrivyServer: true
 
-  resources:
-    requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
+# Top level, not under `operator:` — the chart reads `.Values.resources`; the
+# old nested block was ignored and the operator ran with no requests/limits.
+resources:
+  requests:
+    cpu: 50m
+    memory: 384Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi
 
 trivy:
   # Only what can actually be acted on: unfixed CVEs are noise in a homelab —
@@ -68,6 +70,15 @@ trivy:
   # simply re-downloaded, and a volume left orphaned if this experiment is
   # reverted. local-path deletes on release and does not replicate.
   storageClassName: local-path
+  # Chart default 200m/512Mi request for a server that idles at 2m / 99Mi.
+  server:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 192Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
 
   resources:
     requests:

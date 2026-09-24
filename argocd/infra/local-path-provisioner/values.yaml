@@ -32,3 +32,21 @@ resources:
   limits:
     cpu: 100m
     memory: 128Mi
+
+# The chart's probes have the 1s default timeout; /ready calls the API
+# server and failed ~980 times in four days during etcd latency spikes.
+health:
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: health
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5

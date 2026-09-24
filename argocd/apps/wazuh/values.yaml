@@ -50,13 +50,14 @@ cluster:
     manager:
       master:
         storageSize: 20Gi
+        # 7d max 1.7Gi of 2Gi, CPU p95 369m (2026-09).
         resources:
           requests:
-            cpu: 250m
+            cpu: 400m
             memory: 1Gi
           limits:
             cpu: "1"
-            memory: 2Gi
+            memory: 3Gi
         # The whole queue/ tree is node-local. On the shared Longhorn volume
         # (2 replicas, both on control-plane disks) its write load starved
         # etcd on 2026-09-18: WAL fsync p99 3s, ~150 leader changes in an
