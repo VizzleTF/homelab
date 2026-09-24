@@ -1,12 +1,7 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
-{{- $g := .Values.global | default dict }}
-{{- $vault := $g.vault | default dict }}
-{{- $vs := $vault.secretStore | default "openbao-backend-cluster" }}
-{{- $vsk := $vault.secretStoreKind | default "ClusterSecretStore" }}
-{{- $vr := $vault.refreshInterval | default "1h" }}
-{{- $vp := $vault.pathPrefix | default "homelab/k8s" }}
-{{- $vsg := $g.volsync | default dict }}
-{{- $repos := $vsg.repos | default dict }}
+{{- $vault := (.Values.global | default dict).vault }}
+{{- $vsg := (.Values.global | default dict).volsync }}
+{{- $repos := ($vsg | default dict).repos }}
 {{- $items := $hc.volsync | default list }}
 {{- range $item := $items }}
 {{- /* name задаёт путь репозитория restic-apps/<name> и обязан быть уникальным
@@ -15,7 +10,6 @@
        crowdsec-scraper, 2026-09-10). */}}
 {{- $name := $item.name }}
 {{- $claim := $item.claim | default $item.name }}
-{{- $ns := $item.namespace | default $.Release.Namespace }}
 {{- range $t := ($item.targets | default list) }}
 {{- $repo := index $repos $t.repo }}
 {{- if not $repo }}{{ fail (printf "volsync: unknown repo %q for %q — define global.volsync.repos.%s" $t.repo $name $t.repo) }}{{ end }}
@@ -26,12 +20,12 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: {{ $secretName }}
-  namespace: {{ $ns }}
+  namespace: {{ $.Release.Namespace }}
 spec:
-  refreshInterval: {{ $vr }}
+  refreshInterval: {{ $vault.refreshInterval }}
   secretStoreRef:
-    name: {{ $vs }}
-    kind: {{ $vsk }}
+    name: {{ $vault.secretStore }}
+    kind: {{ $vault.secretStoreKind }}
   target:
     name: {{ $secretName }}
     creationPolicy: Owner
@@ -46,22 +40,22 @@ spec:
   data:
     - secretKey: password
       remoteRef:
-        key: {{ $vp }}/{{ $repo.passwordVaultPath }}
-        property: {{ $repo.passwordProperty | default "password" }}
+        key: {{ $vault.pathPrefix }}/{{ $repo.passwordVaultPath }}
+        property: password
     - secretKey: access_key_id
       remoteRef:
-        key: {{ $vp }}/{{ $repo.keyVaultPath }}
-        property: {{ $repo.keyIdProperty | default "ACCESS_KEY_ID" }}
+        key: {{ $vault.pathPrefix }}/{{ $repo.keyVaultPath }}
+        property: ACCESS_KEY_ID
     - secretKey: secret_access_key
       remoteRef:
-        key: {{ $vp }}/{{ $repo.keyVaultPath }}
-        property: {{ $repo.keySecretProperty | default "ACCESS_SECRET_KEY" }}
+        key: {{ $vault.pathPrefix }}/{{ $repo.keyVaultPath }}
+        property: ACCESS_SECRET_KEY
 ---
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
   name: {{ $name }}-{{ $t.repo }}
-  namespace: {{ $ns }}
+  namespace: {{ $.Release.Namespace }}
 spec:
   sourcePVC: {{ $claim }}
   trigger:
@@ -69,55 +63,17 @@ spec:
   restic:
     repository: {{ $secretName }}
     copyMethod: {{ $item.copyMethod | default "Snapshot" }}
-    volumeSnapshotClassName: {{ $item.volumeSnapshotClassName | default $vsg.snapshotClass | default "longhorn-volsync" }}
-    storageClassName: {{ $item.storageClassName | default $vsg.storageClass | default "longhorn" }}
+    volumeSnapshotClassName: {{ $vsg.snapshotClass }}
+    storageClassName: {{ $vsg.storageClass }}
     accessModes:
       - {{ $item.accessMode | default "ReadWriteOnce" }}
-    cacheStorageClassName: {{ $item.cacheStorageClass | default $vsg.cacheStorageClass | default "local-path" }}
-    cacheCapacity: {{ $item.cacheCapacity | default $vsg.cacheCapacity | default "2Gi" }}
+    cacheStorageClassName: {{ $vsg.cacheStorageClass }}
+    cacheCapacity: {{ $item.cacheCapacity | default $vsg.cacheCapacity }}
     cacheAccessModes:
       - ReadWriteOnce
-    pruneIntervalDays: {{ $t.pruneIntervalDays | default 14 }}
+    pruneIntervalDays: 14
     retain:
-      {{- toYaml ($t.retain | default (dict "daily" 7 "weekly" 4)) | nindent 6 }}
-    {{- with $item.moverSecurityContext }}
-    moverSecurityContext:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
-    {{- with $item.moverResources }}
-    moverResources:
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
-{{- end }}
-{{- if $item.bootstrap }}
-{{- $brepo := index $repos $item.bootstrap.repo }}
----
-# Приёмник для восстановления. ВНИМАНИЕ: ReplicationDestination выполняет
-# триггер СРАЗУ при создании, а не ждёт восстановления — если репозиторий ещё
-# не заведён источником, destination и source инициализируют его параллельно
-# и портят config (`ciphertext verification failed`, наблюдалось на may и
-# trek-data 2026-09-09). Поэтому в values приложений эта секция не задаётся:
-# destination создаётся вручную, когда репозиторий уже существует.
-apiVersion: volsync.backube/v1alpha1
-kind: ReplicationDestination
-metadata:
-  name: {{ $name }}-bootstrap
-  namespace: {{ $ns }}
-spec:
-  trigger:
-    manual: {{ $item.bootstrap.manualTrigger | default "restore-once" | quote }}
-  restic:
-    repository: {{ $name }}-restic-{{ $item.bootstrap.repo }}
-    copyMethod: {{ $item.bootstrap.copyMethod | default "Snapshot" }}
-    volumeSnapshotClassName: {{ $item.volumeSnapshotClassName | default $vsg.snapshotClass | default "longhorn-volsync" }}
-    storageClassName: {{ $item.storageClassName | default $vsg.storageClass | default "longhorn" }}
-    capacity: {{ $item.capacity | required (printf "volsync: %s.capacity is required when bootstrap is set" $name) }}
-    accessModes:
-      - {{ $item.accessMode | default "ReadWriteOnce" }}
-    cacheStorageClassName: {{ $item.cacheStorageClass | default $vsg.cacheStorageClass | default "local-path" }}
-    cacheCapacity: {{ $item.cacheCapacity | default $vsg.cacheCapacity | default "2Gi" }}
-    cacheAccessModes:
-      - ReadWriteOnce
+      {{- toYaml ($t.retain | default $repo.retain | default (dict "daily" 7 "weekly" 4)) | nindent 6 }}
     {{- with $item.moverSecurityContext }}
     moverSecurityContext:
       {{- toYaml . | nindent 6 }}

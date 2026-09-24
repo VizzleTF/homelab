@@ -9,7 +9,6 @@ global:
 
   dns:
     domain: example.com
-    cloudflareProxied: "true"
 
   gateway:
     external:
@@ -49,22 +48,3 @@ global:
         prefix: restic-apps
         keyVaultPath: velero/s3-ovh
         passwordVaultPath: shared/restic-ovh
-
-  storage:
-    defaultStorageClass: longhorn
-
-  backup:
-    # renovate: datasource=docker depName=rclone/rclone
-    rcloneImage: rclone/rclone:1.75
-    rcloneDefaultArgs:
-      - --transfers=4
-      - --checkers=8
-      - --verbose
-    webdav:
-      url: "https://webdav.cloud.mail.ru"
-      user: "backup@example.com"
-      vendor: "other"
-      vaultPath: homelab/k8s/shared/webdav-backup
-    nfs:
-      server: 10.11.12.237
-      basePath: /volume5/k8s_svc

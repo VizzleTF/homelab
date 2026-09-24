@@ -1,0 +1,43 @@
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- range $app := $hc.apps | default list }}
+{{- $name := include "homelab-common.app.fullname" (dict "app" $app "root" $) }}
+{{- with $app.secret }}
+---
+apiVersion: v1
+kind: Secret
+{{ include "homelab-common.metadata" (dict "name" $name "root" $ "meta" .metadata) }}
+type: {{ .type | default "Opaque" }}
+{{- with .stringData }}
+stringData:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .data }}
+data:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- with $app.configMap }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "homelab-common.metadata" (dict "name" $name "root" $ "meta" .metadata) }}
+data:
+  {{- toYaml (.data | default dict) | nindent 2 }}
+{{- end }}
+{{- with $app.deployment }}
+---
+apiVersion: apps/v1
+kind: Deployment
+{{ include "homelab-common.metadata" (dict "name" $name "root" $ "meta" .metadata) }}
+spec:
+  {{- toYaml (merge (dict "revisionHistoryLimit" 2) .spec) | nindent 2 }}
+{{- end }}
+{{- with $app.service }}
+---
+apiVersion: v1
+kind: Service
+{{ include "homelab-common.metadata" (dict "name" $name "root" $ "meta" .metadata) }}
+spec:
+  {{- toYaml .spec | nindent 2 }}
+{{- end }}
+{{- end }}

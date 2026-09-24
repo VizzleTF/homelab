@@ -15,3 +15,22 @@
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+metadata block for apps[] / cronJobs[] resources: dict "name" "root" "meta" (labels/annotations).
+*/}}
+{{- define "homelab-common.metadata" -}}
+metadata:
+  name: {{ .name }}
+  namespace: {{ .root.Release.Namespace }}
+  {{- with .meta }}
+  {{- with .labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+{{- end }}

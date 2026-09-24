@@ -14,7 +14,6 @@ homelab-common:
   volsync:
     - name: immich-library
       claim: immich-library-pvc
-      capacity: 250Gi
       accessMode: ReadWriteMany
       cacheCapacity: 10Gi
       # Direct, а не Snapshot: снапшот 250Gi материализуется в клон-PVC, и две
@@ -28,9 +27,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "30 3 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         # Смещено на 5 часов от on-prem: два mover'а на одном томе одновременно
         # ничего не ломают, но делят диск и 1 GbE.
         - repo: ovh
@@ -160,14 +156,14 @@ homelab-common:
         name: immich-server
         port: 2283
   
-  cnpgDatabase:
-    name: immich
-    owner: immich
-    clusterName: immich-cluster
-    extensions:
-      - name: vector
-      - name: cube
-      - name: earthdistance
+  cnpgDatabases:
+    - name: immich
+      owner: immich
+      clusterName: immich-cluster
+      extensions:
+        - name: vector
+        - name: cube
+        - name: earthdistance
 
   # Independent logical backup (pg_dump -Fc) immich DB → OVH pg-logical/immich-cluster/.
   # Параллельно barman→Garage. immich владеет всей DB (owner) → дамп всей DB. Restore требует

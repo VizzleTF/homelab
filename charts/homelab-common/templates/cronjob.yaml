@@ -1,26 +1,9 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
-{{- $jobs := $hc.cronJobs | default list }}
-{{- range $jobs }}
-{{- if (.enabled | default true) }}
-{{- $ctx := dict "app" . "root" $ }}
-{{- $fullname := include "homelab-common.app.fullname" $ctx }}
-{{- $root := $ }}
-{{- $meta := merge (dict "name" $fullname) (.metadata | default dict) }}
+{{- range $job := $hc.cronJobs | default list }}
 ---
 apiVersion: batch/v1
 kind: CronJob
-metadata:
-  name: {{ $meta.name }}
-  namespace: {{ $meta.namespace | default $root.Release.Namespace }}
-  {{- with $meta.labels }}
-  labels:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-  {{- with $meta.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+{{ include "homelab-common.metadata" (dict "name" (include "homelab-common.app.fullname" (dict "app" $job "root" $)) "root" $) }}
 spec:
-  {{- toYaml .spec | nindent 2 }}
-{{- end }}
+  {{- toYaml $job.spec | nindent 2 }}
 {{- end }}

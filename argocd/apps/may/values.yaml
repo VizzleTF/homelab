@@ -6,7 +6,6 @@ homelab-common:
   volsync:
     - name: may
       claim: may
-      capacity: 5Gi
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -14,9 +13,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "20 0 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "20 5 * * 0"
           retain:

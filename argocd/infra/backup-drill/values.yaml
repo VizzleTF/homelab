@@ -61,27 +61,27 @@ homelab-common:
         OVH_SK: "{{ .sk }}"
 
   rbac:
-    serviceAccount:
-      name: backup-drill
-      create: true
-    clusterRole:
-      name: backup-drill
-      # Права широкие по необходимости: drill создаёт и сносит собственные
-      # namespace drill-*, а ограничить RBAC по префиксу имени нельзя.
-      # Компенсация — никаких прав на изменение чужих рабочих нагрузок:
-      # deployments/statefulsets/daemonsets в списке нет.
-      rules:
-        - apiGroups: [""]
-          resources: ["namespaces"]
-          # patch — чтобы навесить volsync.backube/privileged-movers на
-          # собственный drill-namespace.
-          verbs: ["get", "list", "create", "delete", "patch"]
-        - apiGroups: [""]
-          resources: ["persistentvolumeclaims", "secrets", "pods", "pods/log"]
-          verbs: ["get", "list", "create", "delete"]
-        - apiGroups: ["volsync.backube"]
-          resources: ["replicationdestinations"]
-          verbs: ["get", "list", "create", "delete"]
+    - serviceAccount:
+        name: backup-drill
+        create: true
+      clusterRole:
+        name: backup-drill
+        # Права широкие по необходимости: drill создаёт и сносит собственные
+        # namespace drill-*, а ограничить RBAC по префиксу имени нельзя.
+        # Компенсация — никаких прав на изменение чужих рабочих нагрузок:
+        # deployments/statefulsets/daemonsets в списке нет.
+        rules:
+          - apiGroups: [""]
+            resources: ["namespaces"]
+            # patch — чтобы навесить volsync.backube/privileged-movers на
+            # собственный drill-namespace.
+            verbs: ["get", "list", "create", "delete", "patch"]
+          - apiGroups: [""]
+            resources: ["persistentvolumeclaims", "secrets", "pods", "pods/log"]
+            verbs: ["get", "list", "create", "delete"]
+          - apiGroups: ["volsync.backube"]
+            resources: ["replicationdestinations"]
+            verbs: ["get", "list", "create", "delete"]
 
   cronJobs:
     - name: restore-drill
