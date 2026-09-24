@@ -3,9 +3,9 @@
 #
 # NB: `cnpg_collector_last_available_backup_timestamp` для shared-кластера
 # застыл на июне 2026 — это метрика in-tree barman, а кластер с тех пор
-# бэкапится плагином barman-cloud. Алертить по ней нельзя, она врёт про
-# свежесть; актуальность base backup проверяется по Backup CR
-# (`kubectl -n cnpg get backups.postgresql.cnpg.io`) и в restore-drill.
+# бэкапится плагином barman-cloud. Для cnpg свежесть base backup берётся из
+# `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp` (плагин),
+# для immich (ещё in-tree) — из cnpg_collector_*. См. CnpgBaseBackupStale.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -49,3 +49,21 @@ spec:
             description: |
               cnpg_* не скрейпятся >30 минут — состояние архивации WAL снова
               вслепую. Проверить VMPodScrape cnpg и поды инстансов.
+
+        # Base backups: the plugin cluster (cnpg) reports through the
+        # barman-cloud plugin metric; immich still uses in-tree barman, where
+        # cnpg_collector_* is accurate. Daily schedule + slack = 30h.
+        - alert: CnpgBaseBackupStale
+          expr: |
+            (time() - max by (namespace) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)) > 30 * 3600
+            or
+            (time() - max by (namespace) (cnpg_collector_last_available_backup_timestamp{namespace="immich"})) > 30 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG {{ $labels.namespace }}: base backup старше 30 часов"
+            description: |
+              Ежедневный base backup не появился — PITR опирается на всё более
+              старую точку, а restore растягивается на весь хвост WAL.
+              kubectl -n {{ $labels.namespace }} get backups.postgresql.cnpg.io --sort-by=.metadata.creationTimestamp | tail -3
