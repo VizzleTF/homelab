@@ -1,0 +1,15 @@
+# Daily base backup through the Barman Cloud Plugin. Same name as the chart's
+# former in-tree ScheduledBackup, so ArgoCD adopts it in place.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: immich-cluster-daily-backup
+  namespace: immich
+spec:
+  schedule: "0 30 4 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: immich-cluster
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
