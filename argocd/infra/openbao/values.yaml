@@ -38,7 +38,7 @@ homelab-common:
                 initContainers:
                   - name: snapshot
                     # renovate: image=quay.io/openbao/openbao
-                    image: quay.io/openbao/openbao:2.6.2
+                    image: quay.io/openbao/openbao:2.7.0
                     command: ["/bin/sh", "-c"]
                     args:
                       - |
