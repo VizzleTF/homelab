@@ -13,11 +13,9 @@ homelab-common:
 # NB: `networkPolicies.restrictInternalTraffic` (default true с 1.12.1) намеренно
 # НЕ выключаем — изоляция longhorn-компонентов остаётся. Кросс-namespace доступ
 # выдаём точечно: manifests/netpol-allow-monitoring.yaml (vmagent → 9500).
-service:
-  ui:
-    type: LoadBalancer
-  manager:
-    type: LoadBalancer
+# UI/API stay ClusterIP: the manager API (9500) can delete volumes and has no
+# auth, so it must not be announced over BGP. UI access goes through the
+# internal HTTPRoute above.
 metrics:
   serviceMonitor:
     enabled: false
@@ -69,6 +67,14 @@ defaultSettings:
   autoCleanupSystemGeneratedSnapshot: "true"
   # Лимит одновременных rebuild операций
   concurrentReplicaRebuildPerNodeLimit: "3"
+  # Live-upgrade engines to the default engine image after a Longhorn upgrade,
+  # one volume per node at a time — otherwise a volume can sit on the old
+  # engine image (and keep its DaemonSet alive) forever.
+  concurrentAutomaticEngineUpgradePerNodeLimit: "1"
+  # Node reboots/upgrades leave orphaned replica directories that nothing
+  # cleans up (39 of them, ~0.4 TB scheduled, after the 2026-09-19 Talos
+  # upgrade). Delete them after the default 300s grace period.
+  orphanResourceAutoDeletion: "replica-data;instance"
   # Policy для автоматических node drain'ов (tuppr Talos rolling upgrade).
   # `always-allow` — Longhorn разрешает drain без forced eviction replicas.
   # Replicas остаются на диске ноды во время reboot. После возврата ноды
