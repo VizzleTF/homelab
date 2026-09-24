@@ -417,6 +417,10 @@ grafana:
       label: grafana_dashboard
       labelValue: "1"
       defaultFolderName: default
+      # Not the default /var/lib/grafana/dashboards: the sidecar volume mounted
+      # there hides /var/lib/grafana/dashboards/grafana-com, where the
+      # download-dashboards init container puts the gnetId dashboards below.
+      folder: /tmp/dashboards
 
   # Community dashboards straight from grafana.com (the download-dashboards
   # init container fetches them on pod start, so Grafana needs egress there).
