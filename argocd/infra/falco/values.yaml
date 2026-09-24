@@ -37,6 +37,11 @@ falco:
 falcosidekick:
   enabled: true
   replicaCount: 1
+  # The subchart (falco 9.2.0 = latest) defaults to 2.32.0, which carries
+  # critical grpc/openssl CVEs fixed in later releases.
+  image:
+    # renovate: datasource=docker depName=falcosecurity/falcosidekick
+    tag: "2.35.0"
 
   resources:
     requests:
