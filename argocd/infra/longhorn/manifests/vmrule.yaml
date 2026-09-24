@@ -1,7 +1,6 @@
 # Longhorn volume/node health — stateful Prometheus-сигнал.
 # Заменяет шумные kubewatch-event'ы FailedRebuilding/FailedDeleting, которые
-# Robusta слала в Telegram пачкой каждую ночь (Velero CSI clone rebuild abort —
-# benign). См. docs/longhorn-monitoring.md.
+# Robusta слала в Telegram пачкой каждую ночь (benign rebuild aborts). См. docs/longhorn-monitoring.md.
 #
 # longhorn_volume_robustness — набор серий с label `state`
 # (degraded/faulted/healthy/unknown), value=1 для активного состояния.
@@ -26,18 +25,20 @@ spec:
               Volume {{ $labels.volume }} (pvc {{ $labels.pvc_namespace }}/{{ $labels.pvc }}) в состоянии faulted >5m — данные недоступны.
               kubectl -n longhorn-system get volumes.longhorn.io {{ $labels.volume }} -o yaml
 
-        # for:10m — transient rebuild при Velero CSI clone / перезапуске ноды
-        # резолвится за секунды/минуты и НЕ файрит. Реальная деградация (>10m,
-        # реплика не восстановилась) = 1 алерт, auto-resolve при healthy.
+        # for:45m — после ребута ноды Longhorn по дизайну ждёт возврата реплик
+        # replicaReplenishmentWaitInterval=1800s и только потом пересобирает.
+        # С for:10m каждый rolling-upgrade Talos давал по алерту на каждый том
+        # с репликой на этой ноде (2371 firing-сэмпл за один день). 45m =
+        # окно ожидания + ребилд; дольше — реплика действительно не вернулась.
         - alert: LonghornVolumeDegraded
           expr: max by (volume, pvc, pvc_namespace) (longhorn_volume_robustness{state="degraded"}) == 1
-          for: 10m
+          for: 45m
           labels:
             severity: warning
           annotations:
-            summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} degraded >10m"
+            summary: "Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} degraded >45m"
             description: |
-              Volume {{ $labels.volume }} деградирован >10m — реплика не восстановилась.
+              Volume {{ $labels.volume }} деградирован >45m — реплика не восстановилась и после окна replenishment.
               kubectl -n longhorn-system get volumes.longhorn.io {{ $labels.volume }} -o yaml
 
         - alert: LonghornNodeDown
