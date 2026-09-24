@@ -501,7 +501,7 @@ grafana:
       cpu: 200m
       memory: 512Mi
 
-  # Grafana state is fully declarative: dashboards via sidecar+ConfigMaps,
+  # Grafana state is fully declarative: dashboards via sidecar+ConfigMaps and grafana.com,
   # datasources via Helm chart provisioning, users via Authentik OIDC (allow_sign_up).
   # No PVC → nothing to back up.
   persistence:
@@ -518,6 +518,37 @@ grafana:
       label: grafana_dashboard
       labelValue: "1"
       defaultFolderName: default
+
+  # Community dashboards straight from grafana.com (the download-dashboards
+  # init container fetches them on pod start, so Grafana needs egress there).
+  # Pin `revision`; bump it deliberately. ${DS_PROMETHEUS}-style inputs are
+  # replaced via `datasource`.
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: grafana-com
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: true
+          options:
+            path: /var/lib/grafana/dashboards/grafana-com
+  dashboards:
+    grafana-com:
+      # etcd health (WAL fsync, commit latency, leader changes) — added after
+      # the 2026-05-22 cp-01 etcd-slowness incident; scrape: vmnodescrape-etcd.yaml.
+      etcd:
+        gnetId: 21473
+        revision: 3
+      # Banned IPs by country/ASN/subnet from cs_lapi_decision (pushed by the VPS
+      # CrowdSec instances via crowdsec-scraper).
+      crowdsec-cti:
+        gnetId: 21689
+        revision: 1
+        datasource:
+          - name: DS_PROMETHEUS
+            value: VictoriaMetrics
 
 # Prometheus Node Exporter
 prometheus-node-exporter:
