@@ -19,6 +19,12 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
+# Keep it off the control-plane nodes: lampac downloads and runs the
+# TorrServer binary at runtime (Falco "drop and execute new binary"), which
+# should not happen next to etcd. Stateless, so any worker is fine.
+nodeSelector:
+  kubernetes.io/hostname: talos-worker-01
+
 # Service type: ClusterIP — доступ через cilium-gateway-internal HTTPRoute,
 # фронтнэндом служит KEDA HTTP add-on interceptor (для on-demand scale-to-zero).
 # Раньше LB IP 10.11.11.133 — теперь lampac.example.com через homelab-common.httpRoutes ниже.
