@@ -41,9 +41,6 @@ homelab-common:
           schedule: "10 0 * * *"
         - repo: ovh
           schedule: "10 5 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   externalSecrets:
     - name: cleanbot-secrets

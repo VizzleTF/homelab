@@ -48,3 +48,7 @@ global:
         prefix: restic-apps
         keyVaultPath: velero/s3-ovh
         passwordVaultPath: shared/restic-ovh
+        # Off-site keeps longer history; targets may still override `retain`.
+        retain:
+          weekly: 12
+          monthly: 6

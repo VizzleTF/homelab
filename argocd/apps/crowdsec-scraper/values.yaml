@@ -23,9 +23,6 @@ homelab-common:
           schedule: "30 2 * * *"
         - repo: ovh
           schedule: "30 7 * * 0"
-          retain:
-            weekly: 12
-            monthly: 6
 
   # netbird identity PVC (/etc/netbird) — отдельный peer, НЕ переиспользовать netbird app.
 
