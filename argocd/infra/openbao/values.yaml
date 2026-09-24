@@ -546,14 +546,11 @@ server:
         add:
           - IPC_LOCK
 
+# Agent injector off: no pod carries vault.hashicorp.com/agent-inject — every
+# secret comes through ESO. It only added a mutating webhook on all pods and
+# an image (hashicorp/vault-k8s 1.7.2) with 3 critical CVEs.
 injector:
-  resources:
-    requests:
-      memory: 100Mi
-      cpu: 15m
-    limits:
-      memory: 192Mi
-      cpu: 100m
+  enabled: false
 
 ui:
   enabled: true
