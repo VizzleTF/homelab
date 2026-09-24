@@ -1,3 +1,4 @@
 repoURL: https://guerzon.github.io/vaultwarden
 targetRevision: "0.46.2"
 wave: "2"
+extraManifests: true
