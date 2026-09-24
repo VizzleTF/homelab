@@ -1,0 +1,12 @@
+# Only here for the VolSync annotation: the manager volume mixes 0600 files
+# owned by uid 999 (sslmanager.key, filebeat registry) and by root, so an
+# unprivileged restic mover cannot read everything under any single uid.
+# The namespace itself is still created by CreateNamespace; Prune/Delete=false
+# keep ArgoCD from ever deleting it with the app.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wazuh
+  annotations:
+    volsync.backube/privileged-movers: "true"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false

@@ -7,3 +7,4 @@ ignoreDiff: |
     kind: WazuhCluster
     jsonPointers:
       - /status
+extraManifests: true
