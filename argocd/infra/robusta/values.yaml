@@ -204,6 +204,12 @@ disabledPlaybooks:
 # chat_id живёт числом в argocd/infra/robusta/values.yaml — Robusta требует int
 # и не делает env-substitution для этого поля.
 homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
   externalSecrets:
     - name: robusta-telegram
       vaultPath: robusta/telegram

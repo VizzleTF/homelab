@@ -42,3 +42,10 @@ worker:
           - "0302"
         deviceLabelFields:
           - vendor
+
+homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]

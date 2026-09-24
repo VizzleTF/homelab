@@ -8,6 +8,12 @@
 # Velero; переименование пути потребовало бы синхронной правки в cnpg и
 # snapshot-CronJob'ах.
 homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
   externalSecrets:
     - name: tfstate-mirror-rclone-env
       data:

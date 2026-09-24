@@ -11,6 +11,12 @@
 #   - алерт в Alertmanager -> Robusta -> Telegram, и на успех, и на провал
 #     (успех с severity=info и коротким endsAt, чтобы не висел в firing)
 homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
   limitRange:
     enabled: true
     defaultRequests:

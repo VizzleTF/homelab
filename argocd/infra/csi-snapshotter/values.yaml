@@ -32,3 +32,10 @@ controller:
 
 webhook:
   enabled: false   # validating webhook опционален; controller сам справляется
+
+homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]

@@ -1,4 +1,10 @@
 homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
   externalSecrets:
     - name: cloudflare-api-token
       targetName: external-dns-cloudflare
