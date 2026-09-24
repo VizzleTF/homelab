@@ -9,14 +9,35 @@
 # design), and a report nobody can act on is noise.
 podSecurityStandard: baseline
 
-# Audit only. The point right now is to see what actually violates the
-# baseline; turning this to Enforce before reading those reports would break
-# workloads on the next pod restart, not at apply time.
-validationFailureAction: Audit
+# Enforce (since 2026-09-24). The Audit reports showed violations only in the
+# namespaces below, all privileged by design; every other namespace is clean,
+# so from now on a new privileged/hostPath/hostNetwork workload there is
+# rejected instead of just reported. To add a namespace, check its
+# PolicyReports first.
+validationFailureAction: Enforce
+
+vpolExclude:
+  excludeNamespaces:
+    - kube-system              # cilium, talos static pods, csi
+    - longhorn-system          # instance/share managers, engine images
+    - falco                    # eBPF probes
+    - netbird                  # WireGuard routing peers
+    - crowdsec-scraper         # netbird peer
+    - wazuh                    # operator pods + privileged VolSync mover
+    - victoria-metrics         # node-exporter (hostPID/hostNetwork)
+    - victoria-logs            # vector reads /var/log on the host
+    - spegel                   # containerd socket
+    - node-feature-discovery   # host /sys, /proc
+    - smartctl-exporter        # raw disk access
+    - forgejo                  # privileged dind runner
+  matchConditions:
+    # restore-drill creates drill-* namespaces with privileged VolSync movers.
+    - name: skip-restore-drill-namespaces
+      expression: "!has(request.namespace) || !request.namespace.startsWith('drill-')"
 
 # Ignore, not the chart's default Fail. With Fail, a Kyverno outage turns into
 # a cluster-wide admission outage — nothing new can be scheduled while the
-# controller is down. Not a trade worth making for policies that only audit.
+# controller is down.
 failurePolicy: Ignore
 
 # Report on what is already running, not just on new admissions.
