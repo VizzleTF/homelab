@@ -2,12 +2,14 @@
 # Non-default values used in the cluster
 
 # Cilium-agent resources (DaemonSet, one pod per node — currently 3)
+# Working set sat at 470-490Mi of 512Mi (7d, 2026-09): raised before the
+# first OOM kills the datapath agent.
 resources:
   requests:
-    memory: 320Mi
+    memory: 384Mi
     cpu: 96m
   limits:
-    memory: 512Mi
+    memory: 768Mi
     cpu: 400m
 
 # GOMEMLIMIT — chart auto-injects via downward API from limits.memory; do NOT

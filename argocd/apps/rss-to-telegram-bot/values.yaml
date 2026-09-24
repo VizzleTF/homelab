@@ -119,7 +119,8 @@ homelab-common:
                       cpu: 25m
                       memory: 160Mi
                     limits:
-                      cpu: 100m
+                      # Throttled 55% of periods at 100m.
+                      cpu: 250m
                       memory: 256Mi
               volumes:
                 - name: data

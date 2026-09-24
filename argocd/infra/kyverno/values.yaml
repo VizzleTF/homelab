@@ -44,4 +44,5 @@ cleanupController:
       cpu: 50m
       memory: 64Mi
     limits:
-      memory: 128Mi
+      # 113Mi max of 128Mi, 12 restarts (2026-09).
+      memory: 256Mi

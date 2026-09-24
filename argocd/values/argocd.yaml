@@ -134,12 +134,13 @@ homelab-common:
 
 applicationSet:
   resources:
+    # 116Mi max of 128Mi, CPU throttled 15% (2026-09).
     limits:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 250m
+      memory: 256Mi
     requests:
       cpu: 15m
-      memory: 64Mi
+      memory: 128Mi
 
 controller:
   env:
@@ -149,10 +150,11 @@ controller:
       value: "1700MiB"
   resources:
     limits:
-      cpu: 500m
+      # p95 257m, throttled 13% at 500m.
+      cpu: "1"
       memory: 2Gi
     requests:
-      cpu: 128m
+      cpu: 256m
       memory: 896Mi
 
 configs:

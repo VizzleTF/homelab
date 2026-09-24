@@ -79,7 +79,8 @@ resources:
     cpu: 100m
     memory: 512Mi
   limits:
-    cpu: 1000m
+    # Full scans peg the limit (throttled 81% at 1000m); runs on the worker.
+    cpu: 2000m
     # Bumped 1536→2048Mi: first-attempt OOM observed during full repo scan
     # (Node.js heap 1024 + child processes for cargo/yarn/github-actions
     # extractors).
