@@ -4,8 +4,8 @@
 # NB: `cnpg_collector_last_available_backup_timestamp` для shared-кластера
 # застыл на июне 2026 — это метрика in-tree barman, а кластер с тех пор
 # бэкапится плагином barman-cloud. Для cnpg свежесть base backup берётся из
-# `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp` (плагин),
-# для immich (ещё in-tree) — из cnpg_collector_*. См. CnpgBaseBackupStale.
+# `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp` (плагин);
+# для immich тоже (плагин с 2026-09-24). См. CnpgBaseBackupStale.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -50,14 +50,11 @@ spec:
               cnpg_* не скрейпятся >30 минут — состояние архивации WAL снова
               вслепую. Проверить VMPodScrape cnpg и поды инстансов.
 
-        # Base backups: the plugin cluster (cnpg) reports through the
-        # barman-cloud plugin metric; immich still uses in-tree barman, where
-        # cnpg_collector_* is accurate. Daily schedule + slack = 30h.
+        # Base backups: both clusters back up through the barman-cloud plugin
+        # (cnpg_collector_last_available_backup_timestamp froze when each moved
+        # off in-tree barman). Daily schedule + slack = 30h.
         - alert: CnpgBaseBackupStale
-          expr: |
-            (time() - max by (namespace) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)) > 30 * 3600
-            or
-            (time() - max by (namespace) (cnpg_collector_last_available_backup_timestamp{namespace="immich"})) > 30 * 3600
+          expr: (time() - max by (namespace) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)) > 30 * 3600
           for: 1h
           labels:
             severity: critical
