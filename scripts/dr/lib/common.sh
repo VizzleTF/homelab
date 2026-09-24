@@ -69,16 +69,6 @@ load_bootstrap_env() {
   set +a
 }
 
-# Same for 03-cluster.env (gateway IPs, etc)
-load_cluster_env() {
-  local f="$DR_PACK_DIR/03-cluster.env"
-  [ -f "$f" ] || die "missing $f — run scripts/dr-pack/build.sh"
-  set -a
-  # shellcheck disable=SC1090
-  source "$f"
-  set +a
-}
-
 # kubectl reachable?
 require_kubectl() {
   kubectl cluster-info --request-timeout=5s >/dev/null 2>&1 \

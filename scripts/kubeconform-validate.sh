@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Validate Kubernetes manifests with kubeconform — both raw manifests under
 # argocd/**/manifests + standalone Applications, and the rendered output of the
-# homelab-common chart for every values file that uses it.
+# homelab-common chart for every values file that uses it (a render or
+# values-schema failure fails the run too).
 #
 # Single source of truth shared by `.forgejo/workflows/ci.yaml` (kubeconform job)
 # and `task ci:kubeconform`. Requires `kubeconform` and `helm` on PATH
@@ -54,7 +55,7 @@ for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps
   [[ -f "$f" ]] || continue
   grep -qE '^homelab-common:|^global:' "$f" || continue
   if ! helm template test charts/homelab-common \
-        -f argocd/values/global.yaml -f "$f" 2>/dev/null \
+        -f argocd/values/global.yaml -f "$f" \
         | kc -; then
     echo "  FAIL: $f"
     fails=$((fails + 1))
