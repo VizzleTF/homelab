@@ -18,7 +18,7 @@ jobs:
   yamllint:
     # Pre-merge gate. После squash-merge на main те же файлы уже валидированы — не перегоняем.
     if: github.event_name != 'push'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install yamllint
@@ -30,7 +30,7 @@ jobs:
 
   helm-lint:
     if: github.event_name != 'push'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install helm
@@ -73,7 +73,7 @@ jobs:
     # that helm-lint's values-schema check cannot see. kubeconform version is
     # read from .mise.toml (single source of truth, Renovate-tracked).
     if: github.event_name != 'push'
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install helm
