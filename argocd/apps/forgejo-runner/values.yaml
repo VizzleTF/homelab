@@ -62,6 +62,13 @@ runner:
       host:
         workdir_parent:
 
+# Privileged DinD must not share a node with etcd and the Talos secrets: CI jobs
+# (gitleaks, helm, kaniko) run untrusted-ish code as root there, and their disk
+# and CPU bursts hit etcd on the control-plane nodes (same reason renovate is
+# pinned to the worker).
+nodeSelector:
+  kubernetes.io/hostname: talos-worker-01
+
 # DinD — sidecar для исполнения jobs.
 dind:
   resources:
