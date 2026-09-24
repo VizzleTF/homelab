@@ -1,6 +1,18 @@
 # VictoriaMetrics K8s Stack configuration for ArgoCD
 
 homelab-common:
+  # Default-deny ingress. Grafana is reached through the gateway; vmagent only
+  # scrapes outbound. Other namespaces that query or push:
+  networkPolicy:
+    enabled: true
+    allow:
+      # PromQL queries (openbao job, restore drill, robusta) and crowdsec-scraper remote write
+      - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper]
+        ports: [8428]
+      # alerts pushed to Alertmanager
+      - namespaces: [backup-drill, falco, wazuh, robusta]
+        ports: [9093]
+
   httpRoutes:
     - name: grafana
       hostname: grafana
