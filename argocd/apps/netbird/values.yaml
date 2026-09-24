@@ -97,7 +97,9 @@ homelab-common:
                           app: netbird-peer-2
                       topologyKey: kubernetes.io/hostname
               containers:
-                - name: netbird
+                # peer-2 reuses this container (YAML merge) and only swaps NB_HOSTNAME.
+                - &netbird-container
+                  name: netbird
                   # renovate: image=netbirdio/netbird
                   image: netbirdio/netbird:0.79.0
                   imagePullPolicy: IfNotPresent
@@ -109,13 +111,16 @@ homelab-common:
                         - SYS_ADMIN
                         - SYS_RESOURCE
                   env:
-                    - name: NB_MANAGEMENT_URL
+                    - &nb-management-url
+                      name: NB_MANAGEMENT_URL
                       value: "https://netbird.example.com"
-                    - name: NB_ADMIN_URL
+                    - &nb-admin-url
+                      name: NB_ADMIN_URL
                       value: "https://netbird.example.com"
                     - name: NB_HOSTNAME
                       value: "k8s-homelab-peer"
-                    - name: NB_LOG_LEVEL
+                    - &nb-log-level
+                      name: NB_LOG_LEVEL
                       value: "info"
                   envFrom:
                     - secretRef:
@@ -139,7 +144,8 @@ homelab-common:
                     - name: state
                       mountPath: /var/lib/netbird
               volumes:
-                - name: tun
+                - &tun-volume
+                  name: tun
                   hostPath:
                     path: /dev/net/tun
                     type: CharDevice
@@ -177,52 +183,15 @@ homelab-common:
                           app: netbird-peer
                       topologyKey: kubernetes.io/hostname
               containers:
-                - name: netbird
-                  # renovate: image=netbirdio/netbird
-                  image: netbirdio/netbird:0.79.0
-                  imagePullPolicy: IfNotPresent
-                  securityContext:
-                    capabilities:
-                      add:
-                        - NET_ADMIN
-                        - NET_RAW
-                        - SYS_ADMIN
-                        - SYS_RESOURCE
+                - <<: *netbird-container
                   env:
-                    - name: NB_MANAGEMENT_URL
-                      value: "https://netbird.example.com"
-                    - name: NB_ADMIN_URL
-                      value: "https://netbird.example.com"
+                    - *nb-management-url
+                    - *nb-admin-url
                     - name: NB_HOSTNAME
                       value: "k8s-homelab-peer-2"
-                    - name: NB_LOG_LEVEL
-                      value: "info"
-                  envFrom:
-                    - secretRef:
-                        name: netbird-peer
-                  resources:
-                    limits:
-                      cpu: 500m
-                      memory: 256Mi
-                    requests:
-                      cpu: 30m
-                      memory: 64Mi
-                  volumeMounts:
-                    - name: tun
-                      mountPath: /dev/net/tun
-                    # PVC монтируется в /var/lib/netbird, а не /etc/netbird:
-                    # клиент netbird хранит там active_profile.json, default.json
-                    # и state.json (идентичность пира и ключи). Со старым путём
-                    # том оставался пустым, а бэкап — бэкапом пустоты: VolSync
-                    # честно писал "Directory is empty skipping backup", Velero
-                    # до него так же молча снимал пустой PVC.
-                    - name: state
-                      mountPath: /var/lib/netbird
+                    - *nb-log-level
               volumes:
-                - name: tun
-                  hostPath:
-                    path: /dev/net/tun
-                    type: CharDevice
+                - *tun-volume
                 - name: state
                   persistentVolumeClaim:
                     claimName: netbird-peer-2
