@@ -39,3 +39,19 @@ spec:
             severity: warning
           annotations:
             summary: "{{ $labels.pod }}: {{ $value }} endpoint(s) Cilium не ready 30 минут"
+
+        # Default-deny ingress is on for most app namespaces (homelab-common
+        # networkPolicy, cnpg/openbao/vaultwarden policies). A sustained
+        # "Policy denied" rate means a legitimate client is missing from an
+        # allow-list (or something is probing where it should not).
+        - alert: CiliumPolicyDenied
+          expr: sum by (pod) (rate(cilium_drop_count_total{reason="Policy denied"}[10m])) > 0.05
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: трафик режется сетевой политикой ({{ $value | humanize }}/s)"
+            description: |
+              Кого режут:
+              kubectl -n kube-system exec {{ $labels.pod }} -c cilium-agent -- hubble observe --verdict DROPPED --since 15m -o compact
+              Если это легитимный клиент — добавить его ns в networkPolicy.allow приложения.
