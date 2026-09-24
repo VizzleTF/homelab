@@ -135,3 +135,13 @@ vector:
         mode: udp
         encoding:
           codec: text
+
+homelab-common:
+  # Default-deny ingress: VictoriaLogs has no auth (read + delete API) and holds
+  # the kube audit stream. Only Grafana (datasource) and vmagent (scrape) from
+  # victoria-metrics may connect; Vector ships from inside the namespace.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+        ports: [9428, 9090]
