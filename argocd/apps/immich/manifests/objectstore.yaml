@@ -1,0 +1,37 @@
+# Barman Cloud Plugin object store for immich-cluster, replacing the in-tree
+# .spec.backup.barmanObjectStore (deprecated in CNPG). destinationPath and
+# serverName (set on the Cluster plugin entry in cnpg-values.yaml) mirror the
+# in-tree layout, so the plugin continues the existing catalog and WALs:
+# s3://cnpg-backups/immich-cluster-restored/immich-cluster.
+# A raw manifest, not the chart's ObjectStore: the chart marks that one as a
+# Helm pre-install/pre-upgrade hook, which ArgoCD would recreate on every sync
+# underneath the running WAL archiver.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: immich-cluster-store
+  namespace: immich
+spec:
+  retentionPolicy: "7d"
+  instanceSidecarConfiguration:
+    # Garage rejects HeadBucket without a region.
+    env:
+      - name: AWS_DEFAULT_REGION
+        value: garage
+  configuration:
+    destinationPath: "s3://cnpg-backups/immich-cluster-restored"
+    endpointURL: "https://s3.example.com"
+    s3Credentials:
+      accessKeyId:
+        name: cnpg-s3-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: cnpg-s3-backup
+        key: ACCESS_SECRET_KEY
+    data:
+      compression: gzip
+      encryption: AES256
+      jobs: 2
+    wal:
+      compression: gzip
+      encryption: AES256

@@ -9,7 +9,8 @@ cluster:
   instances: 1
   # PG17 → 18 via CNPG declarative offline pg_upgrade (vchord pinned at 1.1.0 both
   # sides — upgraded separately on PG17 first, so this is a clean major upgrade).
-  # tensorchord image bundles barman → in-tree backups continue (no plugin).
+  # Backups go through the Barman Cloud Plugin sidecar (plugins below +
+  # manifests/objectstore.yaml); in-tree barmanObjectStore is deprecated.
   # Compound <pgmajor>.<pgminor>-<vchord> tag — Renovate-managing it is a known-hard case.
   imageName: ghcr.io/tensorchord/cloudnative-vectorchord:18.3-1.1.0
 
@@ -58,6 +59,18 @@ cluster:
     shared_preload_libraries:
       - "vchord.so"
 
+  # WAL archiving + base backups via the Barman Cloud Plugin. serverName keeps
+  # the in-tree layout (<destinationPath>/immich-cluster) so the plugin
+  # continues the existing catalog. enabled/isWALArchiver set explicitly:
+  # with backups.enabled=false the chart would default them to false.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: immich-cluster-store
+        serverName: immich-cluster
+
   initdb:
     database: immich
     owner: immich
@@ -72,22 +85,7 @@ cluster:
     postInitSQL:
       - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
 
+# Chart-managed backups off: the object store and the ScheduledBackup live in
+# manifests/ (the chart would render the ObjectStore as a Helm hook).
 backups:
-  enabled: true
-  endpointURL: "https://s3.example.com"
-  # Permanent path. Originally `immich-cluster-restored` was a fresh path to pass
-  # the CNPG "Expected empty archive" check during a barman recovery (2026-05);
-  # recovery long verified and the old `immich-cluster/` archive purged 2026-06-01,
-  # so this stays as the canonical path (reverting would re-trigger the empty-archive
-  # check for no benefit).
-  destinationPath: "s3://cnpg-backups/immich-cluster-restored"
-  provider: s3
-  secret:
-    create: false
-    name: cnpg-s3-backup
-  retentionPolicy: "7d"
-  scheduledBackups:
-    - name: daily-backup
-      schedule: "0 30 4 * * *"
-      backupOwnerReference: self
-      method: barmanObjectStore
+  enabled: false
