@@ -128,6 +128,18 @@ homelab-common:
   networkPolicy:
     enabled: true
 
+  # Step 1 of leaving RWX: the data volume goes over NFS (share-manager pod)
+  # for no reason, only one pod mounts it. Filled by a one-off copy job, then
+  # the chart switches to it (step 2).
+  persistentVolumeClaims:
+    - name: forgejo-data-rwo
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 10Gi
+      labels:
+        app.kubernetes.io/name: forgejo
+
   # VolSync removed with the move: this instance is a read-only mirror of the
   # Forgejo on the ops node, and that one is backed up there — daily dump into
   # restic, Garage plus OVH. See obsidian/113 Backups/Forgejo Recovery.md.
