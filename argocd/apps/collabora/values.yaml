@@ -52,6 +52,11 @@ route:
   enabled: false
 
 homelab-common:
+  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
+  # probes and API server only; extra sources from Hubble flows 2026-09-24.
+  networkPolicy:
+    enabled: true
+
   externalSecrets:
     - name: collabora
       vaultPath: collabora/collabora
