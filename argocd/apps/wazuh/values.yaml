@@ -682,6 +682,11 @@ opensearchISMPolicies:
           priority: 100
 
 homelab-common:
+  # Default-deny ingress. Dashboard via the gateway; the manager's agent and
+  # syslog ports are opened separately in manifests/networkpolicy.yaml.
+  networkPolicy:
+    enabled: true
+
   # Manager state: agent registrations (client.keys), sslmanager.key, API
   # config. Losing it means re-enrolling every agent. The indexer (events) and
   # the local-path queue are rebuildable and not backed up.
