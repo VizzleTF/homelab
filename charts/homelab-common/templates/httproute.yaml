@@ -1,19 +1,10 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
 {{- $g := .Values.global | default dict }}
-{{- $gwExt := $g.gateway | default dict | dig "external" dict }}
-{{- $gwInt := $g.gateway | default dict | dig "internal" dict }}
-{{- $gwExtName := $gwExt.name | default "cilium-gateway" }}
-{{- $gwExtNs := $gwExt.namespace | default "kube-system" }}
-{{- $gwIntName := $gwInt.name | default "cilium-gateway-internal" }}
-{{- $gwIntNs := $gwInt.namespace | default "kube-system" }}
-{{- $domain := $g.dns | default dict | dig "domain" "example.com" }}
-{{- $internalTarget := $g.gateway | default dict | dig "internal" dict | dig "ip" "10.11.10.138" }}
-{{- $routes := $hc.httpRoutes | default list }}
-{{- range $routes }}
+{{- range $r := $hc.httpRoutes | default list }}
 {{- $gateway := .gateway | default "external" }}
 {{- $hostname := .hostname }}
 {{- if not (contains "." $hostname) }}
-{{- $hostname = printf "%s.%s" $hostname $domain }}
+{{- $hostname = printf "%s.%s" $hostname $g.dns.domain }}
 {{- end }}
 
 {{/* kedaColdStartLoadingPage: shortcut that routes via the keda-loading-proxy
@@ -21,108 +12,70 @@
      "service is starting" loading page during scale-from-zero.
      See argocd/infra/keda-add-ons-http/manifests/loading-proxy-*.yaml */}}
 {{- $svc := .service | default dict }}
-{{- $svcName := $svc.name }}
-{{- $svcNs   := $svc.namespace }}
-{{- $svcPort := $svc.port }}
 {{- if .kedaColdStartLoadingPage }}
-{{- $svcName = "keda-loading-proxy" }}
-{{- $svcNs   = "keda" }}
-{{- $svcPort = 8080 }}
+{{- $svc = dict "name" "keda-loading-proxy" "namespace" "keda" "port" 8080 }}
 {{- end }}
 
-{{- if or (eq $gateway "external") (eq $gateway "both") }}
+{{- range $kind := list "external" "internal" }}
+{{- if or (eq $gateway $kind) (eq $gateway "both") }}
+{{- $gw := index $g.gateway $kind }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ .name }}{{ if eq $gateway "both" }}-external{{ end }}
+  name: {{ $r.name }}{{ if eq $gateway "both" }}-{{ $kind }}{{ end }}
   namespace: {{ $.Release.Namespace }}
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
     external-dns.kubernetes.io/hostname: {{ $hostname }}
-    external-dns.kubernetes.io/cloudflare-proxied: {{ .cloudflareProxied | default "true" | quote }}
-    {{- with .annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-spec:
-  parentRefs:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: {{ $gwExtName }}
-      namespace: {{ $gwExtNs }}
-  hostnames:
-    - {{ $hostname }}
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: {{ .pathPrefix | default "/" }}
-      {{- if .filters }}
-      filters:
-        {{- toYaml .filters | nindent 8 }}
-      {{- end }}
-      backendRefs:
-        - name: {{ $svcName }}
-          {{- if $svcNs }}
-          namespace: {{ $svcNs }}
-          {{- end }}
-          port: {{ $svcPort }}
-{{- end }}
-
-{{- if or (eq $gateway "internal") (eq $gateway "both") }}
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: {{ .name }}{{ if eq $gateway "both" }}-internal{{ end }}
-  namespace: {{ $.Release.Namespace }}
-  annotations:
-    argocd.argoproj.io/sync-options: Replace=true
-    external-dns.kubernetes.io/hostname: {{ $hostname }}
-    external-dns.kubernetes.io/target: {{ $internalTarget | quote }}
+    {{- if eq $kind "external" }}
+    external-dns.kubernetes.io/cloudflare-proxied: "true"
+    {{- else }}
+    external-dns.kubernetes.io/target: {{ $gw.ip | quote }}
     external-dns.kubernetes.io/internal-dns: "true"
-    {{- with .annotations }}
+    {{- end }}
+    {{- with $r.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: {{ $gwIntName }}
-      namespace: {{ $gwIntNs }}
+      name: {{ $gw.name }}
+      namespace: {{ $gw.namespace }}
   hostnames:
     - {{ $hostname }}
   rules:
     - matches:
         - path:
             type: PathPrefix
-            value: {{ .pathPrefix | default "/" }}
-      {{- /* Alt-Svc: clear — the same hostname is served by Cloudflare externally
-           (which advertises `alt-svc: h3=":443"`) and by this TCP-only internal
-           gateway on the LAN. Browsers cache Alt-Svc per origin, not per IP, so
-           at home they keep trying QUIC against 10.11.10.138 and fail with
-           ERR_QUIC_PROTOCOL_ERROR. `clear` invalidates that cache (RFC 7838).
-           Opt out per route with `altSvcClear: false`. */}}
-      {{- $altSvcClear := ne .altSvcClear false }}
-      {{- if or $altSvcClear .filters }}
+            value: {{ $r.pathPrefix | default "/" }}
+      {{- /* Alt-Svc: clear (internal only) — the same hostname is served by
+           Cloudflare externally (which advertises `alt-svc: h3=":443"`) and by
+           this TCP-only internal gateway on the LAN. Browsers cache Alt-Svc per
+           origin, not per IP, so at home they keep trying QUIC against the
+           internal gateway and fail with ERR_QUIC_PROTOCOL_ERROR. `clear`
+           invalidates that cache (RFC 7838). */}}
+      {{- if or (eq $kind "internal") $r.filters }}
       filters:
-        {{- if $altSvcClear }}
+        {{- if eq $kind "internal" }}
         - type: ResponseHeaderModifier
           responseHeaderModifier:
             set:
               - name: Alt-Svc
                 value: clear
         {{- end }}
-        {{- with .filters }}
+        {{- with $r.filters }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- end }}
       backendRefs:
-        - name: {{ $svcName }}
-          {{- if $svcNs }}
-          namespace: {{ $svcNs }}
+        - name: {{ $svc.name }}
+          {{- with $svc.namespace }}
+          namespace: {{ . }}
           {{- end }}
-          port: {{ $svcPort }}
+          port: {{ $svc.port }}
+{{- end }}
 {{- end }}
 
 {{- end }}

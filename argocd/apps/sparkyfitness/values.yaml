@@ -92,7 +92,6 @@ homelab-common:
   volsync:
     - name: sparkyfitness-uploads
       claim: sparkyfitness-server-uploads
-      capacity: 10Gi
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -100,9 +99,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "50 1 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "50 6 * * 0"
           retain:

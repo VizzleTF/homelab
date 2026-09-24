@@ -1,13 +1,5 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
-{{- $rbacRaw := $hc.rbac }}
-{{- if $rbacRaw }}
-{{- $rbacList := list }}
-{{- if kindIs "slice" $rbacRaw }}
-{{- $rbacList = $rbacRaw }}
-{{- else }}
-{{- $rbacList = list $rbacRaw }}
-{{- end }}
-{{- range $rbac := $rbacList }}
+{{- range $rbac := $hc.rbac | default list }}
 
 {{- if $rbac.serviceAccount }}
 {{- if $rbac.serviceAccount.create }}
@@ -53,5 +45,4 @@ subjects:
     namespace: {{ $.Release.Namespace }}
 {{- end }}
 
-{{- end }}
 {{- end }}

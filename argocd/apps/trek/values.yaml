@@ -59,7 +59,6 @@ homelab-common:
   volsync:
     - name: trek-data
       claim: trek-data
-      capacity: 1Gi
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -67,9 +66,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "40 0 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "40 5 * * 0"
           retain:
@@ -77,7 +73,6 @@ homelab-common:
             monthly: 6
     - name: trek-uploads
       claim: trek-uploads
-      capacity: 10Gi
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -85,9 +80,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "45 0 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "45 5 * * 0"
           retain:

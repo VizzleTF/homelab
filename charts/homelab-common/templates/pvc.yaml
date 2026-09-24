@@ -21,10 +21,6 @@ spec:
     {{- range .accessModes }}
     - {{ . }}
     {{- end }}
-  {{- if .volumeName }}
-  volumeName: {{ .volumeName }}
-  {{- end }}
-  volumeMode: {{ .volumeMode | default "Filesystem" }}
   resources:
     requests:
       storage: {{ .size }}

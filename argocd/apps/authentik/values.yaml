@@ -1,8 +1,6 @@
 homelab-common:
   authentikBlueprints:
     - name: authentik-blueprint-grafana
-      namespace: authentik
-      enabled: true
       blueprints:
         # Blueprint 1: create groups scope mapping first (no dependencies)
         01-grafana-scope.yaml: |
@@ -61,8 +59,6 @@ homelab-common:
                 policy_engine_mode: any
 
     - name: authentik-blueprint-immich
-      namespace: authentik
-      enabled: true
       blueprints:
         # Blueprint 1: create groups scope mapping first (no dependencies)
         01-immich-scope.yaml: |
@@ -118,8 +114,6 @@ homelab-common:
                 policy_engine_mode: any
 
     - name: authentik-blueprint-argocd
-      namespace: authentik
-      enabled: true
       blueprints:
         # Blueprint 0: create groups and assign members (no dependencies)
         00-argocd-groups.yaml: |
@@ -189,8 +183,6 @@ homelab-common:
                 policy_engine_mode: any
 
     - name: authentik-blueprint-trek
-      namespace: authentik
-      enabled: true
       blueprints:
         02-trek-oidc.yaml: |
           version: 1
@@ -234,8 +226,6 @@ homelab-common:
                 policy_engine_mode: any
 
     - name: authentik-blueprint-sparkyfitness
-      namespace: authentik
-      enabled: true
       blueprints:
         02-sparkyfitness-oidc.yaml: |
           version: 1
@@ -286,8 +276,6 @@ homelab-common:
     # and result lands in the Task table, but the synchronous get_result the
     # wizard uses never resolves). The blueprint discovery+apply path is fine.
     - name: authentik-blueprint-enrollment-invitation
-      namespace: authentik
-      enabled: true
       blueprints:
         enrollment-invitation.yaml: |
           version: 1
@@ -430,8 +418,6 @@ homelab-common:
                 stage: !KeyOf stage-login
                 order: 40
     - name: authentik-blueprint-wazuh
-      namespace: authentik
-      enabled: true
       blueprints:
         # Blueprint 0: the admin group. OpenSearch matches this group name as a
         # backend role (see opensearchRoleMappings in argocd/apps/wazuh), so the
@@ -523,8 +509,6 @@ homelab-common:
 
 
     - name: authentik-blueprint-opencloud
-      namespace: authentik
-      enabled: true
       blueprints:
         # Blueprint 0: role groups. OpenCloud runs with
         # PROXY_ROLE_ASSIGNMENT_DRIVER=oidc, so a user whose `roles` claim matches

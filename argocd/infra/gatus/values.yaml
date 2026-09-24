@@ -35,24 +35,24 @@ homelab-common:
 
   rbac:
     # Dedicated SA + cluster-scoped read for the sidecar's resource discovery.
-    serviceAccount:
-      create: true
-      name: gatus
-      automountServiceAccountToken: true
-    clusterRole:
-      name: gatus-sidecar
-      # httproutes/gateways used now (--enable-httproute); ingress/service kept so
-      # enabling --enable-ingress/--enable-service later needs no RBAC change.
-      rules:
-        - apiGroups: ["gateway.networking.k8s.io"]
-          resources: ["httproutes", "gateways"]
-          verbs: ["get", "list", "watch"]
-        - apiGroups: ["networking.k8s.io"]
-          resources: ["ingresses", "ingressclasses"]
-          verbs: ["get", "list", "watch"]
-        - apiGroups: [""]
-          resources: ["services", "endpoints"]
-          verbs: ["get", "list", "watch"]
+    - serviceAccount:
+        create: true
+        name: gatus
+        automountServiceAccountToken: true
+      clusterRole:
+        name: gatus-sidecar
+        # httproutes/gateways used now (--enable-httproute); ingress/service kept so
+        # enabling --enable-ingress/--enable-service later needs no RBAC change.
+        rules:
+          - apiGroups: ["gateway.networking.k8s.io"]
+            resources: ["httproutes", "gateways"]
+            verbs: ["get", "list", "watch"]
+          - apiGroups: ["networking.k8s.io"]
+            resources: ["ingresses", "ingressclasses"]
+            verbs: ["get", "list", "watch"]
+          - apiGroups: [""]
+            resources: ["services", "endpoints"]
+            verbs: ["get", "list", "watch"]
 
   apps:
     - name: gatus

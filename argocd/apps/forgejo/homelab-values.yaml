@@ -47,8 +47,6 @@ homelab-common:
   # (см. authentik.yaml: добавлен в externalSecrets и templateData).
   authentikBlueprints:
     - name: authentik-blueprint-forgejo
-      namespace: authentik
-      enabled: true
       blueprints:
         forgejo-oidc.yaml: |
           version: 1

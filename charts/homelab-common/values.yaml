@@ -1,47 +1,5 @@
 # Default values for homelab-common (shared Helm chart).
-# Секреты и среда (NFS/WebDAV/NIC) задаются в private values, см. argocd/values/global.yaml.
-
-# Global defaults that can be overridden
-global:
-  # Vault configuration
-  vault:
-    secretStore: openbao-backend-cluster
-    secretStoreKind: ClusterSecretStore
-    refreshInterval: 1h
-    pathPrefix: homelab/k8s
-
-  # Gateway configuration
-  gateway:
-    external:
-      name: cilium-gateway
-      namespace: kube-system
-    internal:
-      name: cilium-gateway-internal
-      namespace: kube-system
-      ip: "10.11.10.138"
-    tls:
-      name: cilium-gateway-tls
-      namespace: kube-system
-      ip: "10.11.10.139"
-
-  # DNS configuration
-  dns:
-    domain: example.com
-    cloudflareProxied: "true"
-
-  # Backup: без реальных хостов в публичном репозитории — задайте в private global или в values релиза
-  backup:
-    rcloneImage: rclone/rclone:1.75
-    rcloneDefaultArgs:
-      - --verbose
-    webdav:
-      url: ""
-      user: ""
-      vendor: "other"
-      vaultPath: ""
-    nfs:
-      server: ""
-      basePath: ""
+# global.* (vault, gateway, dns, volsync) приходит из argocd/values/global.yaml — он всегда первый в valueFiles.
 
 homelab-common:
   # ExternalSecrets to create
@@ -64,7 +22,6 @@ homelab-common:
   #   service:
   #     name: myapp
   #     port: 8080
-  #   cloudflareProxied: "true"  # Optional, defaults to global.dns.cloudflareProxied
   #
   # Shortcut for KEDA HTTP scale-to-zero apps — routes via keda-loading-proxy
   # in ns keda (renders a Russian "service is starting" page during cold-start).
@@ -75,43 +32,19 @@ homelab-common:
   #   gateway: internal
   #   kedaColdStartLoadingPage: true
 
-  # CronJobs for backups
-  backupCronJobs: []
+  # RBAC resources (list)
+  rbac: []
   # Example:
-  # - name: backup-myapp
-  #   schedule: "0 2 * * *"
-  #   type: rsync  # or "rclone"
-  #   source:
-  #     pvc: myapp-data
-  #     subPath: ""  # Optional
-  #   destination:
-  #     type: nfs  # or "webdav"
-  #     path: /myapp  # For NFS: appended to global.backup.nfs.basePath
-  #   securityContext:  # Optional
-  #     runAsNonRoot: true
-  #     runAsUser: 65534
-
-  # RBAC resources (single object or list of objects)
-  rbac: null
-  # Example (single):
-  # rbac:
-  #   serviceAccount:
-  #     name: myapp
-  #     create: true
-  #   clusterRole:
-  #     name: myapp-readonly
-  #     rules:
-  #       - apiGroups: [""]
-  #         resources: ["pods"]
-  #         verbs: ["get", "list"]
-  # Example (list):
   # rbac:
   #   - serviceAccount:
   #       name: myapp
   #       create: true
   #     clusterRole:
   #       name: myapp-readonly
-  #       rules: [...]
+  #       rules:
+  #         - apiGroups: [""]
+  #           resources: ["pods"]
+  #           verbs: ["get", "list"]
 
   # LimitRange
   limitRange: null
@@ -125,26 +58,22 @@ homelab-common:
   #     cpu: 50m
   #     memory: 64Mi
 
-  # CNPG Database
-  cnpgDatabase: null
+  # CNPG Databases
+  cnpgDatabases: []
   # Example:
-  # cnpgDatabase:
-  #   name: myapp
-  #   owner: myapp_user
-  #   clusterName: cnpg-cluster
-  #   extensions: []
+  # cnpgDatabases:
+  #   - name: myapp
+  #     owner: myapp_user
+  #     clusterName: cnpg-cluster
+  #     extensions: []
 
   # apps: опционально secret / configMap / deployment / service
   apps: []
 
-  # Generic CronJobs (pass-through spec). Для произвольного образа/команды;
-  # backupCronJobs выше — только для rsync/rclone-сценариев.
+  # Generic CronJobs (pass-through spec).
   cronJobs: []
   # Example:
   # - name: spotify-backup
-  #   metadata:
-  #     labels:
-  #       app: spotify-backup
   #   spec:
   #     schedule: "0 4 * * *"
   #     concurrencyPolicy: Forbid
@@ -163,12 +92,10 @@ homelab-common:
   # PVC definitions
   persistentVolumeClaims: []
 
-  # Authentik Blueprints (ConfigMaps for declarative OIDC providers)
+  # Authentik Blueprints (ConfigMaps in ns authentik for declarative OIDC providers)
   authentikBlueprints: []
   # Example:
   # - name: authentik-blueprint-myapp
-  #   namespace: authentik
-  #   enabled: true
   #   blueprints:
   #     myapp-oidc.yaml: |
   #       version: 1

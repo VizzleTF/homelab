@@ -10,13 +10,9 @@ homelab-common:
   volsync:
     - name: obsidian-livesync
       claim: database-storage-obsidian-livesync-couchdb-0
-      capacity: 5Gi
       targets:
         - repo: garage
           schedule: "10 2 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "10 7 * * 0"
           retain:

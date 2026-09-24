@@ -15,13 +15,9 @@ homelab-common:
   volsync:
     - name: netbird-peer
       claim: netbird-peer
-      capacity: 100Mi
       targets:
         - repo: garage
           schedule: "20 2 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "20 7 * * 0"
           retain:
@@ -29,13 +25,9 @@ homelab-common:
             monthly: 6
     - name: netbird-peer-2
       claim: netbird-peer-2
-      capacity: 100Mi
       targets:
         - repo: garage
           schedule: "25 2 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "25 7 * * 0"
           retain:

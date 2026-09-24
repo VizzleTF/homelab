@@ -33,7 +33,6 @@ homelab-common:
   volsync:
     - name: cleanbot
       claim: cleanbot
-      capacity: 1Gi
       moverSecurityContext:
         runAsUser: 10001
         runAsGroup: 10001
@@ -41,9 +40,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "10 0 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "10 5 * * 0"
           retain:

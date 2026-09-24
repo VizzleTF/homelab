@@ -2,14 +2,13 @@ apiVersion: v2
 name: homelab-common
 description: Shared Helm chart for common Kubernetes resources (ExternalSecrets, HTTPRoutes, TLSRoutes, Certificates, apps, PVCs, CronJobs, RBAC, LimitRanges)
 type: application
-version: 1.14.0
+version: 1.15.0
 kubeVersion: ">=1.28.0"
 icon: https://raw.githubusercontent.com/VizzleTF/homelab/main/charts/homelab-common/icon.png
 keywords:
   - homelab
   - external-secrets
   - gateway-api
-  - backup
   - cnpg
 home: https://github.com/VizzleTF/homelab
 sources:

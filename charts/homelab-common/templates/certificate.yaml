@@ -15,10 +15,4 @@ spec:
     {{- range .dnsNames }}
     - {{ . | quote }}
     {{- end }}
-  {{- if .duration }}
-  duration: {{ .duration }}
-  {{- end }}
-  {{- if .renewBefore }}
-  renewBefore: {{ .renewBefore }}
-  {{- end }}
 {{- end }}

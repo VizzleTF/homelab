@@ -6,7 +6,6 @@ homelab-common:
   volsync:
     - name: vaultwarden
       claim: vaultwarden-data-vaultwarden-0
-      capacity: 2Gi
       moverSecurityContext:
         runAsUser: 1001
         runAsGroup: 1001
@@ -14,9 +13,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "50 0 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "50 3 * * *"
           retain:

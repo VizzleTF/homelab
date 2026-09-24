@@ -5,7 +5,6 @@ homelab-common:
   volsync:
     - name: omniroute
       claim: omniroute-data
-      capacity: 5Gi
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -13,9 +12,6 @@ homelab-common:
       targets:
         - repo: garage
           schedule: "30 0 * * *"
-          retain:
-            daily: 7
-            weekly: 4
         - repo: ovh
           schedule: "30 5 * * 0"
           retain:
