@@ -1,0 +1,19 @@
+# Vaultwarden is reached only through the Cilium gateway (pass.example.com) and
+# probed by the kubelet; VolSync movers run in this namespace. Nothing else
+# in the cluster has a reason to talk to it. Hubble flows, 2026-09-24.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vaultwarden-ingress
+  namespace: vaultwarden
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: vaultwarden
+    - fromEntities:
+        - host
+        - remote-node
+        - kube-apiserver
+        - ingress
