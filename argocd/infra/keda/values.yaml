@@ -32,3 +32,11 @@ resources:
     limits:
       cpu: 1
       memory: 1000Mi
+
+homelab-common:
+  # Default-deny ingress for the whole namespace (also covers the sibling app
+  # sharing it); only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
