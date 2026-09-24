@@ -33,6 +33,15 @@ service:
   port: 9118
 
 homelab-common:
+  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
+  # probes and API server only; extra sources from Hubble flows 2026-09-24.
+  networkPolicy:
+    enabled: true
+    allow:
+      # KEDA HTTP interceptor / loading proxy
+      - namespaces: [keda]
+        ports: [9118]
+
   httpRoutes:
     # KEDA-fronted scale-to-zero (см. argocd/apps/lampac/manifests/httpscaledobject.yaml).
     # `kedaColdStartLoadingPage: true` (homelab-common >= 1.7.3) переключает backend

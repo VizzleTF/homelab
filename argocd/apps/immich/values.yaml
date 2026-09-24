@@ -3,6 +3,17 @@
 
 # Общие ресурсы через homelab-common chart
 homelab-common:
+  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
+  # probes and API server only; extra sources from Hubble flows 2026-09-24.
+  networkPolicy:
+    enabled: true
+    allow:
+      # CNPG operator -> instance manager
+      - namespaces: [cnpg-system]
+      # postgres exporter
+      - namespaces: [victoria-metrics]
+        ports: [9187]
+
   # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
   # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
   # Библиотека 250Gi (реально ~184Gi), RWX через Longhorn share-manager —

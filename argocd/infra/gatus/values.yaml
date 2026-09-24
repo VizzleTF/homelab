@@ -9,6 +9,15 @@
 # annotation `gatus.home-operations.com/enabled: "true"` produce an endpoint.
 # Annotating app HTTPRoutes is a follow-up.
 homelab-common:
+  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
+  # probes and API server only; extra sources from Hubble flows 2026-09-24.
+  networkPolicy:
+    enabled: true
+    allow:
+      # gatus /metrics
+      - namespaces: [victoria-metrics]
+        ports: [8080]
+
   externalSecrets:
     # Same Telegram bot as ArgoCD notifications and the watchdog on the ops
     # node. Gatus reads these as ${...} from its config.
