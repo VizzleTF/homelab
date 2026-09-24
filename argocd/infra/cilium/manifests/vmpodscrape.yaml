@@ -1,0 +1,28 @@
+# Cilium agent (:9962) and operator (:9963) metrics. The chart's ServiceMonitor
+# needs prometheus-operator CRDs, which this cluster does not run.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: cilium-agent
+  namespace: kube-system
+spec:
+  jobLabel: k8s-app
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  podMetricsEndpoints:
+    - port: prometheus
+      interval: 60s
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: cilium-operator
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      io.cilium/app: operator
+  podMetricsEndpoints:
+    - port: prometheus
+      interval: 60s

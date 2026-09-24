@@ -1,0 +1,41 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: cilium
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: cilium
+      rules:
+        - alert: CiliumMetricsDown
+          expr: absent(cilium_version) == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Метрики cilium-agent не собираются"
+            description: "VMPodScrape kube-system/cilium-agent не отдаёт данных 30 минут — дропы и состояние датаплейна снова не видны."
+
+        # Traffic to an IP that no longer belongs to any endpoint. The one case
+        # seen so far: a host-side iSCSI session left behind by an old
+        # Longhorn instance-manager, retrying every 0.5s (logout fixed it).
+        - alert: CiliumStaleIPDrops
+          expr: sum by (pod) (rate(cilium_drop_count_total{reason="Stale or unroutable IP"}[15m])) > 0.2
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: трафик в несуществующий IP ({{ $value | humanize }}/s)"
+            description: |
+              Что-то на ноде упорно ходит в IP, которого больше нет. Частый случай —
+              зомби-сессия iSCSI старого instance-manager Longhorn:
+              kubectl -n longhorn-system exec <longhorn-manager на ноде> -c longhorn-manager -- \
+                nsenter --mount=/host/proc/1/ns/mnt --net=/host/proc/1/ns/net -- iscsiadm -m session
+
+        - alert: CiliumEndpointsNotReady
+          expr: sum by (pod) (cilium_endpoint_state{endpoint_state!="ready"}) > 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: {{ $value }} endpoint(s) Cilium не ready 30 минут"

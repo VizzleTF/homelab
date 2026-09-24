@@ -92,6 +92,12 @@ bpf:
   masquerade: true
 
 # Hubble observability platform
+# Agent metrics (:9962, scraped by manifests/vmpodscrape.yaml). Without them a
+# node dropping ~2 packets/s to a stale iSCSI target for weeks went unnoticed
+# (cilium_drop_count_total{reason="Stale or unroutable IP"}, 2026-09-24).
+prometheus:
+  enabled: true
+
 hubble:
   relay:
     enabled: true
