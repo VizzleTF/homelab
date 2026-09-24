@@ -342,6 +342,8 @@ redis:
 
 externalRedis:
   host: valkey-primary.valkey.svc.cluster.local
+  # ACL user app (homelab-common ESO argocd-valkey above).
+  existingSecret: argocd-valkey
 
 redisSecretInit:
   enabled: false
