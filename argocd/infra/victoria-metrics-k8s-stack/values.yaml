@@ -78,29 +78,19 @@ defaultDashboards:
 defaultRules:
   enabled: true
   rules:
-    Watchdog:
-      enabled: false
-    InfoInhibitor:
-      enabled: false
+    Watchdog: {enabled: false}
+    InfoInhibitor: {enabled: false}
     # Alertmanager cluster rules — single replica, cluster rules are useless
-    AlertmanagerClusterCrashlooping:
-      enabled: false
-    AlertmanagerClusterDown:
-      enabled: false
-    AlertmanagerClusterFailedToSendAlerts:
-      enabled: false
-    AlertmanagerConfigInconsistent:
-      enabled: false
-    AlertmanagerMembersInconsistent:
-      enabled: false
+    AlertmanagerClusterCrashlooping: {enabled: false}
+    AlertmanagerClusterDown: {enabled: false}
+    AlertmanagerClusterFailedToSendAlerts: {enabled: false}
+    AlertmanagerConfigInconsistent: {enabled: false}
+    AlertmanagerMembersInconsistent: {enabled: false}
     # SLO burn-rate — KubeAPIDown is sufficient for homelab
-    KubeAPIErrorBudgetBurn:
-      enabled: false
+    KubeAPIErrorBudgetBurn: {enabled: false}
     # KSM sharding — not used
-    KubeStateMetricsShardingMismatch:
-      enabled: false
-    KubeStateMetricsShardsMissing:
-      enabled: false
+    KubeStateMetricsShardingMismatch: {enabled: false}
+    KubeStateMetricsShardsMissing: {enabled: false}
     # Talos binds kube-controller-manager (10257) and kube-scheduler (10259) to
     # 127.0.0.1 — verified unreachable from a pod on all three CP nodes — so
     # kubeControllerManager.enabled / kubeScheduler.enabled are false below.
@@ -108,240 +98,153 @@ defaultRules:
     # they fire critical forever (did so from 2026-07-26 until this change).
     # Re-enable together with the scrape jobs if the bind-address is ever
     # patched in the Talos machine config.
-    KubeControllerManagerDown:
-      enabled: false
-    KubeSchedulerDown:
-      enabled: false
+    KubeControllerManagerDown: {enabled: false}
+    KubeSchedulerDown: {enabled: false}
     # HPA — not used
-    KubeHpaMaxedOut:
-      enabled: false
-    KubeHpaReplicasMismatch:
-      enabled: false
+    KubeHpaMaxedOut: {enabled: false}
+    KubeHpaReplicasMismatch: {enabled: false}
     # PDB — not used
-    KubePdbNotEnoughHealthyPods:
-      enabled: false
+    KubePdbNotEnoughHealthyPods: {enabled: false}
     # ResourceQuota — not used
-    KubeCPUQuotaOvercommit:
-      enabled: false
-    KubeMemoryQuotaOvercommit:
-      enabled: false
-    KubeQuotaAlmostFull:
-      enabled: false
-    KubeQuotaExceeded:
-      enabled: false
-    KubeQuotaFullyUsed:
-      enabled: false
+    KubeCPUQuotaOvercommit: {enabled: false}
+    KubeMemoryQuotaOvercommit: {enabled: false}
+    KubeQuotaAlmostFull: {enabled: false}
+    KubeQuotaExceeded: {enabled: false}
+    KubeQuotaFullyUsed: {enabled: false}
     # CPU throttling — node-feature-discovery worker constantly triggers, not actionable
-    CPUThrottlingHigh:
-      enabled: false
+    CPUThrottlingHigh: {enabled: false}
     # Kubelet info-level — noisy, not actionable
-    KubeNodeEviction:
-      enabled: false
-    KubeletPodStartUpLatencyHigh:
-      enabled: false
-    KubeletTooManyPods:
-      enabled: false
+    KubeNodeEviction: {enabled: false}
+    KubeletPodStartUpLatencyHigh: {enabled: false}
+    KubeletTooManyPods: {enabled: false}
     # Node exporter — not applicable (Talos, no bonding/RAID/systemd)
-    NodeBondingDegraded:
-      enabled: false
-    NodeCPUHighUsage:
-      enabled: false
-    NodeRAIDDegraded:
-      enabled: false
-    NodeRAIDDiskFailure:
-      enabled: false
-    NodeSystemdServiceCrashlooping:
-      enabled: false
-    NodeSystemdServiceFailed:
-      enabled: false
-    NodeTextFileCollectorScrapeError:
-      enabled: false
+    NodeBondingDegraded: {enabled: false}
+    NodeCPUHighUsage: {enabled: false}
+    NodeRAIDDegraded: {enabled: false}
+    NodeRAIDDiskFailure: {enabled: false}
+    NodeSystemdServiceCrashlooping: {enabled: false}
+    NodeSystemdServiceFailed: {enabled: false}
+    NodeTextFileCollectorScrapeError: {enabled: false}
     # VMAgent — unused features
-    RemoteWriteConnectionIsSaturated:
-      enabled: false
-    SeriesLimitDayReached:
-      enabled: false
-    SeriesLimitHourReached:
-      enabled: false
-    StreamAggrDedupFlushTimeout:
-      enabled: false
-    StreamAggrFlushTimeout:
-      enabled: false
+    RemoteWriteConnectionIsSaturated: {enabled: false}
+    SeriesLimitDayReached: {enabled: false}
+    SeriesLimitHourReached: {enabled: false}
+    StreamAggrDedupFlushTimeout: {enabled: false}
+    StreamAggrFlushTimeout: {enabled: false}
     # VMAlert — noisy info
-    RecordingRulesNoData:
-      enabled: false
+    RecordingRulesNoData: {enabled: false}
 
     # ─── One-event-one-alert cleanup (см. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md) ───
     # Каскадные дубликаты глушатся через alertmanager inhibit_rules.
     # Здесь — упреждающие/late twins/SaaS-уровень шум, не actionable в homelab.
 
     # Cluster resource overcommit — homelab сознательно overcommitted
-    KubeCPUOvercommit:
-      enabled: false
-    KubeMemoryOvercommit:
-      enabled: false
+    KubeCPUOvercommit: {enabled: false}
+    KubeMemoryOvercommit: {enabled: false}
 
     # Predictive twins of NodeFilesystemAlmostOutOfSpace/Files (already keep critical+warning of the absolute alert)
-    NodeFilesystemSpaceFillingUp:
-      enabled: false
-    NodeFilesystemFilesFillingUp:
-      enabled: false
+    NodeFilesystemSpaceFillingUp: {enabled: false}
+    NodeFilesystemFilesFillingUp: {enabled: false}
 
     # Memory/system saturation duplicates of NodeMemoryHighUtilization
-    NodeMemoryMajorPagesFaults:
-      enabled: false
-    NodeSystemSaturation:
-      enabled: false
+    NodeMemoryMajorPagesFaults: {enabled: false}
+    NodeSystemSaturation: {enabled: false}
 
     # PVC inodes — rare on Longhorn ext4
-    KubePersistentVolumeInodesFillingUp:
-      enabled: false
+    KubePersistentVolumeInodesFillingUp: {enabled: false}
 
     # Apiserver cascade — inhibited by KubeAPIDown
-    KubeAggregatedAPIErrors:
-      enabled: false
-    KubeAPITerminatedRequests:
-      enabled: false
+    KubeAggregatedAPIErrors: {enabled: false}
+    KubeAPITerminatedRequests: {enabled: false}
 
     # Kubelet noise — Talos rotates certs automatically; server cert covered by client cert expiration
-    KubeletClientCertificateRenewalErrors:
-      enabled: false
-    KubeletServerCertificateRenewalErrors:
-      enabled: false
-    KubeletServerCertificateExpiration:
-      enabled: false
-    KubeNodePressure:
-      enabled: false
-    KubeletPlegDurationHigh:
-      enabled: false
+    KubeletClientCertificateRenewalErrors: {enabled: false}
+    KubeletServerCertificateRenewalErrors: {enabled: false}
+    KubeletServerCertificateExpiration: {enabled: false}
+    KubeNodePressure: {enabled: false}
+    KubeletPlegDurationHigh: {enabled: false}
 
     # Rollout/replicas mismatch — KubeDeploymentRolloutStuck / KubeStatefulSetUpdateNotRolledOut
     # cover the actionable case. Generation mismatch is symptom of stuck rollout.
-    KubeDeploymentGenerationMismatch:
-      enabled: false
-    KubeStatefulSetGenerationMismatch:
-      enabled: false
-    KubeDaemonSetMisScheduled:
-      enabled: false
-    KubeDaemonSetNotScheduled:
-      enabled: false
+    KubeDeploymentGenerationMismatch: {enabled: false}
+    KubeStatefulSetGenerationMismatch: {enabled: false}
+    KubeDaemonSetMisScheduled: {enabled: false}
+    KubeDaemonSetNotScheduled: {enabled: false}
 
     # Job — KubeJobFailed is the keeper; NotCompleted is predictive twin
-    KubeJobNotCompleted:
-      enabled: false
+    KubeJobNotCompleted: {enabled: false}
 
     # Node clock — Skew is symptom of NotSynchronising
-    NodeClockSkewDetected:
-      enabled: false
+    NodeClockSkewDetected: {enabled: false}
 
     # Node network counter errs — cheap NICs, chronic bumps. Keep NodeNetworkInterfaceFlapping.
-    NodeNetworkReceiveErrs:
-      enabled: false
-    NodeNetworkTransmitErrs:
-      enabled: false
+    NodeNetworkReceiveErrs: {enabled: false}
+    NodeNetworkTransmitErrs: {enabled: false}
 
     # Node FD/conntrack/IO — never actionable on 6-node homelab
-    NodeFileDescriptorLimit:
-      enabled: false
-    NodeHighNumberConntrackEntriesUsed:
-      enabled: false
-    NodeDiskIOSaturation:
-      enabled: false
+    NodeFileDescriptorLimit: {enabled: false}
+    NodeHighNumberConntrackEntriesUsed: {enabled: false}
+    NodeDiskIOSaturation: {enabled: false}
 
     # Cluster version mismatch — fires intentionally during Talos upgrade
-    KubeVersionMismatch:
-      enabled: false
+    KubeVersionMismatch: {enabled: false}
 
     # Alertmanager — FailedReload is the keeper. FailedToSendAlerts overlaps vmalert RemoteWriteErrors.
-    AlertmanagerFailedToSendAlerts:
-      enabled: false
+    AlertmanagerFailedToSendAlerts: {enabled: false}
 
     # vm-health — SaaS-tier alerts, homelab VM well under capacity. Keep ServiceDown + TooManyRestarts.
-    ProcessNearFDLimits:
-      enabled: false
-    TooHighMemoryUsage:
-      enabled: false
-    TooHighCPUUsage:
-      enabled: false
-    TooHighGoroutineSchedulingLatency:
-      enabled: false
-    TooManyLogs:
-      enabled: false
-    ConcurrentInsertsHitTheLimit:
-      enabled: false
-    RowsRejectedOnIngestion:
-      enabled: false
-    TooHighQueryLoad:
-      enabled: false
+    ProcessNearFDLimits: {enabled: false}
+    TooHighMemoryUsage: {enabled: false}
+    TooHighCPUUsage: {enabled: false}
+    TooHighGoroutineSchedulingLatency: {enabled: false}
+    TooManyLogs: {enabled: false}
+    ConcurrentInsertsHitTheLimit: {enabled: false}
+    RowsRejectedOnIngestion: {enabled: false}
+    TooHighQueryLoad: {enabled: false}
 
     # vmagent cascade — inhibited by PersistentQueueIsDroppingData via alertmanager.
     # Keep dropping-data (critical) + ScrapePoolHasNoTargets + ConfigurationReloadFailure.
-    RejectedRemoteWriteDataBlocksAreDropped:
-      enabled: false
-    TooManyScrapeErrors:
-      enabled: false
-    TooManyWriteErrors:
-      enabled: false
-    TooManyRemoteWriteErrors:
-      enabled: false
-    PersistentQueueForWritesIsSaturated:
-      enabled: false
-    PersistentQueueForReadsIsSaturated:
-      enabled: false
-    PersistentQueueRunsOutOfSpaceIn12Hours:
-      enabled: false
-    PersistentQueueRunsOutOfSpaceIn4Hours:
-      enabled: false
+    RejectedRemoteWriteDataBlocksAreDropped: {enabled: false}
+    TooManyScrapeErrors: {enabled: false}
+    TooManyWriteErrors: {enabled: false}
+    TooManyRemoteWriteErrors: {enabled: false}
+    PersistentQueueForWritesIsSaturated: {enabled: false}
+    PersistentQueueForReadsIsSaturated: {enabled: false}
+    PersistentQueueRunsOutOfSpaceIn12Hours: {enabled: false}
+    PersistentQueueRunsOutOfSpaceIn4Hours: {enabled: false}
 
     # vmalert/vmagent meta-alerts caused by transient endpoint loss during
     # Renovate auto-updates / ArgoCD sync (vmsingle pod restart 2-3 min → all
     # dependent rules error out → 5m for: trips). Real prolonged outage is
     # covered by VMSingleDown / VMAlertDown (also `for: 5m`).
-    AlertingRulesError:
-      enabled: false
-    ConfigurationReloadFailure:
-      enabled: false
-    RemoteWriteDroppingData:
-      enabled: false
+    AlertingRulesError: {enabled: false}
+    ConfigurationReloadFailure: {enabled: false}
+    RemoteWriteDroppingData: {enabled: false}
 
     # vmsingle disk — keep predictive (DiskRunsOutOfSpaceIn3Days); drop late "already-full"
-    DiskRunsOutOfSpace:
-      enabled: false
-    NodeBecomesReadonlyIn3Days:
-      enabled: false
+    DiskRunsOutOfSpace: {enabled: false}
+    NodeBecomesReadonlyIn3Days: {enabled: false}
     # vmsingle churn — keep TooHighChurnRate; drop 24h twin + cascade
-    TooHighChurnRate24h:
-      enabled: false
-    TooHighSlowInsertsRate:
-      enabled: false
-    MetadataCacheUtilizationIsTooHigh:
-      enabled: false
-    RequestErrorsToAPI:
-      enabled: false
+    TooHighChurnRate24h: {enabled: false}
+    TooHighSlowInsertsRate: {enabled: false}
+    MetadataCacheUtilizationIsTooHigh: {enabled: false}
+    RequestErrorsToAPI: {enabled: false}
 
     # vmalert cascade — RemoteWriteDroppingData (critical) is keeper
-    RemoteWriteErrors:
-      enabled: false
-    RemoteWriteQueueHighUsage:
-      enabled: false
-    TooManyMissedIterations:
-      enabled: false
-    AlertmanagerErrors:
-      enabled: false
+    RemoteWriteErrors: {enabled: false}
+    RemoteWriteQueueHighUsage: {enabled: false}
+    TooManyMissedIterations: {enabled: false}
+    AlertmanagerErrors: {enabled: false}
     # Keep one of AlertingRulesError/RecordingRulesError; drop the other for noise reduction
-    RecordingRulesError:
-      enabled: false
+    RecordingRulesError: {enabled: false}
 
   groups:
     # vmoperator group — self-healing operator, only ServiceDown matters (in vm-health)
-    vmoperator:
-      enabled: false
+    vmoperator: {enabled: false}
     # Disable etcd rules if not using it
-    etcd:
-      enabled: false
+    etcd: {enabled: false}
     # vmcluster disabled — using vmsingle
-    vmcluster:
-      enabled: false
+    vmcluster: {enabled: false}
     # NOTE: the chart's rule sync-job honors GROUP-level `enabled: false` but
     # IGNORES per-rule `defaultRules.rules.<Alert>.enabled` — it always emits the
     # full default rule set for an enabled group (verified 2026-08-08: deleting a
@@ -353,19 +256,15 @@ defaultRules:
     # kubernetes-resources — every rule (CPUThrottlingHigh + Kube*Overcommit +
     # Kube*Quota*) is unwanted here: overcommit is intentional, quotas unused,
     # CPU throttling is CFS-quota noise. Killed the CPUThrottlingHigh flood.
-    kubernetes-resources:
-      enabled: false
+    kubernetes-resources: {enabled: false}
     # kube-apiserver-slos — SLO burn-rate multiwindow alerts; KubeAPIDown suffices.
-    kube-apiserver-slos:
-      enabled: false
+    kube-apiserver-slos: {enabled: false}
     # Talos binds kube-controller-manager (10257) / kube-scheduler (10259) to
     # 127.0.0.1 — unreachable from pods on all CP nodes — so both the *Down and
     # *InstanceUnreachable rules in these groups fire forever with no scrape job.
     # kubeControllerManager.enabled / kubeScheduler.enabled are false below.
-    kubernetes-system-controller-manager:
-      enabled: false
-    kubernetes-system-scheduler:
-      enabled: false
+    kubernetes-system-controller-manager: {enabled: false}
+    kubernetes-system-scheduler: {enabled: false}
 
 # VMSingle - single node storage
 vmsingle:
