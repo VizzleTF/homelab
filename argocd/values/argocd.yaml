@@ -271,7 +271,11 @@ configs:
       return hs
 
   rbac:
-    policy.default: role:readonly
+    # No implicit access: any Authentik user can complete the OIDC login (the
+    # argocd application has no policy binding), so only the groups below get
+    # a role. Local admin stays enabled as break-glass — ArgoCD deploys
+    # Authentik itself.
+    policy.default: ""
     policy.csv: |
       g, ArgoCD Admins, role:admin
       g, mcp, role:admin
