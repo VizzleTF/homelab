@@ -1,0 +1,16 @@
+# longhorn-ui proxies the whole manager API (it can delete volumes, no auth).
+# The chart's policies lock port 9500 but leave the UI open to every pod, so
+# only the Cilium gateway (the internal HTTPRoute) may reach it.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: longhorn-ui-gateway-only
+  namespace: longhorn-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app: longhorn-ui
+  ingress:
+    - fromEntities:
+        - ingress
+        - host
