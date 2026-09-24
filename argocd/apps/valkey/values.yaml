@@ -17,6 +17,14 @@
 # local-path — кэш переживает рестарт пода, но не смерть ноды. Это осознанно:
 # данные восстановимы (ArgoCD re-cache + повторный логин в authentik).
 homelab-common:
+  # Password of the ACL user `app` (OpenBao homelab/k8s/valkey/valkey).
+  externalSecrets:
+    - name: valkey-auth
+      vaultPath: valkey/valkey
+      data:
+        - secretKey: password
+          property: password
+
   persistentVolumeClaims:
     - name: valkey-data
       size: 1Gi
@@ -60,10 +68,26 @@ homelab-common:
                   # renovate: image=valkey/valkey
                   image: valkey/valkey:9.1.2-alpine
                   imagePullPolicy: IfNotPresent
-                  # CMD образа — `valkey-server` без конфига (дефолты, standalone,
-                  # dir=/data). Отдельный valkey.conf не нужен: auth выключен,
-                  # maxmemory не задаём (исторически ради file locks
-                  # Nextcloud, удалён 2026-09-13).
+                  # ACL: clients (ArgoCD, immich) log in as `app`. The ACL file
+                  # is rendered at start from env into an emptyDir (rootfs is
+                  # read-only). VALKEY_DEFAULT_USER is the rule for the
+                  # passwordless `default` user: open during the client switch,
+                  # then `off`. maxmemory не задаём; dir=/data (RDB).
+                  command:
+                    - sh
+                    - -ec
+                    - |
+                      printf 'user default %s\nuser app on >%s ~* &* +@all\n' \
+                        "$VALKEY_DEFAULT_USER" "$VALKEY_APP_PASSWORD" > /acl/users.acl
+                      exec valkey-server --aclfile /acl/users.acl
+                  env:
+                    - name: VALKEY_DEFAULT_USER
+                      value: "on nopass ~* &* +@all"
+                    - name: VALKEY_APP_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: valkey-auth
+                          key: password
                   ports:
                     - name: valkey
                       containerPort: 6379
@@ -77,9 +101,11 @@ homelab-common:
                   volumeMounts:
                     - name: data
                       mountPath: /data
+                    - name: acl
+                      mountPath: /acl
                   startupProbe:
                     exec:
-                      command: ["valkey-cli", "ping"]
+                      command: &valkey-ping ["sh", "-c", "valkey-cli --no-auth-warning --user app --pass \"$VALKEY_APP_PASSWORD\" ping | grep -q PONG"]
                     initialDelaySeconds: 5
                     periodSeconds: 5
                     failureThreshold: 12
@@ -89,7 +115,7 @@ homelab-common:
                     periodSeconds: 30
                   readinessProbe:
                     exec:
-                      command: ["valkey-cli", "ping"]
+                      command: *valkey-ping
                     periodSeconds: 15
                   resources:
                     requests:
@@ -102,6 +128,10 @@ homelab-common:
                 - name: data
                   persistentVolumeClaim:
                     claimName: valkey-data
+                - name: acl
+                  emptyDir:
+                    medium: Memory
+                    sizeLimit: 1Mi
       service:
         metadata:
           labels:
