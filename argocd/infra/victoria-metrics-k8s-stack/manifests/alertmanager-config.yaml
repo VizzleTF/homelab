@@ -64,13 +64,6 @@ spec:
               target_matchers:
                 - alertname=~"ScrapePoolHasNoTargets|TargetDown"
 
-            # Velero провалился → stale-алерт по тому же schedule подавляем
-            - source_matchers:
-                - alertname="VeleroBackupFailed"
-              target_matchers:
-                - alertname="VeleroBackupStale"
-              equal: ['schedule']
-
             # Pod крашлупит → не надо дополнительно NotReady/ContainerWaiting на тот же pod
             - source_matchers:
                 - alertname="KubePodCrashLooping"

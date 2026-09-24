@@ -5,7 +5,6 @@
 homelab-common:
   # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
   # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
-  # Velero-расписания пока работают параллельно, уйдут на фазе 8.
   # Библиотека 250Gi (реально ~184Gi), RWX через Longhorn share-manager —
   # accessMode снапшота обязан быть ReadWriteMany, иначе mover не примонтирует.
   # Кэш индексов restic поднят до 10Gi: на таком количестве файлов дефолтных

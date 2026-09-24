@@ -27,10 +27,8 @@ homelab-common:
 
   # Backup v2 (пилот миграции, см. docs/backup-v2.md). VolSync снимает Longhorn
   # CSI-снапшот тома и льёт restic в две независимые цели: garage (on-prem) и
-  # ovh (off-site). Velero-расписания выше пока работают параллельно — они
-  # уйдут на фазе 8, после зелёного restore-drill.
+  # ovh (off-site).
   #
-  # Слоты 01:1x/01:4x выбраны так, чтобы не пересекаться с velero-окном 02:55.
   # Бот пишет SQLite в /app/config; снапшот тома — crash-consistent, для
   # SQLite в WAL-режиме этого достаточно (восстановление проигрывает WAL).
   volsync:

@@ -3,9 +3,8 @@
 # reconciles them. Longhorn 1.11 supports CSI snapshots but does NOT bundle these CRDs;
 # they must be installed cluster-wide as a separate component.
 #
-# Required by Velero (CSI snapshot data movement) — without this, the VolumeSnapshotClass
-# manifest in argocd/infra/velero/ fails to apply.
-# Wave -4 places it alongside Longhorn, before Velero (wave 0).
+# Required by VolSync (Snapshot copyMethod) and its longhorn-volsync VolumeSnapshotClass.
+# Wave -4 places it alongside Longhorn, before VolSync (wave -3).
 
 installCRDs: true
 
