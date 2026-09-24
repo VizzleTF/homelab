@@ -50,6 +50,16 @@ homelab-common:
           auth: ""
 
   externalSecrets:
+    # Valkey ACL user `app` for externalRedis.existingSecret. The chart
+    # reads keys redis-username / redis-password.
+    - name: argocd-valkey
+      vaultPath: valkey/valkey
+      templateData:
+        redis-username: "app"
+        redis-password: "{{ .password }}"
+      data:
+        - secretKey: password
+          property: password
     - name: argocd-oidc-secret
       vaultPath: argocd/argocd/oidc
       targetName: argocd-secret
