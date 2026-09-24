@@ -1,4 +1,11 @@
 homelab-common:
+  # Default-deny ingress. UI/API come through the TLS gateway (ingress entity),
+  # webhooks through the gateway too; nothing scrapes ArgoCD metrics. The
+  # repo-server (:8081) has no auth, so it must stay unreachable from other
+  # namespaces.
+  networkPolicy:
+    enabled: true
+
   certificates:
     - name: argocd-server-tls
       secretName: argocd-server-tls
