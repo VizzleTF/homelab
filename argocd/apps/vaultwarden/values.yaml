@@ -1,12 +1,17 @@
 # Vaultwarden (guerzon chart) — ключи чарта + секция homelab-common в конце файла
 
+# Deployment on an RWO volume. It was a StatefulSet on an RWX volume, i.e.
+# SQLite over NFS (Longhorn share-manager). volumeClaimTemplates cannot be
+# changed in place, so the switch goes through a new Deployment; the data was
+# copied by manifests/migrate-data-job.yaml. The old volume
+# vaultwarden-data-vaultwarden-0 (PV Retain) is the rollback.
+resourceType: Deployment
+strategy:
+  type: Recreate
 storage:
-  data:
-    name: "vaultwarden-data"
-    size: "2Gi"
-    class: "longhorn"
-    accessMode: "ReadWriteMany"
-    keepPvc: true
+  existingVolumeClaim:
+    claimName: vaultwarden-data-rwo
+    dataPath: /data
 
 domain: "https://pass.example.com"
 
@@ -64,9 +69,8 @@ initContainers:
 homelab-common:
   # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
   # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
-  # Step 1 of moving off RWX: SQLite on Longhorn RWX runs over NFS
-  # (share-manager), where its locking is unreliable. The data is copied into
-  # this RWO volume by a PreSync job when the app switches to it.
+  # Data volume (RWO). Replaces the StatefulSet's RWX
+  # vaultwarden-data-vaultwarden-0: SQLite locking over NFS is unreliable.
   persistentVolumeClaims:
     - name: vaultwarden-data-rwo
       accessModes:
@@ -78,7 +82,7 @@ homelab-common:
 
   volsync:
     - name: vaultwarden
-      claim: vaultwarden-data-vaultwarden-0
+      claim: vaultwarden-data-rwo
       moverSecurityContext:
         runAsUser: 1001
         runAsGroup: 1001
