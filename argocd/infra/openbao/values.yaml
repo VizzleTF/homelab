@@ -480,10 +480,14 @@ server:
   extraEnvironmentVars:
     GOMEMLIMIT: "460MiB"
 
+  # RWO: raft already keeps three copies. RWX put every member's boltdb on
+  # NFS via a share-manager pod, and all six share-managers sat on one node —
+  # one node loss took down all three members at once. Migrated member by
+  # member (remove-peer, recreate PVC, retry_join) on 2026-09-24.
   dataStorage:
     size: 2Gi
     storageClass: longhorn
-    accessMode: ReadWriteMany
+    accessMode: ReadWriteOnce
     annotations:
       helm.sh/resource-policy: keep
 
@@ -491,7 +495,7 @@ server:
     enabled: true
     size: 1Gi
     storageClass: longhorn
-    accessMode: ReadWriteMany
+    accessMode: ReadWriteOnce
     annotations:
       helm.sh/resource-policy: keep
 
