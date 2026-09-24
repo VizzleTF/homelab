@@ -143,6 +143,7 @@ homelab-common:
               labels:
                 app: opencloud
             spec:
+              automountServiceAccountToken: false
               securityContext:
                 runAsNonRoot: true
                 runAsUser: 1000

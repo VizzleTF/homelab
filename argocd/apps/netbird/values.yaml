@@ -81,6 +81,7 @@ homelab-common:
               labels:
                 app: netbird-peer
             spec:
+              automountServiceAccountToken: false
               # Never co-locate with peer-2.
               affinity:
                 podAntiAffinity:
@@ -167,6 +168,7 @@ homelab-common:
               labels:
                 app: netbird-peer-2
             spec:
+              automountServiceAccountToken: false
               # Never co-locate with peer-1.
               affinity:
                 podAntiAffinity:

@@ -42,6 +42,7 @@ homelab-common:
               labels:
                 app: atuin
             spec:
+              automountServiceAccountToken: false
               securityContext:
                 runAsNonRoot: true
                 runAsUser: 1000
