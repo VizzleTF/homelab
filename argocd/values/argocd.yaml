@@ -131,16 +131,8 @@ homelab-common:
 
   limitRange:
     enabled: true
-    name: default-limits
-    defaults:
-      cpu: 500m
-      memory: 512Mi
-    defaultRequests:
-      cpu: 50m
-      memory: 64Mi
 
 applicationSet:
-  enabled: true
   resources:
     limits:
       cpu: 100m
@@ -284,9 +276,6 @@ configs:
       g, ArgoCD Admins, role:admin
       g, mcp, role:admin
 
-crds:
-  install: true
-
 dex:
   enabled: false
 
@@ -294,7 +283,6 @@ global:
   domain: argocd.example.com
 
 notifications:
-  enabled: true
   resources:
     limits:
       cpu: 100m
@@ -364,7 +352,3 @@ server:
     requests:
       cpu: 15m
       memory: 64Mi
-  service:
-    type: ClusterIP
-  ingress:
-    enabled: false

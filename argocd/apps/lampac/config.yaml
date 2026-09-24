@@ -1,4 +1,3 @@
-chart: lampac
 repoURL: https://vizzletf.github.io/lampac_helm
 targetRevision: "0.1.10"
 wave: "2"

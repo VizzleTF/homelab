@@ -1,7 +1,5 @@
-chart: wazuh-operator
 repoURL: ghcr.io/maximewewer/charts
 targetRevision: "2026.9.1"
-namespace: wazuh-operator
 wave: "-1"
 # TEMPORARY: the operator is scaled to 0 by hand (kubectl scale ... --replicas=0)
 # and ArgoCD must leave that alone. The chart cannot express 0 itself

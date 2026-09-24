@@ -452,13 +452,9 @@ homelab-common:
 
   limitRange:
     enabled: true
-    name: default-limits
     defaults:
       cpu: 250m
       memory: 256Mi
-    defaultRequests:
-      cpu: 50m
-      memory: 64Mi
 
 server:
   # RollingUpdate (chart default = OnDelete): auto-roll pods on image/chart bumps

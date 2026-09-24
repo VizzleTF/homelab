@@ -18,7 +18,6 @@ homelab-common:
 
   limitRange:
     enabled: true
-    name: default-limits
     defaults:
       cpu: 200m
       memory: 128Mi

@@ -1,4 +1,4 @@
-# Vaultwarden (guerzon chart) — только ключи чарта; homelab-common в vaultwarden.homelab.yaml
+# Vaultwarden (guerzon chart) — ключи чарта + секция homelab-common в конце файла
 
 storage:
   data:
@@ -45,9 +45,6 @@ resources:
     memory: 256Mi
     cpu: 100m
 
-ingress:
-  enabled: false
-
 initContainers:
   - name: fix-permissions
     image: busybox:1.38.0
@@ -59,3 +56,39 @@ initContainers:
     volumeMounts:
       - name: vaultwarden-data
         mountPath: /data
+
+homelab-common:
+  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
+  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  volsync:
+    - name: vaultwarden
+      claim: vaultwarden-data-vaultwarden-0
+      moverSecurityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      targets:
+        - repo: garage
+          schedule: "50 0 * * *"
+        - repo: ovh
+          schedule: "50 3 * * *"
+          retain:
+            weekly: 12
+            monthly: 6
+
+  httpRoutes:
+    - name: vaultwarden
+      hostname: pass
+      gateway: external
+      service:
+        name: vaultwarden
+        port: 80
+
+  limitRange:
+    enabled: true
+    defaults:
+      cpu: 200m
+      memory: 256Mi
+    defaultRequests:
+      cpu: 25m
+      memory: 32Mi
