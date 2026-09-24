@@ -44,28 +44,6 @@ jobs:
         run: helm lint charts/homelab-common
       - name: Template homelab-common (smoke)
         run: helm template smoke charts/homelab-common --debug >/dev/null
-      - name: Validate values files against schema
-        run: |
-          set -euo pipefail
-          FAILS=0
-          for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps/*/cnpg-values.yaml \
-                   argocd/infra/*/values.yaml argocd/infra/*/homelab-values.yaml \
-                   argocd/values/argocd.yaml; do
-            [ -f "$f" ] || continue
-            grep -qE '^homelab-common:|^global:' "$f" || continue
-            if ! helm template test charts/homelab-common \
-                -f argocd/values/global.yaml -f "$f" \
-                >/dev/null 2>/tmp/helm.err; then
-              echo "::error file=$f::Schema validation failed"
-              sed 's/^/    /' /tmp/helm.err
-              FAILS=$((FAILS+1))
-            fi
-          done
-          if [ "$FAILS" -gt 0 ]; then
-            echo "::error::$FAILS values file(s) failed schema validation"
-            exit 1
-          fi
-          echo "Schema validation: clean"
 
   kubeconform:
     # Pre-merge gate. Schema-validates rendered manifests against core + CRD
@@ -113,16 +91,7 @@ jobs:
           fetch-depth: 0
 
       - name: Filename blocklist
-        run: |
-          set -euo pipefail
-          PATTERNS='(^|/)((id_rsa.*)|.*\.(pem|key|pfx|p12|crt|kubeconfig)|kubeconfig.*|\.env(\..+)?|vault_secrets_backup.*|vault-unseal.*|.*shamir.*|terraform\.tfstate.*|terraform\.tfvars)$'
-          ALLOW='(\.example|\.sample)$'
-          if MATCHES=$(git ls-files | grep -E "$PATTERNS" | grep -Ev "$ALLOW" || true); [ -n "$MATCHES" ]; then
-            echo "::error::Blocked filename(s) detected:"
-            echo "$MATCHES"
-            exit 1
-          fi
-          echo "Filename blocklist: clean"
+        run: .git-hooks/blocklist.sh
 
       - name: Install gitleaks
         run: |

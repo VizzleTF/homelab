@@ -88,13 +88,10 @@ get_token() {
     return
   fi
   require bao
-  require jq
-  local out
-  out=$(bao kv get -mount=home -format=json "$BAO_PATH" 2>/dev/null) || {
+  bao kv get -mount=home -field=token "$BAO_PATH" 2>/dev/null || {
     echo "openbao read failed for home/$BAO_PATH (BAO_ADDR=$BAO_ADDR)" >&2
     exit 1
   }
-  printf '%s' "$out" | jq -r '.data.data.token // empty'
 }
 
 __TOKEN=""

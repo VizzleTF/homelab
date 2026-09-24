@@ -33,24 +33,6 @@ bao_exec() {
     env BAO_TOKEN="$BAO_TOKEN" BAO_ADDR="$BAO_ADDR_INTERNAL" "$@"
 }
 
-# Idempotent kv put — only writes if path missing OR fields differ.
-bao_kv_put_if_missing() {
-  local path="$1"; shift
-  if bao_exec bao kv get "$path" >/dev/null 2>&1; then
-    log_skip "openbao path exists: $path"
-    return 0
-  fi
-  bao_exec bao kv put "$path" "$@" >/dev/null
-  log_ok "vault put: $path"
-}
-
-# Force put (overwrites). Use sparingly — usually we want _if_missing.
-bao_kv_put_force() {
-  local path="$1"; shift
-  bao_exec bao kv put "$path" "$@" >/dev/null
-  log_ok "vault put (force): $path"
-}
-
 # Enable an auth method if not enabled yet.
 bao_auth_enable() {
   local method="$1" path="${2:-$1}"

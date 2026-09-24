@@ -5,12 +5,10 @@
 #
 # Pairs with:
 #   argocd/infra/cilium/manifests/cilium-bgp.yaml             (Cilium side CRs)
-#   argocd/infra/cilium/manifests/cilium-bgp-externalsecret.yaml (MD5 secret)
-#   OpenBao: home/homelab/k8s/kube-system/cilium-bgp{password}  (shared MD5)
 #
 # Subcommands:
 #   install   apk add bird2 + uci firewall rule for TCP/179 on the servers zone
-#   configure render /etc/bird.conf from the OpenBao password, restart BIRD
+#   configure render /etc/bird.conf, restart BIRD (no MD5, see cmd_configure)
 #   verify    birdc show protocols + show route, plus ip route to the LB pool
 #   down      stop+disable BIRD, leave config in place (for rollback drills)
 #
@@ -37,20 +35,16 @@ PEERS=(
 # LB pool — must match cilium-lb-ippool.yaml
 LB_POOL="${LB_POOL:-10.11.10.0/24}"
 
-BAO_MOUNT="${BAO_MOUNT:-${VAULT_MOUNT:-home}}"
-BAO_PATH="${BAO_PATH:-${VAULT_PATH:-homelab/k8s/kube-system/cilium-bgp}}"
-
 usage() {
   cat <<EOF
 Usage: $(basename "$0") <install|configure|verify|down>
 
   install     apk add bird2 + uci firewall rule (TCP/179, servers zone)
-  configure   read MD5 password from OpenBao, render /etc/bird.conf, restart BIRD
+  configure   render /etc/bird.conf, restart BIRD
   verify      birdc show protocols/routes + ip route for LB pool
   down        service bird stop && service bird disable (rollback drill)
 
-Env overrides: OWRT_SSH, OWRT_BGP_LOCAL, ASN_CLUSTER, ASN_OWRT, LB_POOL,
-               BAO_MOUNT, BAO_PATH
+Env overrides: OWRT_SSH, OWRT_BGP_LOCAL, ASN_CLUSTER, ASN_OWRT, LB_POOL
 EOF
 }
 
@@ -165,7 +159,6 @@ cmd_configure() {
 
   echo "[+] uploading /etc/bird.conf (atomic write)"
   # Push to /tmp then mv — /tmp is tmpfs on OpenWrt 25.12, safe scratch.
-  # cat|ssh keeps password out of process listings.
   cat "$tmpconf" | ssh_owrt 'cat > /tmp/bird.conf.new && \
     mv /tmp/bird.conf.new /etc/bird.conf && \
     chmod 600 /etc/bird.conf'

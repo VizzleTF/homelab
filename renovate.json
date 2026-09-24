@@ -50,7 +50,6 @@
       "description": "Critical-infra major label: major-бампы CRD-несущих компонентов помечаются для видимости в Forgejo UI / Dependency Dashboard. Гейт ручного approve снят 2026-06-12 по решению пользователя: АБСОЛЮТНО всё на автомёрже, CI — единственный gate. Откат: вернуть automerge:false + dependencyDashboardApproval:true в это правило.",
       "matchPackageNames": [
         "cilium",
-        "cnpg-operator",
         "cloudnative-pg",
         "ghcr.io/cloudnative-pg/postgresql",
         "ghcr.io/tensorchord/cloudnative-vectorchord",
@@ -58,7 +57,6 @@
         "cert-manager",
         "argo-cd",
         "victoria-metrics-k8s-stack",
-        "vault",
         "openbao"
       ],
       "matchUpdateTypes": ["major"],
@@ -97,7 +95,6 @@
         "argocd/infra/**",
         "argocd/appsets/**",
         "argocd/standalone/**",
-        "argocd/manifests/**",
         "argocd/values/**"
       ],
       "groupName": "infra"
@@ -151,7 +148,6 @@
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
-        "/argocd/manifests/.+\\.ya?ml$/",
         "/argocd/apps/.+\\.ya?ml$/",
         "/argocd/infra/.+\\.ya?ml$/"
       ],
@@ -165,7 +161,6 @@
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
-        "/argocd/manifests/.+\\.ya?ml$/",
         "/argocd/apps/.+\\.ya?ml$/",
         "/argocd/infra/.+\\.ya?ml$/",
         "/terraform_talos/configs/.+\\.ya?ml$/"
