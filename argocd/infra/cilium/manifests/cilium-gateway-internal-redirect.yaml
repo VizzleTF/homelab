@@ -1,0 +1,22 @@
+# Plain HTTP on the internal gateway only redirects to HTTPS. homelab-common
+# (>= 1.16.0) attaches internal routes to the `https` listener alone, so
+# without this route http://openbao.example.com & co would answer in clear text
+# (tokens included). No hostnames: catches every host on this listener.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: internal-https-redirect
+  namespace: kube-system
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cilium-gateway-internal
+      namespace: kube-system
+      sectionName: http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
