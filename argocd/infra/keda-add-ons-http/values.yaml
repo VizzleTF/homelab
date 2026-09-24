@@ -4,16 +4,38 @@
 # КРИТИЧНО: chart defaults — interceptor min:3/max:50, scaler:3 replicas.
 # Для homelab solo это overkill; режем до 1/1.
 
+# Chart default request is 250m CPU per component; real p95 is 2-9m.
 operator:
   replicas: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 20Mi
+    limits:
+      cpu: 500m
+      memory: 64Mi
 
 scaler:
   replicas: 1   # default 3 — избыточно для одной KEDA-инсталляции
+  resources:
+    requests:
+      cpu: 20m
+      memory: 20Mi
+    limits:
+      cpu: 500m
+      memory: 64Mi
 
 interceptor:
   replicas:
     min: 1
     max: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 20Mi
+    limits:
+      cpu: 500m
+      memory: 64Mi
   # cold-start Lampac (initialDelaySeconds=60) и Omniroute (PVC-mount Longhorn):
   # повышаем wait-таймаут перед forwarding на freshly-scaled-up pod (default 300s code).
   responseHeaderTimeout: "120s"
