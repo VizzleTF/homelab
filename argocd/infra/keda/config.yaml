@@ -1,5 +1,5 @@
 chart: keda
 repoURL: https://kedacore.github.io/charts
-targetRevision: "2.20.2"
+targetRevision: "2.21.0"
 namespace: keda
 wave: "-2"
