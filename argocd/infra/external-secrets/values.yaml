@@ -69,3 +69,8 @@ certController:
   extraEnv:
     - name: GOMEMLIMIT
       value: "110MiB"
+homelab-common:
+  # Default-deny ingress. The webhook is called by kube-apiserver (allowed
+  # entity); ESO only makes outbound calls (OpenBao, API server).
+  networkPolicy:
+    enabled: true
