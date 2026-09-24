@@ -35,3 +35,10 @@ operator:
 # ArgoCD creates the namespace (CreateNamespace=true in the AppSet).
 namespace:
   create: false
+
+homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]

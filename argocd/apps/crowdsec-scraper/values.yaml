@@ -6,6 +6,12 @@
 # из 100.104.0.0/16 (см. ../vps/crowdsec.md). Третий job — метрики панели Remnawave
 # на cloudru через nginx-шлюз :9101 (см. комментарий у job_name: remnawave-panel).
 homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
   # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
   # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
   # Ключ netbird-пира: 100Mi, но без него скрапер теряет доступ в mesh.
