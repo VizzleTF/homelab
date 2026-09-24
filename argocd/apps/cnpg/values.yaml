@@ -110,13 +110,6 @@ homelab-common:
 
   limitRange:
     enabled: true
-    name: default-limits
-    defaults:
-      cpu: 500m
-      memory: 512Mi
-    defaultRequests:
-      cpu: 50m
-      memory: 64Mi
 
   # Independent logical backup (pg_dump -Fc) → OVH pg-logical/cnpg-cluster/.
   # Параллельно barman→Garage (PITR on-site). pg_dump = self-contained, восстановим

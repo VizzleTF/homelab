@@ -25,13 +25,6 @@ homelab-common:
 
   limitRange:
     enabled: true
-    name: default-limits
-    defaults:
-      cpu: 500m
-      memory: 512Mi
-    defaultRequests:
-      cpu: 50m
-      memory: 64Mi
 
   apps:
     - name: atuin

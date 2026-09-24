@@ -55,7 +55,6 @@ ingress:
 homelab-common:
   # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот и
   # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
-  # Velero-расписания выше пока работают параллельно, уйдут на фазе 8.
   volsync:
     - name: trek-data
       claim: trek-data
@@ -116,10 +115,6 @@ homelab-common:
 
   limitRange:
     enabled: true
-    name: default-limits
-    defaults:
-      cpu: 500m
-      memory: 512Mi
     defaultRequests:
       cpu: 100m
       memory: 256Mi

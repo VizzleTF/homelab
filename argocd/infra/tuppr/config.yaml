@@ -1,4 +1,3 @@
-chart: tuppr
 repoURL: ghcr.io/home-operations/charts
 targetRevision: "0.5.7"
 namespace: system-upgrade

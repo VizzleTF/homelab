@@ -1,4 +1,4 @@
-# Forgejo Runner (act_runner) — chart values; homelab-common in forgejo-runner.homelab.yaml.
+# Forgejo Runner (act_runner) — chart values + homelab-common section at the bottom.
 # Регистрация: ESO secret forgejo-runner-init {CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME}
 # из Vault home/homelab/k8s/forgejo/runner — pre-install hook job регистрирует runner и
 # сохраняет .runner JWT в Secret forgejo-runner-config (resource-policy: keep).
@@ -95,3 +95,27 @@ securityContext:
 serviceAccount:
   create: true
   automount: true
+
+homelab-common:
+  externalSecrets:
+    # Init-secret для register job: env-vars CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME.
+    # Vault path: home/homelab/k8s/forgejo/runner с ключами token, instance, name.
+    # PreSync hook + sync-wave -10 — синкается ДО chart-овского pre-install Job (wave 0).
+    # deletionPolicy: Retain — k8s Secret переживает delete-recreate цикл ES при rerun хуков.
+    - name: forgejo-runner-init
+      annotations:
+        argocd.argoproj.io/hook: PreSync
+        argocd.argoproj.io/sync-wave: "-10"
+      deletionPolicy: Retain
+      vaultPath: forgejo/runner
+      data:
+        - secretKey: token
+          property: token
+        - secretKey: instance
+          property: instance
+        - secretKey: name
+          property: name
+      templateData:
+        CONFIG_TOKEN: "{{ .token }}"
+        CONFIG_INSTANCE: "{{ .instance }}"
+        CONFIG_NAME: "{{ .name }}"

@@ -1,4 +1,3 @@
-chart: intel-device-plugins-operator
 repoURL: https://intel.github.io/helm-charts/
 targetRevision: "0.37.0"
 namespace: kube-system
