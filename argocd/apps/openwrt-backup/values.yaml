@@ -7,6 +7,11 @@
 # Cilium LB!) + dnsmasq + usteer(BTM) + crontabs + dropbear/authorized_keys —
 # bird2-пакет регистрирует conffile, править /etc/sysupgrade.conf не надо.
 homelab-common:
+  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
+  # probes and API server only; extra sources from Hubble flows 2026-09-24.
+  networkPolicy:
+    enabled: true
+
   externalSecrets:
     # SSH private key (reuse existing admin id_rsa). Pubkey уже в
     # /etc/dropbear/authorized_keys на роутере. Vault: home/homelab/k8s/openwrt-backup/ssh.
