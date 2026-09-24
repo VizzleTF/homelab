@@ -65,8 +65,8 @@
     description = "Daily etcd snapshot";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      # Same slot the CronJob used (04:15 UTC), kept so the retention window
-      # does not shift when the two overlap during the switch.
+      # Node-local time (Asia/Nicosia), i.e. 01:15 UTC — not the 04:15 UTC the
+      # old CronJob used. Harmless: retention counts snapshots, not slots.
       OnCalendar = "04:15";
       Persistent = true;
       RandomizedDelaySec = "5m";
