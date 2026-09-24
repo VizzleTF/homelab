@@ -1,0 +1,44 @@
+# Manager ports that callers outside the namespace need, on top of the
+# homelab-common default-ingress policy (policies are additive):
+#   world          agents via the LoadBalancer 10.11.10.140 (1514 events, 1515 enrollment)
+#   netbird        agents on remote hosts over NetBird (1514/1515)
+#   victoria-logs  Vector ships the kube audit stream as syslog (514/udp)
+#   falco          falcosidekick syslog output (514/udp)
+# 55000 (API) and 1516 (cluster) stay in-namespace. The indexer is never
+# reachable from outside the namespace.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: wazuh-manager-agents
+  namespace: wazuh
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: wazuh-manager
+  ingress:
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "1514"
+              protocol: TCP
+            - port: "1515"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: netbird
+      toPorts:
+        - ports:
+            - port: "1514"
+              protocol: TCP
+            - port: "1515"
+              protocol: TCP
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: In
+              values: [victoria-logs, falco]
+      toPorts:
+        - ports:
+            - port: "514"
+              protocol: UDP
