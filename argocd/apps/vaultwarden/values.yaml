@@ -3,7 +3,7 @@
 # Deployment on an RWO volume. It was a StatefulSet on an RWX volume, i.e.
 # SQLite over NFS (Longhorn share-manager). volumeClaimTemplates cannot be
 # changed in place, so the switch goes through a new Deployment; the data was
-# copied by manifests/migrate-data-job.yaml. The old volume
+# copied once by a PreSync job (sqlite3 .backup, removed after use). The old volume
 # vaultwarden-data-vaultwarden-0 (PV Retain) is the rollback.
 resourceType: Deployment
 strategy:
