@@ -682,6 +682,17 @@ opensearchISMPolicies:
           priority: 100
 
 homelab-common:
+  # Manager state: agent registrations (client.keys), sslmanager.key, API
+  # config. Losing it means re-enrolling every agent. The indexer (events) and
+  # the local-path queue are rebuildable and not backed up.
+  volsync:
+    - name: wazuh-manager
+      claim: wazuh-data-wazuh-manager-master-0
+      targets:
+        - repo: garage
+          schedule: "40 2 * * *"
+        - repo: ovh
+          schedule: "40 6 * * 0"
   externalSecrets:
     # NOTE: the API credentials are NOT managed here. The operator creates
     # wazuh-api-credentials itself (user "wazuh", 20-char generated password) as
