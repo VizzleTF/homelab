@@ -59,6 +59,12 @@ homelab-common:
       # masks the live volumeName instead. See reference_argocd_pvc_volumename_drift.
 
   externalSecrets:
+    # Valkey ACL user `app` (see argocd/apps/valkey).
+    - name: immich-valkey
+      vaultPath: valkey/valkey
+      data:
+        - secretKey: password
+          property: password
     - name: immich-app-secrets
       vaultPath: immich/app-secrets
       data:
@@ -317,9 +323,15 @@ controllers:
               secretKeyRef:
                 name: immich-db-credentials
                 key: password
-          # Valkey connection — shared instance (ns valkey), Immich on DB index 1 to isolate from argocd/authentik (DB 0)
+          # Valkey connection — shared instance (ns valkey), Immich on DB index 1 to isolate from argocd (DB 0)
           REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
           REDIS_DBINDEX: "1"
+          REDIS_USERNAME: "app"
+          REDIS_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: immich-valkey
+                key: password
           # Machine Learning service URL
           IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
           # Server URL
