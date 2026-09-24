@@ -20,3 +20,10 @@ resources:
     # Scrape bursts were throttled 56-77% of periods at 100m.
     cpu: 300m
     memory: 64Mi
+
+homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]

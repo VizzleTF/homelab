@@ -1,5 +1,11 @@
 # Только homelab-common (второй источник ApplicationSet). Не смешивать с cert-manager.yaml — у чарта jetstack строгая values schema.
 homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
   certificates:
     - name: wildcard-tls
       namespace: kube-system

@@ -37,3 +37,10 @@ reloader:
       limits:
         cpu: 200m
         memory: 256Mi
+
+homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]

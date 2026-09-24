@@ -1,5 +1,11 @@
 # Только homelab-common (второй источник ApplicationSet). Не смешивать с cloudflared.yaml — у upstream-чарта строгая values schema.
 homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
   externalSecrets:
     - name: cloudflared-secrets
       vaultPath: cloudflared/cloudflared
