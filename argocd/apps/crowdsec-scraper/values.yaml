@@ -125,6 +125,7 @@ homelab-common:
               labels:
                 app: crowdsec-scraper
             spec:
+              automountServiceAccountToken: false
               containers:
                 - name: netbird
                   # renovate: image=netbirdio/netbird
