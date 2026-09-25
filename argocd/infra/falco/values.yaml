@@ -108,9 +108,38 @@ customRules:
     # a process that chdirs there is not reported. Narrowing it to this one
     # Forgejo org keeps the hole small, and if the org is ever renamed the noise
     # simply comes back rather than the exception silently widening.
+    #
+    # Cilium also runs cilium-sysctlfix from /opt/cni/bin at agent start, and
+    # lampac downloads and runs TorrServer into its data dir by design.
     - rule: Drop and execute new binary in container
-      condition: and not proc.exepath = /opt/cni/bin/cilium-cni
+      condition: and not proc.exepath startswith /opt/cni/bin/
                  and not proc.cwd startswith /workspace/vizzle/
+                 and not (k8s.ns.name = lampac
+                          and proc.exepath = /lampac/data/ts/TorrServer-linux)
+      override:
+        condition: append
+
+    # Longhorn instance-manager wires engine <-> replica processes over TCP by
+    # dup'ing sockets onto their stdio. Every replica rebuild or rebalance fires
+    # this, ~30 events a day.
+    - rule: Redirect STDOUT/STDIN to Network Connection in Container
+      condition: and not (k8s.ns.name = longhorn-system
+                          and container.image.repository = docker.io/longhornio/longhorn-instance-manager)
+      override:
+        condition: append
+
+    # CNPG replicas run restore_command through a shell whenever they fall back
+    # from streaming to the WAL archive.
+    - rule: Run shell untrusted
+      condition: and not (proc.pname = postgres
+                          and proc.cmdline startswith "sh -c /controller/manager wal-restore")
+      override:
+        condition: append
+
+    # containerd inside the Forgejo runner's dind sidecar truncates job logs.
+    - rule: Clear Log Activities
+      condition: and not (k8s.ns.name = forgejo
+                          and container.image.repository = docker.io/library/docker)
       override:
         condition: append
 
