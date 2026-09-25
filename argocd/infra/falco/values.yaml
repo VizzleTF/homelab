@@ -109,11 +109,19 @@ customRules:
     # Forgejo org keeps the hole small, and if the org is ever renamed the noise
     # simply comes back rather than the exception silently widening.
     #
+    # Package installs in CI jobs escape that test: dpkg maintainer scripts run
+    # from elsewhere (update-ca-certificates runs `openssl rehash` in
+    # /etc/ssl/certs), and the binaries apt just unpacked sit in the upper
+    # layer. Such jobs are dind children with no Kubernetes metadata, so the
+    # dpkg session is only excused when k8s.ns.name is absent — apt inside a
+    # real pod is still reported.
+    #
     # Cilium also runs cilium-sysctlfix from /opt/cni/bin at agent start, and
     # lampac downloads and runs TorrServer into its data dir by design.
     - rule: Drop and execute new binary in container
       condition: and not proc.exepath startswith /opt/cni/bin/
                  and not proc.cwd startswith /workspace/vizzle/
+                 and not (proc.sname = dpkg and not k8s.ns.name exists)
                  and not (k8s.ns.name = lampac
                           and proc.exepath = /lampac/data/ts/TorrServer-linux)
       override:
