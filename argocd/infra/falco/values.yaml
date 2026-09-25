@@ -119,12 +119,12 @@ customRules:
       override:
         condition: append
 
-    # Longhorn instance-manager wires engine <-> replica processes over TCP by
-    # dup'ing sockets onto their stdio. Every replica rebuild or rebalance fires
-    # this, ~30 events a day.
+    # Longhorn wires engine <-> replica processes over TCP by dup'ing sockets
+    # onto their stdio: instance-manager on every replica rebuild or rebalance,
+    # longhorn-manager when it runs the engine binary (backup cleanup-all-mounts).
     - rule: Redirect STDOUT/STDIN to Network Connection in Container
       condition: and not (k8s.ns.name = longhorn-system
-                          and container.image.repository = docker.io/longhornio/longhorn-instance-manager)
+                          and container.image.repository startswith docker.io/longhornio/)
       override:
         condition: append
 
