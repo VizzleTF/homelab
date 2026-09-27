@@ -111,7 +111,7 @@ homelab-common:
                 containers:
                   - name: drill
                     # renovate: image=alpine/k8s
-                    image: alpine/k8s:1.37.0
+                    image: alpine/k8s:1.37.1
                     imagePullPolicy: IfNotPresent
                     command: ["/bin/sh", "-c"]
                     env:
