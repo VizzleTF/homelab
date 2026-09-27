@@ -1,0 +1,50 @@
+# Early warning for short etcd stalls.
+#
+# The etcd mixin rules all carry `for: 10m`, so they only fire on sustained
+# degradation. The failures seen here are spikes: WAL fsync jumps to seconds
+# for under a minute on the shared SATA SSDs, a leader election follows, and
+# every controller holding a lease (Longhorn CSI sidecars, barman plugin,
+# CNPG, KEDA, Kyverno) exits with "leader election lost". Nothing alerted on
+# 2026-09-27, when three pods on talos-cp-03 restarted at 09:00:18 together.
+# Backtest over 14 days: each rule fired on 10-11 days, matching the daily
+# spikes on talos-cp-01/02.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: etcd-spikes
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: etcd-spikes
+      rules:
+        - alert: EtcdLeaderChangesFrequent
+          # max, not sum: every member counts the same election.
+          expr: max(increase(etcd_server_leader_changes_seen_total{job="etcd"}[1h])) >= 2
+          labels:
+            severity: warning
+          annotations:
+            summary: "etcd: {{ $value | humanize }} смен лидера за час"
+            description: |
+              Каждая смена лидера останавливает запись в API на секунды. Контроллеры
+              с lease (Longhorn CSI, barman plugin, CNPG, KEDA, Kyverno) в этот
+              момент теряют lease и перезапускаются. Причина обычно в спайке fsync:
+              смотреть EtcdFsyncLatencySpike и дашборд etcd в Grafana.
+
+        - alert: EtcdFsyncLatencySpike
+          # max_over_time over a 1m-step subquery keeps a spike visible for 15m
+          # even if it lasted a single scrape.
+          expr: |
+            max_over_time(
+              histogram_quantile(0.99,
+                sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{job="etcd"}[5m]))
+              )[15m:1m]
+            ) > 0.5
+          labels:
+            severity: warning
+          annotations:
+            summary: "etcd на {{ $labels.instance }}: WAL fsync p99 {{ $value | humanizeDuration }}"
+            description: |
+              Норма для etcd меньше 25ms, выше 0.5s leader heartbeat уже не
+              успевает. Ищи, что в это время писало на системный диск ноды
+              (снапшоты и rebuild Longhorn, бэкапы, образы):
+              talosctl -n <ip> dashboard
