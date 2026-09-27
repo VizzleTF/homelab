@@ -30,6 +30,7 @@ vpolExclude:
     - node-feature-discovery   # host /sys, /proc
     - smartctl-exporter        # raw disk access
     - forgejo                  # privileged dind runner
+    - local-path-provisioner   # hostPath helper pods create/delete PV dirs
   matchConditions:
     # restore-drill creates drill-* namespaces with privileged VolSync movers.
     - name: skip-restore-drill-namespaces
