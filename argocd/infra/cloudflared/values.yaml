@@ -4,10 +4,11 @@ tunnelSecrets:
   existingConfigJsonFileSecret:
     name: "cloudflared-secrets"
     key: "credentials.json"
-  # Modern tunnels don't use cert.pem, but chart requires this to be set
-  # to skip validation. We set a dummy value to satisfy the template logic.
+  # Modern tunnels don't use cert.pem, but the chart requires a non-empty name
+  # to skip the inline-secret path. The name lands in a non-optional projected
+  # volume, so it must be a Secret that exists — reuse the credentials one.
   existingPemFileSecret:
-    name: "not-used"
+    name: "cloudflared-secrets"
     key: "cert.pem"
 
 # Tunnel configuration
