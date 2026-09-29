@@ -268,7 +268,7 @@ _shared_config:
   # Dashboard (hostRule с PAT не помог). Версию тянем из github-releases immich-app/immich
   # выделенным customManager'ом (renovate.json), суффикс -openvino живёт вне currentValue.
   # renovate: immich-ml
-  ml_tag: &ml_tag "v3.2.2-openvino"
+  ml_tag: &ml_tag "v3.2.4-openvino"
 
 # Pod-level securityContext + soft affinity for the server component.
 # Prefer the bare-metal ML worker so the server lands next to the ML pod (low-latency
