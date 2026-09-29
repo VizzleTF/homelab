@@ -195,7 +195,7 @@ homelab-common:
                       mountPath: /var/lib/netbird
                 - name: vmagent
                   # renovate: image=victoriametrics/vmagent
-                  image: victoriametrics/vmagent:v1.152.0
+                  image: victoriametrics/vmagent:v1.153.0
                   imagePullPolicy: IfNotPresent
                   args:
                     - -promscrape.config=/etc/vmagent/scrape.yaml
