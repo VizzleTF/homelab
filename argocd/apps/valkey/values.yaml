@@ -13,9 +13,11 @@
 # Имя Service намеренно сохранено от bitnami-чарта (fullnameOverride), чтобы
 # миграция не тянула правки в четырёх чужих values и рестарт ArgoCD.
 #
-# Persistence: RDB по дефолтным правилам valkey (save 3600/300/60) в /data на
-# local-path — кэш переживает рестарт пода, но не смерть ноды. Это осознанно:
-# данные восстановимы (ArgoCD re-cache, immich очереди).
+# Persistence: none — /data is an emptyDir, the cache is lost on every pod
+# restart. That is fine: the data is recoverable (ArgoCD re-cache, immich
+# queues). It used to be a local-path PVC, which pinned the pod to one node —
+# draining that node (Talos upgrade 2026-09-30) left ArgoCD without its cache
+# and every app went `Unknown`. Without a PVC the pod reschedules anywhere.
 homelab-common:
   # Password of the ACL user `app` (OpenBao homelab/k8s/valkey/valkey).
   externalSecrets:
@@ -32,13 +34,6 @@ homelab-common:
       - namespaces: [argocd, immich]
         ports: [6379]
 
-  persistentVolumeClaims:
-    - name: valkey-data
-      size: 1Gi
-      storageClassName: local-path
-      accessModes:
-        - ReadWriteOnce
-
   apps:
     - name: valkey
       # Service/Deployment остаются `valkey-primary` — см. шапку.
@@ -49,10 +44,6 @@ homelab-common:
             app: valkey
         spec:
           replicas: 1
-          # RWO PVC на local-path: второй под не примонтирует том, поэтому
-          # Recreate вместо RollingUpdate (иначе новый висит в Pending).
-          strategy:
-            type: Recreate
           selector:
             matchLabels:
               app: valkey
@@ -132,8 +123,8 @@ homelab-common:
                       memory: 256Mi
               volumes:
                 - name: data
-                  persistentVolumeClaim:
-                    claimName: valkey-data
+                  emptyDir:
+                    sizeLimit: 1Gi
                 - name: acl
                   emptyDir:
                     medium: Memory
