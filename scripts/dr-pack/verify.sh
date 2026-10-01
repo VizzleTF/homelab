@@ -7,9 +7,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=../dr/lib/common.sh
 source "$SCRIPT_DIR/../dr/lib/common.sh"
 
-DRILL=0
-[[ "${1:-}" = "--drill" ]] && DRILL=1
-
 fail=0
 
 check() {
@@ -108,11 +105,6 @@ if [[ -n "$vw_client" ]]; then
   done <<< "$VW_ITEMS"
 else
   log_warn "хранилище заблокировано — проверка записей Vaultwarden пропущена (rbw unlock)"
-fi
-
-if [[ "$DRILL" -eq 1 ]]; then
-  log_info "drill mode — would now spawn kind cluster + replay phases 00-06"
-  log_warn "drill replay not implemented yet (TODO)"
 fi
 
 if [[ "$fail" -eq 0 ]]; then

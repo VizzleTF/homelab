@@ -6,8 +6,8 @@
 # outside the configured maintenance window.
 #
 # Wrapper for routine Talos OS and Kubernetes version upgrades on the
-# bare-metal homelab cluster (currently talos-cp-{01,02,03}; future workers
-# will be picked up automatically from terraform_talos/configs/nodes.yaml).
+# bare-metal homelab cluster (nodes are read from
+# terraform_talos/configs/nodes.yaml).
 #
 # Scope of this script — operational upgrades only:
 #   * talosctl upgrade --image <factory.talos.dev URL>      (per node)

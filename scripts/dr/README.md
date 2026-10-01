@@ -66,7 +66,3 @@ Knows app-specific gotchas: nodeAffinity labels, ResourceModifier for PVC `volum
 ## Sanitization
 
 Nothing in this directory carries secrets — only logic. `gitleaks` runs both pre-commit (Forgejo) and as the mirror gate before the GitHub push. All sensitive values are read at runtime from env vars or files under `~/dr-pack/` (which never enters git).
-
-## Quarterly drill
-
-`scripts/dr-pack/verify.sh --drill` spawns a kind cluster and replays phases 00-06 against it — catches DR pack rot (expired tokens, missing Vaultwarden notes, Raft snapshot decrypt failures) before a real outage forces the discovery.

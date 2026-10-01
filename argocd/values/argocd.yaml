@@ -23,19 +23,6 @@ homelab-common:
         port: 443
 
   apps:
-    - name: oci-helm
-      fullnameOverride: helm-oci-ghcr-suse-coder
-      secret:
-        metadata:
-          labels:
-            argocd.argoproj.io/secret-type: repository
-        type: Opaque
-        stringData:
-          type: helm
-          name: suse-coder-helm-charts
-          url: ghcr.io/suse-coder/helm-charts
-          enableOCI: "true"
-
     - name: oci-helm-forgejo
       fullnameOverride: helm-oci-forgejo
       secret:

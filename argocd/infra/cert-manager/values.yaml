@@ -1,4 +1,4 @@
-# Cert-Manager (jetstack) — только ключи чарта; homelab-common вынесен в cert-manager.homelab.yaml из-за values.schema.json
+# Cert-Manager (jetstack) — только ключи чарта; homelab-common вынесен в homelab-values.yaml из-за values.schema.json
 crds:
   enabled: true
   keep: true

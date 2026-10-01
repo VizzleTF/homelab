@@ -13,7 +13,7 @@ terraform_*/*.tfplan
 *_Secret.yaml
 !*example*.yaml
 !*_example.yaml
-!charts/**/templates/secret.yaml
+!charts/**/templates/externalsecret.yaml
 
 # Backup files
 *.bak
@@ -22,14 +22,10 @@ terraform_*/*.tfplan
 # OS files
 .DS_Store
 Thumbs.db
-.cursor
-.trae
 
 # Workspace-only artefacts (not part of the homelab repo)
 /.claudeignore
 /.editorconfig
-/.kiro/
-/.qwen/
 /.vscode/
 /obsidian
 /docs/

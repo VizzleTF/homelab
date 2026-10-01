@@ -25,7 +25,6 @@ cluster:
 %{ for ip in cp_node_ips ~}
       - ${ip}
 %{ endfor ~}
-    disablePodSecurityPolicy: true
     admissionControl:
       - name: PodSecurity
         configuration:
