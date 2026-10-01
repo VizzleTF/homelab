@@ -1,5 +1,5 @@
 chart: openbao
 repoURL: https://openbao.github.io/openbao-helm
-targetRevision: "0.29.6"
+targetRevision: "0.30.1"
 wave: "-4"
 extraManifests: true
