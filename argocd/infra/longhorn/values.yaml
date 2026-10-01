@@ -65,8 +65,11 @@ defaultSettings:
   freezeFilesystemForSnapshot: '{"v1":"true"}'
   # Автоочистка системных снапшотов
   autoCleanupSystemGeneratedSnapshot: "true"
-  # Лимит одновременных rebuild операций
-  concurrentReplicaRebuildPerNodeLimit: "3"
+  # Лимит одновременных rebuild операций. 1, не 3: Longhorn лежит на том же
+  # SSD, что и etcd. 2026-09-30 (Talos v1.14.2) три параллельных rebuild на
+  # cp-01 подняли задержку записи sda до ~350 мс, etcd отстал на 25k записей,
+  # Talos снял с ноды static-поды control plane.
+  concurrentReplicaRebuildPerNodeLimit: "1"
   # Live-upgrade engines to the default engine image after a Longhorn upgrade,
   # one volume per node at a time — otherwise a volume can sit on the old
   # engine image (and keep its DaemonSet alive) forever.
