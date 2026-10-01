@@ -7,6 +7,58 @@ global:
     refreshInterval: 1h
     pathPrefix: homelab/k8s
 
+  # OpenBao access for ESO in SecretStore mode (homelab-common >= 1.18.0,
+  # templates/eso-store.yaml). Kept outside `vault`: homelab-common 1.17.0
+  # rejects unknown keys there.
+  openbao:
+    server: http://openbao.openbao.svc.cluster.local:8200
+    kvMount: home
+    # Who may read what in OpenBao (docs: obsidian/111 Memory/Vault Paths Reference.md).
+    # Every namespace reads its own <pathPrefix>/<namespace>/* without an entry here.
+    # Cross-namespace reads must be listed: `grants` = group -> exact paths under
+    # pathPrefix, `namespaces` = namespace -> groups. scripts/openbao-eso-access.sh
+    # turns this into OpenBao policies and roles; homelab-common picks the role
+    # `eso-ns-<namespace>` for listed namespaces and `eso-own` for the rest.
+    access:
+      grants:
+        backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, velero/s3-ovh]
+        s3-ovh: [velero/s3-ovh]
+        cnpg-backup: [shared/s3-cnpg-backup]
+        db-roles: [forgejo/forgejo, authentik/authentik, atuin/atuin, sparkyfitness/sparkyfitness]
+        valkey: [valkey/valkey]
+        telegram: [robusta/telegram]
+        argocd-notify: [argocd/notifications]
+        tfstate: [terraform/s3-terraform-state]
+        openbao-ops: [vault/approle, shared/s3-snapshots, shared/dr-pack]
+        externaldns: [externaldns]
+        openwrt: [openwrt]
+      namespaces:
+        argocd: [valkey]
+        authentik: [cnpg-backup]
+        backup-drill: [backup]
+        cleanbot: [backup]
+        cnpg: [s3-ovh, cnpg-backup, db-roles]
+        crowdsec-scraper: [backup]
+        external-dns: [externaldns]
+        external-dns-openwrt: [openwrt]
+        gatus: [argocd-notify]
+        immich: [backup, cnpg-backup, valkey]
+        may: [backup]
+        netbird: [backup]
+        obsidian-livesync: [backup]
+        omniroute: [backup]
+        openbao: [backup, openbao-ops]
+        opencloud: [backup]
+        openwrt-backup: [s3-ovh]
+        renovate: [telegram]
+        rsstt: [backup]
+        sparkyfitness: [backup]
+        tfstate-mirror: [s3-ovh, tfstate]
+        trek: [backup]
+        vaultwarden: [backup]
+        victoria-metrics: [telegram]
+        wazuh: [backup]
+
   dns:
     domain: example.com
 
