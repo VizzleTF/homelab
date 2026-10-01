@@ -1,6 +1,10 @@
 # Manager ports that callers outside the namespace need, on top of the
 # homelab-common default-ingress policy (policies are additive):
 #   world          agents via the LoadBalancer 10.11.10.140 (1514 events, 1515 enrollment)
+#                  and syslog via the same LB (514/udp). Vector's kube-audit sink
+#                  reaches the LB from the node, so its source can be a node IP or
+#                  the API VIP 10.11.11.100 that Cilium sees as world. Wazuh itself
+#                  filters syslog senders with <allowed-ips> in ossec.conf.
 #   netbird        agents on remote hosts over NetBird (1514/1515)
 #   victoria-logs  Vector ships the kube audit stream as syslog (514/udp)
 #   falco          falcosidekick syslog output (514/udp)
@@ -24,6 +28,8 @@ spec:
               protocol: TCP
             - port: "1515"
               protocol: TCP
+            - port: "514"
+              protocol: UDP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: netbird
