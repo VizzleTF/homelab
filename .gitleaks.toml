@@ -33,9 +33,8 @@ description = "Helm chart templates contain Go template placeholders"
 paths = ['''charts/.*/templates/.*''']
 
 [[allowlists]]
-description = "Example and documentation files"
+description = "Documentation files"
 paths = [
-  '''.*\.example\.(yaml|yml|toml|env)$''',
   '''README.*''',
 ]
 
@@ -47,24 +46,15 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "Terraform example files"
-paths = ['''terraform_talos/.*\.tf\.example''']
-
-[[allowlists]]
-description = "Vault path references in values files (not actual secrets)"
+description = "Shell/template variable references (not actual secrets)"
 regexes = [
-  '''vault:[a-zA-Z0-9/_-]+''',
   '''\$\{[^}]+\}''',
 ]
 
 [[allowlists]]
 description = "ExternalSecret remoteRef paths look like secrets but are just Vault path references"
-paths = [
-  '''argocd/manifests/.*''',
-  '''argocd/values/.*''',
-  '''argocd/apps/.*''',
-  '''argocd/infra/.*''',
-]
+# No `paths` here: gitleaks ORs paths and regexes inside one allowlist, so a
+# path list would exempt every finding under those trees, not just Vault paths.
 regexes = [
   '''homelab/k8s/[a-zA-Z0-9/_-]+''',
 ]
