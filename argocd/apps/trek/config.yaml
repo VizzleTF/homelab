@@ -1,2 +1,4 @@
+chart: trek
 repoURL: https://chart.liketrek.com
+targetRevision: "4.3.3"
 wave: "2"
