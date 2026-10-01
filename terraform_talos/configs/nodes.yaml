@@ -20,6 +20,9 @@ nodes:
     address: 10.11.11.101/24
     role: controlplane
     install_disk: /dev/sda
+    # New box since 2026-10-01: 4 NICs (enp1s0..enp4s0), only enp1s0 is cabled.
+    # Without the MAC pin, `physical: true` would put .101 + VIP on all four.
+    mac: 00:f1:f7:a0:44:af
   talos-cp-02:
     enabled: true
     address: 10.11.11.102/24
