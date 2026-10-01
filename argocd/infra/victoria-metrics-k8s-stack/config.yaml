@@ -4,9 +4,3 @@ targetRevision: "0.95.0"
 namespace: victoria-metrics
 wave: "-2"
 extraManifests: true
-ignoreDiff: |
-  - group: ""
-    kind: Secret
-    name: victoria-metrics-k8s-stack-victoria-metrics-operator-validation
-    jsonPointers:
-      - /data

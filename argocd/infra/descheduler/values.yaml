@@ -48,7 +48,7 @@ _excludedNamespaces: &excludedNamespaces
     - longhorn-system
     - cnpg-system
     # Secrets / auth / identity
-    - vault
+    - openbao
     - external-secrets-system
     - cert-manager
     # Observability / GitOps control-plane (single-replica STS)

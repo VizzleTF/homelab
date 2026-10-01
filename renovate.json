@@ -14,12 +14,8 @@
     "automerge": true
   },
   "lockFileMaintenance": {
-    "description": "config:best-practices включает lockFileMaintenance с дефолтным расписанием `before 4am on monday`. Кронджоб Renovate стартует в 06:00 UTC — окно к тому моменту закрыто, поэтому запись вечно висела в `Awaiting Schedule` на дашборде и не выполнялась НИ РАЗУ. Расширяем окно на весь понедельник (день недели 1) — попадает любой запуск в этот день. automerge задан здесь явно: updateType `lockFileMaintenance` не матчится правилом ниже (major/minor/patch/pin), иначе PR повис бы открытым. Единственный lock-файл в репо — terraform_talos/.terraform.lock.hcl.",
-    "enabled": true,
-    "schedule": ["* * * * 1"],
-    "automerge": true,
-    "automergeType": "pr",
-    "addLabels": ["automerge"]
+    "description": "Выключено: единственный lock-файл (terraform_talos/.terraform.lock.hcl) в .gitignore и в репо не коммитится, обновлять нечего. config:best-practices включает lockFileMaintenance по умолчанию — без явного false запись висит в `Awaiting Schedule`.",
+    "enabled": false
   },
   "prConcurrentLimit": 10,
   "prHourlyLimit": 4,
@@ -157,14 +153,15 @@
       ]
     },
     {
-      "description": "Образы/бинарники/версии через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы. Покрывает argocd/** (talosctl/installer/kubelet docker, talos github-releases) и terraform_talos/configs/** (Talos OS / Kubernetes bootstrap-версии в nodes.yaml). И .forgejo/workflows/** — пины инструментов job-а argocd-diff (argocd-diff-preview, pluto, yq, docker CLI).",
+      "description": "Образы/бинарники/версии через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы. Покрывает argocd/** (talosctl/installer/kubelet docker, talos github-releases) и terraform_talos/configs/** (Talos OS / Kubernetes bootstrap-версии в nodes.yaml). И .forgejo/workflows/** — пины инструментов job-а argocd-diff (argocd-diff-preview, pluto, yq, docker CLI). И .devcontainer/Dockerfile — ARG-пины CLI.",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
         "/argocd/apps/.+\\.ya?ml$/",
         "/argocd/infra/.+\\.ya?ml$/",
         "/terraform_talos/configs/.+\\.ya?ml$/",
-        "/\\.forgejo/workflows/.+\\.ya?ml$/"
+        "/\\.forgejo/workflows/.+\\.ya?ml$/",
+        "/\\.devcontainer/Dockerfile$/"
       ],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n.*?[\"']?(?<currentValue>v?[0-9][^\"'\\s]*)[\"']?"

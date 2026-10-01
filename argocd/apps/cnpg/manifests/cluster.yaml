@@ -1,7 +1,7 @@
 # Shared cnpg-cluster (authentik / forgejo / atuin / sparkyfitness).
 # Managed as a raw manifest (not the cloudnative-pg/cluster chart) because that
-# chart (≤0.6.1) cannot emit .spec.plugins, required for the Barman Cloud Plugin
-# after PG18 GA images dropped in-tree barman. Spec mirrors the prior
+# chart (≤0.6.1 at the PG18 migration) could not emit .spec.plugins, required for
+# the Barman Cloud Plugin after PG18 GA images dropped in-tree barman. Spec mirrors the prior
 # chart-rendered values so ArgoCD adopts the live Cluster in place (SSA, no
 # recreate). Operator-defaulted fields (probes, monitoring, extra postgresql
 # params, etc.) are intentionally omitted — the operator manages them.

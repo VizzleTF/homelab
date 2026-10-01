@@ -26,8 +26,8 @@ scripts/dr-pack/build.sh
 # Sanity-check the pack BEFORE you need it
 scripts/dr-pack/verify.sh
 
-# Quarterly DR drill (spawns kind cluster, replays phases 00-06)
-scripts/dr-pack/verify.sh --drill
+# Copy DR secrets from OpenBao into Vaultwarden (verify.sh checks the entries)
+scripts/dr-pack/to-bitwarden.sh
 ```
 
 `build.sh` requires:

@@ -192,7 +192,7 @@ defaultRules:
     NodeNetworkReceiveErrs: {enabled: false}
     NodeNetworkTransmitErrs: {enabled: false}
 
-    # Node FD/conntrack/IO — never actionable on 6-node homelab
+    # Node FD/conntrack/IO — never actionable on 4-node homelab
     NodeFileDescriptorLimit: {enabled: false}
     NodeHighNumberConntrackEntriesUsed: {enabled: false}
     NodeDiskIOSaturation: {enabled: false}
@@ -263,13 +263,10 @@ defaultRules:
     # control-plane incident so far (NoLeader / HighFsync / LeaderChanges).
     # vmcluster disabled — using vmsingle
     vmcluster: {enabled: false}
-    # NOTE: the chart's rule sync-job honors GROUP-level `enabled: false` but
-    # IGNORES per-rule `defaultRules.rules.<Alert>.enabled` — it always emits the
-    # full default rule set for an enabled group (verified 2026-08-08: deleting a
-    # VMRule and re-running the job recreates it with the "disabled" alerts). So
-    # the per-rule block above is effectively dead config kept for intent; the
-    # only working lever for whole unwanted groups is here. Mixed groups (a few
-    # unwanted alerts among wanted ones) must be suppressed at Alertmanager.
+    # NOTE: both levers work on chart 0.95 — per-rule `defaultRules.rules.<Alert>.enabled`
+    # above (verified 2026-10-01: NodeRAIDDegraded / KubeJobNotCompleted are absent
+    # from live VMRules while their group siblings exist) and GROUP-level here.
+    # On 0.90.x the sync-job ignored per-rule toggles; recheck after chart bumps.
     #
     # kubernetes-resources — every rule (CPUThrottlingHigh + Kube*Overcommit +
     # Kube*Quota*) is unwanted here: overcommit is intentional, quotas unused,

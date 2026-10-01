@@ -1,2 +1,1 @@
 # Helm ignores these files when packaging the chart
-CHANGELOG.md

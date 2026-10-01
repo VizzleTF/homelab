@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Configures eBGP on the OpenWrt router (10.11.12.1 mgmt, 10.11.11.1 servers
-# VLAN) to peer with all six Talos nodes and learn LoadBalancer routes from
+# VLAN) to peer with every Talos node and learn LoadBalancer routes from
 # the Cilium BGP control plane.
 #
 # Pairs with:

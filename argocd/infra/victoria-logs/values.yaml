@@ -31,11 +31,6 @@ server:
   serviceMonitor:
     enabled: false
 
-  verticalPodAutoscaler:
-    enabled: true
-    updatePolicy:
-      updateMode: Auto
-
 # Vector-коллектор (sub-chart). Собирает /var/log/pods на всех узлах, включая CP.
 # Поды Vector-а исключают сами себя через label vector.dev/exclude=true — нет петли логов.
 vector:

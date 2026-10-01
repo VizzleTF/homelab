@@ -1,4 +1,4 @@
-# Cloudflared (upstream chart) — только ключи чарта; homelab-common в cloudflared.homelab.yaml
+# Cloudflared (upstream chart) — только ключи чарта; homelab-common в homelab-values.yaml
 # Use existing secrets from External Secrets
 tunnelSecrets:
   existingConfigJsonFileSecret:
