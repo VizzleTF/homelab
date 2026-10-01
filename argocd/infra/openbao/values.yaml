@@ -428,28 +428,6 @@ homelab-common:
             resources: ["pods"]
             verbs: ["get", "list", "watch"]
 
-    - serviceAccount:
-        name: openbao-auth
-        create: true
-        automountServiceAccountToken: true
-      clusterRole:
-        name: openbao-auth-delegator
-        rules:
-          - apiGroups: [""]
-            resources: ["serviceaccounts/token"]
-            verbs: ["create"]
-          - apiGroups: [""]
-            resources: ["serviceaccounts"]
-            verbs: ["get"]
-          - apiGroups: ["authentication.k8s.io"]
-            resources: ["tokenreviews"]
-            verbs: ["create"]
-          - apiGroups: ["authorization.k8s.io"]
-            resources: ["subjectaccessreviews"]
-            verbs: ["create"]
-      clusterRoleBinding:
-        name: openbao-auth-delegator-openbao
-
   limitRange:
     enabled: true
     defaults:

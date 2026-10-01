@@ -13,12 +13,17 @@
 # left the map are not deleted (list them with --dry-run and remove by hand).
 #
 # Needs: bao (admin token in ~/.vault-token or BAO_TOKEN), yq (mikefarah), jq.
+# BAO_CMD overrides how bao is run (DR phase 07 runs it inside the openbao pod).
 # Usage: scripts/openbao-eso-access.sh [--dry-run]
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 export BAO_ADDR="${BAO_ADDR:-https://openbao.example.com}"
 DRY=0
+if [[ -n "${BAO_CMD:-}" ]]; then
+  # shellcheck disable=SC2086  # BAO_CMD is a command line on purpose
+  bao() { $BAO_CMD "$@"; }
+fi
 [[ "${1:-}" == "--dry-run" ]] && DRY=1
 
 AUTH_MOUNT=kubernetes
