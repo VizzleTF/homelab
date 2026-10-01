@@ -8,8 +8,9 @@ metadata:
 spec:
   refreshInterval: 1h
   secretStoreRef:
-    name: openbao-backend-cluster
-    kind: ClusterSecretStore
+    # Store rendered by homelab-common for release `victoria-metrics-k8s-stack`.
+    name: openbao-victoria-metrics-k8s-stack
+    kind: SecretStore
   # Robusta's bot token, for the telegram-direct receiver below: alerts about
   # the delivery path itself (Robusta down, notifications failing) must not go
   # through that path. The old victoria-metrics-bot token was revoked.
