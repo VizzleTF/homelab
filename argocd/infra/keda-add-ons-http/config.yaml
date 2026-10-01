@@ -1,3 +1,4 @@
+chart: keda-add-ons-http
 repoURL: https://kedacore.github.io/charts
 targetRevision: "0.16.0"
 namespace: keda

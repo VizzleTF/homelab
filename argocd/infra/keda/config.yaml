@@ -1,3 +1,4 @@
+chart: keda
 repoURL: https://kedacore.github.io/charts
 targetRevision: "2.21.0"
 wave: "-2"

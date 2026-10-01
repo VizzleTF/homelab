@@ -1,3 +1,4 @@
+chart: wazuh-operator
 repoURL: ghcr.io/maximewewer/charts
 targetRevision: "2026.9.1"
 wave: "-1"

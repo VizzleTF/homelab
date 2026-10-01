@@ -1,3 +1,4 @@
+chart: openbao
 repoURL: https://openbao.github.io/openbao-helm
 targetRevision: "0.29.6"
 wave: "-4"

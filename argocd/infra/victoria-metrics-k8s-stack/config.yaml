@@ -1,3 +1,4 @@
+chart: victoria-metrics-k8s-stack
 repoURL: https://victoriametrics.github.io/helm-charts/
 targetRevision: "0.93.0"
 namespace: victoria-metrics
