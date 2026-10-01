@@ -257,7 +257,9 @@ jobs:
         env:
           TOKEN: ${{ secrets.DIFF_PREVIEW_TOKEN || github.token }}
         run: |
-          set -uo pipefail
+          # The runner starts bash with -e; every check below must run and report,
+          # and the Verdict step fails the job from `fail`.
+          set +e -uo pipefail
           fail=0
           : > checks.md
 
