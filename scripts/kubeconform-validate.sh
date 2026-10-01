@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Validate Kubernetes manifests with kubeconform — both raw manifests under
-# argocd/**/manifests + standalone Applications, and the rendered output of the
-# homelab-common chart for every values file that uses it (a render or
-# values-schema failure fails the run too).
+# Validate Kubernetes manifests with kubeconform: the rendered output of the
+# homelab-common chart from the local charts/ source, for every values file that
+# uses it (a render or values-schema failure fails the run too). ArgoCD deploys
+# the published chart version, so this is the only check that sees an
+# unpublished chart change.
+#
+# Raw manifests (argocd/**/manifests, argocd/standalone) are not checked here:
+# the argocd-diff CI job validates them as part of the full rendered output of
+# every Application the PR touches.
 #
 # Single source of truth shared by `.forgejo/workflows/ci.yaml` (kubeconform job)
 # and `task ci:kubeconform`. Requires `kubeconform` and `helm` on PATH
@@ -43,17 +48,6 @@ if [[ "$#" -gt 0 ]]; then
   echo "==> $*"
   kc "$@"
   exit
-fi
-
-echo "==> Raw manifests (argocd/**/manifests, standalone, manifests)"
-mapfile -t RAW < <(
-  find argocd/apps argocd/infra -path '*/manifests/*.yaml' -type f
-  find argocd/standalone argocd/manifests -name '*.yaml' -type f
-)
-if [[ "${#RAW[@]}" -gt 0 ]]; then
-  kc "${RAW[@]}"
-else
-  echo "  (no raw manifests found)"
 fi
 
 echo "==> Rendered homelab-common"
