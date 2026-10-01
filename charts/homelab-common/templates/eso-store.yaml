@@ -11,7 +11,8 @@ because several Applications share a namespace. See scripts/openbao-eso-access.s
 {{- if and (eq ($vault.secretStoreKind | default "") "SecretStore") (or $hc.externalSecrets $hc.volsync) }}
 {{- $listed := (($bao.access | default dict).namespaces | default dict) }}
 {{- $role := ternary (printf "eso-ns-%s" .Release.Namespace) "eso-own" (hasKey $listed .Release.Namespace) }}
-{{- /* A PreSync ExternalSecret runs before normal resources, so its store must be a PreSync hook too. */}}
+{{- /* A PreSync ExternalSecret runs before normal resources, so its store must be a PreSync hook too,
+       in an earlier wave than any PreSync ExternalSecret (forgejo-runner-init uses -10). */}}
 {{- $presync := false }}
 {{- range ($hc.externalSecrets | default list) }}
 {{- if eq (index (.annotations | default dict) "argocd.argoproj.io/hook" | default "") "PreSync" }}{{ $presync = true }}{{ end }}
@@ -25,7 +26,7 @@ metadata:
   {{- if $presync }}
   annotations:
     argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "-100"
   {{- end }}
 automountServiceAccountToken: false
 ---
@@ -37,7 +38,7 @@ metadata:
   {{- if $presync }}
   annotations:
     argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "-100"
   {{- end }}
 spec:
   provider:
