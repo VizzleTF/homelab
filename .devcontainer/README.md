@@ -82,7 +82,7 @@ ssh -T git@git.example.com   # Forgejo SSH key works
 
 ## MCP gotchas
 
-- `terraform` MCP needs `/usr/local/bin/terraform-mcp-server` — installed by Dockerfile, path matches `.claude/settings.json`.
-- `kubernetes` MCP needs `kubectl` in PATH (installed) and a valid kubeconfig (mounted RO). **It reads the local context** — which per `feedback_kubectl_context.md` is NOT homelab. For homelab cluster state, switch the local kubeconfig or set `KUBECONFIG` to a homelab-pointing file before using the MCP.
+- `terraform` MCP needs `/usr/local/bin/terraform-mcp-server` — installed by Dockerfile, path matches the user-level `~/.mcp.json`.
+- `kubernetes` MCP needs `kubectl` in PATH (installed) and a valid kubeconfig (mounted RO). **It reads the current kubeconfig context**, which may not be homelab. For homelab cluster state, switch the local kubeconfig or set `KUBECONFIG` to a homelab-pointing file before using the MCP.
 - `github` MCP is npx-cached on first run by `post-create.sh`.
 - `argocd-mcp` (user-level) is in `~/.claude/settings.json` and travels via the bind-mount; needs `argocd` CLI (installed) + `~/.config/argocd/config` (mounted).

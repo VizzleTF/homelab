@@ -85,7 +85,7 @@ homelab-common:
 
     # Forgejo SSH access — отдельная ed25519 keypair для argocd-bot user в Forgejo.
     # Forgejo now lives on the ops node outside the cluster; git.example.com is a
-    # static record in OpenWrt pointing at 10.11.11.153 (see docs/ops-node.md).
+    # static record in OpenWrt pointing at 10.11.11.153 (see obsidian/111 Memory/Ops Node.md).
     - name: argocd-repo-ssh-forgejo-default
       vaultPath: argocd/repo-ssh-forgejo
       templateMetadata:

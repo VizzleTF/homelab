@@ -14,7 +14,7 @@ homelab-common:
       - namespaces: [victoria-metrics]
         ports: [9187]
 
-  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
+  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот
   # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
   # Библиотека 250Gi (реально ~184Gi), RWX через Longhorn share-manager —
   # accessMode снапшота обязан быть ReadWriteMany, иначе mover не примонтирует.

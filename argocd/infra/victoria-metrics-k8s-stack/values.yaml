@@ -587,6 +587,6 @@ kubeProxy:
 # The chart's kubeEtcd builds a static Endpoints object (hardcoded CP IPs).
 # Instead etcd is scraped via a VMNodeScrape that discovers control-plane
 # nodes by label, so node IP changes / replacements need no config edit.
-# See manifests/vmnodescrape-etcd.yaml and docs/etcd-monitoring.md.
+# See manifests/vmnodescrape-etcd.yaml and obsidian/112 ArgoCD/Infrastructure/Monitoring Stack.md.
 kubeEtcd:
   enabled: false

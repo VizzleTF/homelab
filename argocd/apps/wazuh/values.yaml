@@ -1,6 +1,6 @@
 # WazuhCluster (manager + indexer + dashboard) rendered by the wazuh-cluster
 # chart into a single CR; the wazuh-operator (argocd/infra/wazuh-operator)
-# reconciles it. See docs/security-stack.md for the whole stack design.
+# reconciles it. See obsidian/112 ArgoCD/Apps/all/wazuh.md for the whole stack design.
 namespace: wazuh
 # ArgoCD creates the namespace (CreateNamespace=true).
 createNamespace: false

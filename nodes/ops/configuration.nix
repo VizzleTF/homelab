@@ -1,5 +1,5 @@
 # ops — the host that holds the GitOps source of truth outside the cluster.
-# See docs/ops-node.md. Forgejo itself lands in a follow-up change; this is the
+# See obsidian/111 Memory/Ops Node.md. Forgejo itself lands in a follow-up change; this is the
 # base system only, so that a broken service can never cost us ssh access.
 { pkgs, ... }:
 

@@ -2,7 +2,7 @@
 # Stateless: all state in shared cnpg-cluster (DB `atuin`). No PVC.
 # DB via cnpg-cluster-rw DIRECT (not the pooler): atuin/sqlx prepared statements
 # break under pgbouncer transaction-mode pooling.
-# See docs/atuin.md.
+# See obsidian/112 ArgoCD/Apps/all/atuin.md.
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
@@ -73,7 +73,7 @@ homelab-common:
                       value: "8888"
                     # Locked down post-registration. `atuin login` on new devices works
                     # regardless; this only gates new-account signups. Flip to "true"
-                    # temporarily if registering a fresh account (see docs/atuin.md).
+                    # temporarily if registering a fresh account (see obsidian/112 ArgoCD/Apps/all/atuin.md).
                     - name: ATUIN_OPEN_REGISTRATION
                       value: "false"
                   envFrom:

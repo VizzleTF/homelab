@@ -12,7 +12,7 @@ homelab-common:
     allow:
       - namespaces: [victoria-metrics]
 
-  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
+  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот
   # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
   # Ключ netbird-пира: 100Mi, но без него скрапер теряет доступ в mesh.
   # Off-site раньше не было вовсе — velero гонял только daily в garage.

@@ -9,7 +9,7 @@
 # so no single node drain/failure can take out both. HA is two separate peers,
 # NOT replicas=2 — the RWO identity PVC + one-identity-per-peer model forbids it.
 homelab-common:
-  # Backup v2 (см. docs/backup-v2.md): VolSync снимает Longhorn CSI-снапшот
+  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот
   # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
   volsync:
     - name: netbird-peer

@@ -1,7 +1,7 @@
 # Off-site копия terraform state: Garage → OVH.
 #
 # Жила в компоненте velero (ns velero) как побочный CronJob, хотя к Velero
-# отношения не имеет — при выводе Velero (docs/backup-v2.md, фаза 8) вынесена
+# отношения не имеет — при выводе Velero (obsidian/113 Backups/Backup Overview.md) вынесена
 # в собственный компонент, чтобы не уехать вместе с ним.
 #
 # Vault-путь `velero/s3-ovh` оставлен как есть: это ключ OVH, переживший
