@@ -19,6 +19,22 @@
             "pathPrefix": { "type": "string" }
           }
         },
+        "openbao": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "server": { "type": "string" },
+            "kvMount": { "type": "string" },
+            "access": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "grants": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+                "namespaces": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } }
+              }
+            }
+          }
+        },
         "gateway": {
           "type": "object",
           "additionalProperties": false,

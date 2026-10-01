@@ -34,3 +34,18 @@ metadata:
   {{- end }}
   {{- end }}
 {{- end }}
+
+{{/*
+ESO secretStoreRef for ExternalSecrets of this release. In SecretStore mode
+every release reads OpenBao through its own store (templates/eso-store.yaml).
+*/}}
+{{- define "homelab-common.secretStoreRef" -}}
+{{- $vault := (.Values.global | default dict).vault }}
+{{- if eq ($vault.secretStoreKind | default "") "SecretStore" }}
+name: openbao-{{ .Release.Name }}
+kind: SecretStore
+{{- else }}
+name: {{ $vault.secretStore }}
+kind: {{ $vault.secretStoreKind }}
+{{- end }}
+{{- end }}

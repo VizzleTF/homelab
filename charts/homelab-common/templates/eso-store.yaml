@@ -1,0 +1,54 @@
+{{- /*
+Per-release ServiceAccount + SecretStore for ESO (global.vault.secretStoreKind:
+SecretStore). OpenBao binds roles to SA names `eso-*`: role eso-ns-<namespace>
+for namespaces listed in global.openbao.access.namespaces (own path + grants),
+eso-own for the rest (own path only). Named per release, not per namespace,
+because several Applications share a namespace. See scripts/openbao-eso-access.sh.
+*/}}
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $vault := (.Values.global | default dict).vault | default dict }}
+{{- $bao := (.Values.global | default dict).openbao | default dict }}
+{{- if and (eq ($vault.secretStoreKind | default "") "SecretStore") (or $hc.externalSecrets $hc.volsync) }}
+{{- $listed := (($bao.access | default dict).namespaces | default dict) }}
+{{- $role := ternary (printf "eso-ns-%s" .Release.Namespace) "eso-own" (hasKey $listed .Release.Namespace) }}
+{{- /* A PreSync ExternalSecret runs before normal resources, so its store must be a PreSync hook too. */}}
+{{- $presync := false }}
+{{- range ($hc.externalSecrets | default list) }}
+{{- if eq (index (.annotations | default dict) "argocd.argoproj.io/hook" | default "") "PreSync" }}{{ $presync = true }}{{ end }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-{{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  {{- if $presync }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-1"
+  {{- end }}
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: openbao-{{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  {{- if $presync }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-1"
+  {{- end }}
+spec:
+  provider:
+    vault:
+      server: {{ $bao.server | required "global.openbao.server is required in SecretStore mode" }}
+      path: {{ $bao.kvMount | required "global.openbao.kvMount is required in SecretStore mode" }}
+      version: v2
+      auth:
+        kubernetes:
+          mountPath: kubernetes
+          role: {{ $role }}
+          serviceAccountRef:
+            name: eso-{{ .Release.Name }}
+{{- end }}
