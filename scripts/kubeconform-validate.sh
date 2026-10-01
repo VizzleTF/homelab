@@ -8,6 +8,9 @@
 # and `task ci:kubeconform`. Requires `kubeconform` and `helm` on PATH
 # (provided by .mise.toml locally, or installed in CI).
 #
+# With file arguments it validates only those files (the argocd-diff CI job
+# passes the fully rendered target branch), using the same flags.
+#
 # CRD schemas come from the datreeio/CRDs-catalog; kinds not in the catalog
 # (tuppr TalosUpgrade/KubernetesUpgrade, Cilium BGP CRDs, …) are skipped via
 # -ignore-missing-schemas instead of failing.
@@ -15,7 +18,7 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-KUBE_VERSION="${KUBE_VERSION:-1.36.0}"
+KUBE_VERSION="${KUBE_VERSION:-1.37.0}"
 CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
 # tuppr CRDs (KubernetesUpgrade/TalosUpgrade) live in the catalog but its
@@ -35,6 +38,12 @@ kc() {
     -schema-location "$CATALOG" \
     "$@"
 }
+
+if [[ "$#" -gt 0 ]]; then
+  echo "==> $*"
+  kc "$@"
+  exit
+fi
 
 echo "==> Raw manifests (argocd/**/manifests, standalone, manifests)"
 mapfile -t RAW < <(

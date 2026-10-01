@@ -1,0 +1,28 @@
+# Extra deprecation rules for pluto (`pluto -f`), used by the argocd-diff CI job.
+# Pluto ships rules only for core Kubernetes, cert-manager and istio. Third-party
+# APIs we use go here. The component version comes from the CLI
+# (`-t cilium=<targetRevision from argocd/infra/cilium/config.yaml>`), so it never
+# drifts from the deployed chart. Leave removed-in empty until upstream announces it.
+deprecated-versions:
+  # cilium.io/v2 BGP kinds arrived in 1.18; v2alpha1 is still served in 1.20.
+  - version: cilium.io/v2alpha1
+    kind: CiliumBGPClusterConfig
+    deprecated-in: v1.18.0
+    removed-in: ""
+    replacement-api: cilium.io/v2
+    replacement-available-in: v1.18.0
+    component: cilium
+  - version: cilium.io/v2alpha1
+    kind: CiliumBGPPeerConfig
+    deprecated-in: v1.18.0
+    removed-in: ""
+    replacement-api: cilium.io/v2
+    replacement-available-in: v1.18.0
+    component: cilium
+  - version: cilium.io/v2alpha1
+    kind: CiliumBGPAdvertisement
+    deprecated-in: v1.18.0
+    removed-in: ""
+    replacement-api: cilium.io/v2
+    replacement-available-in: v1.18.0
+    component: cilium

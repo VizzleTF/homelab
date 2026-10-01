@@ -2,7 +2,8 @@
 # Apply (or update) Forgejo branch protection rule for `main` so that:
 #   - direct push is disabled
 #   - PRs are required
-#   - the `gitleaks` status check must be green
+#   - every pre-merge CI check must be green: gitleaks, yamllint, helm-lint,
+#     kubeconform, argocd-diff (Renovate automerges, so these are the only gate)
 #   - force-push and deletion are blocked
 #
 # Idempotent: PATCHes if the rule already exists, POSTs otherwise.
@@ -21,7 +22,8 @@ set -euo pipefail
 : "${FORGEJO_TOKEN:?FORGEJO_TOKEN must be set}"
 FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
 BRANCH="${BRANCH:-main}"
-STATUS_CHECK="${STATUS_CHECK:-CI / gitleaks (pull_request)}"
+# Comma-separated. Names are "<workflow> / <job> (<event>)" as Forgejo reports them.
+STATUS_CHECKS="${STATUS_CHECKS:-CI / gitleaks (pull_request),CI / yamllint (pull_request),CI / helm-lint (pull_request),CI / kubeconform (pull_request),CI / argocd-diff (pull_request)}"
 
 if [ "$#" -eq 0 ]; then
   echo "Usage: $0 <owner>/<repo> [<owner>/<repo> ...]" >&2
@@ -31,7 +33,7 @@ fi
 protection_payload() {
   jq -n \
     --arg branch "$BRANCH" \
-    --arg check "$STATUS_CHECK" \
+    --arg checks "$STATUS_CHECKS" \
     '{
       branch_name: $branch,
       enable_push: false,
@@ -60,7 +62,7 @@ protection_payload() {
       require_pull_request: true,
       required_approvals: 0,
       enable_status_check: true,
-      status_check_contexts: [$check]
+      status_check_contexts: ($checks | split(","))
     }'
 }
 
