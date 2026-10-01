@@ -46,7 +46,8 @@ jobs:
         run: helm template smoke charts/homelab-common --debug >/dev/null
 
   kubeconform:
-    # Pre-merge gate. Schema-validates rendered manifests against core + CRD
+    # Pre-merge gate. Schema-validates homelab-common rendered from the local
+    # charts/ source (raw manifests are covered by argocd-diff) against core + CRD
     # schemas — catches bad apiVersion / wrong CRD fields (ESO v1 vs v1beta1)
     # that helm-lint's values-schema check cannot see. kubeconform version is
     # read from .mise.toml (single source of truth, Renovate-tracked).
