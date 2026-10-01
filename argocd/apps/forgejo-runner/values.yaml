@@ -37,8 +37,12 @@ runner:
         # whose label no runner has is never picked up, its run stays "waiting"
         # forever and, through `concurrency`, blocks every later run of that ref
         # (main included — mirror-to-github stops). Workflows use ubuntu-latest.
+        # diff-preview exists only here, not on the ops runner (nodes/ops/runner.nix):
+        # the argocd-diff job starts a kind cluster through this pod's dind, and the
+        # ops runner runs jobs on podman.
         labels:
           - ubuntu-latest:docker://node:24-bookworm
+          - diff-preview:docker://node:24-bookworm
           - ubuntu-26.04:docker://node:24-bookworm
           - ubuntu-24.04:docker://node:24-bookworm
           - ubuntu-22.04:docker://node:22-bookworm
@@ -77,7 +81,8 @@ dind:
       memory: 256Mi
     limits:
       cpu: "2"
-      memory: 2Gi
+      # kind + a full ArgoCD for the argocd-diff job take 2-3Gi on top of the job itself.
+      memory: 4Gi
 
 resources:
   requests:
