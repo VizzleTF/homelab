@@ -2,10 +2,8 @@
 # Подключается первым в valueFiles ArgoCD у source homelab-common — дальше идут файлы приложения.
 global:
   vault:
-    # SecretStore: every release reads OpenBao through its own SecretStore
+    # Every release reads OpenBao through its own SecretStore
     # (homelab-common templates/eso-store.yaml, access map in global.openbao).
-    # secretStore is used only in ClusterSecretStore mode.
-    secretStore: openbao-backend-cluster
     secretStoreKind: SecretStore
     refreshInterval: 1h
     pathPrefix: homelab/k8s

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 07 — External Secrets Operator + ClusterSecretStore.
+# Phase 07 — External Secrets Operator + OpenBao roles for per-release SecretStores.
 # Assumes phase 06 left Vault unsealed with the restored keyring (so all
 # previously-populated paths are already present).
 
@@ -16,8 +16,7 @@ helm repo add external-secrets https://charts.external-secrets.io >/dev/null 2>&
 helm repo update external-secrets >/dev/null
 
 # Ensure k8s auth method + SA + CRB + policy + role exist (idempotent).
-log_info "ensuring openbao-auth ServiceAccount + ClusterRoleBinding"
-kubectl -n openbao create sa openbao-auth --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+log_info "ensuring auth-delegator ClusterRoleBinding for the openbao SA (TokenReview)"
 kubectl create clusterrolebinding openbao-auth-delegator-openbao \
   --clusterrole=system:auth-delegator \
   --serviceaccount=openbao:openbao \
@@ -31,23 +30,11 @@ bao_exec bao write auth/kubernetes/config \
   kubernetes_host=https://kubernetes.default.svc:443 \
   disable_iss_validation=true >/dev/null
 
-log_info "writing homelab-universal policy"
-kubectl -n openbao exec -i openbao-0 -- env BAO_TOKEN="$BAO_TOKEN" BAO_ADDR="$BAO_ADDR_INTERNAL" \
-  bao policy write homelab-universal - <<'EOF' >/dev/null
-path "home/*" {
-  capabilities = ["create","read","update","delete","list"]
-}
-path "sys/leases/renew" { capabilities = ["update"] }
-path "auth/token/renew-self" { capabilities = ["update"] }
-EOF
-
-log_info "writing homelab-universal role (any SA, any ns)"
-bao_exec bao write auth/kubernetes/role/homelab-universal \
-  'bound_service_account_names=*' \
-  'bound_service_account_namespaces=*' \
-  token_policies=homelab-universal \
-  token_ttl=1h \
-  alias_name_source=serviceaccount_uid >/dev/null
+log_info "writing ESO policies + roles from global.openbao.access"
+# Read-only, per namespace (scripts/openbao-eso-access.sh). The raft snapshot
+# already carries them; re-running keeps a fresh mount (new accessor) correct.
+BAO_CMD="kubectl -n $BAO_POD_NS exec -i $BAO_POD -- env BAO_TOKEN=$BAO_TOKEN BAO_ADDR=$BAO_ADDR_INTERNAL bao" \
+  "$REPO_ROOT/scripts/openbao-eso-access.sh"
 
 log_info "installing ESO"
 helm_apply external-secrets external-secrets/external-secrets external-secrets-system \
@@ -58,11 +45,7 @@ helm_apply external-secrets external-secrets/external-secrets external-secrets-s
 wait_for "ESO webhook Ready" \
   "kubectl -n external-secrets-system rollout status deploy/external-secrets-webhook --timeout=180s"
 
-log_info "applying ClusterSecretStore openbao-backend-cluster"
-kubectl apply -f "$REPO_ROOT/argocd/infra/openbao/manifests/openbao-backend-cluster.yaml"
-
-wait_for "ClusterSecretStore Ready" \
-  "kubectl get clustersecretstore openbao-backend-cluster -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' | grep -q True" \
-  60
+# No store here: homelab-common renders one SecretStore per release, so stores
+# appear with the apps once ArgoCD adopts them (phase 10).
 
 log_ok "phase 07 eso complete — Vault → k8s Secret sync chain operational"

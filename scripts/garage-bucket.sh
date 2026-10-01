@@ -10,7 +10,8 @@
 # OpenBao path convention: <BAO_PATH_PREFIX>/<namespace>/s3-<key-name>
 # (default prefix: homelab/k8s; mount: home). Two fields are written:
 # ACCESS_KEY_ID and ACCESS_SECRET_KEY — ExternalSecret consumers read
-# them via ClusterSecretStore openbao-backend-cluster.
+# them via their release's SecretStore; a namespace other than the path's
+# needs a grant in global.openbao.access (scripts/openbao-eso-access.sh).
 #
 # Note: `garage key create <name>` is NOT idempotent — Garage happily
 # creates multiple keys with the same name, distinguished by ID. To

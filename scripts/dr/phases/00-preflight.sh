@@ -6,7 +6,7 @@ set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
 
 log_info "checking required binaries"
-for bin in kubectl helm jq gpg ssh openssl curl; do
+for bin in kubectl helm jq yq gpg ssh openssl curl; do
   command -v "$bin" >/dev/null || die "missing binary: $bin"
 done
 log_ok "binaries present"
