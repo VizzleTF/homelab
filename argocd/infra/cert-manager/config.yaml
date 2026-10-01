@@ -1,3 +1,4 @@
+chart: cert-manager
 repoURL: https://charts.jetstack.io
 targetRevision: "v1.21.2"
 wave: "-5"
