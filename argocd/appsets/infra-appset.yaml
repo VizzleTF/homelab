@@ -41,6 +41,9 @@ spec:
     metadata:
       annotations:
         argocd.argoproj.io/sync-wave: "{{ .wave }}"
+        # argocd-diff CI job (argocd-diff-preview) renders an app only when one of
+        # these paths changes in the PR; without it every PR renders every app.
+        argocd-diff-preview/watch-pattern: "argocd/infra/{{ .path.basename }}/.*, argocd/appsets/.*, argocd/values/global.yaml"
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
         app.kubernetes.io/part-of: infrastructure
