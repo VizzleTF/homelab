@@ -23,7 +23,7 @@ global:
       namespace: kube-system
       ip: 10.11.10.139
 
-  # VolSync (backup v2, см. docs/backup-v2.md). Две независимые restic-цели:
+  # VolSync (backup v2, см. obsidian/113 Backups/Backup Overview.md). Две независимые restic-цели:
   # garage — on-prem (Synology), ovh — off-site. РАЗНЫЕ пароли репозиториев:
   # зеркалом они не являются, порча одной не приезжает во вторую.
   # Пароли обязаны лежать не только в OpenBao, но и в офлайн DR-pack — OpenBao

@@ -1,6 +1,6 @@
 # Longhorn volume/node health — stateful Prometheus-сигнал.
 # Заменяет шумные kubewatch-event'ы FailedRebuilding/FailedDeleting, которые
-# Robusta слала в Telegram пачкой каждую ночь (benign rebuild aborts). См. docs/longhorn-monitoring.md.
+# Robusta слала в Telegram пачкой каждую ночь (benign rebuild aborts). См. obsidian/112 ArgoCD/Infrastructure/all/longhorn.md.
 #
 # longhorn_volume_robustness — набор серий с label `state`
 # (degraded/faulted/healthy/unknown), value=1 для активного состояния.

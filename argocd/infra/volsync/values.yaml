@@ -1,4 +1,4 @@
-# VolSync — асинхронная репликация PV. Основа backup-схемы v2 (см. docs/backup-v2.md):
+# VolSync — асинхронная репликация PV. Основа backup-схемы v2 (см. obsidian/113 Backups/Backup Overview.md):
 # на каждый PVC два ReplicationSource (restic → Garage, restic → OVH), а
 # восстановление — ручной ReplicationDestination (scripts/dr/restore-app.sh).
 #

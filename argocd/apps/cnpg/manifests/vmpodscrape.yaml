@@ -5,7 +5,7 @@
 #
 # До этого метрик cnpg_* в VictoriaMetrics не было вовсе: отказ архивации WAL
 # и провал base backup были невидимы, а заявленное PITR-окно 7d держалось на
-# честном слове. См. docs/backup-v2.md.
+# честном слове. См. obsidian/113 Backups/Backup Overview.md.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMPodScrape
 metadata:

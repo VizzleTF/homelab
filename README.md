@@ -86,14 +86,14 @@ reader's color scheme.
 
 ```
 argocd/
-├── root-application.yaml             # App-of-Apps root
-├── infrastructure/                   # 1 ApplicationSet + 3 standalone Applications
+├── root-application.yaml             # App-of-Apps root (projects/, appsets/, standalone/)
+├── projects/                         # AppProjects
+├── appsets/
 │   ├── infra-appset.yaml             # git.files generator over argocd/infra/*/config.yaml
-│   ├── argocd-application.yaml       # self-management
-│   ├── gateway-api.yaml              # CRDs pinned to v1.4.1 (Cilium 1.19 compat)
-│   └── talos-etcd-backup.yaml
-├── applications/
 │   └── apps-appset.yaml              # git.files generator over argocd/apps/*/config.yaml
+├── standalone/                       # the only 2 non-AppSet Applications
+│   ├── argocd-application.yaml       # ArgoCD self-management
+│   └── gateway-api.yaml              # Gateway API CRDs (experimental channel)
 ├── apps/                             # Per-app self-contained folder (auto-discovered)
 │   └── <app>/
 │       ├── config.yaml               # chart, repoURL, targetRevision, namespace, wave, flags
@@ -102,22 +102,20 @@ argocd/
 │       ├── cnpg-values.yaml          # optional dedicated CNPG cluster (only immich today)
 │       └── manifests/                # optional raw K8s yamls (extraManifests: true)
 ├── infra/                            # Same shape as apps/, per-component
-├── values/
-│   ├── infrastructure/argocd.yaml    # values for the standalone argocd Application
-│   └── shared/global.yaml            # $values target for homelab-common globals
-└── manifests/
-    └── infrastructure/talos-etcd-backup/
+└── values/
+    ├── argocd.yaml                   # values for the standalone argocd Application
+    └── global.yaml                   # $values target for homelab-common globals
 
 charts/homelab-common/                # In-house Helm chart: HTTPRoute, ExternalSecret,
                                       # Backup CronJob, RBAC, LimitRange, CNPG Database,
-                                      # simple workloads. Published to the Forgejo OCI
-                                      # registry; ArgoCD pulls from there, not from this path.
+                                      # simple workloads. Published to the Forgejo Helm
+                                      # repository; ArgoCD pulls from there, not from this path.
 
 terraform_talos/                      # Bare-metal Talos cluster provisioning
-scripts/                              # forgejo-pr.sh, talos-upgrade.sh, vm.sh, …
-.forgejo/workflows/ci.yaml            # yamllint, helm-lint, gitleaks, mirror-to-github
-.claude/skills/                       # Claude Code skills used to operate this repo
-CLAUDE.md                             # Project-wide conventions
+nodes/ops/                            # NixOS config of the ops node (Forgejo, etcd snapshots)
+scripts/                              # forgejo-pr.sh, talos-upgrade.sh, vm.sh, dr/, dr-pack/, …
+.forgejo/workflows/ci.yaml            # yamllint, helm-lint, kubeconform, gitleaks, argocd-diff,
+                                      # mirror-to-github
 ```
 
 To add a new app: `mkdir argocd/apps/<name>`, then drop in `config.yaml` and `values.yaml`. The ApplicationSet auto-discovers it on the next reconcile; the appset YAML stays untouched. Same flow for infra components under `argocd/infra/`. Chart versions are pinned in each `config.yaml` (`targetRevision:`); Renovate opens the bump PRs.
@@ -126,10 +124,22 @@ To add a new app: `mkdir argocd/apps/<name>`, then drop in `config.yaml` and `va
 
 ## 🚦 Sync waves
 
-ArgoCD deploys in strict order. Values come from `argocd/{infra,apps}/*/config.yaml` (`wave:`) and the standalone Application manifests under `argocd/standalone/`.
+Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`; the two standalone Applications under `argocd/standalone/` carry their own annotation. The waves record dependency order. ArgoCD enforces them only among resources of one sync: the root app orders the standalone Applications and the ApplicationSets, but ApplicationSet-generated Applications sync on their own (no progressive sync), and the per-app `retry` absorbs the rest.
 
-| Wave    | What lands                                                                                              | Why                                                                                                                                              |
-|---------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| Wave    | Components |
+|---------|------------|
+| **-10** | ArgoCD self-management, Gateway API CRDs |
+| **-5**  | cilium, cert-manager |
+| **-4**  | longhorn, openbao, csi-snapshotter |
+| **-3**  | kubelet-csr-approver, metrics-server, spegel, volsync |
+| **-2**  | external-secrets, cnpg-operator, keda, external-dns, external-dns-openwrt, victoria-metrics-k8s-stack |
+| **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, node-feature-discovery, tuppr, victoria-logs, wazuh-operator |
+| **0**   | cloudflared, descheduler, gatus, intel-device-plugins-gpu, kyverno, local-path-provisioner, reloader, smartctl-exporter, tfstate-mirror |
+| **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, falco, kyverno-policies, trivy-operator, backup-drill |
+| **2**   | apps: authentik, forgejo, immich, vaultwarden, wazuh, renovate, … |
+| **3**   | forgejo-runner, netbird, crowdsec-scraper, openwrt-backup |
+
+---------|---------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | **-10** | ArgoCD self-management, Gateway API CRDs, PreSync `ExternalSecret`s for charts with pre-install hooks   | ArgoCD reconciles itself first; Gateway API CRDs before any Gateway resource; hook-time ESO secrets must exist before chart `pre-install` Jobs run |
 | **-5**  | Cilium, cert-manager (+ ClusterIssuer)                                                                  | Networking and cert plumbing first; everything HTTP-facing depends on this                                                                       |
 | **-4**  | Longhorn, OpenBao, csi-snapshotter                                                                      | Storage before stateful workloads; OpenBao before ESO can resolve any external secret; CSI snapshotter (kubernetes-csi external-snapshotter) ships the VolumeSnapshot CRDs VolSync snapshots depend on |
@@ -259,8 +269,7 @@ The circular dependency worth knowing about: restic passwords live in OpenBao, a
 from a backup encrypted with them. That is what the DR pack is for — it carries both, encrypted with a
 passphrase that lives in Vaultwarden and in OpenBao, never in the pack itself.
 
-Runbooks: `obsidian/113 Backups/` (overview, DR automation, CNPG recovery), plan and journal in
-`docs/backup-v2.md`.
+Runbooks: `obsidian/113 Backups/` (overview, DR automation, CNPG recovery).
 
 ---
 
@@ -325,8 +334,8 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 | Skill                       | What it does                                                                            |
 |-----------------------------|------------------------------------------------------------------------------------------|
 | `provisioning-talos-node`   | Full node-add flow, from the first prompt to `Ready` status                              |
-| `replacing-talos-node`      | Drain, forfeit leadership, recreate the trio, clean up Longhorn                          |
-| `upgrading-talos`           | `talosctl` patch and minor upgrades, gated through ghcr manifest checks                  |
+| `replacing-talos-node`      | Drain, forfeit leadership, reset or reinstall, re-apply via terraform, clean up Longhorn |
+| `upgrading-talos`           | Talos / Kubernetes upgrades through tuppr; `talosctl` script as break-glass             |
 | `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in OpenBao       |
 | `renewing-synology-cert`    | `acme.sh` + Cloudflare DNS-01, then reloads DSM nginx via `synow3tool`                   |
 | `scaffolding-app`           | Boilerplate for a new app: values, HTTPRoute, ExternalSecret, ArgoCD wiring              |
@@ -334,14 +343,13 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 | `triaging-alerts`           | Pulls firing alerts from VictoriaMetrics and groups them by severity                     |
 | `checking-cluster-health`   | One-shot overview: nodes, pods, PVCs, certs, ArgoCD sync                                 |
 
-Full list, plus reference docs, hooks and MCP wiring, lives under `.claude/`. `CLAUDE.md` at the root contains project-wide conventions.
+`.claude/` and `CLAUDE.md` live in the private Forgejo origin only; the public GitHub mirror strips them.
 
 ---
 
 ## 🏗️ Work in progress
 
 - [ ] Local LLM behind KEDA scale-to-zero
-- [ ] Cilium 1.20 + Gateway API v1.5 jump (blocked on the `TLSRoute` schema regression)
 - [ ] Disaster-recovery drill: drain a worker mid-day, observe recovery
 
 ---

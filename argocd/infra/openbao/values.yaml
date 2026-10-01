@@ -3,7 +3,7 @@
 
 homelab-common:
 
-  # Raft-снапшот в обе S3-цели напрямую (backup v2, см. docs/backup-v2.md).
+  # Raft-снапшот в обе S3-цели напрямую (backup v2, см. obsidian/113 Backups/Backup Overview.md).
   # Раньше снапшот снимал Velero pre-hook, а сам файл вывозился вместе с PVC
   # data-openbao-0 двумя Schedule'ами. Здесь всё в одном месте: bao пишет
   # снапшот в emptyDir, rclone раскладывает по garage и ovh.

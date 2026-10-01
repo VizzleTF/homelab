@@ -1,6 +1,6 @@
 # Scrape etcd metrics from the Talos control-plane nodes.
 # etcd exposes /metrics on plain HTTP port 2381 (controlplane machine-config
-# patch — see docs/etcd-monitoring.md). VMNodeScrape discovers the CP nodes
+# patch — see obsidian/112 ArgoCD/Infrastructure/Monitoring Stack.md). VMNodeScrape discovers the CP nodes
 # dynamically by label, so node IP changes or node replacement need no edit
 # here — unlike a static Endpoints list.
 apiVersion: operator.victoriametrics.com/v1beta1

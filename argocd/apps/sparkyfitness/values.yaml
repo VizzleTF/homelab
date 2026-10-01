@@ -1,6 +1,6 @@
 # SparkyFitness — self-hosted nutrition / exercise tracker (Node server + nginx frontend).
 # Upstream chart security defaults are already hardened (server UID 1000, frontend
-# UID 101, read-only rootfs, drop ALL) — not overridden. See docs/sparkyfitness.md.
+# UID 101, read-only rootfs, drop ALL) — not overridden. See obsidian/112 ArgoCD/Apps/all/sparkyfitness.md.
 
 config:
   frontendUrl: https://fitness.example.com
@@ -92,7 +92,7 @@ homelab-common:
         name: sparkyfitness-frontend
         port: 80
 
-  # Backup v2 (см. docs/backup-v2.md): profile/exercise images on the chart-owned
+  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): profile/exercise images on the chart-owned
   # uploads PVC. The `backup` PVC holds the app's own DB dumps — covered by CNPG.
   volsync:
     - name: sparkyfitness-uploads

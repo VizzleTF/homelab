@@ -1,5 +1,5 @@
 # Forgejo — the GitOps source of truth, deliberately outside the cluster.
-# See docs/ops-node.md. No reverse proxy: Forgejo terminates TLS itself with a
+# See obsidian/111 Memory/Ops Node.md. No reverse proxy: Forgejo terminates TLS itself with a
 # certificate obtained over DNS-01, and git-over-ssh rides the system sshd, so
 # clone URLs stay ssh://git@git.example.com/... exactly as before the move.
 { lib, pkgs, ... }:
