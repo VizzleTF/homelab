@@ -69,14 +69,19 @@ homelab-common:
                   # ACL: clients (ArgoCD, immich) log in as `app`. The ACL file
                   # is rendered at start from env into an emptyDir (rootfs is
                   # read-only). VALKEY_DEFAULT_USER=off disables the
-                  # passwordless `default` user. maxmemory не задаём; dir=/data (RDB).
+                  # passwordless `default` user. maxmemory не задаём.
+                  # Persistence off (2026-10): /data is an emptyDir, so RDB
+                  # snapshots (~4 GB/day of writes) survived nothing but a
+                  # container restart. ArgoCD refills its cache; immich's
+                  # BullMQ queue loses pending jobs on a restart — rerun
+                  # "missing" jobs from the immich admin UI if that happens.
                   command:
                     - sh
                     - -ec
                     - |
                       printf 'user default %s\nuser app on >%s ~* &* +@all\n' \
                         "$VALKEY_DEFAULT_USER" "$VALKEY_APP_PASSWORD" > /acl/users.acl
-                      exec valkey-server --aclfile /acl/users.acl
+                      exec valkey-server --aclfile /acl/users.acl --save "" --appendonly no
                   env:
                     - name: VALKEY_DEFAULT_USER
                       value: "off"
