@@ -22,7 +22,7 @@ FROM mcr.microsoft.com/devcontainers/base:bookworm
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
 ARG KUBECTL_VERSION=v1.31.4
 # renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=v3.16.4
+ARG HELM_VERSION=v3.22.0
 # renovate: datasource=github-releases depName=siderolabs/talos
 ARG TALOSCTL_VERSION=v1.9.1
 # renovate: datasource=github-releases depName=hashicorp/terraform
