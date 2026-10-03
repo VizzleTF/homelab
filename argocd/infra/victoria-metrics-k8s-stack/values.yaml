@@ -303,6 +303,9 @@ vmsingle:
     extraArgs:
       search.maxConcurrentRequests: "8"
       search.maxQueueDuration: "30s"
+      # 30s, not the 5s default: fewer small parts and merges on disk. Up to
+      # 30 s of samples are lost on an unclean stop (2026-10, disk writes).
+      inmemoryDataFlushInterval: "30s"
     resources:
       requests:
         cpu: 250m

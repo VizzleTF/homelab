@@ -35,6 +35,12 @@ operator:
   extraEnv:
     - name: GOMEMLIMIT
       value: "220MiB"
+  # Lease renewals are etcd writes, every 2 s by default. 15 s retry; the
+  # standby replica takes over within 60 s (2026-10, disk writes).
+  extraArgs:
+    - --leader-election-lease-duration=60s
+    - --leader-election-renew-deadline=40s
+    - --leader-election-retry-period=15s
 
 # IP Address Management (IPAM) configuration
 ipam:

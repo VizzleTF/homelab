@@ -50,14 +50,31 @@ cluster:
     # scrape etcd (kubeEtcd). Plain HTTP on 2381 — reachable only on the
     # servers VLAN behind the host firewall.
     #
-    # Compaction/quota tuning: Talos does NOT auto-defrag. Periodic compaction
-    # (5m retention) keeps the keyspace bounded so CRD churn / perpetual-OutOfSync
-    # loops (CNPG, snapshot-controller) can't silently bloat the DB. quota raised
-    # to 8 GiB headroom. Defrag stays manual: `talosctl etcd defrag` (leader last,
-    # only when dbSize vs dbSizeInUse diverge >40%).
+    # Compaction: kube-apiserver already compacts etcd every 5 min
+    # (--etcd-compaction-interval default), so etcd's own periodic compaction
+    # was a duplicate and is gone (2026-10). Quota raised to 8 GiB headroom.
+    # Talos does NOT auto-defrag; defrag stays manual: `talosctl etcd defrag`
+    # (leader last, only when dbSize vs dbSizeInUse diverge >40%).
+    #
+    # heartbeat 250 ms / election 2.5 s instead of 100 ms / 1 s: fsync on the
+    # shared DRAM-less SATA SSDs spikes past 1 s, and every false election adds
+    # churn. Must be identical on all members.
     extraArgs:
       listen-metrics-urls: http://0.0.0.0:2381
-      auto-compaction-mode: periodic
-      auto-compaction-retention: 5m
       quota-backend-bytes: "8589934592"
+      heartbeat-interval: "250"
+      election-timeout: "2500"
+  # Leader-election renewals are writes to etcd (a lease PUT every retry
+  # period on all three members). 15 s instead of 2 s cuts them ~7x; a dead
+  # leader is replaced within 60 s instead of 15 s.
+  controllerManager:
+    extraArgs:
+      leader-elect-lease-duration: 60s
+      leader-elect-renew-deadline: 40s
+      leader-elect-retry-period: 15s
+  scheduler:
+    extraArgs:
+      leader-elect-lease-duration: 60s
+      leader-elect-renew-deadline: 40s
+      leader-elect-retry-period: 15s
   allowSchedulingOnControlPlanes: true

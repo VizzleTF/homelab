@@ -61,6 +61,16 @@ homelab-common:
       data:
         - secretKey: oidc.argocd.clientSecret
           property: client_secret
+    # Forgejo push webhook (repo vizzle/homelab -> /api/webhook). Forgejo sends
+    # X-Gogs-Signature, so ArgoCD verifies it with the gogs secret. It lets
+    # timeout.reconciliation stay at 10 min without slower deploys.
+    - name: argocd-webhook-secret
+      vaultPath: argocd/argocd/webhook
+      targetName: argocd-secret
+      creationPolicy: Merge
+      data:
+        - secretKey: webhook.gogs.secret
+          property: secret
 
     - name: argocd-notifications-secret
       vaultPath: argocd/notifications
@@ -180,6 +190,11 @@ configs:
     controller.diff.server.side: "true"
   cm:
     server.sessionMaxTokenAge: "720h"
+    # 10 min, not 2: every periodic refresh PATCHes Application status in
+    # etcd (~22/min across 60 apps, 2026-10). Git pushes arrive through the
+    # Forgejo webhook (argocd-webhook-secret above); selfHeal on live changes
+    # does not depend on this timer.
+    timeout.reconciliation: 600s
     accounts.mcp: apiKey
     resource.exclusions: |
       - apiGroups:

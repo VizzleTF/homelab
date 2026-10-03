@@ -14,6 +14,10 @@ controller:
   args:
     leaderElection: true
     leaderElectionNamespace: "$(NAMESPACE)"
+    # Lease renewals are etcd writes (default every 2 s); 15 s retry (2026-10).
+    leaderElectionLeaseDuration: 60s
+    leaderElectionRenewDeadline: 40s
+    leaderElectionRetryPeriod: 15s
     httpEndpoint: ":8080"
     # CSIVolumeGroupSnapshot — beta feature; Longhorn 1.11 supports group snapshots,
     # cheap to keep on (gate just controls API). Disable later if it churns logs.
