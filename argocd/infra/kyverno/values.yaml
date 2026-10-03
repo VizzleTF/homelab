@@ -6,7 +6,7 @@
 # visible first (policies run in Audit — see argocd/infra/kyverno-policies)
 # and gives a place to enforce later.
 
-# Audit results live in PolicyReports (Trivy/Grafana read those). The
+# Audit results live in PolicyReports (Grafana reads those). The
 # background scan also re-emitted every violation as a Kubernetes Event each
 # cycle — 1400+ PolicyViolation events for the same known-privileged
 # DaemonSets, extra etcd writes on already slow disks. Chart default omits

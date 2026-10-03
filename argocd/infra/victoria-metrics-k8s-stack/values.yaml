@@ -10,7 +10,7 @@ homelab-common:
       - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper]
         ports: [8428]
       # alerts pushed to Alertmanager
-      - namespaces: [backup-drill, falco, wazuh, robusta]
+      - namespaces: [backup-drill, wazuh, robusta]
         ports: [9093]
 
   httpRoutes:
@@ -274,6 +274,12 @@ defaultRules:
     kubernetes-resources: {enabled: false}
     # kube-apiserver-slos — SLO burn-rate multiwindow alerts; KubeAPIDown suffices.
     kube-apiserver-slos: {enabled: false}
+    # Recording rules whose only readers were the SLO alerts above. They are
+    # also the only readers of apiserver_request_sli_duration_seconds_bucket
+    # (37k series), which kubeApiServer below now drops.
+    kube-apiserver-availability.rules: {enabled: false}
+    kube-apiserver-burnrate.rules: {enabled: false}
+    kube-apiserver-histogram.rules: {enabled: false}
     # Talos binds kube-controller-manager (10257) / kube-scheduler (10259) to
     # 127.0.0.1 — unreachable from pods on all CP nodes — so both the *Down and
     # *InstanceUnreachable rules in these groups fire forever with no scrape job.
@@ -313,7 +319,11 @@ vmsingle:
       resources:
         requests:
           storage: 30Gi
-      storageClassName: longhorn
+      # local-path since 2026-10: 7 days of disposable metrics did not need
+      # Longhorn's second replica — that copy alone was ~50 GB/day on the SATA
+      # SSDs etcd shares. The PVC must be recreated (data lost) for the switch;
+      # a lost node means a fresh empty TSDB on another one.
+      storageClassName: local-path
 
 # VMCluster - disabled for homelab
 vmcluster:
@@ -355,12 +365,16 @@ vmagent:
     extraArgs:
       promscrape.streamParse: "true"
       # apiserver /metrics on cp-02 = 16.9 MB (16 MiB default limit) — bumped to 64 MiB.
-      # High-cardinality apiserver_request_*_bucket histograms are used by default SLO rules,
-      # so drop-relabel is intentionally avoided here.
+      # Unused histograms are dropped in kubeApiServer.vmScrape below.
       promscrape.maxScrapeSize: "64MB"
       # Default queues = GOMAXPROCS; one remote-write target → one queue.
       remoteWrite.queues: "1"
-    scrapeInterval: 30s
+    # 60s, not 30s: vmsingle writes ~50 GB/day to Longhorn (x2 replicas) on
+    # the SATA SSDs that etcd shares (2026-10). Applies to scrapes without
+    # their own interval: apiserver, kubelet, kube-state-metrics,
+    # node-exporter — the bulk of all samples. Rules use >=1m windows, and
+    # MetricsQL rate() also reads the sample before the window.
+    scrapeInterval: 60s
 
 # Alertmanager
 alertmanager:
@@ -543,9 +557,11 @@ kubeApiServer:
   enabled: true
   # ~49% of all series (241k of 495k, 2026-09-24) were apiserver/etcd-client
   # histograms that no rule or dashboard reads: dashboards use the _sum/_count
-  # of apiserver_request_duration_seconds and the SLO rules use
-  # apiserver_request_sli_duration_seconds_bucket, which stays. Helm replaces
-  # lists, so the chart's endpoint is repeated here in full.
+  # of apiserver_request_duration_seconds. 2026-10: the SLI histogram (37k
+  # series) and watch event sizes (8k) went too, together with the
+  # kube-apiserver availability/burnrate/histogram recording rules that read
+  # them; the availability panels of the API server dashboard stay empty.
+  # Helm replaces lists, so the chart's endpoint is repeated here in full.
   vmScrape:
     spec:
       endpoints:
@@ -558,7 +574,7 @@ kubeApiServer:
           metricRelabelConfigs:
             - action: drop
               source_labels: [__name__]
-              regex: "(apiserver_request_duration_seconds_bucket|etcd_request_duration_seconds_bucket|apiserver_watch_events_dispatch_duration_seconds_bucket|apiserver_request_body_size_bytes_bucket|apiserver_response_sizes_bucket|apiserver_storage_list_.*|apiserver_watch_list_.*|apiserver_watch_cache_.*)"
+              regex: "(apiserver_request_duration_seconds_bucket|apiserver_request_sli_duration_seconds_bucket|apiserver_watch_events_sizes_bucket|etcd_request_duration_seconds_bucket|apiserver_watch_events_dispatch_duration_seconds_bucket|apiserver_request_body_size_bytes_bucket|apiserver_response_sizes_bucket|apiserver_storage_list_.*|apiserver_watch_list_.*|apiserver_watch_cache_.*)"
 
 # CoreDNS scraping
 coreDns:

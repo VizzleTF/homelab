@@ -149,7 +149,7 @@ cluster:
             <protocol>udp</protocol>
             <allowed-ips>10.11.0.0/16</allowed-ips>
             <allowed-ips>100.104.0.0/16</allowed-ips>
-            <!-- pod network: falcosidekick sends over the ClusterIP, no SNAT -->
+            <!-- pod network: senders inside the cluster that are not SNATed -->
             <allowed-ips>10.244.0.0/16</allowed-ips>
           </remote>
           <vulnerability-detection>
@@ -316,7 +316,7 @@ opensearchRoleMappings:
 wazuhRules:
   # Noise control, checked with wazuh-logtest against real events. What is
   # left after it: sshd/sudo/su logins, FIM changes, SCA score summaries,
-  # brute-force bans, Falco, k8s audit by people, and anything unusual.
+  # brute-force bans, k8s audit by people, and anything unusual.
   # Before it ~95% of indexed alerts were internet background on the public
   # VPS (web scanners, SSH guessing), the provider agent crash-looping on
   # cloudru, PAM/cron bookkeeping and Forgejo git-over-ssh on ops. That policy file is excluded outright in
@@ -457,42 +457,6 @@ wazuhRules:
           </rule>
         </group>
 
-  # falcosidekick ships Falco events here over syslog (argocd/infra/falco).
-  # Levels stay at 11 or below on purpose: Falco already alerts through
-  # Alertmanager, and the Alertmanager integration below starts at 12, so a
-  # Falco event is searchable in Wazuh without a second Telegram message.
-  - name: falco
-    spec:
-      ruleName: falco
-      description: "Falco runtime events from falcosidekick"
-      rules: |
-        <group name="falco,">
-          <rule id="100300" level="3">
-            <decoded_as>falcosidekick</decoded_as>
-            <description>Falco: $(rule)</description>
-          </rule>
-          <rule id="100301" level="5">
-            <if_sid>100300</if_sid>
-            <field name="priority">^Notice$</field>
-            <description>Falco notice: $(rule)</description>
-          </rule>
-          <rule id="100302" level="7">
-            <if_sid>100300</if_sid>
-            <field name="priority">^Warning$</field>
-            <description>Falco warning: $(rule)</description>
-          </rule>
-          <rule id="100303" level="10">
-            <if_sid>100300</if_sid>
-            <field name="priority">^Error$</field>
-            <description>Falco error: $(rule)</description>
-          </rule>
-          <rule id="100304" level="11">
-            <if_sid>100300</if_sid>
-            <field name="priority">^Critical$|^Alert$|^Emergency$</field>
-            <description>Falco critical: $(rule)</description>
-          </rule>
-        </group>
-
   # Kubernetes audit events that Vector forwards over syslog. Before this they
   # were decoded as JSON and then dropped: no stock rule matches them.
   - name: k8s-audit
@@ -546,21 +510,6 @@ wazuhRules:
             <group>k8s_secrets,</group>
           </rule>
         </group>
-
-wazuhDecoders:
-  # falcosidekick formats the timestamp as RFC 3339 with a "Z" suffix, which
-  # Wazuh's pre-decoder does not recognise, so there is no program_name to key
-  # on. The prematch anchors on the tag instead and the JSON body after it is
-  # decoded as-is (priority, rule, output, output_fields.*).
-  - name: falcosidekick
-    spec:
-      decoderName: falcosidekick
-      description: "Falco JSON over syslog (falcosidekick)"
-      decoders: |
-        <decoder name="falcosidekick">
-          <prematch type="pcre2">Falco\[\d+\]: </prematch>
-          <plugin_decoder offset="after_prematch">JSON_Decoder</plugin_decoder>
-        </decoder>
 
 wazuhIntegrations:
   # Level 12+ goes to Alertmanager, which already routes to Robusta ->
