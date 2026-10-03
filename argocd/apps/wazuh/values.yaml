@@ -38,6 +38,21 @@ cluster:
       # yellow — that is expected and not a degraded state here.
       replicas: 1
       storageSize: 30Gi
+      # Prefer the NVMe worker (2026-10, disk writes): the Longhorn volume
+      # keeps one replica local there (dataLocality best-effort, set on the
+      # volume) and one elsewhere, so the index survives a node. Index
+      # settings that cut writes (refresh 30s, async translog) live in the
+      # legacy template `homelab-io-tuning`, order 10, applied through the
+      # API — a composable OpenSearchIndexTemplate would shadow the legacy
+      # `wazuh` template and its mappings. See docs/reduce-disk-writes.md.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
       javaOpts: "-Xms1500m -Xmx1500m -Dlog4j2.formatMsgNoLookups=true"
       resources:
         requests:

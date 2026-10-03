@@ -28,6 +28,12 @@ fi
 
 AUTH_MOUNT=kubernetes
 TTL=1h
+# batch: the token lives only in the client, so a login is no raft write and
+# expiry needs no revoke write either. ESO reuses it (vault.enableTokenCache in
+# argocd/infra/external-secrets) and never revokes a cached token. Before
+# (2026-10) ~70 SecretStores logged in and revoked every 5 min: ~8 GB/day of
+# raft writes per member on the SATA SSDs etcd shares.
+TOKEN_TYPE=batch
 
 global=$(yq -o json '.global' < argocd/values/global.yaml)
 prefix=$(jq -r '.vault.pathPrefix' <<<"$global")
@@ -71,7 +77,8 @@ run bao write "auth/$AUTH_MOUNT/role/eso-own" \
   bound_service_account_names='eso-*' \
   bound_service_account_namespaces='*' \
   token_policies=eso-own \
-  token_ttl="$TTL"
+  token_ttl="$TTL" \
+  token_type="$TOKEN_TYPE"
 [[ "$DRY" -eq 1 ]] || echo "role eso-own"
 
 for ns in $(jq -r '.namespaces | keys[]' <<<"$access"); do
@@ -80,6 +87,7 @@ for ns in $(jq -r '.namespaces | keys[]' <<<"$access"); do
     bound_service_account_names='eso-*' \
     bound_service_account_namespaces="$ns" \
     token_policies="$policies" \
-    token_ttl="$TTL"
+    token_ttl="$TTL" \
+    token_type="$TOKEN_TYPE"
   [[ "$DRY" -eq 1 ]] || echo "role eso-ns-$ns ($policies)"
 done

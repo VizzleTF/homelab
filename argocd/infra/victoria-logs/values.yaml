@@ -9,6 +9,25 @@ server:
   # Страховка от PVC-переполнения при log storm — упираемся раньше VolumeAlmostFull.
   retentionDiskSpaceUsage: "9GiB"
 
+  # Write amplification (2026-10): VL itself wrote ~1.8 GB/day, but each
+  # 5 s in-memory flush became a burst of small fsyncs that Longhorn turned
+  # into ~28 GB/day on the two replica disks — both on control-plane SATA
+  # SSDs next to etcd. Fewer, larger flushes (up to 1 min of logs lost on a
+  # crash, Vector re-reads from its checkpoints) and the pod on the NVMe
+  # worker, whose Longhorn volume keeps one replica local (dataLocality
+  # best-effort, set on the volume) and one elsewhere: no data loss when a
+  # node dies.
+  extraArgs:
+    inmemoryDataFlushInterval: 1m
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: DoesNotExist
+
   persistentVolume:
     enabled: true
     storageClassName: longhorn
@@ -119,6 +138,17 @@ vector:
           stage == "ResponseComplete" && ((sensitive && mutating) || escalation)
 
     sinks:
+      # Дифф к чартовому sinks.vlogs (2026-10, меньше записи в VL):
+      # VL-Ignore-Fields — служебные поля, по которым никто не ищет, а они
+      # ~половина каждой записи (pod_labels остаются: по
+      # app.kubernetes.io/name фильтрует дашборд Explorer); batch.timeout_secs —
+      # реже и крупнее bulk.
+      vlogs:
+        batch:
+          timeout_secs: 10
+        request:
+          headers:
+            VL-Ignore-Fields: kubernetes.pod_labels.pod-template-hash,kubernetes.pod_labels.controller-revision-hash,kubernetes.container_id,kubernetes.container_image_id,kubernetes.pod_ips,kubernetes.pod_uid,file,source_type
       # Talos не умеет audit-webhook в сторону Falco/Wazuh, поэтому события едут
       # в менеджер обычным syslog (LoadBalancer 10.11.10.140:514/udp, см. [[wazuh]]).
       # Логи в VictoriaLogs при этом идут своим путём — VM-чарт сам добавляет

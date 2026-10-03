@@ -56,6 +56,16 @@ cluster:
       effective_cache_size: "2GB"
       work_mem: "16MB"
       maintenance_work_mem: "256MB"
+      # Disk writes (2026-10): CNPG's archive_timeout=5min closed a 16 MB WAL
+      # segment every 5 min and wal_init_zero zero-filled each new one — ~4.6
+      # GB/day per instance against ~0.4 GB/day of real WAL. 30min keeps the
+      # barman RPO acceptable for a homelab. lz4 shrinks full-page images, and
+      # rarer checkpoints mean fewer of them.
+      archive_timeout: "30min"
+      wal_init_zero: "off"
+      wal_compression: "lz4"
+      checkpoint_timeout: "15min"
+      max_wal_size: "2GB"
     shared_preload_libraries:
       - "vchord.so"
 

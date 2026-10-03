@@ -27,7 +27,12 @@ features:
 
 # Single replica per controller: this is a four-node homelab, and the policies
 # run in Audit, so a brief controller restart costs reports, not admissions.
+# Leader election: lease renewals are etcd writes, every 2 s per controller by
+# default. 15 s retry (lease = 6x retry = 90 s) cuts them ~7x (2026-10).
 admissionController:
+  container:
+    extraArgs:
+      leaderElectionRetryPeriod: 15s
   replicas: 1
   resources:
     requests:
@@ -39,6 +44,8 @@ admissionController:
       memory: 384Mi
 
 backgroundController:
+  extraArgs:
+    leaderElectionRetryPeriod: 15s
   replicas: 1
   resources:
     requests:
@@ -59,6 +66,8 @@ reportsController:
       memory: 384Mi
 
 cleanupController:
+  extraArgs:
+    leaderElectionRetryPeriod: 15s
   replicas: 1
   resources:
     requests:

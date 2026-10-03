@@ -4,6 +4,15 @@
 installCRDs: true
 replicaCount: 2
 
+# Writes on the SATA SSDs etcd shares (2026-10): ~70 SecretStores were
+# validated every 5 min — each a login + revoke in OpenBao raft and a
+# "store validated" Event PATCH in etcd. Validate hourly, reuse tokens (cached
+# tokens are never revoked, which batch tokens from
+# scripts/openbao-eso-access.sh require).
+storeRequeueInterval: 1h
+vault:
+  enableTokenCache: true
+
 # Обе реплики садились на talos-worker-01: все три control-plane ноды несут
 # tuppr-taint `tuppr.home-operations.com/outdated:PreferNoSchedule` (кластер
 # заморожен на Talos v1.13.7), и без жёсткого правила scheduler уводит всё на
