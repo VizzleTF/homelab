@@ -32,6 +32,11 @@ worker:
       # Other prefixes (intel.feature.node.kubernetes.io/*, gpu.intel.com/*) are
       # produced by NodeFeatureRule and pass extraLabelNs filter, not labelWhiteList.
       labelWhiteList: '^pci-'
+      # Only the pci source produces labels at all. With every source on, each
+      # run logged one "does not match the whitelist" line per dropped label —
+      # ~14 MB/day in VictoriaLogs (2026-10). Features (and so the GPU
+      # NodeFeatureRule, evaluated by nfd-master) are unaffected.
+      labelSources: ["pci"]
       # Hardware does not change at runtime — increase from default 60s.
       sleepInterval: 5m
     sources:

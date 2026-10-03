@@ -5,7 +5,7 @@
 # touching the controller's release.
 
 # Baseline, not restricted: restricted would flag almost everything here
-# (Longhorn, Cilium, Falco and the Wazuh operator all need privileges by
+# (Longhorn, Cilium and the Wazuh operator all need privileges by
 # design), and a report nobody can act on is noise.
 podSecurityStandard: baseline
 
@@ -20,7 +20,6 @@ vpolExclude:
   excludeNamespaces:
     - kube-system              # cilium, talos static pods, csi
     - longhorn-system          # instance/share managers, engine images
-    - falco                    # eBPF probes
     - netbird                  # WireGuard routing peers
     - crowdsec-scraper         # netbird peer
     - wazuh                    # operator pods + privileged VolSync mover

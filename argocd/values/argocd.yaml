@@ -292,6 +292,11 @@ dex:
 
 global:
   domain: argocd.example.com
+  # warn, not info: repo-server, application-controller and notifications
+  # logged ~180 MB/day (every GenerateManifest call, every trigger check) into
+  # VictoriaLogs on the SATA SSDs etcd shares (2026-10).
+  logging:
+    level: warn
 
 notifications:
   resources:

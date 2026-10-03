@@ -25,9 +25,14 @@ spec:
   # (postgres-credentials consumer); omitting it defaults to false.
   enableSuperuserAccess: true
 
+  # local-path since 2026-10: streaming replication already keeps three
+  # copies; Longhorn's two replicas under each made it six on the SATA SSDs
+  # etcd shares. Applies to new PVCs only — existing instances are recreated
+  # one by one (docs/reduce-disk-writes.md). A lost node = destroy that
+  # instance, CNPG rebuilds it from the primary.
   storage:
     size: "5Gi"
-    storageClass: longhorn
+    storageClass: local-path
 
   # Garage region for any barman tooling that runs in the postgres container path.
   env:

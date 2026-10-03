@@ -6,6 +6,9 @@
 # longhorn-backend Service (port `manager`/9500, /metrics) selects все 4
 # longhorn-manager pod-а. Каждый manager отдаёт ГЛОБАЛЬНЫЙ view всех volumes →
 # 4× дублей серий. Дедуп — в expr VMRule через `max by (...)`.
+#
+# 60s и drop гистограмм rest_client/workqueue (~8.5k серий, ни одно правило
+# их не читает): запись vmsingle на SATA SSD рядом с etcd (2026-10).
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
@@ -21,4 +24,8 @@ spec:
   endpoints:
     - port: manager
       path: /metrics
-      interval: 30s
+      interval: 60s
+      metricRelabelConfigs:
+        - action: drop
+          source_labels: [__name__]
+          regex: "longhorn_(rest_client|workqueue)_.*_bucket"

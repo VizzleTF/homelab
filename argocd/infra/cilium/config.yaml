@@ -12,11 +12,6 @@ ignoreDiff: |
       - .data
   - group: ""
     kind: Secret
-    name: hubble-relay-client-certs
-    jqPathExpressions:
-      - .data
-  - group: ""
-    kind: Secret
     name: hubble-server-certs
     jqPathExpressions:
       - .data

@@ -7,7 +7,6 @@
 #                  filters syslog senders with <allowed-ips> in ossec.conf.
 #   netbird        agents on remote hosts over NetBird (1514/1515)
 #   victoria-logs  Vector ships the kube audit stream as syslog (514/udp)
-#   falco          falcosidekick syslog output (514/udp)
 # 55000 (API) and 1516 (cluster) stay in-namespace. The indexer is never
 # reachable from outside the namespace.
 apiVersion: cilium.io/v2
@@ -43,7 +42,7 @@ spec:
         - matchExpressions:
             - key: k8s:io.kubernetes.pod.namespace
               operator: In
-              values: [victoria-logs, falco]
+              values: [victoria-logs]
       toPorts:
         - ports:
             - port: "514"

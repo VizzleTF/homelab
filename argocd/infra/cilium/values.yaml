@@ -99,15 +99,10 @@ prometheus:
   enabled: true
 
 hubble:
+  # Relay off since 2026-10: no UI, and `hubble observe` inside cilium-agent
+  # (the CiliumPolicyDenied runbook) reads the local node without it.
   relay:
-    enabled: true
-    resources:
-      requests:
-        memory: 32Mi
-        cpu: 10m
-      limits:
-        memory: 128Mi
-        cpu: 200m
+    enabled: false
   ui:
     enabled: false
 
