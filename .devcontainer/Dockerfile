@@ -26,7 +26,7 @@ ARG HELM_VERSION=v3.16.4
 # renovate: datasource=github-releases depName=siderolabs/talos
 ARG TALOSCTL_VERSION=v1.9.1
 # renovate: datasource=github-releases depName=hashicorp/terraform
-ARG TERRAFORM_VERSION=1.10.0
+ARG TERRAFORM_VERSION=1.16.5
 # renovate: datasource=github-releases depName=openbao/openbao
 ARG OPENBAO_VERSION=2.6.2
 # renovate: datasource=github-releases depName=argoproj/argo-cd
