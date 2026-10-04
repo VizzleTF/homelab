@@ -20,7 +20,7 @@ RUN git clone --depth 1 --branch ${TERRAFORM_MCP_VERSION} \
 FROM mcr.microsoft.com/devcontainers/base:bookworm
 
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=v1.31.4
+ARG KUBECTL_VERSION=v1.37.1
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=v3.22.0
 # renovate: datasource=github-releases depName=siderolabs/talos
