@@ -28,7 +28,7 @@ ARG TALOSCTL_VERSION=v1.9.1
 # renovate: datasource=github-releases depName=hashicorp/terraform
 ARG TERRAFORM_VERSION=1.16.5
 # renovate: datasource=github-releases depName=openbao/openbao
-ARG OPENBAO_VERSION=2.6.2
+ARG OPENBAO_VERSION=2.7.1
 # renovate: datasource=github-releases depName=argoproj/argo-cd
 ARG ARGOCD_VERSION=v3.5.3
 # renovate: datasource=github-releases depName=gitleaks/gitleaks
