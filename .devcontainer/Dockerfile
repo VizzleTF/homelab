@@ -36,7 +36,7 @@ ARG GITLEAKS_VERSION=v8.30.1
 # renovate: datasource=github-releases depName=cli/cli
 ARG GH_VERSION=2.102.0
 # renovate: datasource=pypi depName=pre-commit
-ARG PRE_COMMIT_VERSION=4.0.1
+ARG PRE_COMMIT_VERSION=4.6.2
 # renovate: datasource=npm depName=@anthropic-ai/claude-code
 ARG CLAUDE_CODE_VERSION=latest
 
