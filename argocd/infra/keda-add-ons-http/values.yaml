@@ -1,5 +1,5 @@
 # KEDA HTTP add-on — interceptor proxy для on-demand scale-to-zero
-# фронтэнд для Lampac/Omniroute (PR #4).
+# фронтэнд для Lampac (PR #4).
 #
 # КРИТИЧНО: chart defaults — interceptor min:3/max:50, scaler:3 replicas.
 # Для homelab solo это overkill; режем до 1/1.
@@ -36,7 +36,7 @@ interceptor:
     limits:
       cpu: 500m
       memory: 64Mi
-  # cold-start Lampac (initialDelaySeconds=60) и Omniroute (PVC-mount Longhorn):
+  # cold-start Lampac (initialDelaySeconds=60):
   # повышаем wait-таймаут перед forwarding на freshly-scaled-up pod (default 300s code).
   responseHeaderTimeout: "120s"
   # readinessTimeout — wait for backend ready, e.g. scale from zero (default disabled)

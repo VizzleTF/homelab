@@ -1,5 +1,5 @@
 ---
-# Allows HTTPRoutes in omniroute/lampac namespaces to reference Services in the
+# Allows HTTPRoutes in the lampac namespace to reference Services in the
 # keda namespace as backendRefs:
 #   - keda-add-ons-http-interceptor-proxy — direct interceptor (legacy / no loading page)
 #   - keda-loading-proxy                  — nginx front-door that renders a Russian
@@ -11,9 +11,6 @@ metadata:
   namespace: keda
 spec:
   from:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      namespace: omniroute
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       namespace: lampac

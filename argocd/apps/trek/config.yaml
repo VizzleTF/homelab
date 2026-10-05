@@ -2,3 +2,11 @@ chart: trek
 repoURL: https://chart.liketrek.com
 targetRevision: "4.3.3"
 wave: "2"
+# Scaled to 0 by hand (2026-10, unused for now); the chart hardcodes
+# replicas: 1, so ArgoCD ignores the field. Back on: kubectl -n trek scale
+# deploy/trek --replicas=1. Data and VolSync backups stay.
+ignoreDiff: |
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+      - /spec/replicas
