@@ -59,11 +59,18 @@ cluster:
     # heartbeat 250 ms / election 2.5 s instead of 100 ms / 1 s: fsync on the
     # shared DRAM-less SATA SSDs spikes past 1 s, and every false election adds
     # churn. Must be identical on all members.
+    #
+    # backend-batch-interval 1s instead of 100 ms: bbolt rewrites the touched
+    # B-tree pages on every backend commit; ~5.6 commits/s of lease renewals
+    # made etcd the largest writer on the CP disks while the WAL itself is
+    # <1 GB/day (2026-10). Durability comes from the WAL fsync per request, so
+    # a longer batch only lengthens WAL replay after a crash.
     extraArgs:
       listen-metrics-urls: http://0.0.0.0:2381
       quota-backend-bytes: "8589934592"
       heartbeat-interval: "250"
       election-timeout: "2500"
+      backend-batch-interval: 1s
   # Leader-election renewals are writes to etcd (a lease PUT every retry
   # period on all three members). 15 s instead of 2 s cuts them ~7x; a dead
   # leader is replaced within 60 s instead of 15 s.
