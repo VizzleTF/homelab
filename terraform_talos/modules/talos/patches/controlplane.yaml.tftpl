@@ -40,10 +40,34 @@ cluster:
           # listing it here causes strategic-merge list-append → duplicate entry →
           # kube-apiserver fails with "exemptions.namespaces[1]: Duplicate value".
           kind: PodSecurityConfiguration
+    # Only what someone reads: Vector forwards secret/RBAC/serviceaccount
+    # mutations and pod exec/attach/portforward to Wazuh (argocd/infra/
+    # victoria-logs). Metadata for every request, reads included, was
+    # 1-4 GB/day per CP node on the disks shared with etcd (2026-10).
+    # exec/attach/portforward come first: over websockets they arrive as verb
+    # "get" and the read rule below would drop them.
     auditPolicy:
       apiVersion: audit.k8s.io/v1
       kind: Policy
+      omitStages:
+        - RequestReceived
       rules:
+        - level: Metadata
+          resources:
+            - group: ""
+              resources: ["pods/exec", "pods/attach", "pods/portforward"]
+        - level: None
+          verbs: ["get", "list", "watch"]
+        - level: None
+          resources:
+            - group: coordination.k8s.io
+              resources: ["leases"]
+            - group: ""
+              resources: ["events"]
+            - group: events.k8s.io
+              resources: ["events"]
+            - group: authentication.k8s.io
+            - group: authorization.k8s.io
         - level: Metadata
   etcd:
     # Dedicated unauthenticated metrics/health listener so VictoriaMetrics can
