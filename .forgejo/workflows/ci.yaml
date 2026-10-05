@@ -160,7 +160,7 @@ jobs:
       # renovate: datasource=github-releases depName=mikefarah/yq
       YQ_VERSION: v4.54.1
       # renovate: datasource=docker depName=docker
-      DOCKER_CLI_VERSION: 29.3.1
+      DOCKER_CLI_VERSION: 29.8.2
       PR_NUMBER: ${{ github.event.pull_request.number }}
       API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
     steps:
