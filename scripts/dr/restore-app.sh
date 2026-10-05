@@ -31,7 +31,6 @@ lookup() {
     vaultwarden)        echo "vaultwarden|vaultwarden-data-rwo|2Gi|ReadWriteOnce|1001" ;;
     cleanbot)           echo "cleanbot|cleanbot|1Gi|ReadWriteOnce|10001" ;;
     may)                echo "may|may|5Gi|ReadWriteOnce|1000" ;;
-    omniroute)          echo "omniroute-data|omniroute-data|5Gi|ReadWriteOnce|1000" ;;
     rsstt)              echo "rss-to-telegram-bot|rss-to-telegram-bot|1Gi|ReadWriteOnce|1000" ;;
     immich)             echo "immich-library|immich-library-pvc|250Gi|ReadWriteMany|" ;;
     forgejo)            echo "forgejo|forgejo-data-rwo|10Gi|ReadWriteOnce|" ;;

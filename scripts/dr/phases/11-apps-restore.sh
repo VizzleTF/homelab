@@ -19,7 +19,6 @@ APPS_TO_RESTORE=(
   vaultwarden
   cleanbot
   may
-  omniroute
   rsstt
   opencloud-config
   opencloud

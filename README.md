@@ -134,7 +134,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`; the tw
 | **-3**  | kubelet-csr-approver, metrics-server, spegel, volsync |
 | **-2**  | external-secrets, cnpg-operator, keda, external-dns, external-dns-openwrt, victoria-metrics-k8s-stack |
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, node-feature-discovery, tuppr, victoria-logs, wazuh-operator |
-| **0**   | cloudflared, descheduler, gatus, intel-device-plugins-gpu, kyverno, local-path-provisioner, reloader, smartctl-exporter, tfstate-mirror |
+| **0**   | cloudflared, intel-device-plugins-gpu, kyverno, local-path-provisioner, reloader, smartctl-exporter, tfstate-mirror |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, falco, kyverno-policies, trivy-operator, backup-drill |
 | **2**   | apps: authentik, forgejo, immich, vaultwarden, wazuh, renovate, … |
 | **3**   | forgejo-runner, netbird, crowdsec-scraper, openwrt-backup |
@@ -148,7 +148,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`; the tw
 | **-1**  | Node Feature Discovery, intel-device-plugins operator, KEDA HTTP add-on, VictoriaLogs                   | Layered atop the wave -2 prerequisites                                                                                                           |
 | **0**   | Cloudflared, descheduler, intel-device-plugins-gpu, **velero**, reloader                                | Optional / leaf infrastructure                                                                                                                   |
 | **1**   | CNPG clusters, valkey, Robusta, openbao-autounseal, talos-etcd-backup, **velero-ui**                    | DB instances after the operator; tunnel + observability after the cluster is up                                                                  |
-| **2**   | Apps (authentik, forgejo, immich, vaultwarden, lampac, may, omniroute, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
+| **2**   | Apps (authentik, forgejo, immich, vaultwarden, lampac, may, …), Renovate          | Auth and consumer apps after every dependency above                                                                                              |
 | **3**   | forgejo-runner, netbird                                                                                 | forgejo-runner needs the Forgejo server reachable first; netbird routing peer joins the self-hosted mesh after core apps are up                  |
 
 ---
