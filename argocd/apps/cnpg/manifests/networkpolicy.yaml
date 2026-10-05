@@ -43,7 +43,6 @@ spec:
                 - authentik
                 - forgejo
                 - atuin
-                - sparkyfitness
       toPorts:
         - ports:
             - port: "5432"
