@@ -55,6 +55,15 @@ server:
 vector:
   enabled: true
 
+  # kubernetes_logs rewrites checkpoints.json every second, with no knob for
+  # the interval: ~1.4 GB/day per node on the shared control-plane SSDs
+  # (2026-10). /run is tmpfs on Talos. Checkpoints survive pod restarts and
+  # chart upgrades and are lost only on node reboot, when every pod starts
+  # fresh log files anyway.
+  persistence:
+    hostPath:
+      path: /run/vector
+
   tolerations:
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
