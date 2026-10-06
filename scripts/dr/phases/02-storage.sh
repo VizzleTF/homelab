@@ -14,7 +14,7 @@ helm repo add containeroo https://charts.containeroo.ch >/dev/null 2>&1 || true
 helm repo update longhorn piraeus containeroo >/dev/null
 
 # local-path first: OpenBao (phase 06) and the restic caches of every VolSync
-# restore (phase 11) bind to StorageClass local-path; without it their PVCs
+# restore (phase 09) bind to StorageClass local-path; without it their PVCs
 # stay Pending.
 log_info "installing local-path-provisioner"
 helm_apply local-path-provisioner containeroo/local-path-provisioner local-path-provisioner \
@@ -43,11 +43,11 @@ kubectl apply -f "$REPO_ROOT/argocd/infra/longhorn/manifests/"
 log_info "applying VolumeSnapshotClass for VolSync (driver.longhorn.io)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/volsync/manifests/volumesnapshotclass.yaml"
 
-# VolSync ставим здесь, а не ждём ArgoCD (фаза 10): фаза 11 должна застать
+# VolSync ставим здесь, а не ждём ArgoCD (фаза 10): фаза 09 должна застать
 # оператор и его CRD готовыми, иначе volsync_restore падает на
 # "no matches for kind ReplicationDestination". Установка идемпотентна — ArgoCD
 # потом усыновит релиз как обычно.
-log_info "installing VolSync (needed by phase 11)"
+log_info "installing VolSync (needed by phase 09)"
 helm repo add backube https://backube.github.io/helm-charts/ >/dev/null 2>&1 || true
 helm repo update backube >/dev/null
 helm_apply volsync backube/volsync volsync-system \

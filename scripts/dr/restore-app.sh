@@ -77,7 +77,8 @@ fi
 volsync_restore "$NS" "$REPO" "$PVC" "$SIZE" "$MODE" "$UID_"
 
 # Post-fix'ы, пережившие смену механизма: они про состояние приложения, а не
-# про бэкап.
+# про бэкап. В полном DR (фаза 09, до ArgoCD) immich-cluster ещё нет: шаг
+# пропустится с warning, выполнить его руками после подъёма кластера.
 case "$APP" in
   immich)
     log_info "fix: REASSIGN OWNED, если в БД остался старый owner immich_user"

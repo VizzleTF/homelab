@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Phase 11 — restore application data volumes from their VolSync restic
-# repositories. ArgoCD already owns the Application/Helm release; we only feed
-# the old data back into freshly created PVCs.
+# Phase 09 — restore application data volumes from their VolSync restic
+# repositories. Runs before ArgoCD (phase 10) on purpose: once root is applied,
+# the apps AppSet creates every chart's PVC empty, and restore-app.sh refuses an
+# existing PVC. Here the PVCs do not exist yet; ArgoCD adopts the restored ones
+# on its first sync. Everything the restore needs (local-path, Longhorn, VolSync)
+# comes from phase 02, the restic keys from the DR pack.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -36,4 +39,4 @@ for app in "${APPS_TO_RESTORE[@]}"; do
   "$RESTORE_SCRIPT" "$app" || log_warn "$app restore failed — continuing"
 done
 
-log_ok "phase 11 apps-restore complete"
+log_ok "phase 09 apps-restore complete"

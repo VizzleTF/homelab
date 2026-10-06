@@ -55,10 +55,10 @@ Forgejo is not part of this rebuild: since 2026-09-12 it runs on the ops node, o
 | 06 | vault-restore | `00-shamir.json.gpg` + `02-vault-raft-snapshot.snap` |
 | 07 | eso | OpenBao now holds everything else; ESO policies and roles from `scripts/openbao-eso-access.sh` |
 | 08 | cnpg | git (CNPG operator chart); Cluster CRs and barman recovery come with ArgoCD |
+| 09 | apps | VolSync restic repositories, one volume per app via `restore-app.sh`; runs before ArgoCD so the PVCs do not exist yet, ArgoCD adopts them |
 | 10 | argocd | Forgejo on the ops node must answer; deletes the bootstrap Secrets so ESO owns them, installs ArgoCD, then ApplicationSets render everything |
-| 11 | apps | VolSync restic repositories, one volume per app via `restore-app.sh` |
 
-There is no phase 09: it restored the in-cluster Forgejo and was removed when Forgejo moved to the ops node.
+Phase 09 used to restore the in-cluster Forgejo; that phase went away when Forgejo moved to the ops node, and the apps restore took its number so it runs before ArgoCD.
 
 Chart versions are read at run time from git (`chart_version` in `lib/common.sh`): `argocd/infra/<name>/config.yaml` `targetRevision`, and `argocd/standalone/*.yaml` for Gateway API and ArgoCD. DR installs exactly what ArgoCD runs, so Renovate bumps need no second edit here.
 
@@ -68,9 +68,9 @@ Chart versions are read at run time from git (`chart_version` in `lib/common.sh`
 scripts/dr/restore-app.sh <APP> [<REPO> <PVC> <SIZE> [<ACCESS_MODE>] [<UID>]]
 ```
 
-Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`, default `garage`). Known apps (`vaultwarden`, `cleanbot`, `may`, `rsstt`, `immich`, `opencloud`, `opencloud-config`, `trek`, `trek-data`, `obsidian-livesync`, `wazuh-manager`) need only `<APP>`; for anything else pass the repository, PVC and size. The script refuses to run when the PVC already exists, unless `DR_FORCE=1`. For immich it also reassigns database objects left owned by `immich_user` to `immich`.
+Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`, default `garage`). Known apps (`vaultwarden`, `cleanbot`, `may`, `rsstt`, `immich`, `opencloud`, `opencloud-config`, `trek`, `trek-data`, `obsidian-livesync`, `wazuh-manager`) need only `<APP>`; for anything else pass the repository, PVC and size. The script refuses to run when the PVC already exists, unless `DR_FORCE=1`. For immich it also reassigns database objects left owned by `immich_user` to `immich`; in a full DR `immich-cluster` does not exist yet at phase 09, so this step warns and skips — run it by hand once the cluster is up.
 
-Phase 11 skips netbird and crowdsec-scraper: their peer state lives outside the backed-up volume.
+Phase 09 skips netbird and crowdsec-scraper: their peer state lives outside the backed-up volume.
 
 ## Sanitization
 
