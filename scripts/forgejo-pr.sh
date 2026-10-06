@@ -46,7 +46,8 @@ FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
 FORGEJO_REPO="${FORGEJO_REPO:-vizzle/homelab}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
 BAO_PATH="${BAO_PATH:-${VAULT_PATH:-homelab/forgejo/vizzle-merge-token}}"
-# `bao` needs BAO_ADDR; VAULT_ADDR (legacy binary) is not read by it.
+# `bao` reads BAO_ADDR (and the legacy VAULT_ADDR); the fallback chain below
+# sets BAO_ADDR explicitly either way.
 export BAO_ADDR="${BAO_ADDR:-${VAULT_ADDR:-https://openbao.example.com}}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-600}"

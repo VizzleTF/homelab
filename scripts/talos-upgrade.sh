@@ -35,9 +35,8 @@
 #   upgrade-k8s --to <vX.Y.Z>        cluster-wide k8s upgrade; Talos does
 #                                    the rolling internally.
 #
-# Skill that wraps this: NONE currently — exists as a standalone tool. If
-# we want a skill later, the canonical SKILL.md shape (frontmatter →
-# when/notwhen → how → gotchas → memory links) applies.
+# Break-glass only: routine upgrades go through tuppr CRs
+# (argocd/infra/tuppr/manifests/); skill upgrading-talos covers both.
 set -euo pipefail
 
 TF_DIR="${TF_DIR:-terraform_talos}"

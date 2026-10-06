@@ -19,7 +19,7 @@
 #                                substring filter on job name
 #   silence  <alertname> [dur]   POST /api/v2/silences to alertmanager,
 #                                default duration 2h
-#   logs     <component> [-n N]  kubectl logs from the named component
+#   logs     <component> [--tail N]  kubectl logs from the named component
 #                                (vmsingle|vmagent|vmalert|alertmanager|
 #                                 grafana)
 #
