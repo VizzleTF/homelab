@@ -30,7 +30,7 @@ global:
         telegram: [robusta/telegram]
         argocd-notify: [argocd/notifications]
         tfstate: [terraform/s3-terraform-state]
-        openbao-ops: [vault/approle, shared/s3-snapshots, shared/dr-pack]
+        openbao-ops: [shared/s3-snapshots, shared/dr-pack]
         externaldns: [externaldns]
         openwrt: [openwrt]
       namespaces:
