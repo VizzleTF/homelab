@@ -14,7 +14,7 @@ helm repo update jetstack >/dev/null
 
 log_info "installing cert-manager"
 helm_apply cert-manager jetstack/cert-manager cert-manager \
-  --version v1.20.2 \
+  --version "$(chart_version cert-manager)" \
   -f "$REPO_ROOT/argocd/infra/cert-manager/values.yaml"
 
 # CF token Secret — applied directly (ESO not up yet)

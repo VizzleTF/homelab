@@ -7,7 +7,7 @@ source "$(dirname "$0")/../lib/common.sh"
 
 require_kubectl
 
-GW_API_VERSION="v1.4.1"
+GW_API_VERSION="$(chart_version standalone/gateway-api.yaml .spec.source.targetRevision)"
 
 log_info "applying Gateway API experimental CRDs ($GW_API_VERSION)"
 kubectl apply --server-side --force-conflicts \
@@ -19,7 +19,7 @@ helm repo update cilium >/dev/null
 
 log_info "installing/upgrading Cilium"
 helm_apply cilium cilium/cilium kube-system \
-  --version 1.19.4 \
+  --version "$(chart_version cilium)" \
   -f "$REPO_ROOT/argocd/infra/cilium/values.yaml"
 
 wait_for "cilium DaemonSet Ready" \

@@ -75,6 +75,21 @@ require_kubectl() {
     || die "kubectl not configured / cluster unreachable. Set KUBECONFIG."
 }
 
+# Chart version pinned in git, so DR installs exactly what ArgoCD runs.
+# Usage: chart_version <component>           -> argocd/infra/<component>/config.yaml
+#        chart_version <file> <yq-expression> -> any yaml under argocd/
+chart_version() {
+  local f expr v
+  if [ $# -eq 1 ]; then
+    f="$REPO_ROOT/argocd/infra/$1/config.yaml"; expr='.targetRevision'
+  else
+    f="$REPO_ROOT/argocd/$1"; expr="$2"
+  fi
+  v=$(yq -r "$expr" "$f") || die "cannot read chart version from $f"
+  [ -n "$v" ] && [ "$v" != "null" ] || die "no chart version at $expr in $f"
+  echo "$v"
+}
+
 # helm upgrade --install wrapper: idempotent, --wait
 helm_apply() {
   local release="$1" chart="$2" namespace="$3" ; shift 3

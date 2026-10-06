@@ -38,7 +38,7 @@ BAO_CMD="kubectl -n $BAO_POD_NS exec -i $BAO_POD -- env BAO_TOKEN=$BAO_TOKEN BAO
 
 log_info "installing ESO"
 helm_apply external-secrets external-secrets/external-secrets external-secrets-system \
-  --version 2.5.0 \
+  --version "$(chart_version external-secrets)" \
   -f "$REPO_ROOT/argocd/infra/external-secrets/values.yaml" \
   --set serviceMonitor.enabled=false
 

@@ -33,6 +33,7 @@ lookup() {
     may)                echo "may|may|5Gi|ReadWriteOnce|1000" ;;
     rsstt)              echo "rss-to-telegram-bot|rss-to-telegram-bot|1Gi|ReadWriteOnce|1000" ;;
     immich)             echo "immich-library|immich-library-pvc|250Gi|ReadWriteMany|" ;;
+    wazuh-manager)      echo "wazuh-manager|wazuh-data-wazuh-manager-master-0|20Gi|ReadWriteOnce|" ;;
     opencloud)          echo "opencloud-data|opencloud-data|50Gi|ReadWriteOnce|" ;;
     opencloud-config)   echo "opencloud-config|opencloud-config|1Gi|ReadWriteOnce|" ;;
     trek)               echo "trek-uploads|trek-uploads|10Gi|ReadWriteOnce|" ;;

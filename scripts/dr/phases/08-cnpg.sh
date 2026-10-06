@@ -13,7 +13,7 @@ helm repo update cnpg >/dev/null
 
 log_info "installing CNPG operator"
 helm_apply cnpg-operator cnpg/cloudnative-pg cnpg-system \
-  --version 0.28.2
+  --version "$(chart_version cnpg-operator)"
 
 wait_for "CNPG operator Ready" \
   "kubectl -n cnpg-system rollout status deploy/cnpg-operator-cloudnative-pg --timeout=180s"

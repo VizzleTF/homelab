@@ -25,6 +25,7 @@ APPS_TO_RESTORE=(
   trek
   obsidian-livesync
   immich
+  wazuh-manager
 )
 
 RESTORE_SCRIPT="$(dirname "$0")/../restore-app.sh"

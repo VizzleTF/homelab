@@ -10,15 +10,15 @@ source "$(dirname "$0")/../lib/vault-helpers.sh"
 require_kubectl
 
 helm repo add openbao https://openbao.github.io/openbao-helm >/dev/null 2>&1 || true
-helm repo add pytoshka https://pytoshka.github.io/vault-autounseal >/dev/null 2>&1 || true
-helm repo update openbao pytoshka >/dev/null
+helm repo add openbao-autounseal https://vizzletf.github.io/openbao_autounseal >/dev/null 2>&1 || true
+helm repo update openbao openbao-autounseal >/dev/null
 
 kubectl create ns openbao 2>/dev/null || true
 kubectl label ns openbao pod-security.kubernetes.io/enforce=privileged --overwrite >/dev/null
 
 log_info "installing OpenBao (will start sealed/uninitialized)"
 helm_apply openbao openbao/openbao openbao \
-  --version 0.28.2 \
+  --version "$(chart_version openbao)" \
   -f "$REPO_ROOT/argocd/infra/openbao/values.yaml"
 
 wait_for "openbao-0 Running" \
@@ -94,8 +94,8 @@ kubectl -n openbao create secret generic openbao-root-token \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 log_info "installing openbao-autounseal controller"
-helm_apply openbao-autounseal pytoshka/vault-autounseal openbao \
-  --version 0.5.3 \
+helm_apply openbao-autounseal openbao-autounseal/openbao-autounseal openbao \
+  --version "$(chart_version openbao-autounseal)" \
   -f "$REPO_ROOT/argocd/infra/openbao-autounseal/values.yaml"
 
 log_ok "phase 06 vault-restore complete — Vault holds every other secret now"

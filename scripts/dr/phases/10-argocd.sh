@@ -22,8 +22,7 @@ helm repo update argo >/dev/null
 
 kubectl create ns argocd 2>/dev/null || true
 
-# renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
-ARGOCD_CHART_VERSION="10.8.4"
+ARGOCD_CHART_VERSION="$(chart_version standalone/argocd-application.yaml '.spec.sources[] | select(.chart == "argo-cd") | .targetRevision')"
 log_info "installing ArgoCD chart with homelab values"
 helm_apply argocd argo/argo-cd argocd \
   --version "$ARGOCD_CHART_VERSION" \
@@ -39,6 +38,12 @@ wait_for "argocd-repo-server Ready" \
 wait_for "argocd-repo-ssh-forgejo-root Secret synced" \
   "kubectl -n argocd get secret argocd-repo-ssh-forgejo-root >/dev/null 2>&1" \
   120
+
+# Bootstrap Secrets from phase 04 block their ExternalSecrets (ESO does not
+# adopt foreign Secrets). ESO is up and OpenBao restored, so drop them; ESO
+# recreates them once ArgoCD syncs the apps. Running pods keep their env.
+log_info "deleting DR bootstrap Secrets (ESO takes over)"
+kubectl delete secret -A -l homelab.dr/bootstrap=true --ignore-not-found >/dev/null
 
 log_info "applying AppProjects + standalone infra Apps + root-application"
 kubectl apply -f "$REPO_ROOT/argocd/projects/root-project.yaml"
