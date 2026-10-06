@@ -24,9 +24,13 @@ jobs:
       - name: Install yamllint
         run: |
           apt-get update -qq
-          apt-get install -y --no-install-recommends yamllint
+          apt-get install -y --no-install-recommends yamllint python3-yaml
       - name: Lint
         run: yamllint .
+      - name: Lint Claude skills
+        # Checkable rules of Anthropic's skill authoring best practices:
+        # frontmatter limits, third-person description, body size, one-level references.
+        run: python3 scripts/lint-skills.py
 
   helm-lint:
     if: github.event_name != 'push'

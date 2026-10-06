@@ -11,3 +11,9 @@ repos:
         language: script
         pass_filenames: false
         always_run: true
+      - id: lint-skills
+        name: Claude skills vs Anthropic best practices
+        entry: scripts/lint-skills.py
+        language: script
+        pass_filenames: false
+        files: ^\.claude/skills/
