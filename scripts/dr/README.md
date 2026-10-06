@@ -19,7 +19,7 @@ scripts/dr-pack/verify.sh
 scripts/dr/restore.sh all
 
 # Or run individual phases
-scripts/dr/restore.sh phase 02-network
+scripts/dr/restore.sh phase 01-network
 scripts/dr/restore.sh phase 06-vault-restore
 ```
 
@@ -38,6 +38,8 @@ Generate / refresh with `scripts/dr-pack/build.sh`.
 
 After Vault is restored, every other secret (Forgejo SSH, OIDC client_secrets, Cloudflared tunnel JSON, OpenWrt creds, all S3 keys) is read from Vault — they never need to live in the DR pack.
 
+Forgejo is not part of this rebuild: since 2026-09-12 it runs on the ops node, outside the cluster. Phase 10 only checks that `git.example.com` answers. If the ops node is lost too, recover it first (`obsidian/113 Backups/Forgejo Recovery.md`).
+
 ## Phases
 
 | # | Name | Source of inputs |
@@ -49,11 +51,12 @@ After Vault is restored, every other secret (Forgejo SSH, OIDC client_secrets, C
 | 04 | dns | git (external-dns CF + OpenWrt charts) |
 | 05 | snapshot-fetch | `01-bootstrap.env` (Garage/OVH keys) — pulls the freshest OpenBao Raft snapshot from S3 if the DR pack copy is older than 7 days |
 | 06 | vault-restore | `00-shamir.json.gpg` + `02-vault-raft-snapshot.snap` |
-| 07 | eso | Vault now holds everything else |
-| 08 | cnpg | barman recovery from S3 (creds via ESO) |
-| 09 | forgejo | Velero PVC restore + helm + SSH bot key from Vault |
-| 10 | argocd | ArgoCD adoption — bootstrap, then ApplicationSets render everything |
-| 11 | apps | iterates over remaining Velero backups, restores each app |
+| 07 | eso | Vault now holds everything else; ESO policies and roles from `scripts/openbao-eso-access.sh` |
+| 08 | cnpg | git (CNPG operator chart); Cluster CRs and barman recovery come with ArgoCD |
+| 10 | argocd | Forgejo on the ops node must answer; ArgoCD bootstrap, then ApplicationSets render everything |
+| 11 | apps | VolSync restic repositories, one volume per app via `restore-app.sh` |
+
+There is no phase 09: it restored the in-cluster Forgejo and was removed when Forgejo moved to the ops node.
 
 ## Per-app restore wrapper
 
@@ -61,7 +64,7 @@ After Vault is restored, every other secret (Forgejo SSH, OIDC client_secrets, C
 scripts/dr/restore-app.sh <app-name> [backup-name]
 ```
 
-Knows app-specific gotchas: nodeAffinity labels, ResourceModifier for PVC `volumeName`, kopia helper pod fallback when PodVolumeRestore matching breaks, post-restore DB ownership reassignment, etc.
+Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`). Knows app-specific gotchas: ResourceModifier for PVC `volumeName`, post-restore DB ownership reassignment for immich.
 
 ## Sanitization
 

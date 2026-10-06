@@ -33,11 +33,11 @@ kubectl apply -f "$REPO_ROOT/argocd/infra/longhorn/manifests/"
 log_info "applying VolumeSnapshotClass for VolSync (driver.longhorn.io)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/volsync/manifests/volumesnapshotclass.yaml"
 
-# VolSync ставим здесь, а не ждём ArgoCD (фаза 10): восстановление forgejo идёт
-# в фазе 09, то есть РАНЬШЕ. Без оператора и его CRD volsync_restore упал бы на
+# VolSync ставим здесь, а не ждём ArgoCD (фаза 10): фаза 11 должна застать
+# оператор и его CRD готовыми, иначе volsync_restore падает на
 # "no matches for kind ReplicationDestination". Установка идемпотентна — ArgoCD
 # потом усыновит релиз как обычно.
-log_info "installing VolSync (needed by phases 09 and 11)"
+log_info "installing VolSync (needed by phase 11)"
 helm repo add backube https://backube.github.io/helm-charts/ >/dev/null 2>&1 || true
 helm repo update backube >/dev/null
 # renovate: datasource=helm depName=volsync registryUrl=https://backube.github.io/helm-charts/

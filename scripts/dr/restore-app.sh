@@ -33,7 +33,6 @@ lookup() {
     may)                echo "may|may|5Gi|ReadWriteOnce|1000" ;;
     rsstt)              echo "rss-to-telegram-bot|rss-to-telegram-bot|1Gi|ReadWriteOnce|1000" ;;
     immich)             echo "immich-library|immich-library-pvc|250Gi|ReadWriteMany|" ;;
-    forgejo)            echo "forgejo|forgejo-data-rwo|10Gi|ReadWriteOnce|" ;;
     opencloud)          echo "opencloud-data|opencloud-data|50Gi|ReadWriteOnce|" ;;
     opencloud-config)   echo "opencloud-config|opencloud-config|1Gi|ReadWriteOnce|" ;;
     trek)               echo "trek-uploads|trek-uploads|10Gi|ReadWriteOnce|" ;;
@@ -85,15 +84,6 @@ case "$APP" in
           EXECUTE 'REASSIGN OWNED BY immich_user TO immich';
           EXECUTE 'ALTER DATABASE immich OWNER TO immich';
         END IF; END \$\$;" 2>&1 | tail -3 || log_warn "immich REASSIGN skipped"
-    ;;
-  forgejo)
-    log_info "fix: forgejo-init email на неконфликтующий"
-    SCRIPT=$(kubectl -n forgejo get secret forgejo-init -o jsonpath='{.data.configure_gitea\.sh}' 2>/dev/null | base64 -d \
-      | sed 's|gitea@local\.domain|argocd-temp@example.com|g' | base64 -w0)
-    if [[ -n "$SCRIPT" ]]; then
-      kubectl -n forgejo patch secret forgejo-init --type=json \
-        -p="[{\"op\":\"replace\",\"path\":\"/data/configure_gitea.sh\",\"value\":\"$SCRIPT\"}]" >/dev/null || true
-    fi
     ;;
 esac
 

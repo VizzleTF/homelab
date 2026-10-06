@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 # Phase 10 — ArgoCD bootstrap + adoption.
-# Vault now holds the Forgejo SSH key + every repo cred ArgoCD needs, so
-# ArgoCD can be installed straight against the internal Forgejo URL.
+# Vault now holds the Forgejo SSH key + every repo cred ArgoCD needs. Forgejo
+# itself runs on the ops node outside the cluster (since 2026-09-12), so a
+# cluster rebuild does not restore it: it only has to answer before ArgoCD
+# starts. If it does not, recover the node first
+# (obsidian/113 Backups/Forgejo Recovery.md).
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 source "$(dirname "$0")/../lib/common.sh"
 
 require_kubectl
+
+log_info "checking Forgejo on the ops node (git.example.com)"
+curl -fsS --max-time 10 https://git.example.com/api/healthz >/dev/null \
+  || die "git.example.com does not answer — ArgoCD has no source. Fix the ops node first: obsidian/113 Backups/Forgejo Recovery.md"
+log_ok "Forgejo reachable"
 
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
 helm repo update argo >/dev/null

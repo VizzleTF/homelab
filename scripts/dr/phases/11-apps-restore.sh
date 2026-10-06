@@ -9,10 +9,9 @@ source "$(dirname "$0")/../lib/common.sh"
 
 require_kubectl
 
-# Apps with restorable data backups (excludes the ones already handled in
-# phase 09, plus CNPG-backed apps whose data comes via barman recovery).
-# Ключи таблицы в restore-app.sh. forgejo уже восстановлен в фазе 09; БД
-# приезжают через barman/pg_dump, не сюда. netbird и crowdsec-scraper
+# Apps with restorable data backups. Ключи таблицы в restore-app.sh. БД
+# приезжают через barman/pg_dump, не сюда. Forgejo живёт на ops-ноде и
+# восстанавливается отдельно (obsidian/113 Backups/Forgejo Recovery.md). netbird и crowdsec-scraper
 # намеренно отсутствуют: их PVC пусты — state пира лежит вне тома
 # (/var/lib/netbird), это известная дыра, а не потеря бэкапа.
 APPS_TO_RESTORE=(
