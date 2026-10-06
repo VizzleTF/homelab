@@ -7,10 +7,7 @@
 #   Peer        : OpenWrt 10.11.11.1, ASN 65000
 #   Advertise   : LoadBalancer IPs from homelab-pool (10.11.10.0/24)
 #   MD5         : disabled (OpenWrt 25.12 kernel lacks CONFIG_TCP_MD5SIG)
-#
-# cilium.io/v2alpha1 is deprecated since Cilium 1.18 (still served on 1.20);
-# move these to cilium.io/v2 in a separate change.
-apiVersion: cilium.io/v2alpha1
+apiVersion: cilium.io/v2
 kind: CiliumBGPClusterConfig
 metadata:
   name: homelab-bgp
@@ -35,7 +32,7 @@ spec:
           peerConfigRef:
             name: openwrt-peer
 ---
-apiVersion: cilium.io/v2alpha1
+apiVersion: cilium.io/v2
 kind: CiliumBGPPeerConfig
 metadata:
   name: openwrt-peer
@@ -67,7 +64,7 @@ spec:
         matchLabels:
           advertise: lb-pool
 ---
-apiVersion: cilium.io/v2alpha1
+apiVersion: cilium.io/v2
 kind: CiliumBGPAdvertisement
 metadata:
   name: lb-pool-advert
