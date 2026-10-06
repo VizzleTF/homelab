@@ -1,5 +1,4 @@
-# OpenBao - Apache 2.0 fork of HashiCorp Vault
-# HA deployment with Raft storage, parallel to Vault during migration
+# OpenBao (MPL 2.0 fork of HashiCorp Vault): HA, Raft storage, KV v2 mount `home`.
 
 homelab-common:
 
@@ -376,19 +375,6 @@ homelab-common:
           property: password
       templateData:
         PW_OVH: "{{ .pw }}"
-    - name: openbao-approle-credentials
-      vaultPath: vault/approle
-      targetName: openbao-snapshot-agent-token
-      deletionPolicy: Retain
-      templateEngineVersion: v2
-      data:
-        - secretKey: role_id
-          property: role_id
-        - secretKey: secret_id
-          property: secret_id
-      templateData:
-        role-id: "{{ .role_id }}"
-        secret-id: "{{ .secret_id }}"
 
   httpRoutes:
     - name: openbao
