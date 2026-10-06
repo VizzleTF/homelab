@@ -78,7 +78,7 @@ terraform-mcp-server --version    # matches TERRAFORM_MCP_VERSION
 # claude code state
 claude
 > /mcp      # lists only servers configured inside the container (see MCP gotchas)
-> /skills   # 21 project skills (gerund-named) + user-level
+> /skills   # 17 project skills (gerund-named) + user-level
 
 # secrets / cluster access
 bao status           # OpenBao answers (means BAO_ADDR + token propagated)

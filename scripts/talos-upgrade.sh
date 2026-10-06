@@ -15,8 +15,8 @@
 #
 # Out of scope — handled elsewhere:
 #   * Changing schematic_id (image extensions) — requires node REPLACEMENT,
-#     not in-place upgrade. See skill replacing-talos-node.
-#   * Adding nodes — see skill provisioning-talos-node.
+#     not in-place upgrade. See skill managing-talos-node (replace).
+#   * Adding nodes — see skill managing-talos-node (add).
 #   * Terraform pins (terraform_talos/configs/nodes.yaml) — the script READS
 #     them for the `check` subcommand, but does NOT modify them. After an
 #     operational upgrade, update terraform_talos/configs/nodes.yaml via a

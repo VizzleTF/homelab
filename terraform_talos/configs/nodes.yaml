@@ -12,7 +12,7 @@ cluster:
 
 # Bare-metal Talos nodes. To add a node: power it on with a Talos factory
 # ISO, confirm `talosctl --insecure -e <ip> -n <ip> version` answers, then
-# add an entry here and run `terraform apply`. See provisioning-talos-node
+# add an entry here and run `terraform apply`. See skill managing-talos-node (add)
 # skill for the full flow.
 nodes:
   talos-cp-01:

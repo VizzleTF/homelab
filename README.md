@@ -273,7 +273,7 @@ Bare-metal Talos install:
 3. `terraform -chdir=terraform_talos apply` applies the machine config, joins the cluster, and waits for `talos_cluster_health`.
 4. `kubectl get nodes` to verify. Cilium, Longhorn and NFD onboard the new node automatically.
 
-Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `provisioning-talos-node` Claude Code skill (private Forgejo origin only, see below).
+Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `managing-talos-node` Claude Code skill (private Forgejo origin only, see below).
 
 ---
 
@@ -296,15 +296,14 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 
 | Skill                       | What it does                                                                            |
 |-----------------------------|------------------------------------------------------------------------------------------|
-| `provisioning-talos-node`   | Full node-add flow, from the first prompt to `Ready` status                              |
-| `replacing-talos-node`      | Drain, forfeit leadership, reset or reinstall, re-apply via terraform, clean up Longhorn |
+| `managing-talos-node`       | Add, replace or remove a node: PXE, terraform, rescue, BGP peer, Longhorn cleanup        |
 | `upgrading-talos`           | Talos / Kubernetes upgrades through tuppr; `talosctl` script as break-glass             |
 | `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in OpenBao       |
 | `renewing-synology-cert`    | `acme.sh` + Cloudflare DNS-01, then reloads DSM nginx via `synow3tool`                   |
 | `scaffolding-app`           | Boilerplate for a new app: values, HTTPRoute, ExternalSecret, ArgoCD wiring              |
 | `scaffolding-authentik-oidc`| New OIDC client: secret, dual OpenBao paths, blueprint files, ESO wiring                 |
 | `verifying-backups`         | Audits VolSync, CNPG, etcd and OpenBao backups and off-site freshness                    |
-| `triaging-alerts`           | Pulls firing alerts from VictoriaMetrics and groups them by severity                     |
+| `managing-monitoring`       | Triages firing alerts, queries metrics, silences, scrape targets                         |
 | `checking-cluster-health`   | One-shot overview: nodes, pods, PVCs, certs, ArgoCD sync                                 |
 
 `.claude/` and `CLAUDE.md` live in the private Forgejo origin only; the public GitHub mirror strips them.

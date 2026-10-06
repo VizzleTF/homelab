@@ -23,8 +23,8 @@
 #                                (vmsingle|vmagent|vmalert|alertmanager|
 #                                 grafana)
 #
-# Skills that wrap this: managing-victoria-metrics (all actions),
-# triaging-alerts (alerts + Alert→Memory triage matrix).
+# Skill that wraps this: managing-monitoring (all actions, plus
+# the Alert→Memory triage matrix in its reference.md).
 set -euo pipefail
 
 VM_NS="${VM_NS:-victoria-metrics}"
