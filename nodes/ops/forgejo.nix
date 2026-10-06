@@ -2,10 +2,15 @@
 # See obsidian/111 Memory/Ops Node.md. No reverse proxy: Forgejo terminates TLS itself with a
 # certificate obtained over DNS-01, and git-over-ssh rides the system sshd, so
 # clone URLs stay ssh://git@git.example.com/... exactly as before the move.
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
   services.postgresql.enable = true;
+
+  # The service runs Forgejo from the store, but the admin CLI is not on PATH
+  # unless asked for. Recovery needs it: `forgejo admin regenerate keys` after
+  # restoring a dump (obsidian/113 Backups/Forgejo Recovery.md, S3 step 4).
+  environment.systemPackages = [ config.services.forgejo.package ];
 
   security.acme = {
     acceptTerms = true;
