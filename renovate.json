@@ -14,7 +14,7 @@
     "automerge": true
   },
   "lockFileMaintenance": {
-    "description": "Выключено: единственный lock-файл (terraform_talos/.terraform.lock.hcl) в .gitignore и в репо не коммитится, обновлять нечего. config:best-practices включает lockFileMaintenance по умолчанию — без явного false запись висит в `Awaiting Schedule`.",
+    "description": "Выключено: единственный lock-файл (terraform_talos/.terraform.lock.hcl) Renovate и так переписывает в PR с бампом провайдера, а одна плановая пересборка хэшей раз в неделю ничего не даёт. config:best-practices включает lockFileMaintenance по умолчанию — без явного false запись висит в `Awaiting Schedule`.",
     "enabled": false
   },
   "prConcurrentLimit": 10,
