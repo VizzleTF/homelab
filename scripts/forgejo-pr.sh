@@ -376,11 +376,13 @@ cmd_merge() {
   local title body payload
   title=$(jq -r '.title' <<<"$meta")
   body=$(jq -r '.body // ""' <<<"$meta")
-  # Forgejo/Gitea merge API uses CamelCase fields.
+  # Forgejo/Gitea merge API uses CamelCase fields. The repo keeps
+  # default_delete_branch_after_merge off, so the head branch is deleted here;
+  # otherwise every merged PR leaves a branch on Forgejo and on the NAS mirror.
   payload=$(jq -n \
     --arg title "$title" \
     --arg msg   "$body" \
-    '{Do: "squash", MergeTitleField: $title, MergeMessageField: $msg}')
+    '{Do: "squash", MergeTitleField: $title, MergeMessageField: $msg, delete_branch_after_merge: true}')
 
   # Forgejo BP readiness lags ~30s behind poll_loop success state — the merge
   # API may still return 405 ("Merge cannot succeed") or 409 (mergeability being

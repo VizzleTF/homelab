@@ -28,7 +28,6 @@ global:
         db-roles: [forgejo/forgejo, authentik/authentik, atuin/atuin]
         valkey: [valkey/valkey]
         telegram: [robusta/telegram]
-        argocd-notify: [argocd/notifications]
         tfstate: [terraform/s3-terraform-state]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
         externaldns: [externaldns]
