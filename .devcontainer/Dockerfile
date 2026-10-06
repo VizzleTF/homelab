@@ -9,7 +9,7 @@
 ARG GO_BUILD_IMAGE=golang:1.27-bookworm
 FROM ${GO_BUILD_IMAGE} AS terraform-mcp-build
 # renovate: datasource=github-releases depName=hashicorp/terraform-mcp-server
-ARG TERRAFORM_MCP_VERSION=v0.5.2
+ARG TERRAFORM_MCP_VERSION=v1.3.0
 RUN git clone --depth 1 --branch ${TERRAFORM_MCP_VERSION} \
       https://github.com/hashicorp/terraform-mcp-server.git /src \
  && cd /src \
