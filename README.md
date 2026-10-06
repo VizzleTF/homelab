@@ -16,7 +16,7 @@ A single-tenant home cluster: four bare-metal Talos nodes managed by ArgoCD, wit
 
 ## Design choices
 
-- Single operator. No PR review process, no second admin account, no destructive-op guards.
+- Single operator. No human PR reviewer and no second admin account; CI checks gate every merge, and the root Application and ApplicationSets are guarded against cascade deletion.
 - Four small boxes running Talos directly, not a rack. RAM is the binding constraint, not CPU.
 - Origin git is off-cluster. Forgejo runs on a fifth box (`ops`, NixOS, declarative), so a dead cluster cannot take the GitOps source of truth with it.
 - The Synology NAS is independent of the cluster: its own TLS (`acme.sh`), its own DNS (OpenWrt), its own reverse proxy (DSM nginx). Cluster failure does not affect stored data.
@@ -33,7 +33,7 @@ A single-tenant home cluster: four bare-metal Talos nodes managed by ArgoCD, wit
 | Ingress               | Cilium Gateway API                      | Three Gateways: public, internal, TLS passthrough; experimental-channel CRDs |
 | External access       | Cloudflared tunnel                      | Catch-all into the public Gateway; external-dns writes CNAMEs        |
 | TLS                   | cert-manager + Cloudflare DNS-01        | One wildcard secret in `kube-system`, every Gateway references it    |
-| Storage               | Longhorn + local-path                   | Longhorn is the default class (2 replicas, `Retain`); self-replicating stores (CNPG, OpenBao Raft) use local-path |
+| Storage               | Longhorn + local-path                   | Longhorn is the default class (2 replicas, `Retain`); self-replicating or disposable stores (the shared CNPG cluster, OpenBao Raft, vmsingle) use local-path |
 | Secrets               | OpenBao HA + External Secrets Operator  | MPL 2.0 fork of Vault 1.14.x, API-compatible; KV v2 mount `home`     |
 | Databases             | CloudNativePG                           | Shared PG18 cluster, plus a dedicated Immich cluster for VectorChord |
 | GitOps                | ArgoCD                                  | App-of-Apps + two ApplicationSets (infra + apps)                     |
@@ -273,7 +273,7 @@ Bare-metal Talos install:
 3. `terraform -chdir=terraform_talos apply` applies the machine config, joins the cluster, and waits for `talos_cluster_health`.
 4. `kubectl get nodes` to verify. Cilium, Longhorn and NFD onboard the new node automatically.
 
-Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `provisioning-talos-node` Claude Code skill.
+Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `provisioning-talos-node` Claude Code skill (private Forgejo origin only, see below).
 
 ---
 

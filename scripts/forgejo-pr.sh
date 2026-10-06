@@ -4,9 +4,10 @@
 #
 # Reads the Forgejo PAT from Vault: home/homelab/forgejo/vizzle-merge-token
 # (KV v2, key `token`). Using this token — and ONLY this token — for both PR
-# creation and merge ensures the squash-commit author = `vizzle`. The
-# `branch-protection-token` stamps every squash as `forgejo-admin
-# <gitea@local.domain>` regardless of who merges; never use it here.
+# creation and merge ensures the squash-commit author = `vizzle`. An admin
+# token stamps every squash as `forgejo-admin <gitea@local.domain>`
+# regardless of who merges; never use one here. (A dedicated
+# `branch-protection-token` was never created.)
 #
 # Subcommands:
 #   open    <branch> -- <title> <body>   create a PR
