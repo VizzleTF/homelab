@@ -98,8 +98,9 @@ gitea:
       ENABLED: true
     log:
       LEVEL: Info
-    # Allow push mirrors to RFC1918 targets (e.g. NAS Gitea at 10.11.12.237
-    # used as DR-bootstrap mirror — see scripts/dr/phases).
+    # Allow mirrors to RFC1918 targets. This instance is itself a mirror of
+    # the Forgejo on the ops node (nodes/ops/forgejo.nix sets the same flag
+    # for the NAS Gitea push mirror).
     migrations:
       ALLOW_LOCALNETWORKS: true
     # Packages disabled on the mirror: the blobs live in one Garage bucket and

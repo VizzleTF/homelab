@@ -8,7 +8,8 @@
 #   Advertise   : LoadBalancer IPs from homelab-pool (10.11.10.0/24)
 #   MD5         : disabled (OpenWrt 25.12 kernel lacks CONFIG_TCP_MD5SIG)
 #
-# CRDs are at cilium.io/v2alpha1 in Cilium 1.19.x.
+# cilium.io/v2alpha1 is deprecated since Cilium 1.18 (still served on 1.20);
+# move these to cilium.io/v2 in a separate change.
 apiVersion: cilium.io/v2alpha1
 kind: CiliumBGPClusterConfig
 metadata:

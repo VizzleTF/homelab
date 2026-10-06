@@ -3,7 +3,8 @@
 # PodSecurity admission is effectively off here: Talos defaults to `privileged`
 # and no namespace carries enforcement labels, so any workload can ask for
 # privileged, hostPath or hostNetwork and nothing objects. Kyverno makes that
-# visible first (policies run in Audit — see argocd/infra/kyverno-policies)
+# visible and enforces it (policies run in Enforce since 2026-09-24 — see
+# argocd/infra/kyverno-policies)
 # and gives a place to enforce later.
 
 # No reports since 2026-10: the policies run in Enforce, so a violation is a
@@ -26,7 +27,8 @@ features:
       - PolicyViolation
 
 # Single replica per controller: this is a four-node homelab, and the policies
-# run in Audit, so a brief controller restart costs reports, not admissions.
+# use failurePolicy Ignore, so a brief controller restart lets admissions through
+# unchecked instead of blocking them.
 # Leader election: lease renewals are etcd writes, every 2 s per controller by
 # default. 15 s retry (lease = 6x retry = 90 s) cuts them ~7x (2026-10).
 admissionController:

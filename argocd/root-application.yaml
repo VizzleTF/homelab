@@ -4,7 +4,7 @@ metadata:
   name: root
   namespace: argocd
   # Без resources-finalizer намеренно. С ним удаление root запускает каскад:
-  # ArgoCD сносит оба ApplicationSet, k8s GC по ownerReferences убирает 55
+  # ArgoCD сносит оба ApplicationSet, k8s GC по ownerReferences убирает 54
   # дочерних Application, и финалайзер каждого из них удаляет уже сами
   # ресурсы — namespace'ы и PVC. Попутно исчезает и сам ArgoCD (standalone
   # argocd-application), так что уборка обрывается на середине.

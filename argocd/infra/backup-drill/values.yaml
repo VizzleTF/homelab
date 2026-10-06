@@ -9,7 +9,7 @@
 # Результат уезжает двумя путями:
 #   - метрики в VictoriaMetrics (история + алерт RestoreDrillStale)
 #   - алерт в Alertmanager -> Robusta -> Telegram, и на успех, и на провал
-#     (успех с severity=info и коротким endsAt, чтобы не висел в firing)
+#     (успех с severity=info без endsAt: Alertmanager закрывает его по resolve_timeout)
 homelab-common:
   # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
@@ -179,8 +179,7 @@ homelab-common:
                             | curl -sf -X POST --data-binary @- "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
 
                           # Уведомление тем же маршрутом, что и обычные алерты: Alertmanager -> Robusta
-                          # -> Telegram. Успех уходит с severity=info и коротким endsAt, поэтому сам
-                          # рассасывается и не висит в списке firing.
+                          # -> Telegram. Успех уходит с severity=info.
                           # endsAt намеренно не задаём: BusyBox date не умеет
                           # относительные значения ("-d '+10 minutes'" молча
                           # падает в фолбэк "сейчас", и алерт приезжает уже
