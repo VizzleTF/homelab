@@ -51,12 +51,13 @@ else
   IFS='|' read -r REPO PVC SIZE MODE UID_ <<<"$ROW"
 fi
 
-# Namespace приложения совпадает с именем папки в argocd/apps, кроме rsstt.
+# Namespace приложения совпадает с именем папки в argocd/apps, кроме перечисленных.
 NS="$APP"
 case "$APP" in
   rsstt) NS="rsstt" ;;
   opencloud-config) NS="opencloud" ;;
   trek-data) NS="trek" ;;
+  wazuh-manager) NS="wazuh" ;;
   *) ;;  # every other app lives in a namespace named after it
 esac
 

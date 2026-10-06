@@ -13,8 +13,8 @@ Generates and validates the minimal disaster-recovery bundle used by `scripts/dr
 
 The cluster builds the same pack weekly on its own — CronJob `openbao/openbao-dr-pack-offsite`
 uploads `dr-pack-<ts>.tar.gz.gpg` (the whole tarball encrypted, passphrase in Vault
-`shared/dr-pack`) to both S3 targets. Unpack it into `~/dr-pack/` and the phases accept it:
-`00-shamir.json` comes out in the clear instead of `00-shamir.json.gpg`, and it carries an
+`shared/dr-pack`) to both S3 targets. Unpack it into `~/dr-pack/`: the phases and `verify.sh` accept it.
+`00-shamir.json` comes out in the clear instead of `00-shamir.json.gpg`, and the pack carries an
 extra `04-nodes.txt`.
 
 ## Usage

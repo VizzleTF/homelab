@@ -218,7 +218,7 @@ Each volume declares a `volsync:` block in its app values; the `homelab-common` 
 
 ### Verifying backups
 
-A weekly drill (`backup-drill`, Sundays 09:00 UTC) restores one repository into a throwaway namespace, alternating targets by week and rotating through eight repositories, including the ops node's Forgejo. It checks the restored data (non-empty, `PRAGMA integrity_check` for SQLite), pushes `homelab_restore_drill_*` to VictoriaMetrics and fires an alert on failure. Two more rules watch the drill itself: stale for over 16 days, or never seen at all.
+A weekly drill (`backup-drill`, Sundays 09:00 UTC) restores one repository into a throwaway namespace, rotating through eight repositories, including the ops node's Forgejo. The target switches between Garage and OVH after each full round, so every repository is checked on each target once in 16 weeks. It checks the restored data (non-empty, `PRAGMA integrity_check` for SQLite), pushes `homelab_restore_drill_*` to VictoriaMetrics and fires an alert on failure. Two more rules watch the drill itself: stale for over 16 days, or never seen at all.
 
 ### Restore
 
