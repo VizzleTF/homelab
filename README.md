@@ -305,6 +305,9 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 | `verifying-backups`         | Audits VolSync, CNPG, etcd and OpenBao backups and off-site freshness                    |
 | `managing-monitoring`       | Triages firing alerts, queries metrics, silences, scrape targets                         |
 | `checking-cluster-health`   | One-shot overview: nodes, pods, PVCs, certs, ArgoCD sync                                 |
+| `restoring-app-volume`      | Restores one app volume: old PV rebind or VolSync restic, trial restore first            |
+| `triaging-renovate-prs`     | Reviews open Renovate PRs against the argocd-diff comment and release notes              |
+| `deploying-ops-node`        | Rolls a merged `nodes/ops` change onto the NixOS ops node, with rollback                 |
 
 `.claude/` and `CLAUDE.md` live in the private Forgejo origin only; the public GitHub mirror strips them.
 
