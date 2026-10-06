@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Phase 04 — external-dns CF (in cert-manager ns) + external-dns-openwrt.
-# OpenWrt creds come from DR pack pre-Vault.
+# Phase 04 — external-dns CF + external-dns-openwrt, before Vault exists.
+# The token and OpenWrt creds come from the DR pack. Their Secrets carry the
+# label homelab.dr/bootstrap=true: in git both are ESO-managed, and ESO will
+# not adopt a Secret it did not create, so phase 10 deletes them and ESO
+# recreates them from OpenBao.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -14,13 +17,16 @@ helm repo add external-dns https://kubernetes-sigs.github.io/external-dns/ >/dev
 helm repo update external-dns >/dev/null
 
 log_info "creating external-dns-cloudflare Secret"
-kubectl -n cert-manager create secret generic external-dns-cloudflare \
+kubectl create ns external-dns 2>/dev/null || true
+kubectl -n external-dns create secret generic external-dns-cloudflare \
   --from-literal=api-token="$CF_API_TOKEN" \
-  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  --dry-run=client -o yaml \
+  | kubectl label --local -f - homelab.dr/bootstrap=true -o yaml \
+  | kubectl apply -f - >/dev/null
 
 log_info "installing external-dns (Cloudflare)"
-helm_apply external-dns external-dns/external-dns cert-manager \
-  --version 1.21.1 \
+helm_apply external-dns external-dns/external-dns external-dns \
+  --version "$(chart_version external-dns)" \
   -f "$REPO_ROOT/argocd/infra/external-dns/values.yaml"
 
 # OpenWrt instance — only if OPENWRT_HOST/USER/PASS are in DR pack
@@ -31,11 +37,13 @@ if [ -n "${OPENWRT_HOST:-}" ] && [ -n "${OPENWRT_USER:-}" ] && [ -n "${OPENWRT_P
     --from-literal=host="$OPENWRT_HOST" \
     --from-literal=username="$OPENWRT_USER" \
     --from-literal=password="$OPENWRT_PASS" \
-    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+    --dry-run=client -o yaml \
+    | kubectl label --local -f - homelab.dr/bootstrap=true -o yaml \
+    | kubectl apply -f - >/dev/null
 
   log_info "installing external-dns-openwrt"
   helm_apply external-dns-openwrt external-dns/external-dns external-dns-openwrt \
-    --version 1.21.1 \
+    --version "$(chart_version external-dns-openwrt)" \
     -f "$REPO_ROOT/argocd/infra/external-dns-openwrt/values.yaml"
 else
   log_warn "OPENWRT_* not in DR pack — skipping external-dns-openwrt (will be installed later via ESO after Vault restore)"

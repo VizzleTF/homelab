@@ -48,19 +48,19 @@ Forgejo is not part of this rebuild: since 2026-09-12 it runs on the ops node, o
 |---|---|---|
 | 00 | preflight | DR pack + Vaultwarden + cluster reachable |
 | 01 | network | git (Cilium + Gateway API charts) |
-| 02 | storage | git (Longhorn + snapshot-controller charts) |
+| 02 | storage | git (local-path-provisioner, Longhorn, snapshot-controller, VolSync charts) |
 | 03 | tls | `01-bootstrap.env` (CF_API_TOKEN), git (cert-manager) |
-| 04 | dns | git (external-dns CF + OpenWrt charts) |
+| 04 | dns | `01-bootstrap.env` (CF token, optional `OPENWRT_*`), git (external-dns CF + OpenWrt charts); bootstrap Secrets labelled `homelab.dr/bootstrap=true` |
 | 05 | snapshot-fetch | `01-bootstrap.env` (Garage/OVH keys) — pulls the freshest OpenBao Raft snapshot from S3 if the DR pack copy is older than 7 days |
 | 06 | vault-restore | `00-shamir.json.gpg` + `02-vault-raft-snapshot.snap` |
 | 07 | eso | OpenBao now holds everything else; ESO policies and roles from `scripts/openbao-eso-access.sh` |
 | 08 | cnpg | git (CNPG operator chart); Cluster CRs and barman recovery come with ArgoCD |
-| 10 | argocd | Forgejo on the ops node must answer; ArgoCD bootstrap, then ApplicationSets render everything |
+| 10 | argocd | Forgejo on the ops node must answer; deletes the bootstrap Secrets so ESO owns them, installs ArgoCD, then ApplicationSets render everything |
 | 11 | apps | VolSync restic repositories, one volume per app via `restore-app.sh` |
 
 There is no phase 09: it restored the in-cluster Forgejo and was removed when Forgejo moved to the ops node.
 
-Phases 01–08 and 10 pin their own chart versions (`--version` in each `phases/*.sh`); they are not read from `argocd/{infra,apps}/<name>/config.yaml`. Compare them before a real rebuild: ArgoCD later upgrades each release to the `config.yaml` version.
+Chart versions are read at run time from git (`chart_version` in `lib/common.sh`): `argocd/infra/<name>/config.yaml` `targetRevision`, and `argocd/standalone/*.yaml` for Gateway API and ArgoCD. DR installs exactly what ArgoCD runs, so Renovate bumps need no second edit here.
 
 ## Per-app restore wrapper
 
