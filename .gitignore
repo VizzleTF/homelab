@@ -1,6 +1,8 @@
 # Terraform sensitive files
 .terraform*
 terraform_*/.terraform*
+# The provider lock file is not sensitive; Renovate rewrites it together with provider bumps.
+!terraform_*/.terraform.lock.hcl
 terraform_*/_out/
 terraform_*/*.tfplan
 *.tfstate
