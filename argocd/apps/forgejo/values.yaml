@@ -91,9 +91,17 @@ gitea:
     # runner pool here would race it for the same jobs.
     actions:
       ENABLED: false
+    # Disk writes (2026-10): a read-only mirror needs no code search, and the
+    # repo indexer re-indexed on every sync. Pull mirrors run hourly (was 10m:
+    # 864 fetches/day, each a git write on Longhorn plus a row update in
+    # cnpg-cluster). Freshness is not the point here — the NAS Gitea gets a
+    # push on every commit. Existing repos were switched via the API
+    # (mirror_interval 1h); DEFAULT_INTERVAL covers newly added mirrors.
     indexer:
-      REPO_INDEXER_ENABLED: true
+      REPO_INDEXER_ENABLED: false
       ISSUE_INDEXER_TYPE: bleve
+    mirror:
+      DEFAULT_INTERVAL: 1h
     metrics:
       ENABLED: true
     log:
