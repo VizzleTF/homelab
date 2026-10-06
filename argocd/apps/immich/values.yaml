@@ -73,12 +73,9 @@ homelab-common:
           vaultPath: immich/main-database
         - secretKey: jwt_secret
           property: jwt_secret
-        - secretKey: typesense_api_key
-          property: typesense_api_key
       templateData:
         DB_PASSWORD: "{{ .db_password }}"
         JWT_SECRET: "{{ .jwt_secret }}"
-        TYPESENSE_API_KEY: "{{ .typesense_api_key }}"
     
     - name: immich-db-credentials
       vaultPath: immich/main-database
