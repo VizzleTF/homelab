@@ -8,7 +8,8 @@
 #
 # Subcommands:
 #   install   apk add bird2 + uci firewall rule for TCP/179 on the servers zone
-#   configure render /etc/bird.conf, restart BIRD (no MD5, see cmd_configure)
+#   configure render /etc/bird.conf, restart BIRD (no MD5, see cmd_configure),
+#             L4 ECMP hash sysctl kept across sysupgrade
 #   verify    birdc show protocols + show route, plus ip route to the LB pool
 #   down      stop+disable BIRD, leave config in place (for rollback drills)
 #
@@ -163,6 +164,19 @@ cmd_configure() {
     mv /tmp/bird.conf.new /etc/bird.conf && \
     chmod 600 /etc/bird.conf'
 
+  # L4 hash: with the default policy 0 the kernel hashes only on L3, so every
+  # connection of one client to one LB IP lands on the same node. Policy 1
+  # adds ports. /etc/sysctl.d is not kept by sysupgrade (only sysctl.conf is),
+  # so the file goes into /etc/sysupgrade.conf too — it was lost once.
+  echo "[+] ECMP L4 hash: /etc/sysctl.d/99-bgp-ecmp.conf"
+  ssh_owrt sh -s <<'SH'
+set -e
+F=/etc/sysctl.d/99-bgp-ecmp.conf
+echo 'net.ipv4.fib_multipath_hash_policy=1' > "$F"
+sysctl -q -p "$F"
+grep -qxF "$F" /etc/sysupgrade.conf || echo "$F" >> /etc/sysupgrade.conf
+SH
+
   echo "[+] enabling+restarting BIRD"
   ssh_owrt sh -s <<'SH'
 set -e
@@ -187,6 +201,10 @@ cmd_verify() {
   echo
   echo "== kernel FIB for LB pool =="
   ssh_owrt "ip route show ${LB_POOL}"
+
+  echo
+  echo "== ECMP hash policy (should be 1) =="
+  ssh_owrt 'sysctl net.ipv4.fib_multipath_hash_policy'
 
   echo
   echo "== bird port listener (should be :179) =="
