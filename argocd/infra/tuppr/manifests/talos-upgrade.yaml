@@ -86,10 +86,12 @@ spec:
     windows:
       # Permanent: ежедневно 09:00 MSK на 6h. Окно открывается каждый день,
       # но реальный rolling upgrade запускается только если spec.talos.version
-      # отличается от текущего (то есть после Renovate-PR merge). Сдвинут с
-      # ночи (02:00) потому что ночные часы заняты Velero+CNPG daily-backup'ами
-      # (см. `kubectl -n velero get schedules.velero.io`). 09:00 — после всех
-      # morning backups (cnpg-cluster в 08:15 — последний).
+      # отличается от текущего (то есть после Renovate-PR merge). Не ночью:
+      # ночные часы заняты VolSync-бэкапами (00:10–03:30) и Forgejo/etcd дампами
+      # на ops-ноде.
+      #
+      # Разовое окно под конкретный апгрейд — отдельный entry с датой в cron.
+      # Такой cron (`M H D Mon *`) повторяется каждый год: удалять следующим PR.
       #
       # Paused 2026-09-16..19: the v1.14.1 roll stalled half-way while etcd WAL
       # fsync p99 hit 2-7s, because Longhorn gave up waiting for worker-01's
@@ -98,21 +100,6 @@ spec:
       # below still gate on Node/Longhorn state only, not on etcd.
       - start: "0 9 * * *"
         duration: "6h"
-        timezone: "Europe/Moscow"
-      # ONE-SHOT — окно открывается 2026-05-26 в 22:50 MSK для немедленного
-      # rolling upgrade на v1.13.3. Date-specific cron: `50 22 26 5 *` =
-      # 22:50 26 мая (любого года). После 03:50 27 мая окно закрывается само —
-      # удалять этот entry следующим PR не обязательно (просто dead config).
-      - start: "50 22 26 5 *"
-        duration: "5h"
-        timezone: "Europe/Moscow"
-      # ONE-SHOT — 2026-09-05 21:00 MSK + 9h, чтобы v1.14.0 уехал этой же ночью,
-      # ДО того как k8s-окно в 10:00 попробует раскатать 1.37 (он ships с 1.14,
-      # не с 1.13 — ради этого весь PR). Открыто задним числом на 40 минут:
-      # окно должно быть активно в момент, когда ArgoCD донесёт CR, иначе tuppr
-      # уйдёт ждать 09:00. Закроется само в 06:00 — dead config после этого.
-      - start: "0 21 5 9 *"
-        duration: "9h"
         timezone: "Europe/Moscow"
 
   # ===== INTERVAL GATE между нодами =====

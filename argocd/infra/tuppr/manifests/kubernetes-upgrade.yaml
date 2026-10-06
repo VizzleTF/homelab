@@ -1,7 +1,7 @@
 # KubernetesUpgrade — declarative cluster-wide kubelet/control-plane upgrade.
 # Один на cluster (admission webhook enforce).
 #
-# Запускается через час после Talos OS window (Talos OS sliding 02:00, K8s 03:00).
+# Запускается через час после Talos OS window (Talos OS 09:00, K8s 10:00 Europe/Moscow).
 # tuppr НЕ enforce'ит safe upgrade path — Renovate с separateMinorPatch ОБЯЗАН
 # делить minor и patch на отдельные PR (иначе можно случайно скакнуть N→N+2).
 #
