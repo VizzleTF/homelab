@@ -148,16 +148,19 @@ homelab-common:
                       - |
                         set -eu
 
-                        # Ротация: одно приложение в неделю, цель чередуется по чётности недели —
-                        # так off-site проверяется не реже раза в две недели по каждому тому.
+                        # Ротация: одно приложение в неделю, цель меняется после каждого полного
+                        # круга. Чётность самой недели не годится: при чётном COUNT она жёстко
+                        # привязывает каждое приложение к одной цели. Итог: каждый том проверяется
+                        # раз в COUNT недель, на каждой цели — раз в 2*COUNT.
+                        # Неделя считается от epoch, а не по ISO: ISO-номер сбрасывается в январе.
                         APPS="vaultwarden rss-to-telegram-bot cleanbot may forgejo-ops opencloud-data trek-uploads obsidian-livesync"
                         set -- $APPS
                         COUNT=$#
-                        WEEK=$(date -u +%V | sed 's/^0*//')
+                        WEEK=$(( $(date -u +%s) / 604800 ))
                         IDX=$(( WEEK % COUNT ))
                         i=0
                         for a in $APPS; do [ $i -eq $IDX ] && APP="$a" && break; i=$((i+1)); done
-                        if [ $(( WEEK % 2 )) -eq 0 ]; then TARGET=garage; else TARGET=ovh; fi
+                        if [ $(( WEEK / COUNT % 2 )) -eq 0 ]; then TARGET=garage; else TARGET=ovh; fi
 
                         case "$TARGET" in
                           garage) REPO_URL="s3:https://s3.example.com/restic-apps/$APP"; AK="$GARAGE_AK"; SK="$GARAGE_SK"; PW="$PW_GARAGE" ;;
@@ -213,7 +216,7 @@ homelab-common:
                         if [ "$APP" = "forgejo-ops" ]; then
                           kubectl -n "$NS" create secret generic drill-restic                             --from-literal=RESTIC_REPOSITORY="$REPO_URL"                             --from-literal=RESTIC_PASSWORD="$PW"                             --from-literal=AWS_ACCESS_KEY_ID="$AK"                             --from-literal=AWS_SECRET_ACCESS_KEY="$SK" >/dev/null
 
-                          kubectl -n "$NS" run verify-dump --restart=Never --image=alpine:3.24                             --overrides='{"spec":{"securityContext":{"runAsUser":0,"runAsGroup":0},"containers":[{"name":"verify-dump","image":"alpine:3.24","command":["sh","-c","set -e; apk add --no-cache restic zstd tar >/dev/null; restic restore latest --target /restore; f=$(find /restore -name \"forgejo-dump-*.tar.zst\" | head -1); [ -n \"$f\" ] || { echo NO_DUMP; exit 1; }; sz=$(stat -c%s \"$f\"); echo SIZE=$sz; [ \"$sz\" -gt 104857600 ] || { echo TOO_SMALL; exit 1; }; tar --zstd -tf \"$f\" > /tmp/l; grep -q gitea-db.sql /tmp/l || { echo NO_DB; exit 1; }; grep -q \"^repos/\" /tmp/l || { echo NO_REPOS; exit 1; }; echo ENTRIES=$(wc -l < /tmp/l); echo VERIFY_OK"],"envFrom":[{"secretRef":{"name":"drill-restic"}}],"volumeMounts":[{"name":"r","mountPath":"/restore"}]}],"volumes":[{"name":"r","emptyDir":{"sizeLimit":"8Gi"}}],"restartPolicy":"Never"}}' >/dev/null
+                          kubectl -n "$NS" run verify-dump --restart=Never --image=alpine:3.24                             --overrides='{"spec":{"securityContext":{"runAsUser":0,"runAsGroup":0},"containers":[{"name":"verify-dump","image":"alpine:3.24","command":["sh","-c","set -e; apk add --no-cache restic zstd tar >/dev/null; restic restore latest --target /restore; f=$(find /restore -name \"forgejo-dump-*.tar.zst\" | head -1); [ -n \"$f\" ] || { echo NO_DUMP; exit 1; }; sz=$(stat -c%s \"$f\"); echo SIZE=$sz; [ \"$sz\" -gt 104857600 ] || { echo TOO_SMALL; exit 1; }; tar --zstd -tf \"$f\" > /tmp/l; grep -q -e forgejo-db.sql -e gitea-db.sql /tmp/l || { echo NO_DB; exit 1; }; grep -q \"^repos/\" /tmp/l || { echo NO_REPOS; exit 1; }; echo ENTRIES=$(wc -l < /tmp/l); echo VERIFY_OK"],"envFrom":[{"secretRef":{"name":"drill-restic"}}],"volumeMounts":[{"name":"r","mountPath":"/restore"}]}],"volumes":[{"name":"r","emptyDir":{"sizeLimit":"8Gi"}}],"restartPolicy":"Never"}}' >/dev/null
 
                           DDEADLINE=$(( $(date -u +%s) + 1200 ))
                           while :; do

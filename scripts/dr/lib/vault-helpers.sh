@@ -15,12 +15,18 @@ ensure_bao_token() {
     return 0
   fi
   local shamir_gpg="$DR_PACK_DIR/00-shamir.json.gpg"
-  [[ -f "$shamir_gpg" ]] || die "no BAO_TOKEN in env and no $shamir_gpg"
-  log_info "decrypting Shamir bundle from DR pack"
   local tmp; tmp=$(mktemp)
   trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
-  gpg --quiet --batch --output "$tmp" --decrypt "$shamir_gpg" \
-    || die "shamir decrypt failed (wrong passphrase?)"
+  # The off-site pack carries the bundle unencrypted (as in phase 06).
+  if [[ -f "$shamir_gpg" ]]; then
+    log_info "decrypting Shamir bundle from DR pack"
+    gpg --quiet --batch --output "$tmp" --decrypt "$shamir_gpg" \
+      || die "shamir decrypt failed (wrong passphrase?)"
+  elif [[ -f "$DR_PACK_DIR/00-shamir.json" ]]; then
+    cat "$DR_PACK_DIR/00-shamir.json" > "$tmp"
+  else
+    die "no BAO_TOKEN in env and no $DR_PACK_DIR/00-shamir.json[.gpg]"
+  fi
   export BAO_TOKEN
   BAO_TOKEN=$(jq -r '.root_token' "$tmp")
   [[ -n "$BAO_TOKEN" ]] && [[ "$BAO_TOKEN" != "null" ]] \

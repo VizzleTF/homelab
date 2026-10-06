@@ -68,7 +68,7 @@ Chart versions are read at run time from git (`chart_version` in `lib/common.sh`
 scripts/dr/restore-app.sh <APP> [<REPO> <PVC> <SIZE> [<ACCESS_MODE>] [<UID>]]
 ```
 
-Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`, default `garage`). Known apps (`vaultwarden`, `cleanbot`, `may`, `rsstt`, `immich`, `opencloud`, `opencloud-config`, `trek`, `trek-data`, `obsidian-livesync`) need only `<APP>`; for anything else pass the repository, PVC and size. The script refuses to run when the PVC already exists, unless `DR_FORCE=1`. For immich it also reassigns database objects left owned by `immich_user` to `immich`.
+Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`, default `garage`). Known apps (`vaultwarden`, `cleanbot`, `may`, `rsstt`, `immich`, `opencloud`, `opencloud-config`, `trek`, `trek-data`, `obsidian-livesync`, `wazuh-manager`) need only `<APP>`; for anything else pass the repository, PVC and size. The script refuses to run when the PVC already exists, unless `DR_FORCE=1`. For immich it also reassigns database objects left owned by `immich_user` to `immich`.
 
 Phase 11 skips netbird and crowdsec-scraper: their peer state lives outside the backed-up volume.
 

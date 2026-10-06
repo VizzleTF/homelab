@@ -20,12 +20,13 @@ check() {
 
 log_info "verifying DR pack at $DR_PACK_DIR"
 
-check "00-shamir.json.gpg exists"           "[ -f '$DR_PACK_DIR/00-shamir.json.gpg' ]"
+check "00-shamir.json[.gpg] exists"        "[ -f '$DR_PACK_DIR/00-shamir.json.gpg' ] || [ -f '$DR_PACK_DIR/00-shamir.json' ]"
 check "01-bootstrap.env exists"             "[ -f '$DR_PACK_DIR/01-bootstrap.env' ]"
 check "02-vault-raft-snapshot.snap exists"  "[ -f '$DR_PACK_DIR/02-vault-raft-snapshot.snap' ]"
 check "03-cluster.env exists"               "[ -f '$DR_PACK_DIR/03-cluster.env' ]"
 
-if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]]; then
+# The off-site pack carries the bundle unencrypted; the local one is gpg -c.
+if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" || -f "$DR_PACK_DIR/00-shamir.json" ]]; then
   tmp=$(mktemp)
   # --batch без passphrase не спросит её и просто провалится; с GPG_PASSPHRASE
   # проверка проходит неинтерактивно, без него — обычный pinentry.
@@ -34,7 +35,12 @@ if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]]; then
   else
     gpg_decrypt() { local file="$1"; gpg --quiet --decrypt "$file"; }
   fi
-  if gpg_decrypt "$DR_PACK_DIR/00-shamir.json.gpg" > "$tmp" 2>/dev/null; then
+  if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]]; then
+    read_shamir() { gpg_decrypt "$DR_PACK_DIR/00-shamir.json.gpg"; }
+  else
+    read_shamir() { cat "$DR_PACK_DIR/00-shamir.json"; }
+  fi
+  if read_shamir > "$tmp" 2>/dev/null; then
     keys=$(jq -r '.unseal_keys_b64 | length' "$tmp" 2>/dev/null || echo 0)
     root=$(jq -r '.root_token | length' "$tmp" 2>/dev/null || echo 0)
     check "shamir bundle has 3 unseal keys" "[ '$keys' = '3' ]"
