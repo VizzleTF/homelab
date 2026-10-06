@@ -21,13 +21,14 @@ First build: ~3–5 min (downloads pinned binaries + builds `terraform-mcp-serve
 | `argocd` | `ARGOCD_VERSION` | `github.com/argoproj/argo-cd` |
 | `gitleaks` | `GITLEAKS_VERSION` | `github.com/gitleaks/gitleaks` (matches `.pre-commit-config.yaml`) |
 | `gh` | `GH_VERSION` | `github.com/cli/cli` |
-| `claude` | `CLAUDE_CODE_VERSION` | npm `@anthropic-ai/claude-code` |
+| `claude` | `CLAUDE_CODE_VERSION` (default `latest`, so not pinned) | npm `@anthropic-ai/claude-code` |
 | `terraform-mcp-server` | `TERRAFORM_MCP_VERSION` | built from source (`hashicorp/terraform-mcp-server`) |
 | `pre-commit` | `PRE_COMMIT_VERSION` | pip |
-| `jq`, `yamllint`, `python3-yaml`, `psql` | apt | Debian bookworm |
+| `chezmoi` | none | `get.chezmoi.io` install script |
+| `jq`, `yamllint`, `python3-yaml`, `psql`, `zsh`, `age` | apt | Debian bookworm |
 | Node.js 22 | Nodesource | for npx-based MCP servers |
 
-All `ARG` lines have `# renovate: ...` comments — Renovate opens PRs as new versions land.
+Every version `ARG` has a `# renovate: ...` comment, so Renovate opens PRs as new versions land.
 
 ## Host bind-mounts
 
@@ -39,6 +40,10 @@ All `ARG` lines have `# renovate: ...` comments — Renovate opens PRs as new ve
 | `~/.config/argocd` | `/home/vscode/.config/argocd` | RW | argocd CLI tokens |
 | `~/.ssh` | `/home/vscode/.ssh` | RO | SSH key for Forgejo push |
 | `~/.gitconfig` | `/home/vscode/.gitconfig` | RO | git identity |
+| `~/.config/chezmoi` | `/home/vscode/.config/chezmoi` | RW | chezmoi config |
+| `~/.local/share/chezmoi` | `/home/vscode/.local/share/chezmoi` | RW | chezmoi source state; `post-create.sh` does not run `chezmoi apply`, because an apply would write through the bind mounts into host files |
+
+`~/.mcp.json` is not mounted.
 
 ## Host env propagated via `remoteEnv`
 
@@ -72,8 +77,8 @@ terraform-mcp-server --version    # matches TERRAFORM_MCP_VERSION
 
 # claude code state
 claude
-> /mcp      # terraform, github, kubernetes + user-level argocd-mcp — all connected
-> /skills   # 19 project skills (gerund-named) + user-level
+> /mcp      # lists only servers configured inside the container (see MCP gotchas)
+> /skills   # 21 project skills (gerund-named) + user-level
 
 # secrets / cluster access
 bao status           # OpenBao answers (means BAO_ADDR + token propagated)
@@ -82,7 +87,6 @@ ssh -T git@git.example.com   # Forgejo SSH key works
 
 ## MCP gotchas
 
-- `terraform` MCP needs `/usr/local/bin/terraform-mcp-server` — installed by Dockerfile, path matches the user-level `~/.mcp.json`.
+- The host's MCP servers come from `~/.mcp.json`, which is not mounted and points at host binaries (`/home/linuxbrew/...`, `/usr/local/bin/helm-mcp`). Inside the container, register them with `claude mcp add`; the image ships `/usr/local/bin/terraform-mcp-server` and `post-create.sh` installs `@modelcontextprotocol/server-github` and `kubernetes-mcp-server` with `npm install -g`. There is no Helm MCP binary in the image.
 - `kubernetes` MCP needs `kubectl` in PATH (installed) and a valid kubeconfig (mounted RO). **It reads the current kubeconfig context**, which may not be homelab. For homelab cluster state, switch the local kubeconfig or set `KUBECONFIG` to a homelab-pointing file before using the MCP.
-- `github` MCP is npx-cached on first run by `post-create.sh`.
-- `argocd-mcp` (user-level) is in `~/.claude/settings.json` and travels via the bind-mount; needs `argocd` CLI (installed) + `~/.config/argocd/config` (mounted).
+- `argocd-mcp` is not configured on the host, so there is nothing to carry over; the `argocd` CLI works with the mounted `~/.config/argocd/config`.
