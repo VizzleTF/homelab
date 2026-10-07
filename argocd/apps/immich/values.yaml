@@ -165,6 +165,14 @@ homelab-common:
       service:
         name: immich-server
         port: 2283
+    - name: immich-lan
+      hostname: immich-lan
+      # LAN-only twin with its own hostname: Alt-Svc is cached per host, so
+      # browsers never try QUIC here; uploads skip the Cloudflare 100 MB cap.
+      gateway: internal
+      service:
+        name: immich-server
+        port: 2283
   
   cnpgDatabases:
     - name: immich
