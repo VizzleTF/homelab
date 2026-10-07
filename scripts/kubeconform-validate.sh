@@ -5,12 +5,14 @@
 # the published chart version, so this is the only check that sees an
 # unpublished chart change.
 #
-# Raw manifests (argocd/**/manifests, argocd/standalone) are not checked here:
-# the argocd-diff CI job validates them as part of the full rendered output of
-# every Application the PR touches.
+# Raw manifests (argocd/**/manifests, argocd/standalone) are not schema-checked
+# here: the argocd-diff CI job validates them as part of the full rendered output
+# of every Application the PR touches. They do get a pluto pass (below) that fails
+# on any deprecated or removed apiVersion, rules from .pluto-versions.yaml, so a
+# stale API (e.g. cilium.io/v2alpha1 BGP kinds) is caught in the PR that adds it.
 #
 # Single source of truth shared by `.forgejo/workflows/ci.yaml` (kubeconform job)
-# and `task ci:kubeconform`. Requires `kubeconform` and `helm` on PATH
+# and `task ci:kubeconform`. Requires `kubeconform`, `helm` and `pluto` on PATH
 # (provided by .mise.toml locally, or installed in CI).
 #
 # With file arguments it validates only those files (the argocd-diff CI job
@@ -22,6 +24,7 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
+command -v pluto >/dev/null || { echo "pluto not on PATH" >&2; exit 1; }
 
 KUBE_VERSION="${KUBE_VERSION:-1.37.0}"
 CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
@@ -65,8 +68,16 @@ for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps
   fi
 done
 
+echo "==> pluto: deprecated APIs in raw manifests"
+CILIUM=$(sed -n 's/^targetRevision:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' argocd/infra/cilium/config.yaml)
+if ! pluto detect-files -d argocd -o wide -f .pluto-versions.yaml \
+      -t "k8s=v${KUBE_VERSION},cilium=v${CILIUM}"; then
+  echo "  FAIL: deprecated/removed apiVersion in argocd/ (see table above)"
+  fails=$((fails + 1))
+fi
+
 if [[ "$fails" -gt 0 ]]; then
-  echo "kubeconform: $fails rendered values file(s) failed validation"
+  echo "kubeconform: $fails check(s) failed"
   exit 1
 fi
 echo "kubeconform: clean"

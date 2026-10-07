@@ -3,17 +3,22 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0  # keep in sync with .mise.toml
+    hooks:
+      - id: yamllint  # reads .yamllint.yml like CI `yamllint .`; warnings shown, not fatal
+        verbose: true
   - repo: local
     hooks:
       - id: filename-blocklist
         name: Filename blocklist (mirror of CI)
-        entry: .git-hooks/blocklist.sh
-        language: script
+        entry: bash .git-hooks/blocklist.sh  # via bash: exec bit is lost on core.fileMode=false checkouts
+        language: system
         pass_filenames: false
         always_run: true
       - id: lint-skills
         name: Claude skills vs Anthropic best practices
-        entry: scripts/lint-skills.py
-        language: script
+        entry: python3 scripts/lint-skills.py  # file is 0644 in git
+        language: system
         pass_filenames: false
         files: ^\.claude/skills/

@@ -15,6 +15,12 @@
 #   monitor <pr-number>                  poll CI until terminal state
 #   merge   <pr-number>                  monitor + squash-merge if green
 #   full    <branch> -- <title> <body>   open + merge in one flow
+#   label   <pr-number> <label-name>     add an existing repo label to a PR
+#   diff-comment <pr-number>             print the latest argocd-diff bot comment
+#   rerun   <pr-number>                  re-trigger CI: empty commit on the checked-out
+#                                        PR branch (Forgejo has no rerun API); not renovate/*
+#
+# Every <pr-number> except in `full` also takes an open PR's branch name.
 #
 # After a successful merge (and for an already-merged PR), `merge`/`full`
 # delete the merged PR's local branch and fast-forward BASE_BRANCH to its
@@ -63,6 +69,11 @@ Usage:
   $0 monitor <pr-number>
   $0 merge   <pr-number>
   $0 full    <branch> -- <title> <body>
+  $0 label   <pr-number> <label-name>   (e.g. diff-reviewed)
+  $0 diff-comment <pr-number>
+  $0 rerun   <pr-number>                (on the checked-out PR branch; not renovate/*)
+
+<pr-number> may also be the branch name of an open PR.
 
 Env:
   FORGEJO_URL    (default: $FORGEJO_URL)
@@ -170,15 +181,101 @@ fetch_status() {
 }
 
 # Reads a status payload on stdin, emits sorted "context: state" lines.
-# Forgejo Actions never POSTs back to the legacy commit-statuses table, so
-# per-context `.state` stays null forever even after a workflow finishes.
-# The combined `.state` at the top of the payload is authoritative — fall
-# back to it when per-context is null so the output reflects reality.
+# Forgejo puts the per-context result in `.status`; `.state` stays null. The
+# combined `.state` at the top of the payload is the fallback.
 format_statuses() {
   jq -r '
     (.state // "queued") as $combined |
-    .statuses[]? | "\(.context): \(.state // $combined)"
+    .statuses[]? | "\(.context): \(.status // .state // $combined)"
   ' | sort -u
+}
+
+# The argocd-diff CI job posts (and later edits) one PR comment starting with
+# this marker; see the "Comment on PR" step in .forgejo/workflows/ci.yaml.
+DIFF_MARKER='<!-- argocd-diff -->'
+
+# diff_comment <pr-number> — latest argocd-diff comment as {updated_at, body}, or nothing.
+diff_comment() {
+  forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/issues/$1/comments" \
+    | jq -c --arg m "$DIFF_MARKER" '[.[] | select(.body | contains($m))] | last | select(.) | {updated_at, body}'
+}
+
+# jq: Forgejo timestamp ("2026-10-07T09:03:40+03:00", "...Z", optional fraction)
+# -> epoch seconds, or null when empty/unparseable.
+JQ_TS='def ts: try (sub("\\.[0-9]+"; "") | (.[0:19] + "Z" | fromdateiso8601)
+  - (if .[19:] == "Z" then 0 else (.[19:20] + "1" | tonumber) * ((.[20:22] | tonumber) * 3600 + (.[23:25] | tonumber) * 60) end)) catch null;'
+
+RENOVATE_RERUN_HINT="Renovate stops updating modified branches; use Re-run in the web UI or the rebase checkbox"
+
+# resolve_pr <pr-number|branch> — a number passes through; a branch name maps to
+# its single open PR. Forgejo ignores ?head=, so the filter runs client-side.
+resolve_pr() {
+  local arg="${1:-}" nums="" n
+  [[ -n "$arg" ]] || { echo "pr-number or branch is required" >&2; die_usage; }
+  if [[ "$arg" =~ ^[0-9]+$ ]]; then printf '%s' "$arg"; return; fi
+  require curl
+  require jq
+  local page=1 resp
+  while :; do
+    resp=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls?state=open&limit=50&page=$page") \
+      || { echo "could not list open PRs to resolve branch '$arg'" >&2; exit 1; }
+    nums+=$(jq -r --arg b "$arg" '.[] | select(.head.ref == $b) | "\(.number)\n"' <<<"$resp")
+    [[ "$(jq 'length' <<<"$resp")" -ge 50 ]] || break
+    page=$((page + 1))
+  done
+  n=$(grep -c . <<<"$nums" || true)
+  nums=$(grep . <<<"$nums" || true)
+  [[ "$n" = 1 ]] || { echo "branch '$arg' has $n open PRs (need exactly 1)" >&2; exit 2; }
+  printf '%s' "$nums"
+}
+
+# failure_hints <pr-number> <head-ref> (reads a status payload on stdin)
+# For each failed check, say where the reason is. argocd-diff explains itself
+# in its PR comment (kubeconform, pluto, review gate) — but only when that
+# comment is from this run: one older than the latest `pending` of the
+# argocd-diff context (its start, also after a web-UI re-run of just that job)
+# is stale.
+# Job logs are only in the web UI.
+failure_hints() {
+  local pr="$1" head_ref="$2" payload ctx url comment body started stale
+  payload=$(cat)
+  jq -r '.statuses[]? | select((.status // .state) | IN("failure", "error")) | "\(.context)\t\(.target_url)"' <<<"$payload" \
+    | while IFS=$'\t' read -r ctx url; do
+        echo "--- $ctx failed" >&2
+        if [[ "$ctx" == *argocd-diff* ]]; then
+          comment=$(diff_comment "$pr")
+          if [[ -z "$comment" ]]; then
+            echo "no argocd-diff comment: the render itself failed — log: $FORGEJO_URL$url" >&2
+            continue
+          fi
+          # Status history, newest first: the first `pending` is this run's start.
+          started=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/commits/$(jq -r '.sha' <<<"$payload")/statuses?limit=50" \
+            | jq -r --arg c "$ctx" '[.[] | select(.context == $c and .status == "pending")][0].created_at // ""') || started=""
+          stale=$(jq -rn --arg c "$(jq -r '.updated_at' <<<"$comment")" --arg s "$started" \
+            "$JQ_TS"' ($c | ts) as $a | ($s | ts) as $b | if $a != null and $b != null then $a < $b else "unknown" end')
+          if [[ "$stale" = "true" ]]; then
+            echo "argocd-diff comment is from a previous run — this run failed before posting; log: $FORGEJO_URL$url" >&2
+            continue
+          elif [[ "$stale" = "unknown" ]]; then
+            echo "warning: could not compare comment time with the job start (comment vs '${started:-none}') — it may be stale" >&2
+          fi
+          body=$(jq -r '.body' <<<"$comment")
+          # Checks part of the comment only; the manifest diff follows the heading.
+          awk -v m="$DIFF_MARKER" '/^## Argo CD Diff Preview/ {exit} $0 != m' <<<"$body" >&2
+          if grep -q 'Blocked.*diff-reviewed' <<<"$body"; then
+            echo "review gate: read the diff ($0 diff-comment $pr); with the user's consent run" >&2
+            if [[ "$head_ref" == renovate/* ]]; then
+              echo "  $0 label $pr diff-reviewed; then re-run: $RENOVATE_RERUN_HINT" >&2
+            else
+              echo "  $0 label $pr diff-reviewed && $0 rerun $pr" >&2
+            fi
+          else
+            echo "no blocked check in the comment — job failed elsewhere; log (web UI only): $FORGEJO_URL$url" >&2
+          fi
+        else
+          echo "log (web UI only): $FORGEJO_URL$url" >&2
+        fi
+      done
 }
 
 # poll_loop <sha> <verbose:0|1>
@@ -282,8 +379,7 @@ cmd_open() {
 }
 
 cmd_status() {
-  local pr="${1:-}"
-  [[ "$pr" =~ ^[0-9]+$ ]] || { echo "pr-number must be a positive integer" >&2; die_usage; }
+  local pr; pr=$(resolve_pr "${1:-}") || exit $?
   require curl
   require jq
 
@@ -293,24 +389,22 @@ cmd_status() {
     echo "note: PR #$pr branch is behind $BASE_BRANCH — this only blocks the merge if block_on_outdated_branch is on (then use UPDATE_OUTDATED=1)" >&2
   fi
   local payload; payload=$(fetch_status "$sha")
-  # Combined .state is authoritative for Forgejo Actions (per-context entries
-  # stay null forever — Actions never POSTs back to the legacy statuses table).
+  # Per-context result lives in .status (.state stays null); combined .state is the fallback.
   printf '%s\n' "$payload" \
     | jq '
         (.state // "queued") as $combined |
-        {state, statuses: [.statuses[]? | {context, state: (.state // $combined)}] | sort_by(.context)}
+        {state, statuses: [.statuses[]? | {context, state: (.status // .state // $combined)}] | sort_by(.context)}
       '
 
   case "$(jq -r '.state' <<<"$payload")" in
     success)       exit 0 ;;
-    failure|error) exit 1 ;;
+    failure|error) failure_hints "$pr" "$(jq -r '.head.ref' <<<"$meta")" <<<"$payload"; exit 1 ;;
     *)             exit 2 ;;
   esac
 }
 
 cmd_monitor() {
-  local pr="${1:-}"
-  [[ "$pr" =~ ^[0-9]+$ ]] || { echo "pr-number must be a positive integer" >&2; die_usage; }
+  local pr; pr=$(resolve_pr "${1:-}") || exit $?
   require curl
   require jq
 
@@ -328,8 +422,7 @@ cmd_monitor() {
 }
 
 cmd_merge() {
-  local pr="${1:-}"
-  [[ "$pr" =~ ^[0-9]+$ ]] || { echo "pr-number must be a positive integer" >&2; die_usage; }
+  local pr; pr=$(resolve_pr "${1:-}") || exit $?
   require curl
   require jq
 
@@ -420,6 +513,69 @@ cmd_merge() {
   cleanup_local_branch "$head_ref"
 }
 
+cmd_label() {
+  local pr name="${2:-}"
+  pr=$(resolve_pr "${1:-}") || exit $?
+  [[ -n "$name" ]] || { echo "label name is required" >&2; die_usage; }
+  require curl
+  require jq
+
+  local id
+  id=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/labels?limit=50" \
+    | jq -r --arg n "$name" '.[] | select(.name == $n) | .id')
+  [[ -n "$id" ]] || { echo "repo has no label named '$name'" >&2; exit 2; }
+
+  forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/issues/$pr/labels" "{\"labels\": [$id]}" \
+    | jq -r --arg pr "$pr" '"PR #\($pr) labels: " + (map(.name) | join(", "))'
+}
+
+cmd_diff_comment() {
+  local pr; pr=$(resolve_pr "${1:-}") || exit $?
+  require curl
+  require jq
+
+  local comment; comment=$(diff_comment "$pr")
+  [[ -n "$comment" ]] || { echo "PR #$pr has no argocd-diff comment (the job did not get to post one)" >&2; exit 1; }
+  jq -r '"updated_at: \(.updated_at)\n\(.body)"' <<<"$comment"
+}
+
+# Forgejo has no API to re-run a job, so a new head sha is the only re-trigger:
+# an empty commit and a plain push (PRs are squash-merged, the commit vanishes).
+cmd_rerun() {
+  local pr; pr=$(resolve_pr "${1:-}") || exit $?
+  require curl
+  require jq
+  require git
+
+  local meta head_ref head_sha current
+  meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
+  [[ "$(jq -r '.state' <<<"$meta")" = "open" ]] || { echo "PR #$pr is not open — nothing to re-run" >&2; exit 1; }
+  head_ref=$(jq -r '.head.ref' <<<"$meta")
+  head_sha=$(jq -r '.head.sha' <<<"$meta")
+  if [[ "$head_ref" == renovate/* ]]; then
+    echo "refusing: $head_ref is a Renovate branch — $RENOVATE_RERUN_HINT" >&2
+    exit 1
+  fi
+  current=$(git symbolic-ref --short -q HEAD || echo "")
+  if [[ "$current" != "$head_ref" ]]; then
+    echo "refusing: PR #$pr head is '$head_ref', checked out is '${current:-detached HEAD}' — git checkout $head_ref first" >&2
+    exit 1
+  fi
+  if [[ "$(git rev-parse HEAD)" != "$head_sha" ]]; then
+    echo "refusing: local $head_ref is at $(git rev-parse --short HEAD), PR head is ${head_sha:0:8} — push or pull first" >&2
+    exit 1
+  fi
+  if ! git diff --cached --quiet; then
+    echo "refusing: staged changes would go into the re-trigger commit — commit or unstage them first" >&2
+    exit 1
+  fi
+
+  # Pre-commit hooks run here as on any commit.
+  git commit --allow-empty --quiet -m 'ci: re-trigger checks'
+  git push --quiet origin "$head_ref"
+  echo "PR #$pr: CI re-triggered ($(git rev-parse --short HEAD)); wait with: $0 monitor $pr" >&2
+}
+
 cmd_full() {
   local branch="${1:-}"
   [[ -n "$branch" ]] || die_usage
@@ -443,6 +599,9 @@ case "${1:-}" in
   monitor)        shift; cmd_monitor "$@" ;;
   merge)          shift; cmd_merge   "$@" ;;
   full)           shift; cmd_full    "$@" ;;
+  label)          shift; cmd_label   "$@" ;;
+  diff-comment)   shift; cmd_diff_comment "$@" ;;
+  rerun)          shift; cmd_rerun   "$@" ;;
   help|-h|--help) usage; exit 0 ;;
   *)              die_usage ;;
 esac

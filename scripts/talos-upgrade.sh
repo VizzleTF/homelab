@@ -40,7 +40,9 @@
 set -euo pipefail
 
 TF_DIR="${TF_DIR:-terraform_talos}"
-INSTALLER_REGISTRY="${INSTALLER_REGISTRY:-factory.talos.dev/installer}"
+# Talos v1.14 renamed the bare-metal installer to metal-installer; nodes and
+# tuppr already use it, so a plain `installer/` image would drift from them.
+INSTALLER_REGISTRY="${INSTALLER_REGISTRY:-factory.talos.dev/metal-installer}"
 
 # How long to wait for a node to come back Ready after upgrade.
 NODE_READY_TIMEOUT="${NODE_READY_TIMEOUT:-600}"   # seconds
