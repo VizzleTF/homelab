@@ -10,25 +10,21 @@
 # Значения секретов передаются из bao в bw через переменные окружения и на
 # экран не выводятся: скрипт печатает только имена записей и статус.
 #
-# Два клиента, выбор автоматический:
-#   rbw — предпочтительный. Официальный bw CLI 2026.8 не открывает хранилище
-#         Vaultwarden 1.37.2: падает с "Master password unlock data is required
-#         is null or undefined" (клиент ждёт поля новой схемы, сервер их не
-#         отдаёт). rbw — независимая реализация, этой зависимости не имеет.
-#   bw  — используется, если задан BW_SESSION и rbw заблокирован, или явно
-#         через DR_CLIENT=bw.
-#
-# С Vaultwarden 1.37.4 запись через rbw 1.15.0 не работает: после фикса
-# GHSA-7ccc-c43j-4p36 сервер требует в POST /api/ciphers поле `encryptedFor`,
-# rbw его не шлёт и получает 422. Чтение через rbw работает. Для записи:
-#   DR_CLIENT=bw BW_SESSION=$(bw unlock --raw) scripts/dr-pack/to-bitwarden.sh
+# Два клиента:
+#   bw  — пишет. С Vaultwarden 1.37.4 только он: после фикса
+#         GHSA-7ccc-c43j-4p36 сервер требует в POST /api/ciphers поле
+#         `encryptedFor`, которое шлёт официальный CLI. Если `bw unlock`
+#         отвечает "Master password unlock data is required is null or
+#         undefined" — устарело закэшированное состояние: `bw logout && bw login`.
+#   rbw — только читает: rbw 1.15.0 поле не шлёт и получает 422 на add/edit.
+#         Выбирается по умолчанию, если разблокирован; DR_CLIENT=bw — явно bw.
 #
 # Usage:
-#   rbw login && rbw unlock          # мастер-пароль вводите сами, в своём терминале
-#   scripts/dr-pack/to-bitwarden.sh [--dry-run]
+#   # в своём терминале, не под `!` в Claude Code — bw unlock нужен TTY:
+#   DR_CLIENT=bw BW_SESSION=$(bw unlock --raw) scripts/dr-pack/to-bitwarden.sh [--dry-run]
 #
 # Env:
-#   BW_FOLDER   имя папки в Vaultwarden (default: HomeLab DR)
+#   BW_FOLDER   имя папки в Vaultwarden (default: Infra / Homelab DR)
 #   BAO_MOUNT   KV-mount OpenBao (default: home)
 #   BAO_PREFIX  префикс путей (default: homelab/k8s)
 #   BW_SESSION  сессия официального CLI (альтернатива rbw)
@@ -56,13 +52,12 @@ if [[ "$DRY_RUN" = "0" ]]; then
     bw sync --quiet 2>/dev/null || true
   else
     cat >&2 <<'MSG'
-Хранилище заблокировано. Разблокируйте сами, в своём терминале:
+Нет сессии клиента. Запустите в своём терминале (bw unlock нужен TTY):
 
-  rbw login && rbw unlock          # предпочтительно
-  # или, если пользуетесь официальным CLI:
-  export BW_SESSION=$(bw unlock --raw)
+  DR_CLIENT=bw BW_SESSION=$(bw unlock --raw) scripts/dr-pack/to-bitwarden.sh
 
-Затем запустите скрипт снова. Мастер-пароль через автоматику не проходит.
+rbw с Vaultwarden 1.37.4+ записывать не может (422, нет encryptedFor).
+"Master password unlock data is required" от bw лечится `bw logout && bw login`.
 MSG
     exit 1
   fi
