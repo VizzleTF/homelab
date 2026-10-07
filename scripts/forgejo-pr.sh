@@ -429,7 +429,9 @@ cmd_merge() {
   local meta merged head_ref
   meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
   merged=$(jq -r '.merged' <<<"$meta")
-  head_ref=$(jq -r '.head.ref' <<<"$meta")
+  # Once the head branch is deleted after merge, Forgejo reports .head.ref as
+  # refs/pull/<n>/head; .head.label keeps the branch name (no forks here).
+  head_ref=$(jq -r 'if (.head.ref | startswith("refs/pull/")) then .head.label else .head.ref end' <<<"$meta")
   if [[ "$merged" = "true" ]]; then
     echo "PR #$pr already merged — skipping merge API call" >&2
     printf '%s\n' "$meta" \
