@@ -639,14 +639,6 @@ homelab-common:
         username: "authentik"
         password: "{{ .db_password }}"
 
-    - name: cnpg-s3-backup
-      vaultPath: shared/s3-cnpg-backup
-      data:
-        - secretKey: ACCESS_KEY_ID
-          property: ACCESS_KEY_ID
-        - secretKey: ACCESS_SECRET_KEY
-          property: ACCESS_SECRET_KEY
-
 
   httpRoutes:
     - name: authentik

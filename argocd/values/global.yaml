@@ -34,7 +34,6 @@ global:
         openwrt: [openwrt]
       namespaces:
         argocd: [valkey]
-        authentik: [cnpg-backup]
         backup-drill: [backup]
         cleanbot: [backup]
         cnpg: [s3-ovh, cnpg-backup, db-roles]
