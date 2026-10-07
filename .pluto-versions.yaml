@@ -1,4 +1,5 @@
-# Extra deprecation rules for pluto (`pluto -f`), used by the argocd-diff CI job.
+# Extra deprecation rules for pluto (`pluto -f`), used by the argocd-diff CI job
+# and by scripts/kubeconform-validate.sh (raw manifests).
 # Pluto ships rules only for core Kubernetes, cert-manager and istio. Third-party
 # APIs we use go here. The component version comes from the CLI
 # (`-t cilium=<targetRevision from argocd/infra/cilium/config.yaml>`), so it never

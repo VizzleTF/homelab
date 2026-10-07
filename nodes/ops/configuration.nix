@@ -81,6 +81,17 @@
 
   security.sudo.wheelNeedsPassword = false;
 
+  # /root/ops is a local git repo (the flake source for nixos-rebuild); without
+  # an identity an ad-hoc `git commit` there fails with "Author identity unknown".
+  # Same identity the deploy skill passes with -c and that the history already uses.
+  programs.git = {
+    enable = true;
+    config.user = {
+      name = "ops";
+      email = "ops@example.com";
+    };
+  };
+
   # DR workstation: scripts/dr/ and the recovery runbooks are driven from a
   # shell, and until now that shell had to be a laptop that happened to have
   # the right tools installed. The node is the one machine guaranteed to be up

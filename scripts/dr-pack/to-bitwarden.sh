@@ -31,6 +31,7 @@
 #   DR_CLIENT   rbw | bw — выбрать клиент явно (по умолчанию rbw, если разблокирован)
 
 set -euo pipefail
+export BAO_ADDR="${BAO_ADDR:-https://openbao.example.com}"
 
 DRY_RUN=0
 [[ "${1:-}" = "--dry-run" ]] && DRY_RUN=1

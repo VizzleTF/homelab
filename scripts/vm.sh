@@ -2,23 +2,31 @@
 # Wrapper for the VictoriaMetrics stack (vmsingle/vmagent/vmalert/
 # vmalertmanager/grafana in the `victoria-metrics` namespace).
 #
-# All actions hit each component's HTTP API via `kubectl exec wget` and
-# parse the JSON locally with jq. Pod lookup always filters --field-selector
-# status.phase=Running because deployments rotate replicas and the stale
-# Succeeded pods are returned first by the default selector.
+# All actions hit each component's HTTP API via `kubectl exec wget` (logsql
+# and silence delete: apiserver service proxy, since the VictoriaLogs image
+# has no wget and busybox wget cannot DELETE) and parse the JSON locally
+# with jq; no port-forward anywhere. Pod lookup always filters
+# --field-selector status.phase=Running because deployments rotate replicas
+# and the stale Succeeded pods are returned first by the default selector.
 #
 # Subcommands:
 #   status                       components health + PVC + top metrics +
 #                                vmagent up/down + vmalert firing count
 #   alerts                       firing + pending alerts from vmalert,
 #                                grouped by severity, with description
-#   query    <promql>            run /api/v1/query against vmsingle
+#   query    <promql> [--limit N] [--raw]   /api/v1/query against vmsingle
+#   range    <promql> [--start 1h] [--end now] [--step 5m] [--limit N] [--raw]
+#                                /api/v1/query_range against vmsingle
+#   logsql   <query> [--limit 100] [--start 1h]   LogsQL against VictoriaLogs
+#                                (/select/logsql/query via apiserver service
+#                                proxy), JSONL output
 #   rules    [errors]            list rule groups; `errors` filters to
 #                                rules with lastError
 #   targets  [job-filter]        scrape targets from vmagent; optional
 #                                substring filter on job name
 #   silence  <alertname> [dur]   POST /api/v2/silences to alertmanager,
 #                                default duration 2h
+#   silence  delete <silence-id> DELETE /api/v2/silence/<id> (service proxy)
 #   logs     <component> [--tail N]  kubectl logs from the named component
 #                                (vmsingle|vmagent|vmalert|alertmanager|
 #                                 grafana)
@@ -30,26 +38,46 @@ set -euo pipefail
 VM_NS="${VM_NS:-victoria-metrics}"
 AM_POD="${AM_POD:-vmalertmanager-victoria-metrics-k8s-stack-0}"
 AM_CONTAINER="${AM_CONTAINER:-alertmanager}"
+VL_NS="${VL_NS:-victoria-logs}"
+VL_SVC="${VL_SVC:-victoria-logs-server:9428}"
+AM_SVC="${AM_SVC:-vmalertmanager-victoria-metrics-k8s-stack:9093}"
 
 usage() {
   cat >&2 <<EOF
 Usage:
   $0 status
   $0 alerts
-  $0 query    <promql>
+  $0 query    <promql> [--limit N] [--raw]  (default limit 20, 0 = all; --raw = API JSON)
+  $0 range    <promql> [--start 1h] [--end now] [--step 5m] [--limit N] [--raw]
+                                          (times: 24h = ago, RFC3339 or unix)
+  $0 logsql   <logsql> [--limit 100] [--start 1h]   (VictoriaLogs, JSONL; limit >= 1)
   $0 rules    [errors]
   $0 targets  [job-filter]
   $0 silence  <alertname> [duration]      (default duration: 2h)
+  $0 silence  delete <silence-id>
   $0 logs     <component> [--tail N]      (component: vmsingle|vmagent|vmalert|alertmanager|grafana)
 
 Env:
   VM_NS          VictoriaMetrics namespace (default: $VM_NS)
   AM_POD         Alertmanager pod (default: $AM_POD)
   AM_CONTAINER   Alertmanager container (default: $AM_CONTAINER)
+  VL_NS          VictoriaLogs namespace (default: $VL_NS)
+  VL_SVC         VictoriaLogs service:port (default: $VL_SVC)
+  AM_SVC         Alertmanager service:port (default: $AM_SVC)
 EOF
 }
 
 die_usage() { usage; exit 2; }
+unknown_arg() { echo "unknown arg: $1" >&2; die_usage; }
+
+# uri <string> → percent-encoded (RFC3339 "+03:00" must not become a space)
+uri() { jq -rn --arg q "$1" '$q | @uri'; }
+
+# need_int <flag> <value> [min] → exit 2 unless value is an integer >= min
+need_int() {
+  [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge "${3:-0}" ] \
+    || { echo "$1 needs an integer >= ${3:-0}, got: $2" >&2; exit 2; }
+}
 
 require() {
   command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1" >&2; exit 1; }
@@ -133,20 +161,92 @@ cmd_alerts() {
         ($pending[] | "  [\(.labels.severity // "?")] \(.name // "?") ns=\(.labels.namespace // "?")")'
 }
 
+# vm_get <path?query> → raw JSON from vmsingle's HTTP API
+vm_get() {
+  local vmsingle; vmsingle=$(pod_for vmsingle)
+  kubectl -n "$VM_NS" exec "$vmsingle" -- wget -T 60 -qO- "http://127.0.0.1:8428$1" \
+    || { echo "vmsingle rejected query (bad PromQL?)" >&2; exit 1; }
+}
+
+# print_series <limit> <raw> — format /api/v1/query{,_range} JSON from stdin.
+# limit 0 = all series; raw=1 prints the API JSON untouched.
+print_series() {
+  if [ "$2" = 1 ]; then cat; return; fi
+  jq -r --argjson n "$1" '(.data.result // []) as $r
+    | (if $n > 0 then $r[:$n] else $r end) as $shown
+    | def m: "\(.metric.__name__ // ""){\(.metric | del(.__name__) | to_entries | map("\(.key)=\(.value)") | join(", "))}";
+      "Status: \(.status) | Results: \($r | length)",
+      ($shown[] | if .values then "  \(m)", (.values[] | "    \(.[0] | floor | todate) \(.[1])")
+                  else "  \(m) = \(.value[1])" end),
+      if ($r | length) > ($shown | length) then "  ... and \(($r | length) - ($shown | length)) more (--limit 0 = all)" else empty end'
+}
+
+# rel_time <24h|RFC3339|unix> → VM-accepted time arg (bare duration = ago)
+rel_time() {
+  if [[ "$1" =~ ^[0-9]+[smhdw]$ ]]; then printf -- '-%s' "$1"; else printf '%s' "$1"; fi
+}
+
 cmd_query() {
-  local promql="${1:-}"
+  local promql="" limit=20 raw=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --limit) limit="${2:?--limit requires N}"; shift 2 ;;
+      --raw)   raw=1; shift ;;
+      --*) unknown_arg "$1" ;;
+      *) [ -z "$promql" ] || unknown_arg "$1"; promql="$1"; shift ;;
+    esac
+  done
   [ -n "$promql" ] || { echo "promql query required" >&2; die_usage; }
+  need_int --limit "$limit"
   require kubectl
   require jq
-  local vmsingle; vmsingle=$(pod_for vmsingle)
-  local encoded
-  encoded=$(jq -rn --arg q "$promql" '$q | @uri')
-  kubectl -n "$VM_NS" exec "$vmsingle" -- \
-    wget -qO- "http://127.0.0.1:8428/api/v1/query?query=${encoded}" 2>/dev/null \
-    | jq -r '(.data.result // []) as $r
-      | "Status: \(.status) | Results: \($r | length)",
-        ($r[:20][] | "  \(.metric.__name__ // ""){\(.metric | del(.__name__) | to_entries | map("\(.key)=\(.value)") | join(", "))} = \(.value[1])"),
-        if ($r | length) > 20 then "  ... and \(($r | length) - 20) more" else empty end'
+  local json; json=$(vm_get "/api/v1/query?query=$(uri "$promql")")
+  print_series "$limit" "$raw" <<<"$json"
+}
+
+cmd_range() {
+  local promql="" start=1h end="" step=5m limit=20 raw=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --start) start="${2:?--start requires a time}"; shift 2 ;;
+      --end)   end="${2:?--end requires a time}"; shift 2 ;;
+      --step)  step="${2:?--step requires a duration}"; shift 2 ;;
+      --limit) limit="${2:?--limit requires N}"; shift 2 ;;
+      --raw)   raw=1; shift ;;
+      --*) unknown_arg "$1" ;;
+      *) [ -z "$promql" ] || unknown_arg "$1"; promql="$1"; shift ;;
+    esac
+  done
+  [ -n "$promql" ] || { echo "promql query required" >&2; die_usage; }
+  need_int --limit "$limit"
+  require kubectl
+  require jq
+  local q json
+  q="query=$(uri "$promql")&start=$(uri "$(rel_time "$start")")&step=$(uri "$step")"
+  [ -z "$end" ] || [ "$end" = now ] || q+="&end=$(uri "$(rel_time "$end")")"
+  json=$(vm_get "/api/v1/query_range?$q")
+  print_series "$limit" "$raw" <<<"$json"
+}
+
+# VictoriaLogs image has no wget → go through the apiserver service proxy.
+cmd_logsql() {
+  local logsql="" limit=100 start=1h
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --limit) limit="${2:?--limit requires N}"; shift 2 ;;
+      --start) start="${2:?--start requires a time}"; shift 2 ;;
+      --*) unknown_arg "$1" ;;
+      *) [ -z "$logsql" ] || unknown_arg "$1"; logsql="$1"; shift ;;
+    esac
+  done
+  [ -n "$logsql" ] || { echo "LogsQL query required" >&2; die_usage; }
+  # VictoriaLogs treats limit=0 as unlimited (MBs per minute) — require >= 1.
+  need_int --limit "$limit" 1
+  require kubectl
+  require jq
+  kubectl get --request-timeout=60s --raw \
+    "/api/v1/namespaces/$VL_NS/services/$VL_SVC/proxy/select/logsql/query?query=$(uri "$logsql")&limit=$(uri "$limit")&start=$(uri "$start")" \
+    || { echo "VictoriaLogs rejected query (bad LogsQL?)" >&2; exit 1; }
 }
 
 cmd_rules() {
@@ -184,7 +284,20 @@ cmd_targets() {
         ($up | group_by(.labels.job // "?")[] | "  \(.[0].labels.job // "?"): \(length) target(s)")'
 }
 
+# DELETE via the apiserver service proxy: busybox wget in the pod cannot.
+cmd_silence_delete() {
+  local id="${1:-}"
+  [[ "$id" =~ ^[0-9a-f-]{36}$ ]] || { echo "silence id (UUID) required, got: ${id:-<empty>}" >&2; die_usage; }
+  [ $# -eq 1 ] || unknown_arg "$2"
+  require kubectl
+  kubectl delete --request-timeout=60s --raw \
+    "/api/v1/namespaces/$VM_NS/services/$AM_SVC/proxy/api/v2/silence/$id" \
+    || { echo "alertmanager rejected delete (unknown silence id?)" >&2; exit 1; }
+  echo "silence $id expired"
+}
+
 cmd_silence() {
+  [ "${1:-}" = delete ] && { shift; cmd_silence_delete "$@"; return; }
   local alertname="${1:-}" duration="${2:-2h}"
   [ -n "$alertname" ] || { echo "alertname required" >&2; die_usage; }
   case "$duration" in
@@ -247,6 +360,8 @@ case "${1:-}" in
   status)  shift; cmd_status  "$@" ;;
   alerts)  shift; cmd_alerts  "$@" ;;
   query)   shift; cmd_query   "$@" ;;
+  range)   shift; cmd_range   "$@" ;;
+  logsql)  shift; cmd_logsql  "$@" ;;
   rules)   shift; cmd_rules   "$@" ;;
   targets) shift; cmd_targets "$@" ;;
   silence) shift; cmd_silence "$@" ;;

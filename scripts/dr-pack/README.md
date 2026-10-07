@@ -33,6 +33,8 @@ bash scripts/dr-pack/to-bitwarden.sh [--dry-run]
 
 `build.sh` and `to-bitwarden.sh` have no executable bit, hence `bash`.
 
+Unlock the password manager in a separate WSL terminal, not via `!` in Claude Code: `rbw unlock` needs pinentry on a real TTY (`pinentry error: Inappropriate ioctl for device`), and `bw unlock` needs an interactive readline (`ERR_USE_AFTER_CLOSE`). The rbw agent then serves the Claude session too; for `bw`, export `BW_SESSION` there and run the script from that terminal.
+
 `verify.sh` checks that the four files exist, that the Shamir bundle decrypts with 3 keys and a root token, and that the Raft snapshot is over 1 KB and under 7 days old. With `rbw` or `bw` unlocked it also checks the Vaultwarden entries `08 - Restic repo passwords (backup v2)`, `09 - S3 keys backup v2 (restic-apps, snapshots, OVH)` and `11 - Forgejo instance secrets`. `to-bitwarden.sh` writes those three plus `10 - DR pack passphrase (off-site)` into the `Infra / Homelab DR` folder. Entry 11 holds Forgejo's `SECRET_KEY` and the other instance secrets: without them a dump restored on a new ops node cannot decrypt Authentik client secrets, 2FA or mirror passwords, and OpenBao is not up yet in a full loss.
 
 `build.sh` requires:

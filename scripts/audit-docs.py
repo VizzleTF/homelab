@@ -4,11 +4,12 @@
 Covers what a script can verify without judgement: Obsidian registries and
 cheatsheets vs argocd/{apps,infra,standalone}, wave/namespace in the registry
 tables and cheatsheet headers vs config.yaml, pinned chart versions in
-cheatsheets, broken wikilinks, CLAUDE.md counts and skills table, and repo
+cheatsheets, broken wikilinks, the skills index vs skill folders, and repo
 paths in backticks that do not exist. Facts in prose (commands, runbook steps)
 need a reviewer: see the auditing-docs skill.
 
 Usage: scripts/audit-docs.py [--vault obsidian]   (run from the repo root)
+Without the vault (CI) only the skills index and repo-path checks run.
 Output: `path: level: message`. Exit 1 on any error.
 """
 import argparse
@@ -28,6 +29,8 @@ APPS_REG = VAULT / "112 ArgoCD/Apps/Applications.md"
 INFRA_REG = VAULT / "112 ArgoCD/Infrastructure/Infrastructure.md"
 APPS_CS = VAULT / "112 ArgoCD/Apps/all"
 INFRA_CS = VAULT / "112 ArgoCD/Infrastructure/all"
+# CI has no vault (gitignored symlink): run only the repo-side checks there.
+HAVE_VAULT = VAULT.is_dir()
 
 # Infra folders documented under another cheatsheet name.
 CHEATSHEET_ALIAS = {
@@ -95,7 +98,7 @@ for f, name in STANDALONE.items():
     infra[name] = {"wave": str(wave), "namespace": doc["spec"]["destination"]["namespace"]}
 
 # 1-2. Registries vs code, wave/namespace columns.
-for reg, configs in ((APPS_REG, apps), (INFRA_REG, infra)):
+for reg, configs in ((APPS_REG, apps), (INFRA_REG, infra)) if HAVE_VAULT else ():
     seen = set()
     for header, row, raw in table_rows(reg.read_text()):
         if "name" not in header or not row[0]:
@@ -115,7 +118,7 @@ for reg, configs in ((APPS_REG, apps), (INFRA_REG, infra)):
         report(reg, "error", f"'{name}' exists in argocd/ but has no registry row")
 
 # 1. Cheatsheets vs folders; cheatsheet header Namespace / Sync-wave.
-for cs_dir, configs in ((APPS_CS, apps), (INFRA_CS, infra)):
+for cs_dir, configs in ((APPS_CS, apps), (INFRA_CS, infra)) if HAVE_VAULT else ():
     expected = {}
     for name in configs:
         expected.setdefault(CHEATSHEET_ALIAS.get(name, name), name)
@@ -146,33 +149,25 @@ PLACEHOLDER_LINKS = {"Memory page"}  # .claude/skills/README.md "adding a skill"
 notes = {p.stem for p in VAULT.rglob("*.md")} | {p.stem for p in MEMORY.glob("*.md")} | PLACEHOLDER_LINKS
 docs = list(VAULT.rglob("*.md")) + [REPO / "CLAUDE.md"] + list((REPO / ".claude").rglob("*.md"))
 code_span = re.compile(r"```.*?```|`[^`\n]*`", re.S)
-for doc in docs:
+for doc in docs if HAVE_VAULT else ():
     text = code_span.sub("", doc.read_text())
     for target in re.findall(r"\[\[([^\]|#]+)", text):
         t = target.strip()
         if t and t not in notes and not (t.startswith(("feedback_", "reference_", "project_")) and not MEMORY.exists()):
             report(doc, "error", f"broken wikilink [[{t}]]")
 
-# 5. CLAUDE.md counts and skills table.
-claude = (REPO / "CLAUDE.md").read_text()
-counts = {"infra-appset": len(infra) - len(STANDALONE), "apps-appset": len(apps)}
-for which, real in counts.items():
-    m = re.search(rf"\*\*(\d+) via `{which}\.yaml`\*\*", claude)
-    if m and int(m.group(1)) != real:
-        report("CLAUDE.md", "error", f"says {m.group(1)} via {which}, real {real}")
-m = re.search(r"\*\*(\d+) standalone infra\*\*", claude)
-if m and int(m.group(1)) != len(STANDALONE):
-    report("CLAUDE.md", "error", f"says {m.group(1)} standalone, real {len(STANDALONE)}")
-sec = claude.split("### Project Skills", 1)[-1].split("\n## ", 1)[0]
-listed = set(re.findall(r"^\| `([a-z0-9-]+)` \|", sec, re.M))
+# 5. Skills index (.claude/skills/README.md) vs skill folders.
+index = (REPO / ".claude/skills/README.md").read_text()
+listed = set(re.findall(r"^\| \[`([a-z0-9-]+)`\]", index, re.M))
 dirs = {p.name for p in (REPO / ".claude/skills").iterdir() if (p / "SKILL.md").exists()}
 for s in sorted(dirs - listed):
-    report("CLAUDE.md", "error", f"skill '{s}' missing from the Project Skills table")
+    report(".claude/skills/README.md", "error", f"skill '{s}' missing from the index table")
 for s in sorted(listed - dirs):
-    report("CLAUDE.md", "error", f"Project Skills table lists '{s}', no such skill")
+    report(".claude/skills/README.md", "error", f"index lists '{s}', no such skill")
 
 # 6. Repo paths in backticks that do not exist.
-PATH_RE = re.compile(r"`((?:argocd|scripts|charts|nodes|terraform_talos|\.claude)/[^`\s]*)`")
+# The path is the first word; arguments may follow inside the same backticks.
+PATH_RE = re.compile(r"`((?:argocd|scripts|charts|nodes|terraform_talos|\.claude)/[^`\s]*)(?:\s[^`]*)?`")
 ARGOCD_TOP = {p.name for p in (REPO / "argocd").iterdir()}
 for doc in docs:
     for line in doc.read_text().splitlines():
@@ -186,8 +181,12 @@ for doc in docs:
             if parts[0] == "argocd" and len(parts) > 1 and parts[1] not in ARGOCD_TOP:
                 continue  # an OpenBao path (home/homelab/k8s/argocd/...), not a repo path
             if not (REPO / p).exists():
-                report(doc, "warning", f"path `{p}` does not exist")
+                # CLAUDE.md is always loaded: a dead path there is an error.
+                level = "error" if doc.name == "CLAUDE.md" and doc.parent == REPO else "warning"
+                report(doc, level, f"path `{p}` does not exist")
 
+if not HAVE_VAULT:
+    report(VAULT, "warning", "vault not found: registry, cheatsheet and wikilink checks skipped")
 for path, level, msg in sorted(findings):
     print(f"{path}: {level}: {msg}")
 errors = sum(1 for f in findings if f[1] == "error")

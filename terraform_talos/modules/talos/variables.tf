@@ -25,7 +25,7 @@ variable "install_image" {
 }
 
 variable "install_platform" {
-  description = "Talos image factory platform. `metal` for bare-metal (ISO/PXE boot media); the installer URL itself is platform-agnostic for the running OS."
+  description = "Talos image factory platform. `metal` for bare-metal (ISO/PXE boot media); also selects the installer image name (`metal-installer` since Talos v1.14)."
   type        = string
   default     = "metal"
 }

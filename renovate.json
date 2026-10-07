@@ -154,7 +154,7 @@
       ]
     },
     {
-      "description": "Образы/бинарники/версии через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы. Покрывает argocd/** (talosctl/installer/kubelet docker, talos github-releases) и terraform_talos/configs/** (Talos OS / Kubernetes bootstrap-версии в nodes.yaml). И .forgejo/workflows/** — пины инструментов job-а argocd-diff (argocd-diff-preview, pluto, yq, docker CLI). И .devcontainer/Dockerfile — ARG-пины CLI.",
+      "description": "Образы/бинарники/версии через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы. Покрывает argocd/** (talosctl/installer/kubelet docker, talos github-releases) и terraform_talos/configs/** (Talos OS / Kubernetes bootstrap-версии в nodes.yaml). И .forgejo/workflows/** — пины инструментов job-а argocd-diff (argocd-diff-preview, docker CLI; pluto/yq/kubeconform читаются из .mise.toml). И .devcontainer/Dockerfile — ARG-пины CLI.",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",

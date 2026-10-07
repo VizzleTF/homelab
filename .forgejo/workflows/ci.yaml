@@ -31,6 +31,10 @@ jobs:
         # Checkable rules of Anthropic's skill authoring best practices:
         # frontmatter limits, third-person description, body size, one-level references.
         run: python3 scripts/lint-skills.py
+      - name: Audit docs (repo side)
+        # The Obsidian vault is not in git, so only the skills index and the
+        # repo paths cited in CLAUDE.md (error) / .claude (warning) are checked here.
+        run: python3 scripts/audit-docs.py
 
   helm-lint:
     if: github.event_name != 'push'
@@ -51,7 +55,8 @@ jobs:
 
   kubeconform:
     # Pre-merge gate. Schema-validates homelab-common rendered from the local
-    # charts/ source (raw manifests are covered by argocd-diff) against core + CRD
+    # charts/ source (raw manifests are covered by argocd-diff; here they only get
+    # a pluto deprecated-API pass) against core + CRD
     # schemas — catches bad apiVersion / wrong CRD fields (ESO v1 vs v1beta1)
     # that helm-lint's values-schema check cannot see. kubeconform version is
     # read from .mise.toml (single source of truth, Renovate-tracked).
@@ -80,6 +85,19 @@ jobs:
           tar -xzf /tmp/kubeconform-linux-amd64.tar.gz -C /tmp kubeconform
           install -m 755 /tmp/kubeconform /usr/local/bin/kubeconform
           kubeconform -v
+      - name: Install pluto
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/^pluto[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .mise.toml)
+          [ -n "$VERSION" ] || { echo "::error::pluto version not found in .mise.toml"; exit 1; }
+          P="pluto_${VERSION}_linux_amd64.tar.gz"
+          BASE="https://github.com/FairwindsOps/pluto/releases/download/v${VERSION}"
+          curl -fsSL -o "/tmp/${P}" "${BASE}/${P}"
+          curl -fsSL -o /tmp/pluto-checksums.txt "${BASE}/checksums.txt"
+          ( cd /tmp && grep " ${P}\$" pluto-checksums.txt | sha256sum -c - )
+          tar -xzf "/tmp/${P}" -C /tmp pluto
+          install -m 755 /tmp/pluto /usr/local/bin/pluto
+          pluto version
       - name: Validate manifests
         run: scripts/kubeconform-validate.sh
 
@@ -159,10 +177,6 @@ jobs:
     env:
       # renovate: datasource=docker depName=dagandersen/argocd-diff-preview
       DIFF_PREVIEW_VERSION: v0.2.15
-      # renovate: datasource=github-releases depName=FairwindsOps/pluto
-      PLUTO_VERSION: v5.24.4
-      # renovate: datasource=github-releases depName=mikefarah/yq
-      YQ_VERSION: v4.54.1
       # renovate: datasource=docker depName=docker
       DOCKER_CLI_VERSION: 29.8.2
       PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -179,6 +193,10 @@ jobs:
       - name: Install docker CLI, yq, pluto, kubeconform
         run: |
           set -euo pipefail
+          # pluto/yq/kubeconform versions: target-branch/.mise.toml (Renovate-tracked).
+          mise_pin() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" target-branch/.mise.toml; }
+          YQ_VERSION=v$(mise_pin yq)
+          PLUTO_VERSION=v$(mise_pin pluto)
           curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" \
             | tar -xz -C /tmp docker/docker
           install -m 755 /tmp/docker/docker /usr/local/bin/docker
