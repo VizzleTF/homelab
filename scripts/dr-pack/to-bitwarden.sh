@@ -15,7 +15,13 @@
 #         Vaultwarden 1.37.2: падает с "Master password unlock data is required
 #         is null or undefined" (клиент ждёт поля новой схемы, сервер их не
 #         отдаёт). rbw — независимая реализация, этой зависимости не имеет.
-#   bw  — используется, если задан BW_SESSION и rbw заблокирован.
+#   bw  — используется, если задан BW_SESSION и rbw заблокирован, или явно
+#         через DR_CLIENT=bw.
+#
+# С Vaultwarden 1.37.4 запись через rbw 1.15.0 не работает: после фикса
+# GHSA-7ccc-c43j-4p36 сервер требует в POST /api/ciphers поле `encryptedFor`,
+# rbw его не шлёт и получает 422. Чтение через rbw работает. Для записи:
+#   DR_CLIENT=bw BW_SESSION=$(bw unlock --raw) scripts/dr-pack/to-bitwarden.sh
 #
 # Usage:
 #   rbw login && rbw unlock          # мастер-пароль вводите сами, в своём терминале
@@ -26,6 +32,7 @@
 #   BAO_MOUNT   KV-mount OpenBao (default: home)
 #   BAO_PREFIX  префикс путей (default: homelab/k8s)
 #   BW_SESSION  сессия официального CLI (альтернатива rbw)
+#   DR_CLIENT   rbw | bw — выбрать клиент явно (по умолчанию rbw, если разблокирован)
 
 set -euo pipefail
 
@@ -40,7 +47,7 @@ command -v bao >/dev/null 2>&1 || { echo "missing dependency: bao" >&2; exit 1; 
 
 CLIENT=""
 if [[ "$DRY_RUN" = "0" ]]; then
-  if command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then
+  if [[ "${DR_CLIENT:-}" != "bw" ]] && command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then
     CLIENT=rbw
     rbw sync >/dev/null 2>&1 || true
   elif [[ -n "${BW_SESSION:-}" ]] && command -v bw >/dev/null 2>&1; then
@@ -126,11 +133,14 @@ upsert() {
     # создавалась пустой. Here-string, а не пайп: у цикла вызова свой stdin.
     local action=add
     if rbw get "$name" >/dev/null 2>&1; then action=edit; fi
-    if rbw "$action" --folder "$BW_FOLDER" "$name" <<< "$first_line
-$notes" >/dev/null 2>&1; then
+    local err
+    # stderr rbw — только сообщение об ошибке API, значений в нём нет.
+    if err=$(rbw "$action" --folder "$BW_FOLDER" "$name" <<< "$first_line
+$notes" 2>&1 >/dev/null); then
       if [[ "$action" = "edit" ]]; then echo "  UPD  $name"; else echo "  NEW  $name"; fi
     else
-      echo "  ERR  $name — rbw $action не отработал"
+      echo "  ERR  $name — rbw $action: ${err:-no message}"
+      case "$err" in *422*) echo "       Vaultwarden 1.37.4+ отклоняет запись rbw (нет encryptedFor), см. шапку: DR_CLIENT=bw" ;; esac
     fi
     return 0
   fi
