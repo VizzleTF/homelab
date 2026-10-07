@@ -63,11 +63,15 @@ MSG
 fi
 
 # Имена продолжают нумерацию существующих записей 01..07 в той же папке.
+# 11: без SECRET_KEY восстановленная на новой ops-ноде база Forgejo не
+# расшифровывает client secret Authentik, 2FA и пароли push-зеркал, а
+# OpenBao при полной потере кластера сам ещё не поднят.
 # Формат: имя | путь:поля[,поля];путь:поля
 ITEMS='
 08 - Restic repo passwords (backup v2)|shared/restic-garage:password;shared/restic-ovh:password
 09 - S3 keys backup v2 (restic-apps, snapshots, OVH)|shared/s3-restic-apps:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-snapshots:ACCESS_KEY_ID,ACCESS_SECRET_KEY;velero/s3-ovh:ACCESS_KEY_ID,ACCESS_SECRET_KEY
 10 - DR pack passphrase (off-site)|shared/dr-pack:passphrase
+11 - Forgejo instance secrets|forgejo/instance-secrets:SECRET_KEY,INTERNAL_TOKEN,JWT_SECRET,LFS_JWT_SECRET,MINIO_ACCESS_KEY_ID,MINIO_SECRET_ACCESS_KEY
 '
 
 folder_id=""

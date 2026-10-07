@@ -84,7 +84,8 @@ fi
 # мастер-паролю хранилища (см. ~/.zshrc, GPG_PASSPHRASE=$BW_PASSWORD) —
 # записывать её внутрь того же хранилища смысла нет.
 VW_ITEMS='08 - Restic repo passwords (backup v2)
-09 - S3 keys backup v2 (restic-apps, snapshots, OVH)'
+09 - S3 keys backup v2 (restic-apps, snapshots, OVH)
+11 - Forgejo instance secrets'
 
 vw_client=""
 if command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then
