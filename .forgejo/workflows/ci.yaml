@@ -176,7 +176,7 @@ jobs:
       options: -v /var/run/docker.sock:/var/run/docker.sock
     env:
       # renovate: datasource=docker depName=dagandersen/argocd-diff-preview
-      DIFF_PREVIEW_VERSION: v0.2.15
+      DIFF_PREVIEW_VERSION: v0.2.16
       # renovate: datasource=docker depName=docker
       DOCKER_CLI_VERSION: 29.8.2
       PR_NUMBER: ${{ github.event.pull_request.number }}
