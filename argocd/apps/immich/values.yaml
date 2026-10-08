@@ -269,9 +269,9 @@ _shared_config:
   # immich-app/immich; у ML суффикс -openvino живёт вне currentValue (customManager
   # в renovate.json). Обе бампаются одним PR — server и ML не разъезжаются.
   # renovate: datasource=github-releases depName=immich-app/immich
-  version: &version "v3.2.4"
+  version: &version "v3.3.0"
   # renovate: immich-ml
-  ml_tag: &ml_tag "v3.2.4-openvino"
+  ml_tag: &ml_tag "v3.3.0-openvino"
 
 # Pod-level securityContext + soft affinity for the server component.
 # Prefer the bare-metal ML worker so the server lands next to the ML pod (low-latency
