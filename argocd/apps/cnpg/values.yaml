@@ -2,6 +2,21 @@
 # For HomeLab environment with minimal resources
 
 homelab-common:
+  # Default-deny ingress to the shared Postgres (instances + pooler). Own
+  # namespace covers replication, pooler -> instances and the pglogical job.
+  # A new app that needs Postgres: add its namespace to the 5432 entry.
+  networkPolicy:
+    enabled: true
+    allow:
+      # CNPG operator and the barman-cloud plugin -> instance manager
+      - namespaces: [cnpg-system]
+      # postgres exporter :9187, pgbouncer exporter :9127
+      - namespaces: [victoria-metrics]
+        ports: [9187, 9127]
+      # database clients
+      - namespaces: [authentik, forgejo, atuin]
+        ports: [5432]
+
   externalSecrets:
     - name: postgres-credentials
       vaultPath: cnpg/postgres

@@ -1,6 +1,13 @@
 # OpenBao (MPL 2.0 fork of HashiCorp Vault): HA, Raft storage, KV v2 mount `home`.
 
 homelab-common:
+  # Default-deny ingress: own namespace (raft :8201, autounseal, snapshot and
+  # DR-pack jobs), node/gateway traffic, and External Secrets on :8200.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [external-secrets-system]
+        ports: [8200]
 
   # Raft snapshot straight to both S3 targets (backup v2, obsidian/113 Backups/Backup Overview.md):
   # bao writes the snapshot to an emptyDir, rclone copies it to garage and ovh.
