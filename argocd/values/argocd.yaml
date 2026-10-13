@@ -176,6 +176,10 @@ configs:
     # → each gen 100-500 MiB. Bump to 4 if argocd_repo_pending_request_total
     # stays elevated.
     reposerver.parallelism.limit: "2"
+    # Cap concurrent `git ls-remote` over SSH to the ops-node Forgejo. A burst
+    # (homelab-common pin bump, mass refresh) opened dozens at once, sshd's
+    # MaxStartups reset them and apps sat at ComparisonError "handshake failed".
+    reposerver.git.lsremote.parallelism.limit: "4"
     # Server-Side Diff: compare via dry-run SSA on the apiserver, so
     # webhook/operator-defaulted fields (CNPG plugins[].enabled, atomic lists)
     # no longer produce perpetual OutOfSync with an empty `argocd app diff`.
