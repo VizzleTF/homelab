@@ -125,7 +125,7 @@ cmd_status() {
 # Resolve a domain to a DSM archive id by matching cert subject or SAN.
 # Echoes the id (or empty if no match / multiple matches).
 resolve_archive_id() {
-  local domain="$1" line id subj san matches=""
+  local domain="$1" id subj san matches=""
   while IFS=$'\t' read -r id subj san _end; do
     if printf '%s %s' "$subj" "$san" | grep -qF -- "$domain"; then
       matches="$matches $id"

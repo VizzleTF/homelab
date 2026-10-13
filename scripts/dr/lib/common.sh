@@ -63,8 +63,8 @@ require_env() {
 load_bootstrap_env() {
   local f="$DR_PACK_DIR/01-bootstrap.env"
   [ -f "$f" ] || die "missing $f — run scripts/dr-pack/build.sh"
-  # shellcheck disable=SC1090
   set -a
+  # shellcheck disable=SC1090
   source "$f"
   set +a
 }

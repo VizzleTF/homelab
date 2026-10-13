@@ -8,6 +8,11 @@ repos:
     hooks:
       - id: yamllint  # reads .yamllint.yml like CI `yamllint .`; warnings shown, not fatal
         verbose: true
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1  # keep in sync with .mise.toml
+    hooks:
+      - id: shellcheck
+        args: [-x, -S, warning]
   - repo: local
     hooks:
       - id: filename-blocklist
