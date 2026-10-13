@@ -33,10 +33,10 @@ wait_for "argocd-server Ready" \
 wait_for "argocd-repo-server Ready" \
   "kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s"
 
-# We need a brief wait for ESO to populate argocd-repo-ssh-forgejo-* Secrets
-# before applying the root project + Application.
-wait_for "argocd-repo-ssh-forgejo-root Secret synced" \
-  "kubectl -n argocd get secret argocd-repo-ssh-forgejo-root >/dev/null 2>&1" \
+# We need a brief wait for ESO to populate the Forgejo repo-creds template
+# (covers every AppProject) before applying the root project + Application.
+wait_for "argocd-repo-creds-forgejo Secret synced" \
+  "kubectl -n argocd get secret argocd-repo-creds-forgejo >/dev/null 2>&1" \
   120
 
 # Bootstrap Secrets from phase 04 block their ExternalSecrets (ESO does not
