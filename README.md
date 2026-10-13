@@ -126,7 +126,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the de
 |---------|------------|
 | **-10** | argocd (self-management), gateway-api (CRDs) |
 | **-5**  | cilium, cert-manager |
-| **-4**  | longhorn, openbao, csi-snapshotter, local-path-provisioner |
+| **-4**  | longhorn, openbao, snapshot-controller, local-path-provisioner |
 | **-3**  | kubelet-csr-approver, metrics-server, spegel, volsync |
 | **-2**  | external-secrets, cnpg-operator, keda, external-dns, external-dns-openwrt, victoria-metrics-k8s-stack |
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, node-feature-discovery, tuppr, victoria-logs, wazuh-operator |

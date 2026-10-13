@@ -2,7 +2,7 @@
 # every PVC gets two ReplicationSources (restic → Garage, restic → OVH), and a
 # restore is a manual ReplicationDestination (scripts/dr/restore-app.sh).
 #
-# Wave -3: after csi-snapshotter (-4, installs the snapshot.storage.k8s.io CRDs) and
+# Wave -3: after snapshot-controller (-4, installs the snapshot.storage.k8s.io CRDs) and
 # Longhorn, before the apps, whose ReplicationSources reference the VolSync CRDs.
 
 resources:
