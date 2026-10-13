@@ -219,7 +219,7 @@ homelab-common:
         - name: nginx
           image:
             repository: nginx
-            tag: "1.31-alpine"
+            tag: "1.31.6-alpine"
           ports:
             - name: http
               containerPort: 8080

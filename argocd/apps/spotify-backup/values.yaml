@@ -110,7 +110,8 @@ homelab-common:
           args:
             - |
               set -eu
-              pip install --quiet --no-cache-dir --disable-pip-version-check --root-user-action=ignore spotipy
+              # renovate: datasource=pypi depName=spotipy
+              pip install --quiet --no-cache-dir --disable-pip-version-check --root-user-action=ignore spotipy==2.26.0
               cat <<'PY' > /work/backup.py
               import json
               import os
