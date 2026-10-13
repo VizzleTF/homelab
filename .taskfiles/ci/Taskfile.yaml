@@ -26,6 +26,12 @@ tasks:
     cmds:
       - scripts/kubeconform-validate.sh
 
+  values-drift:
+    desc: Report values equal to chart defaults or unknown to the chart (not a gate)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/values-drift.py {{.CLI_ARGS}}
+
   all:
     desc: Run the full pre-merge gate locally (lint + helm-lint + kubeconform)
     cmds:
