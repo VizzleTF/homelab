@@ -9,8 +9,11 @@
 # so no single node drain/failure can take out both. HA is two separate peers,
 # NOT replicas=2 — the RWO identity PVC + one-identity-per-peer model forbids it.
 homelab-common:
-  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот
-  # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Backup v2 (see obsidian/113 Backups/Backup Overview.md): VolSync takes a Longhorn
+  # CSI snapshot and pushes restic to two independent targets, garage (on-prem) and ovh (off-site).
+  # Each identity PVC holds /var/lib/netbird of one peer; losing it means re-enrolling
+  # the peer (routes come back via the `router` group auto-join). No exec hook: the
+  # identity files are static, a crash-consistent CSI snapshot is enough.
   volsync:
     - name: netbird-peer
       claim: netbird-peer
@@ -26,10 +29,6 @@ homelab-common:
           schedule: "25 2 * * *"
         - repo: ovh
           schedule: "25 7 * * 0"
-
-  # netbird identity PVCs (100Mi each) = /etc/netbird per peer. Без бэкапа потеря =
-  # re-enroll peer (routes auto-restored via `router` group auto-join). Бэкапим весь ns.
-  # Без exec-hook: identity-файлы статичны, CSI snapshot crash-consistent достаточно.
 
   externalSecrets:
     # Single reusable setup key (Vault netbird/peer) — both peers enroll with it;
@@ -58,135 +57,101 @@ homelab-common:
       labels:
         app: netbird-peer-2
 
-  apps:
+  # No probes: the peer serves no port, and a liveness probe on `netbird status`
+  # would restart it on a lost management connection, which the client retries
+  # by itself while the established tunnels stay up.
+  workloads:
     # ── peer 1 ──────────────────────────────────────────────────────────────
     # sync-wave 1: re-applied AFTER peer-2 (wave 0) is healthy, so the brief
     # Recreate gap here is covered by the already-running peer-2 — no self-lockout.
-    - name: peer
-      deployment:
-        metadata:
-          labels:
-            app: netbird-peer
-          annotations:
-            argocd.argoproj.io/sync-wave: "1"
-        spec:
-          replicas: 1
-          strategy:
-            type: Recreate
-          selector:
-            matchLabels:
-              app: netbird-peer
-          template:
-            metadata:
-              labels:
-                app: netbird-peer
-            spec:
-              automountServiceAccountToken: false
-              # Never co-locate with peer-2.
-              affinity:
-                podAntiAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    - labelSelector:
-                        matchLabels:
-                          app: netbird-peer-2
-                      topologyKey: kubernetes.io/hostname
-              containers:
-                # peer-2 reuses this container (YAML merge) and only swaps NB_HOSTNAME.
-                - &netbird-container
-                  name: netbird
-                  # renovate: image=netbirdio/netbird
-                  image: netbirdio/netbird:0.80.0
-                  imagePullPolicy: IfNotPresent
-                  securityContext:
-                    capabilities:
-                      add:
-                        - NET_ADMIN
-                        - NET_RAW
-                        - SYS_ADMIN
-                        - SYS_RESOURCE
-                  env:
-                    - &nb-management-url
-                      name: NB_MANAGEMENT_URL
-                      value: "https://netbird.example.com"
-                    - &nb-admin-url
-                      name: NB_ADMIN_URL
-                      value: "https://netbird.example.com"
-                    - name: NB_HOSTNAME
-                      value: "k8s-homelab-peer"
-                    - &nb-log-level
-                      name: NB_LOG_LEVEL
-                      value: "info"
-                  envFrom:
-                    - secretRef:
-                        name: netbird-peer
-                  resources:
-                    limits:
-                      cpu: 500m
-                      memory: 256Mi
-                    requests:
-                      cpu: 30m
-                      memory: 64Mi
-                  volumeMounts:
-                    - name: tun
-                      mountPath: /dev/net/tun
-                    # PVC монтируется в /var/lib/netbird, а не /etc/netbird:
-                    # клиент netbird хранит там active_profile.json, default.json
-                    # и state.json (идентичность пира и ключи). Со старым путём
-                    # том оставался пустым, а бэкап — бэкапом пустоты: VolSync
-                    # честно писал "Directory is empty skipping backup", Velero
-                    # до него так же молча снимал пустой PVC.
-                    - name: state
-                      mountPath: /var/lib/netbird
-              volumes:
-                - &tun-volume
-                  name: tun
-                  hostPath:
-                    path: /dev/net/tun
-                    type: CharDevice
-                - name: state
-                  persistentVolumeClaim:
-                    claimName: netbird-peer
+    - name: peer                    # -> Deployment netbird-peer
+      legacySelector:
+        app: netbird-peer           # immutable selector of the Deployment created before 1.19
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+      pod:
+        # Never co-locate with peer-2.
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app: netbird-peer-2
+                topologyKey: kubernetes.io/hostname
+      containers:
+        # peer-2 reuses this container (YAML merge) and only swaps NB_HOSTNAME.
+        - &netbird-container
+          name: netbird
+          image:
+            repository: netbirdio/netbird
+            tag: "0.80.0"
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+                - SYS_ADMIN
+                - SYS_RESOURCE
+          env:
+            - &nb-management-url
+              name: NB_MANAGEMENT_URL
+              value: "https://netbird.example.com"
+            - &nb-admin-url
+              name: NB_ADMIN_URL
+              value: "https://netbird.example.com"
+            - name: NB_HOSTNAME
+              value: "k8s-homelab-peer"
+            - &nb-log-level
+              name: NB_LOG_LEVEL
+              value: "info"
+          envFrom:
+            - secretRef:
+                name: netbird-peer
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+      persistence:
+        tun: &tun-volume
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+          mountPath: /dev/net/tun
+        # /var/lib/netbird, not /etc/netbird: the client keeps active_profile.json,
+        # default.json and state.json (peer identity and keys) there.
+        state:
+          claim: netbird-peer
+          mountPath: /var/lib/netbird
     # ── peer 2 ──────────────────────────────────────────────────────────────
-    # sync-wave 0 (default): comes up first, provides route redundancy before
-    # peer-1 is recreated. Separate identity PVC, distinct NB_HOSTNAME.
-    - name: peer-2
-      deployment:
-        metadata:
-          labels:
-            app: netbird-peer-2
-          annotations:
-            argocd.argoproj.io/sync-wave: "0"
-        spec:
-          replicas: 1
-          strategy:
-            type: Recreate
-          selector:
-            matchLabels:
-              app: netbird-peer-2
-          template:
-            metadata:
-              labels:
-                app: netbird-peer-2
-            spec:
-              automountServiceAccountToken: false
-              # Never co-locate with peer-1.
-              affinity:
-                podAntiAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    - labelSelector:
-                        matchLabels:
-                          app: netbird-peer
-                      topologyKey: kubernetes.io/hostname
-              containers:
-                - <<: *netbird-container
-                  env:
-                    - *nb-management-url
-                    - *nb-admin-url
-                    - name: NB_HOSTNAME
-                      value: "k8s-homelab-peer-2"
-                    - *nb-log-level
-              volumes:
-                - *tun-volume
-                - name: state
-                  persistentVolumeClaim:
-                    claimName: netbird-peer-2
+    # sync-wave 0: comes up first, provides route redundancy before peer-1 is
+    # recreated. Separate identity PVC, distinct NB_HOSTNAME.
+    - name: peer-2                  # -> Deployment netbird-peer-2
+      legacySelector:
+        app: netbird-peer-2         # immutable selector of the Deployment created before 1.19
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+      pod:
+        # Never co-locate with peer-1.
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app: netbird-peer
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - <<: *netbird-container
+          env:
+            - *nb-management-url
+            - *nb-admin-url
+            - name: NB_HOSTNAME
+              value: "k8s-homelab-peer-2"
+            - *nb-log-level
+      persistence:
+        tun: *tun-volume
+        state:
+          claim: netbird-peer-2
+          mountPath: /var/lib/netbird
