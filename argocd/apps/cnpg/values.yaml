@@ -91,7 +91,12 @@ homelab-common:
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
 
+  # Every application database is declared here (adoption of an existing DB is
+  # a no-op; reclaim policy retain). `app` is the initdb placeholder, unused.
   cnpgDatabases:
+    - name: authentik
+      owner: authentik
+      clusterName: cnpg-cluster
     - name: forgejo
       owner: forgejo
       clusterName: cnpg-cluster
