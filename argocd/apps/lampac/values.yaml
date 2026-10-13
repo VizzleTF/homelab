@@ -1,37 +1,5 @@
 # Lampac - Media server with online sources, torrents and DLNA support
 # Source: https://github.com/lampac-nextgen/lampac
-# Chart: lampac_helm
-
-replicaCount: 1
-
-image:
-  repository: ghcr.io/lampac-nextgen/lampac
-  pullPolicy: IfNotPresent
-  # Upstream tags every release as both `X.Y.Z` and `vX.Y.Z`. Stay on the non-v
-  # scheme — a renovate.json rule (allowedVersions "!/^v/") locks tracking to it
-  # so the prefix never flips and Renovate keeps bumping cleanly.
-  tag: "1.81.0"
-
-serviceAccount:
-  create: true
-
-podSecurityContext:
-  seccompProfile:
-    type: RuntimeDefault
-
-# Keep it off the control-plane nodes: lampac downloads and runs the
-# TorrServer binary at runtime (Falco "drop and execute new binary"), which
-# should not happen next to etcd. Stateless, so any worker is fine.
-nodeSelector:
-  kubernetes.io/hostname: talos-worker-01
-
-# Service type: ClusterIP — доступ через cilium-gateway-internal HTTPRoute,
-# фронтнэндом служит KEDA HTTP add-on interceptor (для on-demand scale-to-zero).
-# Раньше LB IP 10.11.11.133 — теперь lampac.example.com через homelab-common.httpRoutes ниже.
-service:
-  type: ClusterIP
-  port: 9118
-
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
@@ -43,12 +11,11 @@ homelab-common:
         ports: [9118]
 
   httpRoutes:
-    # KEDA-fronted scale-to-zero (см. argocd/apps/lampac/manifests/httpscaledobject.yaml).
-    # `kedaColdStartLoadingPage: true` (homelab-common >= 1.7.3) переключает backend
-    # на keda-loading-proxy → во время cold-start пользователь видит "сервис запускается".
-    # `service:` оставлен fallback для v1.7.2 (флаг игнорируется на старом чарте).
-    # Cross-namespace backendRef требует ReferenceGrant в keda ns
-    # (argocd/infra/keda-add-ons-http/manifests/referencegrant.yaml).
+    # KEDA-fronted scale-to-zero (see manifests/httpscaledobject.yaml).
+    # kedaColdStartLoadingPage points the backend at keda-loading-proxy, so a
+    # cold start shows a "service is starting" page; `service:` is ignored
+    # while it is set. The cross-namespace backendRef needs the ReferenceGrant
+    # in ns keda (argocd/infra/keda-add-ons-http/manifests/referencegrant.yaml).
     - name: lampac
       hostname: lampac
       gateway: internal
@@ -58,88 +25,104 @@ homelab-common:
         namespace: keda
         port: 8080
 
-resources:
-  requests:
-    # Right-sized after observing 645Mi peak — was 1100Mi
-    memory: "700Mi"
-    cpu: "50m"
-  limits:
-    memory: "2400Mi"
-    cpu: "500m"
+  configMaps:
+    - name: init-conf               # -> lampac-init-conf
+      data:
+        init.conf: |
+          {
+            "listen": {
+              "ip": "0.0.0.0",
+              "port": 9118,
+              "scheme": "https"
+            },
+            "chromium": {
+              "enable": false
+            },
+            "BaseModule": {
+              "SkipModules": [
+                "OnlineUKR",
+                "OnlineENG",
+                "OnlineGEO",
+                "OnlinePaid",
+                "WatchTogether",
+                "MsxNative",
+                "ForkPlayerXML",
+                "Community",
+                "Catalog",
+                "DLNA",
+                "Tracks",
+                "Transcoding",
+                "WebLog",
+                "NextHUB"
+              ]
+            }
+          }
 
-# Probes - lampac-nextgen needs time to compile modules + bind Kestrel on cold start
-# Observed cold-start bind ~130-150s on cp-01. Keep initialDelay short but widen
-# the failure window: liveness 60+12*15=240s, readiness 60+10*15=210s.
-livenessProbe:
-  httpGet:
-    path: /
-    port: http
-  initialDelaySeconds: 60
-  periodSeconds: 15
-  timeoutSeconds: 5
-  failureThreshold: 12
-
-readinessProbe:
-  httpGet:
-    path: /
-    port: http
-  initialDelaySeconds: 60
-  periodSeconds: 15
-  timeoutSeconds: 5
-  failureThreshold: 10
-
-# Environment variables
-env:
-  - name: LAMPAC_PORT
-    value: "9118"
-
-# ConfigMaps configuration
-configMaps:
-  initConf:
-    enabled: true
-    data: |
-      {
-        "listen": {
-          "ip": "0.0.0.0",
-          "port": 9118,
-          "scheme": "https"
-        },
-        "chromium": {
-          "enable": false
-        },
-        "BaseModule": {
-          "SkipModules": [
-            "OnlineUKR",
-            "OnlineENG",
-            "OnlineGEO",
-            "OnlinePaid",
-            "WatchTogether",
-            "MsxNative",
-            "ForkPlayerXML",
-            "Community",
-            "Catalog",
-            "DLNA",
-            "Tracks",
-            "Transcoding",
-            "WebLog",
-            "NextHUB"
-          ]
-        }
-      }
-
-  manifest:
-    enabled: false
-
-volumes:
-  - name: dshm
-    emptyDir:
-      medium: Memory
-      sizeLimit: 2Gi
-
-volumeMounts:
-  - name: init-conf
-    mountPath: /lampac/init.conf
-    subPath: init.conf
-    readOnly: true
-  - name: dshm
-    mountPath: /dev/shm
+  workloads:
+    - name: lampac                  # -> Deployment + Service "lampac"; no replicas: KEDA scales 0..1
+      pod:
+        # Explicit: the live pod template still carries the deprecated alias
+        # serviceAccount: lampac, which no field manager owns. Dropping only
+        # serviceAccountName would let the apiserver restore it from the alias,
+        # and the next cold start would fail once the old SA is pruned.
+        serviceAccountName: default
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+        # Keep it off the control-plane nodes: lampac downloads and runs the
+        # TorrServer binary at runtime (Falco "drop and execute new binary"),
+        # which should not happen next to etcd. Stateless, so any worker is fine.
+        nodeSelector:
+          kubernetes.io/hostname: talos-worker-01
+      containers:
+        - name: lampac
+          # Upstream tags every release as both `X.Y.Z` and `vX.Y.Z`. Stay on the
+          # non-v scheme: a renovate.json rule (allowedVersions "!/^v/") locks
+          # tracking to it so the prefix never flips.
+          image:
+            repository: ghcr.io/lampac-nextgen/lampac
+            tag: "1.81.0"
+          ports:
+            - name: http
+              containerPort: 9118
+          env:
+            - name: LAMPAC_PORT
+              value: "9118"
+          # Cold start compiles modules and binds Kestrel in ~130-150s. Keep
+          # initialDelay short but widen the failure window:
+          # liveness 60+12*15=240s, readiness 60+10*15=210s.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 700Mi           # observed peak 645Mi
+            limits:
+              cpu: 500m
+              memory: 2400Mi
+      persistence:
+        init-conf:
+          configMap:
+            name: lampac-init-conf
+          mountPath: /lampac/init.conf   # WORKDIR of the image
+          subPath: init.conf
+          readOnly: true
+        dshm:
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+          mountPath: /dev/shm
