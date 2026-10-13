@@ -32,11 +32,11 @@ wait_for "longhorn-manager DS Ready" \
   "kubectl -n longhorn-system rollout status ds/longhorn-manager --timeout=300s"
 
 # Release name = ArgoCD Application name, so ArgoCD adopts the same objects
-# (csi-snapshotter-snapshot-controller) instead of running a second controller.
+# (snapshot-controller) instead of running a second controller.
 log_info "installing snapshot-controller"
-helm_apply csi-snapshotter piraeus/snapshot-controller csi-snapshotter \
-  --version "$(chart_version csi-snapshotter)" \
-  -f "$REPO_ROOT/argocd/infra/csi-snapshotter/values.yaml"
+helm_apply snapshot-controller piraeus/snapshot-controller snapshot-controller \
+  --version "$(chart_version snapshot-controller)" \
+  -f "$REPO_ROOT/argocd/infra/snapshot-controller/values.yaml"
 
 # Explicit list: the directory also holds VMRule/VMServiceScrape, whose CRDs
 # arrive only with the VictoriaMetrics stack in phase 10.
