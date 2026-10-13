@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase 02 — local-path-provisioner + Longhorn + snapshot-controller + BackupTarget
-# + extra StorageClass + VolSync.
+# + VolSync.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -40,11 +40,10 @@ helm_apply csi-snapshotter piraeus/snapshot-controller csi-snapshotter \
 
 # Explicit list: the directory also holds VMRule/VMServiceScrape, whose CRDs
 # arrive only with the VictoriaMetrics stack in phase 10.
-log_info "applying Longhorn extras (BackupTarget, StorageClass, RecurringJobs, network policies)"
+log_info "applying Longhorn extras (BackupTarget, RecurringJobs, network policies)"
 longhorn_manifests="$REPO_ROOT/argocd/infra/longhorn/manifests"
 kubectl apply \
   -f "$longhorn_manifests/longhorn-backuptarget.yaml" \
-  -f "$longhorn_manifests/longhorn-retain-storageclass.yaml" \
   -f "$longhorn_manifests/recurringjob-snapshot-cleanup.yaml" \
   -f "$longhorn_manifests/recurringjob-trim.yaml" \
   -f "$longhorn_manifests/netpol-allow-monitoring.yaml" \
