@@ -35,6 +35,13 @@ jobs:
           yamllint --version
       - name: Lint
         run: yamllint .
+      - name: shellcheck
+        # Same version as .mise.toml and the pre-commit hook (shellcheck-py).
+        run: |
+          set -eu
+          VERSION=$(sed -n 's/^shellcheck[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .mise.toml)
+          /tmp/yamllint/bin/pip install --quiet "shellcheck-py==${VERSION}.1"
+          git ls-files -z '*.sh' '.git-hooks/*' | xargs -0 /tmp/yamllint/bin/shellcheck -x -S warning
       - name: Lint Claude skills
         # Checkable rules of Anthropic's skill authoring best practices:
         # frontmatter limits, third-person description, body size, one-level references.

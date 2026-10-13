@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # OpenBao helpers (`bao` CLI — the `vault` binary is not used anywhere).
 
-# shellcheck disable=SC2034  (sourced)
+# shellcheck disable=SC2034 # sourced; the defaults are read by the caller
 : "${BAO_POD_NS:=openbao}"
 : "${BAO_POD:=openbao-0}"
 : "${BAO_ADDR_INTERNAL:=http://127.0.0.1:8200}"

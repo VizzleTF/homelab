@@ -4,16 +4,21 @@ version: '3'
 
 tasks:
   lint:
-    desc: yamllint the whole repo (matches CI yamllint job)
-    cmds:
-      - yamllint .
-
-  helm-lint:
-    desc: Lint + smoke-template homelab-common (matches CI helm-lint job)
+    desc: yamllint + shellcheck + repo-side doc/contract checks (matches CI yamllint job)
     dir: '{{.ROOT_DIR}}'
     cmds:
-      - helm lint charts/homelab-common
-      - helm template smoke charts/homelab-common --debug >/dev/null
+      - yamllint .
+      - git ls-files -z '*.sh' '.git-hooks/*' | xargs -0 shellcheck -x -S warning
+      - python3 scripts/lint-skills.py
+      - python3 scripts/audit-docs.py
+
+  helm-lint:
+    desc: Lint homelab-common, run its self-check and the render diff (matches CI helm-lint job)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - helm lint --strict charts/homelab-common
+      - scripts/homelab-common-selfcheck.sh
+      - scripts/chart-diff.sh --stat
 
   kubeconform:
     desc: Validate raw + rendered manifests with kubeconform (matches CI kubeconform job)

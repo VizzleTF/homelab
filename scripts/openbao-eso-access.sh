@@ -33,7 +33,7 @@ TTL=1h
 # argocd/infra/external-secrets) and never revokes a cached token. Before
 # (2026-10) ~70 SecretStores logged in and revoked every 5 min: ~8 GB/day of
 # raft writes per member on the SATA SSDs etcd shares.
-TOKEN_TYPE=batch
+TOKEN_TYPE="batch"
 
 global=$(yq -o json '.global' < argocd/values/global.yaml)
 prefix=$(jq -r '.vault.pathPrefix' <<<"$global")

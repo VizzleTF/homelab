@@ -68,7 +68,7 @@ protection_payload() {
 
 apply_one() {
   local repo="$1"
-  local existing http_code
+  local http_code
   echo "→ ${repo}"
 
   http_code=$(curl -sS -o /tmp/bp-existing.json -w "%{http_code}" \
