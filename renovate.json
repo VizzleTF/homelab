@@ -10,7 +10,6 @@
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "enabled": true,
-    "addLabels": ["security"],
     "automerge": true
   },
   "lockFileMaintenance": {
@@ -19,7 +18,6 @@
   },
   "prConcurrentLimit": 10,
   "prHourlyLimit": 4,
-  "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
   "rebaseWhen": "behind-base-branch",
   "packageRules": [
