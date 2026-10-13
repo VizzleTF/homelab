@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# scripts/dr/restore-app.sh — восстановить данные одного приложения из
-# restic-репозитория VolSync.
+# scripts/dr/restore-app.sh — restore one data volume from its VolSync restic
+# repository.
 #
-# Заменил velero-версию (2026-09-09). Отличия, которые стоит знать:
-#   - восстанавливается ТОМ, а не набор объектов: ни pod, ни SA, ни namespace
-#     из бэкапа не приезжают — форму создаёт ArgoCD из git;
-#   - namespace больше не переводится в pod-security privileged и ноды не
-#     лейблятся как worker: mover VolSync работает без этих послаблений
-#     (старый скрипт оставлял кластер ослабленным после каждого восстановления);
-#   - источник выбирается через DR_RESTIC_TARGET=garage|ovh.
+# The volume list comes from git, not from a table here: every
+# homelab-common.volsync[] entry in argocd/{apps,infra}/*/values.yaml is a
+# restorable volume. Its parameters are read from the same file:
+#   name                 restic repository (and the key this script takes)
+#   claim                PVC name (default: name)
+#   accessMode           else the claim's persistentVolumeClaims[] accessModes[0]
+#   cacheCapacity        restic cache (default 2Gi)
+#   moverSecurityContext.runAsUser   mover uid (empty = root)
+#   namespace            config.yaml namespace, else the folder name
+#   size                 the claim's persistentVolumeClaims[] size, else VCT_SIZE
 #
-# Usage: scripts/dr/restore-app.sh <app> [repo] [pvc] [size] [accessMode] [uid]
-# Без аргументов сверх <app> берёт значения из таблицы ниже.
+# What comes back is the VOLUME, not objects: pods, SAs and namespaces come
+# from git through ArgoCD. The source is DR_RESTIC_TARGET=garage|ovh.
+#
+# Usage: scripts/dr/restore-app.sh <volsync-name>     restore one volume
+#        scripts/dr/restore-app.sh --list             print the resolved table
+#        scripts/dr/restore-app.sh <name> <repo> <pvc> <size> [mode] [uid]   explicit
 
 set -euo pipefail
 # shellcheck source=lib/common.sh
@@ -19,69 +26,82 @@ source "$(dirname "$0")/lib/common.sh"
 # shellcheck source=lib/volsync-restore.sh
 source "$(dirname "$0")/lib/volsync-restore.sh"
 
+# Claims created by an upstream chart's volumeClaimTemplate are not in
+# persistentVolumeClaims[]; their size comes from that chart's values.
+declare -A VCT_SIZE=(
+  [database-storage-obsidian-livesync-couchdb-0]=5Gi   # obsidian-livesync persistentVolume.size
+  [wazuh-data-wazuh-manager-master-0]=20Gi             # wazuh cluster.spec.manager.master.storageSize
+)
+# Old keys of the hand-written table, kept so existing runbooks keep working.
+declare -A ALIAS=(
+  [rsstt]=rss-to-telegram-bot [immich]=immich-library
+  [opencloud]=opencloud-data [trek]=trek-uploads
+)
+
+# Print "name|namespace|claim|size|accessMode|uid|cache" for every volsync entry.
+volume_table() {
+  local f dir ns
+  for f in "$REPO_ROOT"/argocd/{apps,infra}/*/values.yaml; do
+    dir=$(dirname "$f")
+    ns=$(yq -r '.namespace // ""' "$dir/config.yaml"); ns=${ns:-$(basename "$dir")}
+    yq -o json '.["homelab-common"] // {}' "$f" 2>/dev/null | jq -r --arg ns "$ns" '
+      (.persistentVolumeClaims // []) as $pvcs
+      | (.volsync // [])[]
+      | (.claim // .name) as $claim
+      | ([$pvcs[] | select(.name == $claim)][0] // {}) as $pvc
+      | [.name, $ns, $claim, ($pvc.size // ""),
+         (.accessMode // ($pvc.accessModes // [])[0] // "ReadWriteOnce"),
+         ((.moverSecurityContext.runAsUser // "") | tostring),
+         (.cacheCapacity // "2Gi")] | join("|")'
+  done | while IFS='|' read -r name ns claim size mode uid cache; do
+    [[ -n $size ]] || size=${VCT_SIZE[$claim]:-}
+    echo "$name|$ns|$claim|$size|$mode|$uid|$cache"
+  done
+}
+
+if [[ "${1:-}" == --list ]]; then
+  volume_table | column -t -s'|' -N NAME,NAMESPACE,PVC,SIZE,MODE,UID,CACHE
+  exit 0
+fi
+
 APP="${1:-}"
-[[ -n "$APP" ]] || die "usage: $0 <app> [repo] [pvc] [size] [accessMode] [uid]"
+[[ -n "$APP" ]] || die "usage: $0 <volsync-name> | --list | <name> <repo> <pvc> <size> [mode] [uid]"
+APP=${ALIAS[$APP]:-$APP}
+
+if [[ -n "${2:-}" ]]; then
+  REPO="$2"; PVC="${3:?pvc required}"; SIZE="${4:?size required}"
+  MODE="${5:-ReadWriteOnce}"; UID_="${6:-}"; CACHE=2Gi
+  NS="${DR_NAMESPACE:?set DR_NAMESPACE for an explicit restore}"
+else
+  ROW=$(volume_table | grep "^${APP}|" || true)
+  [[ -n "$ROW" ]] || die "no homelab-common.volsync entry named '$APP' (see $0 --list)"
+  IFS='|' read -r REPO NS PVC SIZE MODE UID_ CACHE <<<"$ROW"
+  [[ -n "$SIZE" ]] || die "$APP: no size for claim $PVC (add it to persistentVolumeClaims or VCT_SIZE)"
+fi
 
 require_kubectl
 load_bootstrap_env
 
-# app -> repo | pvc | size | accessMode | uid (uid пустой = mover от root)
-lookup() {
-  case "$1" in
-    vaultwarden)        echo "vaultwarden|vaultwarden-data-rwo|2Gi|ReadWriteOnce|1001" ;;
-    cleanbot)           echo "cleanbot|cleanbot|1Gi|ReadWriteOnce|10001" ;;
-    may)                echo "may|may|5Gi|ReadWriteOnce|1000" ;;
-    rsstt)              echo "rss-to-telegram-bot|rss-to-telegram-bot|1Gi|ReadWriteOnce|1000" ;;
-    immich)             echo "immich-library|immich-library-pvc|250Gi|ReadWriteMany|" ;;
-    wazuh-manager)      echo "wazuh-manager|wazuh-data-wazuh-manager-master-0|20Gi|ReadWriteOnce|" ;;
-    opencloud)          echo "opencloud-data|opencloud-data|50Gi|ReadWriteOnce|" ;;
-    opencloud-config)   echo "opencloud-config|opencloud-config|1Gi|ReadWriteOnce|" ;;
-    trek)               echo "trek-uploads|trek-uploads|10Gi|ReadWriteOnce|" ;;
-    trek-data)          echo "trek-data|trek-data|1Gi|ReadWriteOnce|" ;;
-    obsidian-livesync)  echo "obsidian-livesync|database-storage-obsidian-livesync-couchdb-0|5Gi|ReadWriteOnce|" ;;
-    *) return 1 ;;
-  esac
-}
-
-if [[ -n "${2:-}" ]]; then
-  REPO="$2"; PVC="${3:?pvc required}"; SIZE="${4:?size required}"
-  MODE="${5:-ReadWriteOnce}"; UID_="${6:-}"
-else
-  ROW=$(lookup "$APP") || die "unknown app '$APP' — pass repo/pvc/size explicitly"
-  IFS='|' read -r REPO PVC SIZE MODE UID_ <<<"$ROW"
-fi
-
-# Namespace приложения совпадает с именем папки в argocd/apps, кроме перечисленных.
-NS="$APP"
-case "$APP" in
-  rsstt) NS="rsstt" ;;
-  opencloud-config) NS="opencloud" ;;
-  trek-data) NS="trek" ;;
-  wazuh-manager) NS="wazuh" ;;
-  *) ;;  # every other app lives in a namespace named after it
-esac
-
-# Защита от запуска на живом кластере: скрипт создаёт PVC с продовым именем в
-# продовом namespace и наливает в него данные из репозитория. На пустом кластере
-# это ровно то, что нужно; на работающем — перезапись тома под живым подом.
+# Guard against running on a live cluster: the script creates a PVC with the
+# production name in the production namespace and fills it from the repo. On an
+# empty cluster that is the point; on a running one it overwrites a live volume.
 if kubectl -n "$NS" get pvc "$PVC" >/dev/null 2>&1 && [[ "${DR_FORCE:-0}" != "1" ]]; then
   MOUNTED=$(kubectl -n "$NS" get pods -o json 2>/dev/null \
     | grep -c "\"claimName\": *\"$PVC\"" || true)
-  die "PVC $NS/$PVC уже существует (подов, использующих его: $MOUNTED).
-  Этот скрипт предназначен для восстановления на чистый кластер.
-  Чтобы восстановить том поверх существующего — остановите потребителей и
-  запустите с DR_FORCE=1, либо восстанавливайте в отдельный namespace вручную
-  через lib/volsync-restore.sh."
+  die "PVC $NS/$PVC already exists (pods using it: $MOUNTED).
+  This script restores onto an empty cluster. To restore over an existing
+  volume, stop its consumers and run with DR_FORCE=1, or restore into a
+  separate namespace by hand with lib/volsync-restore.sh."
 fi
 
-volsync_restore "$NS" "$REPO" "$PVC" "$SIZE" "$MODE" "$UID_"
+volsync_restore "$NS" "$REPO" "$PVC" "$SIZE" "$MODE" "$UID_" "$CACHE"
 
-# Post-fix'ы, пережившие смену механизма: они про состояние приложения, а не
-# про бэкап. В полном DR (фаза 09, до ArgoCD) immich-cluster ещё нет: шаг
-# пропустится с warning, выполнить его руками после подъёма кластера.
+# Post-fixes about application state, not about the backup. In a full DR
+# (phase 09, before ArgoCD) immich-cluster does not exist yet: the step is
+# skipped with a warning; run it by hand once the cluster is up.
 case "$APP" in
-  immich)
-    log_info "fix: REASSIGN OWNED, если в БД остался старый owner immich_user"
+  immich-library)
+    log_info "fix: REASSIGN OWNED if the DB still has the old owner immich_user"
     kubectl -n immich exec immich-cluster-1 -c postgres -- psql -U postgres -d immich \
       -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='immich_user') THEN
           EXECUTE 'REASSIGN OWNED BY immich_user TO immich';
