@@ -2,14 +2,23 @@
 # argocd/apps/wazuh. CRDs ship as regular templates; wazuhclusters.yaml alone is
 # ~2.7MB, so the AppSet's ServerSideApply=true is mandatory (client-side apply
 # would blow the 256KB last-applied annotation limit).
+
+# TEMPORARY: operator off until upstream fixes the 2026.9.1 reconcile hot-loop.
+# It renders the *bool wazuhPlugin fields with %v, so wazuh.yml changes on every
+# pass, the rewritten owned Secret re-triggers reconcile (~1.5s), and each pass
+# PUTs run_as on the dashboard's API user, revoking its tokens (dashboard fails
+# with "3002 - Request failed with status code 401"). While 0, WazuhCluster CR
+# edits are not applied. A string on purpose: the chart renders
+# `replicaCount | default 1`, so an int 0 would deploy one replica.
+replicaCount: "0"
+
 operator:
   resources:
     requests:
       cpu: 50m
 
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  # Default-deny ingress. Nothing outside the namespace calls the operator: the
+  # chart has no webhooks and no VMServiceScrape reads its metrics.
   networkPolicy:
     enabled: true
-    allow:
-      - namespaces: [victoria-metrics]

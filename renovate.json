@@ -89,6 +89,11 @@
       "groupName": "infra"
     },
     {
+      "description": "Group `wazuh`: wazuh-operator (CRDs) and wazuh-cluster (its CR chart) move in one PR, since a cluster chart ahead of its operator renders fields the CRDs do not know. Must come after the `apps` rule (a later matching rule wins). The PR needs diff-reviewed whenever the operator CRDs change.",
+      "matchPackageNames": ["/^(?:.+/)?wazuh-(operator|cluster)$/"],
+      "groupName": "wazuh"
+    },
+    {
       "description": "Group `talos`: Talos OS / Kubernetes bootstrap versions in nodes.yaml. Separate PR: a node upgrade needs a manual `terraform apply`, tuppr rolls the live cluster. Keep in sync with the tuppr image versions (installer/talosctl/kubelet).",
       "matchFileNames": ["terraform_talos/configs/**"],
       "groupName": "talos"
