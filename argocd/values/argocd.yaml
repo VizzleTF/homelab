@@ -215,20 +215,16 @@ configs:
     resource.customizations.ignoreDifferences.gateway.networking.k8s.io_Gateway: |
       jqPathExpressions:
         - '.spec.addresses'
-    resource.customizations.ignoreDifferences._Service: |
-      jqPathExpressions:
-        - '.spec.ports[]?.nodePort'
     resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
       jqPathExpressions:
         - '.webhooks[]?.clientConfig.caBundle'
+    # Kept: CNPG lists are atomic, and its webhook defaulting does not survive
+    # the server-side dry-run (same story as plugins[].enabled, which is
+    # mirrored in git instead).
     resource.customizations.ignoreDifferences.postgresql.cnpg.io_Cluster: |
       jqPathExpressions:
         - '.spec.managed.roles[]?.connectionLimit'
         - '.spec.managed.roles[]?.inherit'
-    resource.customizations.ignoreDifferences.apps_StatefulSet: |
-      jqPathExpressions:
-        - '.spec.volumeClaimTemplates[]?.apiVersion'
-        - '.spec.volumeClaimTemplates[]?.kind'
     resource.customizations.ignoreDifferences._PersistentVolumeClaim: |
       jqPathExpressions:
         - '.spec.volumeName'
