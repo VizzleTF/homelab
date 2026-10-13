@@ -252,6 +252,28 @@ for vf in values_files + [REPO / "argocd/values/argocd.yaml"]:
         if "legacySelector" in w and (vf.parent.name, w.get("name")) not in LEGACY_SELECTOR_ALLOWED:
             report(vf, "error", f"workload {w.get('name')}: legacySelector only for Deployments created before 1.19")
 
+# 10. README "Sync waves" table: every argocd/{apps,infra} folder and the two
+# standalone apps listed once, with the wave of its config.yaml (the public
+# mirror has no other app catalogue).
+readme = (REPO / "README.md").read_text()
+if "## Sync waves" in readme:
+    sec = readme[readme.index("## Sync waves"):]
+    sec = sec[:sec.index("\n---")] if "\n---" in sec else sec
+    listed = {}
+    for wave, comps in re.findall(r"^\| \*\*(-?\d+)\*\*\s*\|\s*(.+?)\s*\|$", sec, re.M):
+        for c in re.split(r"[,;]\s*", comps):
+            c = re.sub(r"\s*\(.*\)", "", re.sub(r"^apps:\s*", "", c)).strip()
+            if c:
+                listed[c] = wave
+    waves = {**{k: v["wave"] for k, v in apps.items()}, **{k: v["wave"] for k, v in infra.items()}}
+    for name in sorted(set(waves) - set(listed)):
+        report("README.md", "error", f"Sync waves table misses {name}")
+    for name in sorted(set(listed) - set(waves)):
+        report("README.md", "error", f"Sync waves table lists {name}, which has no argocd folder")
+    for name in sorted(set(listed) & set(waves)):
+        if listed[name] != waves[name]:
+            report("README.md", "error", f"{name}: README wave {listed[name]} != config {waves[name]}")
+
 if not HAVE_VAULT:
     report(VAULT, "warning", "vault not found: registry, cheatsheet and wikilink checks skipped")
 for path, level, msg in sorted(findings):
