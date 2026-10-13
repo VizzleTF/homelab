@@ -256,7 +256,7 @@ filter-repo sanitize + gitleaks on the rewritten history
 GitHub mirror
 ```
 
-Direct push to `main` is blocked by branch protection; changes go through a PR. Pre-commit runs gitleaks v8.30.1 plus a filename blocklist. Five Forgejo Actions checks must be green to merge: `gitleaks`, `yamllint`, `helm-lint`, `kubeconform` and `argocd-diff`. `argocd-diff` renders every touched Application with a throwaway ArgoCD and posts the manifest diff as a PR comment; a PR that prunes a resource or changes a CRD also needs the `diff-reviewed` label.
+Direct push to `main` is blocked by branch protection; changes go through a PR. Pre-commit runs gitleaks, yamllint --strict, shellcheck, a filename blocklist and the skill linter. Five Forgejo Actions checks must be green to merge: `gitleaks`, `yamllint`, `helm-lint`, `kubeconform` and `argocd-diff`. `argocd-diff` renders every touched Application with a throwaway ArgoCD and posts the manifest diff as a PR comment; a PR that prunes a resource or changes a CRD also needs the `diff-reviewed` label.
 
 After merge, `mirror-to-github` strips `CLAUDE.md` and `.claude/`, applies `MIRROR_SANITIZE_RULES` (a multiline `<old>==><new>` Forgejo Actions secret), runs gitleaks over the rewritten history and force-pushes to GitHub.
 
