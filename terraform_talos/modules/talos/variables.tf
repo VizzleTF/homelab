@@ -59,6 +59,7 @@ variable "nodes" {
     address_cidr = string # IP/prefix (written into machine.network.interfaces[].addresses)
     role         = string # "controlplane" or "worker"
     install_disk = string
-    mac          = optional(string, "") # Optional NIC MAC for hardwareAddr deviceSelector (bare-metal multi-NIC). Empty → physical:true.
+    mac          = optional(string, "")      # Optional NIC MAC for hardwareAddr deviceSelector (bare-metal multi-NIC). Empty → physical:true.
+    labels       = optional(map(string), {}) # machine.nodeLabels; Talos applies them live and keeps them in sync.
   }))
 }

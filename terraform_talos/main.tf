@@ -8,6 +8,7 @@ locals {
       role         = n.role
       install_disk = n.install_disk
       mac          = try(n.mac, "")
+      labels       = try(n.labels, {})
     } if try(n.enabled, false)
   }
 }
