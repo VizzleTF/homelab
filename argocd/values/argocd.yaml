@@ -332,9 +332,13 @@ repoServer:
   env:
     - name: GOMEMLIMIT
       value: "1700MiB"
+  # A homelab-common pin bump re-renders every app at once; with cpu 500m and the
+  # default 1s timeout, /healthz?full=true timed out and kubelet restarted the pod.
+  livenessProbe:
+    timeoutSeconds: 5
   resources:
     limits:
-      cpu: 500m
+      cpu: "1"
       memory: 2Gi
     requests:
       cpu: 50m
