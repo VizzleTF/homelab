@@ -4,7 +4,6 @@
 # intel.feature.node.kubernetes.io/gpu=true — no manual node labeling needed.
 
 master:
-  replicaCount: 1
   resources:
     requests:
       cpu: 20m
@@ -17,11 +16,9 @@ worker:
   resources:
     requests:
       cpu: 20m
-      memory: 64Mi
     limits:
       cpu: 100m
       memory: 128Mi
-  tolerations: []
   config:
     core:
       # Suppress noisy default labels that no workload selects on

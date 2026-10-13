@@ -1,7 +1,6 @@
 # External Secrets Operator Helm Values
 # https://github.com/external-secrets/external-secrets
 
-installCRDs: true
 replicaCount: 2
 
 # Writes on the SATA SSDs etcd shares (2026-10): ~70 SecretStores were
@@ -37,19 +36,12 @@ extraEnv:
     value: "110MiB"
 
 securityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  readOnlyRootFilesystem: true
-  runAsNonRoot: true
   runAsUser: 65534
 
 serviceMonitor:
   enabled: true
 
 webhook:
-  create: true
   port: 9443
   resources:
     limits:
@@ -63,7 +55,6 @@ webhook:
       value: "110MiB"
 
 certController:
-  create: true
   resources:
     limits:
       cpu: 100m

@@ -13,13 +13,6 @@
 # survives reboot, wiped on `talosctl reset`). hostPath helper pod runs
 # privileged (PSA enforce=privileged allows it).
 
-storageClass:
-  create: true
-  defaultClass: false
-  name: local-path
-  reclaimPolicy: Delete
-  volumeBindingMode: WaitForFirstConsumer
-
 nodePathMap:
   - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
     paths:
@@ -37,18 +30,9 @@ resources:
 # server and failed ~980 times in four days during etcd latency spikes.
 health:
   readinessProbe:
-    httpGet:
-      path: /ready
-      port: health
-    initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 5
   livenessProbe:
-    httpGet:
-      path: /health
-      port: health
-    initialDelaySeconds: 10
-    periodSeconds: 10
     timeoutSeconds: 5
 
 homelab-common:

@@ -6,22 +6,12 @@
 # Required by VolSync (Snapshot copyMethod) and its longhorn-volsync VolumeSnapshotClass.
 # Layer -4, next to Longhorn and below VolSync (-3).
 
-installCRDs: true
-
 controller:
-  enabled: true
-  replicaCount: 1
   args:
-    leaderElection: true
-    leaderElectionNamespace: "$(NAMESPACE)"
     # Lease renewals are etcd writes (default every 2 s); 15 s retry (2026-10).
     leaderElectionLeaseDuration: 60s
     leaderElectionRenewDeadline: 40s
     leaderElectionRetryPeriod: 15s
-    httpEndpoint: ":8080"
-    # CSIVolumeGroupSnapshot (beta); Longhorn supports group snapshots and the
-    # gate only exposes the API. Disable if it churns logs.
-    featureGates: CSIVolumeGroupSnapshot=true
   resources:
     requests:
       cpu: 10m
@@ -33,9 +23,6 @@ controller:
     - key: node-role.kubernetes.io/control-plane
       operator: Exists
       effect: NoSchedule
-
-webhook:
-  enabled: false   # the validating webhook is optional; the controller copes without it
 
 homelab-common:
   # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
