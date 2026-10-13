@@ -18,7 +18,6 @@ homelab-common:
 
   limitRange:
     enabled: true
-    name: external-dns-openwrt-limits
     defaults:
       cpu: 100m
       memory: 128Mi

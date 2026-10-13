@@ -1,5 +1,27 @@
-# KEDA core operator + metrics-apiserver + admission webhooks, chart defaults
-# (one replica each, 100m/100Mi requests).
+# KEDA core operator + metrics-apiserver + admission webhooks, one replica each.
+# Requests sized to real use (1-9m / 13-53Mi live) instead of the chart's
+# 100m/100Mi; the chart limits (1 CPU / 1000Mi) stay.
+
+resources:
+  operator:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  metricServer:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+  webhooks:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+operator:
+  revisionHistoryLimit: 2
+metricsServer:
+  revisionHistoryLimit: 2
+webhooks:
+  revisionHistoryLimit: 2
 
 homelab-common:
   # Default-deny ingress for the whole namespace (also covers the sibling app
