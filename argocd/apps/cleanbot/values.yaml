@@ -1,21 +1,18 @@
-# Cleanbot — Telegram-бот, удаляющий старые сообщения в форумных топиках.
-# Chart:  https://git.example.com/api/packages/vizzle/helm  cleanbot 0.2.9
+# Cleanbot — Telegram bot that deletes old messages in forum topics.
+# Chart:  https://git.example.com/api/packages/vizzle/helm  cleanbot (version in config.yaml)
 # Source: https://git.example.com/vizzle/cleanbot
 # Vault:  homelab/k8s/cleanbot/app-secrets  (bot_token, webhook_header_secret, webhook_path_secret)
 
-# --- Values для upstream-чарта cleanbot ---
-
-# tag не задаём — чарт подставит .Chart.AppVersion (pinned через targetRevision в config.yaml),
-# pullPolicy остаётся чартный IfNotPresent. Versioned образ ⇒ Renovate трекает chart-bumps.
+# No image tag: the chart uses its appVersion, so a chart bump is the image bump.
 image:
   repository: git.example.com/vizzle/cleanbot
 
 bot:
-  # ESO материализует Secret cleanbot-secrets из Vault (см. homelab-common.externalSecrets ниже).
+  # ESO creates cleanbot-secrets from OpenBao (homelab-common.externalSecrets below).
   existingSecret: cleanbot-secrets
   webhookBaseUrl: "https://cleanbot.example.com"
 
-# Чартный Ingress отключаем — фронт через Cilium HTTPRoute (homelab-common.httpRoutes ниже).
+# The chart's Ingress is on by default; routing comes from homelab-common.httpRoutes.
 ingress:
   enabled: false
 
@@ -24,16 +21,14 @@ persistence:
   storageClass: longhorn
   size: 1Gi
 
-# --- Values для homelab-common ---
-
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
 
-  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот и
-  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
+  # obsidian/113 Backups/Backup Overview.md.
   volsync:
     - name: cleanbot
       claim: cleanbot

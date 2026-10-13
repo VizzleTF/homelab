@@ -1,5 +1,6 @@
 # Forgejo (forgejo-helm chart) + homelab-common section at the bottom.
-# External CNPG postgres (shared cnpg-cluster), Authentik OIDC, Cilium Gateway via homelab-common.
+# Read-only in-cluster mirror of the Forgejo on the ops node: external CNPG
+# postgres (shared cnpg-cluster), internal route via homelab-common, no OAuth.
 
 replicaCount: 1
 
@@ -11,14 +12,13 @@ image:
 
 persistence:
   enabled: true
-  # RWO volume from homelab-common (persistentVolumeClaims below). The old RWX
-  # forgejo-data PV is Retain-ed as the rollback.
+  # RWO volume from homelab-common (persistentVolumeClaims below).
   create: false
   mount: true
   claimName: forgejo-data-rwo
 
-# No ssh service: clones and pushes go to the instance on the ops node, and a
-# mirror accepts neither. This also frees port 22 on the shared LB address.
+# ssh stays a ClusterIP Service, never on the shared LB address: clones and
+# pushes go to the instance on the ops node, and a mirror accepts neither.
 service:
   http:
     type: ClusterIP
@@ -51,9 +51,9 @@ gitea:
 
   config:
     APP_NAME: "Forgejo — example.com"
-    # Цепочка снаружи: клиент -> Cloudflare -> cloudflared (под в 10.244/16)
-    # -> Envoy Gateway -> forgejo. Без доверия к прокси forgejo пишет в журнал
-    # аудита и в rate-limit адрес пода, а не человека.
+    # Path from outside: client -> Cloudflare -> cloudflared (pod in 10.244/16)
+    # -> Cilium Gateway -> forgejo. Without trusting the proxy, forgejo logs
+    # and rate-limits the pod address instead of the client.
     security:
       REVERSE_PROXY_TRUSTED_PROXIES: 10.244.0.0/16
       REVERSE_PROXY_LIMIT: 1
@@ -149,7 +149,7 @@ homelab-common:
   # restic, Garage plus OVH. See obsidian/113 Backups/Forgejo Recovery.md.
 
   externalSecrets:
-    # DB-пароль для самого Forgejo (берём из того же Vault path, что и в cnpg.yaml).
+    # DB password for Forgejo itself (same OpenBao path as the cnpg managed role).
     - name: forgejo-db-credentials
       vaultPath: forgejo/forgejo
       data:
@@ -159,7 +159,7 @@ homelab-common:
         username: forgejo
         password: "{{ .password }}"
 
-    # Admin user первого входа — chart требует ключи username/password/email.
+    # First-login admin user; the chart requires keys username/password/email.
     - name: forgejo-admin-credentials
       vaultPath: forgejo/admin
       data:
@@ -184,9 +184,9 @@ homelab-common:
         name: forgejo-http
         port: 3000
 
-  # Декларативный provisioning OIDC application/provider в Authentik.
-  # FORGEJO_OIDC_CLIENT_SECRET резолвится через !Env из authentik-config secret
-  # (см. authentik.yaml: добавлен в externalSecrets и templateData).
+  # Declarative OIDC application/provider in Authentik for the Forgejo on the
+  # ops node (git.example.com). FORGEJO_OIDC_CLIENT_SECRET resolves via !Env from
+  # the authentik-config secret (argocd/apps/authentik/values.yaml).
   authentikBlueprints:
     - name: authentik-blueprint-forgejo
       blueprints:

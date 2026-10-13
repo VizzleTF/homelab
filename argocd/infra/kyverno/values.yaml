@@ -2,10 +2,8 @@
 #
 # PodSecurity admission is effectively off here: Talos defaults to `privileged`
 # and no namespace carries enforcement labels, so any workload can ask for
-# privileged, hostPath or hostNetwork and nothing objects. Kyverno makes that
-# visible and enforces it (policies run in Enforce since 2026-09-24 — see
-# argocd/infra/kyverno-policies)
-# and gives a place to enforce later.
+# privileged, hostPath or hostNetwork and nothing objects. Kyverno enforces it:
+# the policies in argocd/infra/kyverno-policies run in Enforce since 2026-09-24.
 
 # No reports since 2026-10: the policies run in Enforce, so a violation is a
 # rejected admission, not a report entry. Background scan plus admission and
