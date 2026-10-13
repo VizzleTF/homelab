@@ -1,17 +1,18 @@
-# Valkey — общий in-cluster кэш (homelab-common.apps workload).
+# Valkey: shared in-cluster cache (homelab-common workload).
 #
-# Раньше это был чарт bitnami/valkey. Bitnami убрал версионные теги из
-# публичного каталога (остался плавающий `latest`), поэтому образ приходилось
-# пинить дайджестом руками, а Renovate его не видел. Valkey — однопроцессный
-# сервис без обвязки, так что вместо смены одного чужого каталога на другой
-# описываем его своим homelab-common: официальный образ `valkey/valkey` с
-# версионным тегом + Renovate по маркеру `# renovate: image=`.
+# It used to be the bitnami/valkey chart. Bitnami dropped versioned tags from
+# its public catalog (only a floating `latest` is left), so the image had to be
+# pinned by digest by hand and Renovate could not see it. Valkey is a single
+# process without extras, so instead of swapping one third-party catalog for
+# another it is described by homelab-common: the official `valkey/valkey`
+# image with a versioned tag, tracked by Renovate's helm-values manager.
 #
-# Клиенты ходят на `valkey-primary.valkey.svc.cluster.local:6379`:
+# Clients use `valkey-primary.valkey.svc.cluster.local:6379`:
 #   DB 0 — ArgoCD cache
 #   DB 1 — immich
-# Имя Service намеренно сохранено от bitnami-чарта (fullnameOverride), чтобы
-# миграция не тянула правки в четырёх чужих values и рестарт ArgoCD.
+# The Service name is kept from the bitnami chart (fullnameOverride) so the
+# migration did not need edits in four client values files and an ArgoCD
+# restart.
 #
 # Persistence: none — /data is an emptyDir, the cache is lost on every pod
 # restart. That is fine: the data is recoverable (ArgoCD re-cache, immich
@@ -34,116 +35,93 @@ homelab-common:
       - namespaces: [argocd, immich]
         ports: [6379]
 
-  apps:
+  workloads:
     - name: valkey
-      # Service/Deployment остаются `valkey-primary` — см. шапку.
+      # Deployment/Service stay `valkey-primary`, see the header.
       fullnameOverride: valkey-primary
-      deployment:
-        metadata:
-          labels:
-            app: valkey
-        spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              app: valkey
-          template:
-            metadata:
-              labels:
-                app: valkey
-            spec:
-              securityContext:
-                runAsNonRoot: true
-                # Образ valkey/valkey заводит пользователя valkey как uid 999 /
-                # gid 1000 (не 999 — специфика valkey-container Dockerfile).
-                runAsUser: 999
-                runAsGroup: 1000
-                fsGroup: 1000
-                seccompProfile:
-                  type: RuntimeDefault
-              containers:
-                - name: valkey
-                  # renovate: image=valkey/valkey
-                  image: valkey/valkey:9.1.2-alpine
-                  imagePullPolicy: IfNotPresent
-                  # ACL: clients (ArgoCD, immich) log in as `app`. The ACL file
-                  # is rendered at start from env into an emptyDir (rootfs is
-                  # read-only). VALKEY_DEFAULT_USER=off disables the
-                  # passwordless `default` user. maxmemory не задаём.
-                  # Persistence off (2026-10): /data is an emptyDir, so RDB
-                  # snapshots (~4 GB/day of writes) survived nothing but a
-                  # container restart. ArgoCD refills its cache; immich's
-                  # BullMQ queue loses pending jobs on a restart — rerun
-                  # "missing" jobs from the immich admin UI if that happens.
-                  command:
-                    - sh
-                    - -ec
-                    - |
-                      printf 'user default %s\nuser app on >%s ~* &* +@all\n' \
-                        "$VALKEY_DEFAULT_USER" "$VALKEY_APP_PASSWORD" > /acl/users.acl
-                      exec valkey-server --aclfile /acl/users.acl --save "" --appendonly no
-                  env:
-                    - name: VALKEY_DEFAULT_USER
-                      value: "off"
-                    - name: VALKEY_APP_PASSWORD
-                      valueFrom:
-                        secretKeyRef:
-                          name: valkey-auth
-                          key: password
-                  ports:
-                    - name: valkey
-                      containerPort: 6379
-                      protocol: TCP
-                  securityContext:
-                    readOnlyRootFilesystem: true
-                    allowPrivilegeEscalation: false
-                    capabilities:
-                      drop:
-                        - ALL
-                  volumeMounts:
-                    - name: data
-                      mountPath: /data
-                    - name: acl
-                      mountPath: /acl
-                  startupProbe:
-                    exec:
-                      command: &valkey-ping ["sh", "-c", "valkey-cli --no-auth-warning --user app --pass \"$VALKEY_APP_PASSWORD\" ping | grep -q PONG"]
-                    initialDelaySeconds: 5
-                    periodSeconds: 5
-                    failureThreshold: 12
-                  livenessProbe:
-                    tcpSocket:
-                      port: valkey
-                    periodSeconds: 30
-                  readinessProbe:
-                    exec:
-                      command: *valkey-ping
-                    periodSeconds: 15
-                  resources:
-                    requests:
-                      cpu: 50m
-                      memory: 128Mi
-                    limits:
-                      cpu: 500m
-                      memory: 256Mi
-              volumes:
-                - name: data
-                  emptyDir:
-                    sizeLimit: 1Gi
-                - name: acl
-                  emptyDir:
-                    medium: Memory
-                    sizeLimit: 1Mi
-      service:
-        metadata:
-          labels:
-            app: valkey
-        spec:
-          type: ClusterIP
+      # Immutable selector of the Deployment created before homelab-common 1.19.
+      legacySelector:
+        app: valkey
+      # The password is shared with ArgoCD and immich, which read it only at
+      # start: a Reloader roll of valkey alone would lock them out. Rotation
+      # order is in the valkey cheatsheet.
+      reload: false
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          # The valkey/valkey image creates user valkey as uid 999 / gid 1000
+          # (not 999 — a quirk of the valkey-container Dockerfile).
+          runAsUser: 999
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: valkey
+          image:
+            repository: valkey/valkey
+            tag: 9.1.2-alpine
+          # ACL: clients (ArgoCD, immich) log in as `app`. The ACL file is
+          # rendered at start from env into an emptyDir (rootfs is read-only).
+          # VALKEY_DEFAULT_USER=off disables the passwordless `default` user.
+          # No maxmemory on purpose.
+          # Persistence off (2026-10): /data is an emptyDir, so RDB snapshots
+          # (~4 GB/day of writes) survived nothing but a container restart.
+          # ArgoCD refills its cache; immich's BullMQ queue loses pending jobs
+          # on a restart — rerun "missing" jobs from the immich admin UI if
+          # that happens.
+          command:
+            - sh
+            - -ec
+            - |
+              printf 'user default %s\nuser app on >%s ~* &* +@all\n' \
+                "$VALKEY_DEFAULT_USER" "$VALKEY_APP_PASSWORD" > /acl/users.acl
+              exec valkey-server --aclfile /acl/users.acl --save "" --appendonly no
+          env:
+            - name: VALKEY_DEFAULT_USER
+              value: "off"
+            - name: VALKEY_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-auth
+                  key: password
           ports:
             - name: valkey
-              port: 6379
-              targetPort: valkey
-              protocol: TCP
-          selector:
-            app: valkey
+              containerPort: 6379
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          startupProbe:
+            exec:
+              command: &valkey-ping ["sh", "-c", "valkey-cli --no-auth-warning --user app --pass \"$VALKEY_APP_PASSWORD\" ping | grep -q PONG"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: valkey
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command: *valkey-ping
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      persistence:
+        data:
+          emptyDir:
+            sizeLimit: 1Gi
+          mountPath: /data
+        acl:
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+          mountPath: /acl
