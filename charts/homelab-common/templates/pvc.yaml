@@ -22,7 +22,5 @@ spec:
   resources:
     requests:
       storage: {{ .size }}
-  {{- if .storageClassName }}
   storageClassName: {{ .storageClassName }}
-  {{- end }}
 {{- end }}

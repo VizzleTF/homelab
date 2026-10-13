@@ -57,7 +57,8 @@ metadata:
   name: {{ $name }}-{{ $t.repo }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
+    {{- /* homelab.dr/drill: picked up by the weekly restore drill (argocd/infra/backup-drill) */}}
+    {{- include "homelab-common.labels" (dict "root" $ "extra" (dig "drill" true $item | ternary (dict "homelab.dr/drill" $name) dict)) | nindent 4 }}
 spec:
   sourcePVC: {{ $claim }}
   trigger:
@@ -78,6 +79,10 @@ spec:
       {{- toYaml ($t.retain | default $repo.retain | default (dict "daily" 7 "weekly" 4)) | nindent 6 }}
     {{- with $item.moverSecurityContext }}
     moverSecurityContext:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $item.moverResources }}
+    moverResources:
       {{- toYaml . | nindent 6 }}
     {{- end }}
 {{- end }}

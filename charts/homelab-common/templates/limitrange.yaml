@@ -2,7 +2,6 @@
 {{- $lr := $hc.limitRange }}
 {{- if $lr }}
 {{- if $lr.enabled }}
-{{- $def := $lr.defaults | default dict }}
 {{- $defReq := $lr.defaultRequests | default dict }}
 ---
 apiVersion: v1
@@ -15,11 +14,14 @@ metadata:
 spec:
   limits:
     - type: Container
+      {{- /* defaults: null = requests-only (no default limits) */}}
+      {{- with $lr.defaults }}
       default:
-        cpu: {{ $def.cpu | default "500m" }}
-        memory: {{ $def.memory | default "512Mi" }}
+        cpu: {{ .cpu }}
+        memory: {{ .memory }}
+      {{- end }}
       defaultRequest:
-        cpu: {{ $defReq.cpu | default "50m" }}
-        memory: {{ $defReq.memory | default "64Mi" }}
+        cpu: {{ $defReq.cpu }}
+        memory: {{ $defReq.memory }}
 {{- end }}
 {{- end }}

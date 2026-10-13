@@ -15,7 +15,6 @@ metadata:
   labels:
     {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   annotations:
-    argocd.argoproj.io/sync-options: Replace=true
     external-dns.kubernetes.io/hostname: {{ $hostname }}
     external-dns.kubernetes.io/target: {{ $gw.ip | quote }}
     external-dns.kubernetes.io/internal-dns: "true"
