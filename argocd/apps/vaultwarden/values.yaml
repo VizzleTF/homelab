@@ -66,6 +66,11 @@ initContainers:
         mountPath: /data
 
 homelab-common:
+  # Default-deny ingress: only the gateway (pass.example.com), kubelet probes and
+  # the VolSync movers in this namespace reach vaultwarden.
+  networkPolicy:
+    enabled: true
+
   # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
   # obsidian/113 Backups/Backup Overview.md.
   # Data volume (RWO). Replaces the StatefulSet's RWX
