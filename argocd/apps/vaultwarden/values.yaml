@@ -1,10 +1,9 @@
-# Vaultwarden (guerzon chart) — ключи чарта + секция homelab-common в конце файла
+# Vaultwarden (guerzon chart): chart keys, then the homelab-common section.
 
 # Deployment on an RWO volume. It was a StatefulSet on an RWX volume, i.e.
 # SQLite over NFS (Longhorn share-manager). volumeClaimTemplates cannot be
 # changed in place, so the switch goes through a new Deployment; the data was
-# copied once by a PreSync job (sqlite3 .backup, removed after use). The old volume
-# vaultwarden-data-vaultwarden-0 (PV Retain) is the rollback.
+# copied once by a PreSync job (sqlite3 .backup, removed after use).
 resourceType: Deployment
 strategy:
   type: Recreate
@@ -19,10 +18,10 @@ domain: "https://pass.example.com"
 # organization invitation (invitationsAllowed stays at the chart default).
 signupsAllowed: false
 
-# Cloudflared проксирует HTTP и ставит CF-Connecting-IP; X-Real-IP (дефолт
-# чарта) не шлёт никто, поэтому vaultwarden логировал IP пода cloudflared —
-# и «неудачный вход с 10.244.2.121» не говорил ни о чём. Envoy заголовок не
-# трогает: gatewayAPI.useRemoteAddress=false у cilium.
+# cloudflared sets CF-Connecting-IP; nobody sends X-Real-IP (the chart default),
+# so vaultwarden logged the cloudflared pod IP and "failed login from
+# 10.244.2.121" said nothing. Cilium's Envoy leaves the header alone
+# (gatewayAPI.useRemoteAddress=false).
 ipHeader: "CF-Connecting-IP"
 
 podSecurityContext:
@@ -67,8 +66,8 @@ initContainers:
         mountPath: /data
 
 homelab-common:
-  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот и
-  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
+  # obsidian/113 Backups/Backup Overview.md.
   # Data volume (RWO). Replaces the StatefulSet's RWX
   # vaultwarden-data-vaultwarden-0: SQLite locking over NFS is unreliable.
   persistentVolumeClaims:

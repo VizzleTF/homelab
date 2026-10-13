@@ -13,12 +13,8 @@ storeRequeueInterval: 1h
 vault:
   enableTokenCache: true
 
-# Обе реплики садились на talos-worker-01: все три control-plane ноды несут
-# tuppr-taint `tuppr.home-operations.com/outdated:PreferNoSchedule` (кластер
-# заморожен на Talos v1.13.7), и без жёсткого правила scheduler уводит всё на
-# единственную нечистую ноду. Падение worker-01 уносило ESO целиком, а с ним
-# синк всех секретов. Namespace в exclude-списке descheduler, так что
-# evict-лупа тут не было — только дыра в HA.
+# Required anti-affinity: with a soft rule both replicas once landed on
+# talos-worker-01, and losing that node took ESO, and every secret sync, down.
 affinity:
   podAntiAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:

@@ -58,8 +58,8 @@ homelab-common:
   networkPolicy:
     enabled: true
 
-  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот и
-  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
+  # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
+  # obsidian/113 Backups/Backup Overview.md.
   volsync:
     - name: trek-data
       claim: trek-data

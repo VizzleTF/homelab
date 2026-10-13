@@ -1,15 +1,11 @@
-# Robusta — единый alert hub (enrichment + K8s-native + change tracking + digest).
-# Chart: robusta/robusta — версия пинится в config.yaml (targetRevision), Renovate её и двигает.
-# Namespace: robusta
-# Ключи и схема сверялись с `helm show values robusta/robusta --version <pin из config.yaml>`.
+# Robusta — the single alert hub (enrichment, K8s-native triggers, change tracking).
+# Chart robusta/robusta, version in config.yaml. Namespace: robusta.
 
 clusterName: "homelab"
 
-# Отключаем SaaS / встроенный kube-prometheus-stack / HolmesGPT.
-# HolmesGPT (AI root-cause) был включён 2026-04-24, отключён 2026-04-26 —
-# его playbook `AutoInvestigateAlerts` шёл отдельным сообщением поверх каждого
-# Prometheus-алерта (holmes_chat создаёт независимый finding). Цель: ровно 1
-# сообщение на алерт от Robusta (вложения через enricher'ы — OK).
+# No SaaS, no bundled kube-prometheus-stack, no HolmesGPT. HolmesGPT's
+# AutoInvestigateAlerts sent a separate message on top of every alert
+# (holmes_chat creates its own finding); the goal is one message per alert.
 enablePlatformPlaybooks: false
 enableHolmesGPT: false
 enablePrometheusStack: false
@@ -17,9 +13,9 @@ enablePrometheusStack: false
 grafanaRenderer:
   enableContainer: false
 
-# Offline-режим: account_id пусто → SaaS не используется.
-# signing_key обязателен даже в offline — приходит из ExternalSecret через env.
-# ВАЖНО: Robusta использует {{ env.VAR }} Jinja-синтаксис, НЕ $(VAR) (K8s env-ref).
+# Offline mode: empty account_id, no SaaS. signing_key is required even
+# offline and comes from the ExternalSecret through env.
+# Robusta substitutes {{ env.VAR }} (Jinja), NOT $(VAR) (the Kubernetes form).
 globalConfig:
   signing_key: "{{ env.SIGNING_KEY }}"
   account_id: ""
@@ -36,11 +32,11 @@ runner:
       memory: 1024Mi
   log_level: INFO
   sendAdditionalTelemetry: false
-  # Read-only root FS — security++. Volumes для записи чарт монтирует сам.
+  # Read-only root FS; the chart mounts the writable volumes itself.
   hardenedFs: true
-  # Расширяет RBAC runner-а на CNPG Cluster CRD → enrichment в алертах
-  # типа "CNPG cluster degraded" получает spec/status кластера.
-  # Чарт поддерживает только предопределённые ключи: StrimziPodSet, CNPGCluster, ExecutionContext.
+  # Extends the runner's RBAC to the CNPG Cluster CRD, so "CNPG cluster
+  # degraded" alerts get the cluster spec/status. The chart only knows the
+  # keys StrimziPodSet, CNPGCluster, ExecutionContext.
   customCRD:
     - "CNPGCluster"
   serviceMonitor:
@@ -56,9 +52,9 @@ runner:
         secretKeyRef:
           name: robusta-telegram
           key: bot_token
-    # chat_id хардкодим числом ниже: Robusta ожидает int и валидирует до
-    # env-substitution, поэтому даже {{ env.VAR }} не помогает. chat_id без
-    # bot_token бесполезен, поэтому держать его в private-repo безопасно.
+    # chat_id is a literal number below: Robusta wants an int and validates
+    # before env substitution, so {{ env.VAR }} does not work there. A chat_id
+    # is useless without the bot token.
 
 kubewatch:
   resources:
@@ -77,24 +73,24 @@ kubewatch:
       node: true
       event: true
       ingress: true
-      # Шумные ресурсы выключаем.
+      # Noisy kinds off.
       configmap: false
       secret: false
       serviceaccount: false
       namespace: false
 
-# Telegram sink-и: alerts (default) + changes (для WorkloadChangeTracking).
-# Один бот, один chat_id. `default: false` у changes — без него default-sink
-# c тем же chat_id получал бы копию каждого алерта (дубль в Telegram).
+# Telegram sinks: alerts (default) + changes (WorkloadChangeTracking). One bot,
+# one chat_id. `default: false` on changes, otherwise it would also get a copy
+# of every alert (duplicate in Telegram).
 sinksConfig:
   - telegram_sink:
       name: telegram_alerts
       bot_token: "{{ env.TG_BOT_TOKEN }}"
       chat_id: 0000000000
       send_files: true
-      # DEBUG — это severity, с которой Robusta шлёт k8s warning events и
-      # прочий поток «что-то произошло». Алерты из VictoriaMetrics приходят
-      # с INFO/LOW/HIGH и фильтр не задевает.
+      # DEBUG is the severity of k8s warning events and other "something
+      # happened" findings. VictoriaMetrics alerts arrive as INFO/LOW/HIGH and
+      # pass the filter.
       scope:
         exclude:
           - severity: DEBUG
@@ -105,15 +101,9 @@ sinksConfig:
       send_files: false
       default: false
 
-# Custom playbooks: auto-remediation + change tracking + digest.
-# Built-in playbooks (KubePodCrashLooping, KubeNodeNotReady и т.д.)
-# работают из коробки — ничего дополнительно не настраиваем.
-#
-# NB про auto-remediation в 0.35:
-#   - Evicted pods — покрывается штатным on_pod_evicted (ниже).
-#   - Stuck Terminating — в 0.35 нет триггера по age/phase, пропускаем.
-#   - Cleanup старых Jobs — делается нативно K8s через
-#     .spec.ttlSecondsAfterFinished у Job/CronJob, без Robusta.
+# Custom playbooks: auto-remediation and change tracking. Built-in playbooks
+# (KubePodCrashLooping, KubeNodeNotReady, ...) work as shipped. Old Jobs are
+# cleaned by Kubernetes (.spec.ttlSecondsAfterFinished), not by Robusta.
 customPlaybooks:
 
   # 1. Auto-delete Evicted pods.
@@ -127,13 +117,11 @@ customPlaybooks:
           title: "Auto-deleted evicted pod $name"
     sinks: [telegram_alerts]
 
-  # 2. Rollout restart при повторяющихся OOMKill.
-  # Сообщение про сам OOM (с logs+memory graph) шлёт built-in PodOOMKill;
-  # тут мы ТОЛЬКО рестартим — без `create_finding`, чтобы не плодить второе
-  # сообщение. Сам факт rollout-restart всё равно поедет в telegram_changes
-  # через WorkloadChangeTracking.
-  # rate_limit выровнен с built-in (3600s), чтобы не было рассинхрона
-  # «6 рестартов за час vs 1 enriched сообщение».
+  # 2. Rollout restart on repeated OOMKills. The built-in PodOOMKill sends
+  # the OOM message (logs + memory graph); this one ONLY restarts, without
+  # create_finding, so there is no second message. The restart itself shows
+  # up in telegram_changes via WorkloadChangeTracking. rate_limit matches the
+  # built-in (3600s).
   - name: "RestartOnMemoryLeak"
     triggers:
       - on_pod_oom_killed:
@@ -141,7 +129,7 @@ customPlaybooks:
     actions:
       - rollout_restart: {}
 
-  # 3. Change tracking — Deployment/DS/SS/Ingress → отдельный канал.
+  # 3. Change tracking: Deployment/DS/SS/Ingress to the changes sink.
   - name: "WorkloadChangeTracking"
     triggers:
       - on_kubernetes_resource_operation:
@@ -150,23 +138,14 @@ customPlaybooks:
       - resource_babysitter: {}
     sinks: [telegram_changes]
 
-  # 4. K8s Warning Events report -- ОТКЛЮЧЁН 11.09.2026.
-  #
-  # `warning_events_report` шлёт находки с severity DEBUG, и всё, что
-  # случалось в кластере как Warning event, ехало в Telegram отдельным
-  # сообщением. Список exclude вырос до двух десятков строк и всё равно не
-  # поспевал: последний залп -- VolumeCloneFailed от Longhorn, пока залипший
-  # VolSync-клон пересоздавался каждые полминуты.
-  #
-  # То, ради чего playbook держали, покрыто VMRule'ами с `for:`
-  # (KubePodNotReady, KubeContainerWaiting, KubePodCrashLooping,
-  # LonghornVolumeDegraded/Faulted): они срабатывают на состоянии, а не на
-  # каждом событии, и умеют resolve.
-  #
-  # На синке telegram_alerts дополнительно стоит `scope.exclude: severity
-  # DEBUG` -- чтобы DEBUG не пролез из встроенных плейбуков чарта.
+  # 4. No K8s Warning Events report (off since 2026-09-11): it sent every
+  # Warning event as its own DEBUG message, and the exclude list never kept
+  # up. VMRules with `for:` (KubePodNotReady, KubeContainerWaiting,
+  # KubePodCrashLooping, LonghornVolumeDegraded/Faulted) cover the same ground
+  # on state rather than events, and they resolve. The telegram_alerts sink
+  # also excludes severity DEBUG for the chart's built-in playbooks.
 
-  # 5. Job failure с обогащением (info + events + pod logs).
+  # 5. Job failure with enrichment (info + events + pod logs).
   - name: "JobFailureEnrichment"
     triggers:
       - on_job_failure: {}
@@ -179,11 +158,9 @@ customPlaybooks:
       - job_pod_enricher: {}
     sinks: [telegram_alerts]
 
-  # 6. Cleanup завершившихся Robusta-job pods. Раз в час, hours_back=1 —
-  # держим ns robusta чистым на случай если что-то всё же создаст job.
-  # KRR/Popeye scheduled scans ВЫКЛЮЧЕНЫ полностью (см. disabledPlaybooks
-  # ниже + удалены DailyDigest/WeeklyPopeyeScan) — создавали 2-4 pod-а каждое
-  # выполнение и не давали ценности через Telegram.
+  # 6. Hourly cleanup of finished Robusta job pods (hours_back=1). KRR/Popeye
+  # scheduled scans are off (disabledPlaybooks below): 2-4 pods per run and
+  # nothing useful in Telegram.
   - name: "CleanupRobustaPods"
     triggers:
       - on_schedule:
@@ -193,16 +170,14 @@ customPlaybooks:
       - cleanup_robusta_pods:
           hours_back: 1
 
-# Чартовые built-in playbooks с расписанием шлют в robusta_ui_sink
-# (которого у нас нет) и плодят completed jobs впустую.
+# The chart's scheduled built-in playbooks send to robusta_ui_sink (absent
+# here) and only leave completed jobs behind.
 disabledPlaybooks:
   - WeeklyKRRScan
   - RobustaMaintenance
 
-# homelab-common: ExternalSecrets для Robusta.
-# - robusta-telegram: bot_token + signing_key для Telegram sink'ов.
-# chat_id живёт числом в argocd/infra/robusta/values.yaml — Robusta требует int
-# и не делает env-substitution для этого поля.
+# robusta-telegram: bot_token + signing_key for the Telegram sinks (chat_id is
+# a literal int above).
 homelab-common:
   # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
