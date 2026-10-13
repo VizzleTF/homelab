@@ -2,9 +2,4 @@ chart: wazuh-cluster
 repoURL: ghcr.io/maximewewer/charts
 targetRevision: "2026.10.1"
 wave: "2"
-ignoreDiff: |
-  - group: resources.wazuh.com
-    kind: WazuhCluster
-    jsonPointers:
-      - /status
 extraManifests: true
