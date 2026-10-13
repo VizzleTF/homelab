@@ -16,15 +16,23 @@ concurrency:
 
 jobs:
   yamllint:
-    # Pre-merge gate. После squash-merge на main те же файлы уже валидированы — не перегоняем.
+    # Pre-merge gate. After the squash merge the same files are already validated on main.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install yamllint
+        # Version from .mise.toml; the Debian package lagged (1.29 vs 1.38).
         run: |
+          set -eu
+          VERSION=$(sed -n 's/^yamllint[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .mise.toml)
+          [ -n "$VERSION" ] || { echo "::error::yamllint version not found in .mise.toml"; exit 1; }
           apt-get update -qq
-          apt-get install -y --no-install-recommends yamllint python3-yaml
+          apt-get install -y --no-install-recommends python3-venv python3-yaml
+          python3 -m venv /tmp/yamllint
+          /tmp/yamllint/bin/pip install --quiet "yamllint==${VERSION}"
+          ln -sf /tmp/yamllint/bin/yamllint /usr/local/bin/yamllint
+          yamllint --version
       - name: Lint
         run: yamllint .
       - name: Lint Claude skills
@@ -42,16 +50,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install helm
-        run: |
-          set -eu
-          VERSION=v3.16.4
-          curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
-          install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
-          helm version --short
+        # Version from .mise.toml (Renovate-tracked), same major as ArgoCD's helm.
+        run: scripts/ci-install-helm.sh
       - name: Lint homelab-common
-        run: helm lint charts/homelab-common
-      - name: Template homelab-common (smoke)
-        run: helm template smoke charts/homelab-common --debug >/dev/null
+        run: helm lint --strict charts/homelab-common
+      - name: Render diff vs the published chart
+        # What a charts/ change does to every consumer; argocd-diff only sees
+        # it in the later PR that bumps the pin. Informational, never fails on
+        # differences.
+        run: scripts/chart-diff.sh
 
   kubeconform:
     # Pre-merge gate. Schema-validates homelab-common rendered from the local
@@ -65,12 +72,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install helm
-        run: |
-          set -eu
-          VERSION=v3.16.4
-          curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
-          install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
-          helm version --short
+        # Version from .mise.toml (Renovate-tracked), same major as ArgoCD's helm.
+        run: scripts/ci-install-helm.sh
       - name: Install kubeconform
         run: |
           set -euo pipefail
@@ -102,9 +105,9 @@ jobs:
         run: scripts/kubeconform-validate.sh
 
   gitleaks:
-    # Pre-merge required-check (branch protection). На push к main не запускаем —
-    # тот же diff уже проверен на PR; post-sanitize gitleaks внутри mirror-to-github
-    # остаётся вторым контуром защиты для rewriten history.
+    # Pre-merge required check (branch protection). Not run on push to main: the
+    # same diff was checked in the PR; the post-sanitize gitleaks inside
+    # mirror-to-github stays the second line for the rewritten history.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -348,9 +351,9 @@ jobs:
           exit 1
 
   mirror-to-github:
-    # Post-merge only. Pre-merge gitleaks (см. job выше) — pull_request gate;
-    # сюда commit попадает только после merge на main, где он уже валидирован.
-    # workflow_dispatch разрешён для ручного перезапуска mirror без re-merge.
+    # Post-merge only. Pre-merge gitleaks (job above) is the pull_request gate;
+    # a commit reaches this job only after the merge to main, already validated.
+    # workflow_dispatch allows re-running the mirror without a re-merge.
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -432,8 +435,8 @@ jobs:
           git push --force "https://VizzleTF:${GH_PAT}@github.com/${GH_REPO}.git" HEAD:main
 
   notify-failure:
-    # Post-merge only. Pre-merge gitleaks failures видны в Forgejo PR UI и не нуждаются в Telegram.
-    # Триггер — failure mirror-to-github (включая встроенный post-sanitize gitleaks gate).
+    # Post-merge only. Pre-merge gitleaks failures show in the Forgejo PR UI and need no Telegram.
+    # Trigger: mirror-to-github failed (including its post-sanitize gitleaks gate).
     needs: mirror-to-github
     if: always() && needs.mirror-to-github.result == 'failure'
     runs-on: ubuntu-latest
