@@ -3,6 +3,13 @@ kind: Application
 metadata:
   name: root
   namespace: argocd
+  annotations:
+    # argocd-diff renders root only when what it syncs changes.
+    argocd-diff-preview/watch-pattern: "argocd/root-application.yaml, argocd/projects/.*, argocd/appsets/.*, argocd/standalone/.*"
+    argocd.argoproj.io/manifest-generate-paths: "/argocd/projects;/argocd/appsets;/argocd/standalone"
+  labels:
+    app.kubernetes.io/managed-by: kubectl
+    app.kubernetes.io/part-of: root
   # No resources-finalizer on purpose. With it, deleting root cascades: ArgoCD
   # deletes both ApplicationSets, the k8s GC removes the 54 child Applications
   # via ownerReferences, and each of their finalizers deletes the resources

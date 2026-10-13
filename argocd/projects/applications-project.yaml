@@ -12,3 +12,20 @@ spec:
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'
+  # Warn about objects in app namespaces that no Application tracks. Ignored:
+  # what operators and StatefulSets create without an ownerReference.
+  orphanedResources:
+    warn: true
+    ignore:
+      - kind: ConfigMap
+        name: cnpg-default-monitoring
+      - kind: ConfigMap
+        name: "wazuh-*"
+      - kind: PersistentVolumeClaim
+        name: indexer-data-wazuh-indexer-0
+      - kind: PersistentVolumeClaim
+        name: wazuh-data-queue-wazuh-manager-master-0
+      - kind: PersistentVolumeClaim
+        name: wazuh-data-wazuh-manager-master-0
+      - kind: PersistentVolumeClaim
+        name: database-storage-obsidian-livesync-couchdb-0
