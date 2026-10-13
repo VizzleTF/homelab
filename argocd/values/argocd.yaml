@@ -56,13 +56,14 @@ homelab-common:
         - secretKey: webhook.gogs.secret
           property: secret
 
+    # The homelab's one Telegram bot (grant `telegram`).
     - name: argocd-notifications-secret
-      vaultPath: argocd/notifications
+      vaultPath: shared/telegram
       data:
         - secretKey: telegram-token
-          property: telegram-token
+          property: bot_token
         - secretKey: telegram-chatID
-          property: telegram-chat-id
+          property: chat_id
 
     # Forgejo SSH access: a dedicated ed25519 keypair for the argocd-bot user in Forgejo.
     # Forgejo now lives on the ops node outside the cluster; git.example.com is a
