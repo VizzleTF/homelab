@@ -6,6 +6,8 @@ kind: Database
 metadata:
   name: {{ $db.name }}
   namespace: {{ $db.namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 spec:
   name: {{ $db.name }}
   owner: {{ $db.owner }}

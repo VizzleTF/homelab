@@ -1,0 +1,102 @@
+{{- /*
+workloads[]: a Deployment (default) or CronJob, plus a Service when a container
+declares ports. Pod (`pod`) and container bodies are native Kubernetes fields;
+the chart adds names, labels, selector, defaults and two shorthands:
+  image: {repository, tag}  -> "repository:tag"
+  persistence: <volume>: {claim | native volume source, mountPath, subPath, readOnly, containers}
+Values always win over chart defaults (mergeOverwrite keeps a user 0/false).
+*/}}
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- $pvcModes := dict }}
+{{- range $hc.persistentVolumeClaims | default list }}{{ $_ := set $pvcModes .name .accessModes }}{{ end }}
+{{- range $w := $hc.workloads | default list }}
+{{- $type := $w.type | default "deployment" }}
+{{- $cron := eq $type "cronjob" }}
+{{- $name := include "homelab-common.app.fullname" (dict "app" $w "root" $) }}
+{{- /* legacySelector keeps the immutable selector of a Deployment created before 1.19. */}}
+{{- $selector := $w.legacySelector | default (dict "app.kubernetes.io/name" $name "app.kubernetes.io/instance" $.Release.Name) }}
+{{- $persistence := $w.persistence | default dict }}
+
+{{- /* Pod spec: chart defaults, then values. */}}
+{{- $pod := mergeOverwrite (dict "automountServiceAccountToken" false "enableServiceLinks" false) (deepCopy ($w.pod | default dict)) }}
+{{- if $cron }}{{ $pod = mergeOverwrite (dict "restartPolicy" "OnFailure") $pod }}{{ end }}
+{{- $volumes := $pod.volumes | default list }}
+{{- range $vol, $p := $persistence }}
+{{- $src := omit $p "mountPath" "subPath" "readOnly" "containers" "claim" }}
+{{- with $p.claim }}
+{{- if not (hasKey $pvcModes .) }}{{ fail (printf "workloads %s: persistence.%s.claim %q is not in persistentVolumeClaims" $name $vol .) }}{{ end }}
+{{- $src = dict "persistentVolumeClaim" (dict "claimName" .) }}
+{{- end }}
+{{- $volumes = append $volumes (merge (dict "name" $vol) $src) }}
+{{- end }}
+
+{{- $containers := list }}
+{{- range $c := $w.containers }}
+{{- $c = deepCopy $c }}
+{{- $_ := set $c "image" (printf "%s:%v" $c.image.repository $c.image.tag) }}
+{{- $mounts := $c.volumeMounts | default list }}
+{{- range $vol, $p := $persistence }}
+{{- if or (not $p.containers) (has $c.name $p.containers) }}
+{{- $mounts = append $mounts (merge (dict "name" $vol) (pick $p "mountPath" "subPath" "readOnly")) }}
+{{- end }}
+{{- end }}
+{{- if $mounts }}{{ $_ := set $c "volumeMounts" $mounts }}{{ end }}
+{{- $containers = append $containers $c }}
+{{- end }}
+{{- $_ := set $pod "containers" $containers }}
+{{- if $volumes }}{{ $_ := set $pod "volumes" $volumes }}{{ end }}
+
+{{- /* Reloader: roll the pods when a referenced Secret/ConfigMap changes; RWO claim -> Recreate. */}}
+{{- $secrets := list }}
+{{- $configMaps := list }}
+{{- range concat $containers ($pod.initContainers | default list) }}
+{{- range .envFrom }}{{ with .secretRef }}{{ $secrets = append $secrets .name }}{{ end }}{{ with .configMapRef }}{{ $configMaps = append $configMaps .name }}{{ end }}{{ end }}
+{{- range .env }}{{ with .valueFrom }}{{ with .secretKeyRef }}{{ $secrets = append $secrets .name }}{{ end }}{{ with .configMapKeyRef }}{{ $configMaps = append $configMaps .name }}{{ end }}{{ end }}{{ end }}
+{{- end }}
+{{- $rwo := false }}
+{{- range $volumes }}
+{{- with .secret }}{{ $secrets = append $secrets .secretName }}{{ end }}
+{{- with .configMap }}{{ $configMaps = append $configMaps .name }}{{ end }}
+{{- with .persistentVolumeClaim }}{{ if has "ReadWriteOnce" (index $pvcModes .claimName | default list) }}{{ $rwo = true }}{{ end }}{{ end }}
+{{- end }}
+{{- $annotations := deepCopy ($w.annotations | default dict) }}
+{{- if and (not $cron) (ternary $w.reload true (hasKey $w "reload")) }}
+{{- with $secrets }}{{ $_ := set $annotations "secret.reloader.stakater.com/reload" (uniq . | sortAlpha | join ",") }}{{ end }}
+{{- with $configMaps }}{{ $_ := set $annotations "configmap.reloader.stakater.com/reload" (uniq . | sortAlpha | join ",") }}{{ end }}
+{{- end }}
+
+{{- $template := dict "metadata" (dict "labels" (merge (deepCopy $selector) (dict "app.kubernetes.io/name" $name "app.kubernetes.io/instance" $.Release.Name))) "spec" $pod }}
+{{- $spec := dict }}
+{{- if $cron }}
+{{- $job := mergeOverwrite (dict "backoffLimit" 2) (deepCopy ($w.job | default dict)) }}
+{{- $_ := set $job "template" $template }}
+{{- $spec = dict "schedule" ($w.schedule | required (printf "workloads %s: schedule is required for a cronjob" $name)) "concurrencyPolicy" "Forbid" "startingDeadlineSeconds" 600 "successfulJobsHistoryLimit" 1 "failedJobsHistoryLimit" 3 "jobTemplate" (dict "spec" $job) }}
+{{- else }}
+{{- $spec = dict "revisionHistoryLimit" 2 "selector" (dict "matchLabels" $selector) "template" $template }}
+{{- if $rwo }}{{ $_ := set $spec "strategy" (dict "type" "Recreate") }}{{ end }}
+{{- end }}
+---
+apiVersion: {{ ternary "batch/v1" "apps/v1" $cron }}
+kind: {{ ternary "CronJob" "Deployment" $cron }}
+{{ include "homelab-common.metadata" (dict "name" $name "app" $name "root" $ "meta" (dict "labels" $w.labels "annotations" $annotations)) }}
+spec:
+  {{- toYaml (mergeOverwrite $spec (deepCopy ($w.spec | default dict))) | nindent 2 }}
+
+{{- $ports := list }}
+{{- range $containers }}{{ range .ports }}
+{{- $p := dict "port" .containerPort "targetPort" (.name | default .containerPort) }}
+{{- with .name }}{{ $_ := set $p "name" . }}{{ end }}
+{{- with .protocol }}{{ $_ := set $p "protocol" . }}{{ end }}
+{{- $ports = append $ports $p }}
+{{- end }}{{ end }}
+{{- if and $ports (not $cron) (ne (toString $w.service) "false") }}
+{{- $svc := dict "selector" $selector "ports" $ports }}
+{{- if kindIs "map" $w.service }}{{ $svc = mergeOverwrite $svc (deepCopy $w.service) }}{{ end }}
+---
+apiVersion: v1
+kind: Service
+{{ include "homelab-common.metadata" (dict "name" $name "app" $name "root" $) }}
+spec:
+  {{- toYaml $svc | nindent 2 }}
+{{- end }}
+{{- end }}

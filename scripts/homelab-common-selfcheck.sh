@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Self-check of the homelab-common workloads engine (charts/homelab-common):
+# the schema rejects what it must, values win over chart defaults (0/false
+# included), names/selectors/Service/Reloader/Recreate come out as documented.
+# Runs in the CI helm-lint job and locally; needs helm and python3 with PyYAML,
+# kubeconform optional.
+set -uo pipefail
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+C=charts/homelab-common
+G=argocd/values/global.yaml
+out_dir=$(mktemp -d); trap 'rm -rf "$out_dir"' EXIT
+fail=0
+
+tpl() { helm template t "$C" --namespace t -f "$G" -f - 2>&1; }
+must_fail() {
+  local msg=$1
+  if tpl >/dev/null; then echo "FAIL (accepted): $msg"; fail=1
+  else echo "ok   rejects: $msg"; fi
+}
+
+must_fail "typo contaners" <<'Y'
+homelab-common: {workloads: [{name: a, contaners: [], containers: [{name: a, image: {repository: x, tag: "1"}}]}]}
+Y
+must_fail "image as a string" <<'Y'
+homelab-common: {workloads: [{name: a, containers: [{name: a, image: "x:1"}]}]}
+Y
+must_fail "image object without tag" <<'Y'
+homelab-common: {workloads: [{name: a, containers: [{name: a, image: {repository: x}}]}]}
+Y
+must_fail "statefulset is not a type" <<'Y'
+homelab-common: {workloads: [{name: a, type: statefulset, containers: [{name: a, image: {repository: x, tag: "1"}}]}]}
+Y
+must_fail "cronjob without schedule" <<'Y'
+homelab-common: {workloads: [{name: a, type: cronjob, containers: [{name: a, image: {repository: x, tag: "1"}}]}]}
+Y
+must_fail "schedule on a deployment" <<'Y'
+homelab-common: {workloads: [{name: a, schedule: "* * * * *", containers: [{name: a, image: {repository: x, tag: "1"}}]}]}
+Y
+must_fail "claim not in persistentVolumeClaims" <<'Y'
+homelab-common: {workloads: [{name: a, containers: [{name: a, image: {repository: x, tag: "1"}}], persistence: {d: {claim: nope, mountPath: /d}}}]}
+Y
+must_fail "containers inside pod" <<'Y'
+homelab-common: {workloads: [{name: a, pod: {containers: []}, containers: [{name: a, image: {repository: x, tag: "1"}}]}]}
+Y
+
+tpl > "$out_dir/render.yaml" <<'Y' || { echo "FAIL: reference render"; cat "$out_dir/render.yaml"; exit 1; }
+homelab-common:
+  persistentVolumeClaims:
+    - {name: t-data, accessModes: [ReadWriteOnce], size: 1Gi, storageClassName: longhorn}
+  workloads:
+    - name: web                     # values win over defaults, also 0/false
+      pod: {automountServiceAccountToken: true}
+      spec: {revisionHistoryLimit: 0, strategy: {type: RollingUpdate}}
+      reload: false
+      containers:
+        - name: web
+          image: {repository: nginx, tag: "1.27"}
+          ports: [{name: http, containerPort: 80}]
+          envFrom: [{secretRef: {name: s}}]
+          readinessProbe: {httpGet: {path: /, port: http}}
+        - {name: side, image: {repository: busybox, tag: "1"}}
+      persistence:
+        data: {claim: t-data, mountPath: /data, containers: [side]}
+    - name: api                     # defaults: Recreate on RWO, reloader, legacy selector
+      legacySelector: {app: api}
+      containers:
+        - name: api
+          image: {repository: ghcr.io/x/api, tag: "2.0"}
+          env: [{name: P, valueFrom: {secretKeyRef: {name: api-secret, key: p}}}]
+          ports: [{name: http, containerPort: 8080}]
+      persistence:
+        data: {claim: t-data, mountPath: /data}
+        cfg: {configMap: {name: api-config}, mountPath: /etc/api}
+    - name: job
+      type: cronjob
+      schedule: "0 1 * * *"
+      job: {backoffLimit: 0}
+      spec: {concurrencyPolicy: Allow, timeZone: UTC}
+      containers: [{name: job, image: {repository: busybox, tag: "1"}}]
+  configMaps:
+    - {name: notify-script, data: {a: b}}
+  secrets:
+    - {name: repo, fullnameOverride: helm-oci, labels: {argocd.argoproj.io/secret-type: repository}, stringData: {type: helm}}
+Y
+
+python3 - "$out_dir/render.yaml" <<'P' || fail=1
+import sys, yaml
+docs = {(d['kind'], d['metadata']['name']): d for d in yaml.safe_load_all(open(sys.argv[1])) if d}
+web, api, cj = docs[('Deployment', 't-web')], docs[('Deployment', 't-api')], docs[('CronJob', 't-job')]
+p, a = web['spec']['template']['spec'], api['spec']['template']['spec']
+std = {'app.kubernetes.io/name': 't-web', 'app.kubernetes.io/instance': 't', 'app.kubernetes.io/managed-by': 'Helm'}
+checks = {
+  'user automountServiceAccountToken true kept': p['automountServiceAccountToken'] is True,
+  'enableServiceLinks default false': p['enableServiceLinks'] is False,
+  'user revisionHistoryLimit 0 kept': web['spec']['revisionHistoryLimit'] == 0,
+  'user RollingUpdate beats RWO Recreate': web['spec']['strategy'] == {'type': 'RollingUpdate'},
+  'reload false -> no reloader annotation': 'annotations' not in web['metadata'],
+  'image object -> repo:tag': p['containers'][0]['image'] == 'nginx:1.27',
+  'native probe passes through': p['containers'][0]['readinessProbe'] == {'httpGet': {'path': '/', 'port': 'http'}},
+  'persistence only into listed container': 'volumeMounts' not in p['containers'][0] and p['containers'][1]['volumeMounts'][0]['mountPath'] == '/data',
+  'auto selector name+instance': web['spec']['selector']['matchLabels'] == {'app.kubernetes.io/name': 't-web', 'app.kubernetes.io/instance': 't'},
+  'standard labels on metadata': web['metadata']['labels'] == std,
+  'service generated from ports': docs[('Service', 't-web')]['spec']['ports'] == [{'name': 'http', 'port': 80, 'targetPort': 'http'}],
+  'legacy selector on Deployment and Service': api['spec']['selector']['matchLabels'] == {'app': 'api'} and docs[('Service', 't-api')]['spec']['selector'] == {'app': 'api'},
+  'pod template carries legacy + standard labels': a and api['spec']['template']['metadata']['labels']['app'] == 'api' and api['spec']['template']['metadata']['labels']['app.kubernetes.io/name'] == 't-api',
+  'RWO claim -> Recreate': api['spec']['strategy'] == {'type': 'Recreate'},
+  'defaults automount false, revisionHistoryLimit 2': a['automountServiceAccountToken'] is False and api['spec']['revisionHistoryLimit'] == 2,
+  'reloader from env secret and configMap volume': api['metadata']['annotations'] == {'secret.reloader.stakater.com/reload': 'api-secret', 'configmap.reloader.stakater.com/reload': 'api-config'},
+  'reloader not on pod template': 'annotations' not in api['spec']['template']['metadata'],
+  'cronjob job backoffLimit 0 kept': cj['spec']['jobTemplate']['spec']['backoffLimit'] == 0,
+  'cronjob user Allow kept + defaults': cj['spec']['concurrencyPolicy'] == 'Allow' and cj['spec']['startingDeadlineSeconds'] == 600 and cj['spec']['timeZone'] == 'UTC',
+  'cronjob history 1/3': cj['spec']['successfulJobsHistoryLimit'] == 1 and cj['spec']['failedJobsHistoryLimit'] == 3,
+  'cronjob restartPolicy OnFailure': cj['spec']['jobTemplate']['spec']['template']['spec']['restartPolicy'] == 'OnFailure',
+  'no reloader on cronjob': 'annotations' not in cj['metadata'],
+  'configMap named like workloads': ('ConfigMap', 't-notify-script') in docs,
+  'secret fullnameOverride + labels': docs[('Secret', 'helm-oci')]['metadata']['labels']['argocd.argoproj.io/secret-type'] == 'repository',
+}
+for k, v in checks.items():
+    print(('ok   ' if v else 'FAIL ') + k)
+sys.exit(0 if all(checks.values()) else 1)
+P
+
+if command -v kubeconform >/dev/null; then
+  kubeconform -strict -summary -ignore-missing-schemas "$out_dir/render.yaml" || fail=1
+fi
+exit $fail

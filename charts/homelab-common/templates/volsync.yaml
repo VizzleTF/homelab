@@ -4,10 +4,9 @@
 {{- $repos := ($vsg | default dict).repos }}
 {{- $items := $hc.volsync | default list }}
 {{- range $item := $items }}
-{{- /* name задаёт путь репозитория restic-apps/<name> и обязан быть уникальным
-       по всему кластеру: два одноимённых элемента в разных namespace писали бы
-       в один репозиторий (наблюдалось на netbird-peer в ns netbird и
-       crowdsec-scraper, 2026-09-10). */}}
+{{- /* name is the restic repository path (restic-apps/<name>) and must be unique
+       cluster-wide: two items with the same name in different namespaces would
+       write into one repository. */}}
 {{- $name := $item.name }}
 {{- $claim := $item.claim | default $item.name }}
 {{- range $t := ($item.targets | default list) }}
@@ -21,6 +20,8 @@ kind: ExternalSecret
 metadata:
   name: {{ $secretName }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 spec:
   refreshInterval: {{ $vault.refreshInterval }}
   secretStoreRef:
@@ -55,6 +56,8 @@ kind: ReplicationSource
 metadata:
   name: {{ $name }}-{{ $t.repo }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 spec:
   sourcePVC: {{ $claim }}
   trigger:

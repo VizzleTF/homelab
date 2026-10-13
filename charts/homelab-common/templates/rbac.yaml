@@ -9,6 +9,8 @@ kind: ServiceAccount
 metadata:
   name: {{ $rbac.serviceAccount.name | default $.Release.Name }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   {{- with $rbac.serviceAccount.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -25,6 +27,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ $rbac.clusterRole.name }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 rules:
   {{- toYaml $rbac.clusterRole.rules | nindent 2 }}
 {{- end }}
@@ -35,6 +39,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ dig "clusterRoleBinding" "name" $rbac.clusterRole.name $rbac }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

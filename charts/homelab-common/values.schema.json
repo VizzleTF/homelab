@@ -125,19 +125,22 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "externalSecrets": { "type": "array", "items": { "$ref": "#/$defs/ExternalSecretSpec" } },
-        "httpRoutes": { "type": "array", "items": { "$ref": "#/$defs/HTTPRouteSpec" } },
-        "tlsRoutes": { "type": "array", "items": { "$ref": "#/$defs/TLSRouteSpec" } },
-        "certificates": { "type": "array", "items": { "$ref": "#/$defs/CertificateSpec" } },
-        "rbac": { "type": "array", "items": { "$ref": "#/$defs/RBACSpec" } },
-        "limitRange": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/LimitRangeSpec" }] },
-        "cnpgDatabases": { "type": "array", "items": { "$ref": "#/$defs/CNPGDatabaseSpec" } },
-        "apps": { "type": "array", "items": { "$ref": "#/$defs/AppSpec" } },
-        "cronJobs": { "type": "array", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
-        "persistentVolumeClaims": { "type": "array", "items": { "$ref": "#/$defs/PVCSpec" } },
-        "volsync": { "type": "array", "items": { "$ref": "#/$defs/VolsyncSpec" } },
-        "authentikBlueprints": { "type": "array", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
-        "networkPolicy": { "$ref": "#/$defs/NetworkPolicySpec" }
+        "externalSecrets": { "type": "array", "description": "ExternalSecrets read from OpenBao through the release's SecretStore.", "items": { "$ref": "#/$defs/ExternalSecretSpec" } },
+        "httpRoutes": { "type": "array", "description": "Gateway API HTTPRoutes on the external, internal or both gateways.", "items": { "$ref": "#/$defs/HTTPRouteSpec" } },
+        "tlsRoutes": { "type": "array", "description": "TLSRoutes on the TLS passthrough gateway.", "items": { "$ref": "#/$defs/TLSRouteSpec" } },
+        "certificates": { "type": "array", "description": "cert-manager Certificates.", "items": { "$ref": "#/$defs/CertificateSpec" } },
+        "rbac": { "type": "array", "description": "ServiceAccount + ClusterRole + ClusterRoleBinding sets.", "items": { "$ref": "#/$defs/RBACSpec" } },
+        "limitRange": { "description": "LimitRange default-limits; set in the app that owns the namespace.", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/LimitRangeSpec" }] },
+        "cnpgDatabases": { "type": "array", "description": "CNPG Database CRs.", "items": { "$ref": "#/$defs/CNPGDatabaseSpec" } },
+        "workloads": { "type": "array", "description": "Deployments and CronJobs (+ Service) with standard labels, selector and defaults.", "items": { "$ref": "#/$defs/Workload" } },
+        "configMaps": { "type": "array", "description": "ConfigMaps named like workloads.", "items": { "$ref": "#/$defs/ConfigMapSpec" } },
+        "secrets": { "type": "array", "description": "Plain Secrets named like workloads, for generated non-sensitive objects.", "items": { "$ref": "#/$defs/SecretSpec" } },
+        "apps": { "type": "array", "deprecated": true, "description": "Raw pass-through; use workloads/configMaps/secrets. Removed in 2.0.0.", "items": { "$ref": "#/$defs/AppSpec" } },
+        "cronJobs": { "type": "array", "deprecated": true, "description": "Raw pass-through; use workloads with type cronjob. Removed in 2.0.0.", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
+        "persistentVolumeClaims": { "type": "array", "description": "PVCs, kept on uninstall (helm.sh/resource-policy: keep).", "items": { "$ref": "#/$defs/PVCSpec" } },
+        "volsync": { "type": "array", "description": "VolSync restic backups of a PVC to the global repos.", "items": { "$ref": "#/$defs/VolsyncSpec" } },
+        "authentikBlueprints": { "type": "array", "description": "Authentik blueprint ConfigMaps (rendered into ns authentik).", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
+        "networkPolicy": { "$ref": "#/$defs/NetworkPolicySpec", "description": "Default-deny ingress CiliumNetworkPolicy default-ingress plus allow entries." }
       }
     },
     "ExternalSecretSpec": {
@@ -352,6 +355,87 @@
             }
           }
         }
+      }
+    },
+    "StringMap": { "type": "object", "additionalProperties": { "type": "string" } },
+    "Workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "containers"],
+      "properties": {
+        "name": { "type": "string", "description": "Item name; the object is <release>-<name>, or <release> when the release name contains it." },
+        "fullnameOverride": { "type": "string", "description": "Exact object name instead of the naming rule." },
+        "type": { "type": "string", "enum": ["deployment", "cronjob"], "description": "Controller kind; default deployment." },
+        "labels": { "$ref": "#/$defs/StringMap", "description": "Extra labels on the controller and its Service; they win over the standard ones." },
+        "annotations": { "$ref": "#/$defs/StringMap", "description": "Extra annotations on the controller." },
+        "legacySelector": { "$ref": "#/$defs/StringMap", "minProperties": 1, "description": "Immutable selector of a Deployment created before 1.19; default app.kubernetes.io/{name,instance}." },
+        "reload": { "type": "boolean", "description": "Reloader annotations for referenced Secrets/ConfigMaps; default true." },
+        "schedule": { "type": "string", "description": "Cron schedule; required for a cronjob, forbidden otherwise." },
+        "job": { "type": "object", "description": "Native JobSpec overrides (cronjob); default backoffLimit 2." },
+        "spec": { "type": "object", "description": "Native controller spec overrides (DeploymentSpec or CronJobSpec), merged last." },
+        "pod": { "type": "object", "not": { "required": ["containers"] }, "description": "Native PodSpec fields except containers; defaults automountServiceAccountToken false, enableServiceLinks false, restartPolicy OnFailure for a cronjob." },
+        "containers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Container" }, "description": "Native containers; image is {repository, tag}." },
+        "persistence": { "type": "object", "additionalProperties": { "$ref": "#/$defs/Persistence" }, "description": "Volumes by name, mounted into the containers: a persistentVolumeClaims[] claim (RWO -> strategy Recreate) or a native volume source." },
+        "service": { "oneOf": [{ "const": false }, { "type": "object" }], "description": "Service from the containers' ports: false disables it, an object overrides ServiceSpec fields (ports replace the generated list)." }
+      },
+      "if": { "required": ["type"], "properties": { "type": { "const": "cronjob" } } },
+      "then": { "required": ["schedule"], "properties": { "service": false, "legacySelector": false, "reload": false } },
+      "else": { "properties": { "schedule": false, "job": false } }
+    },
+    "Container": {
+      "type": "object",
+      "description": "Native Container fields (kubeconform -strict checks them after render); image is an object.",
+      "required": ["name", "image"],
+      "properties": {
+        "name": { "type": "string", "description": "Container name." },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "tag"],
+          "description": "Rendered as repository:tag; Renovate's helm-values manager tracks this shape.",
+          "properties": { "repository": { "type": "string", "description": "Image repository without tag." }, "tag": { "type": "string", "description": "Exact tag, never latest." } }
+        }
+      }
+    },
+    "Persistence": {
+      "type": "object",
+      "description": "One volume: claim (a persistentVolumeClaims[] name) or one native volume source (emptyDir, configMap, secret, hostPath, ...).",
+      "required": ["mountPath"],
+      "properties": {
+        "claim": { "type": "string", "description": "Name of a persistentVolumeClaims[] item of this release." },
+        "mountPath": { "type": "string", "description": "Mount path in the containers." },
+        "subPath": { "type": "string", "description": "Optional subPath of the volume." },
+        "readOnly": { "type": "boolean", "description": "Mount read-only." },
+        "containers": { "type": "array", "items": { "type": "string" }, "description": "Mount only into these containers; default all." },
+        "name": false,
+        "persistentVolumeClaim": false
+      }
+    },
+    "ConfigMapSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "description": "Item name; same naming rule as workloads." },
+        "fullnameOverride": { "type": "string", "description": "Exact object name instead of the naming rule." },
+        "labels": { "$ref": "#/$defs/StringMap", "description": "Extra labels; they win over the standard ones." },
+        "annotations": { "$ref": "#/$defs/StringMap", "description": "Annotations." },
+        "data": { "$ref": "#/$defs/StringMap", "description": "Data map." }
+      }
+    },
+    "SecretSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "description": "For generated non-sensitive objects (e.g. ArgoCD repository entries); real secrets come from externalSecrets.",
+      "properties": {
+        "name": { "type": "string", "description": "Item name; same naming rule as workloads." },
+        "fullnameOverride": { "type": "string", "description": "Exact object name instead of the naming rule." },
+        "labels": { "$ref": "#/$defs/StringMap", "description": "Extra labels; they win over the standard ones." },
+        "annotations": { "$ref": "#/$defs/StringMap", "description": "Annotations." },
+        "type": { "type": "string", "description": "Secret type; default Opaque." },
+        "data": { "$ref": "#/$defs/StringMap", "description": "Base64-encoded data." },
+        "stringData": { "$ref": "#/$defs/StringMap", "description": "Plain-text data." }
       }
     },
     "PassThroughResource": {
