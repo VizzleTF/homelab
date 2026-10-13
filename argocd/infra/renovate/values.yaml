@@ -1,56 +1,3 @@
-homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
-  networkPolicy:
-    enabled: true
-    allow:
-      - namespaces: [victoria-metrics]
-
-  externalSecrets:
-    - name: renovate-forgejo-token
-      templateEngineVersion: v2
-      vaultPath: renovate/forgejo-token
-      data:
-        - secretKey: token
-          property: token
-      templateData:
-        RENOVATE_TOKEN: "{{ .token }}"
-    - name: renovate-github-token
-      templateEngineVersion: v2
-      vaultPath: renovate/github-token
-      data:
-        - secretKey: token
-          property: token
-      templateData:
-        GITHUB_COM_TOKEN: "{{ .token }}"
-        # GITHUB_COM_TOKEN adds a hostRule for github.com only; ghcr.io is queried
-        # anonymously with a short-lived, heavily rate-limited token. The same PAT
-        # (scope read:packages) authenticates ghcr.io lookups. hostRules is
-        # parsed as JSON5 from the env var; the github.com rule from
-        # GITHUB_COM_TOKEN is added after it and is not overwritten.
-        RENOVATE_HOST_RULES: '[{"matchHost":"ghcr.io","hostType":"docker","username":"VizzleTF","password":"{{ .token }}"}]'
-    - name: renovate-notify-telegram
-      templateEngineVersion: v2
-      # Shared bot with Robusta — same Vault path, same chat: one Telegram bot
-      # for the whole homelab (alerts + renovate digest).
-      vaultPath: robusta/telegram
-      data:
-        - secretKey: bot_token
-          property: bot_token
-        - secretKey: chat_id
-          property: chat_id
-      templateData:
-        TELEGRAM_BOT_TOKEN: "{{ .bot_token }}"
-        TELEGRAM_CHAT_ID: "{{ .chat_id }}"
-
-  limitRange:
-    enabled: true
-    defaults:
-      cpu: 1000m
-      memory: 1Gi
-    defaultRequests:
-      cpu: 50m
-      memory: 128Mi
-
 cronjob:
   schedule: "0 6 * * *"
   timeZone: "UTC"
@@ -123,3 +70,262 @@ renovate:
       ],
       "gitAuthor": "Renovate Bot <renovate@example.com>"
     }
+
+homelab-common:
+  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
+  externalSecrets:
+    - name: renovate-forgejo-token
+      templateEngineVersion: v2
+      vaultPath: renovate/forgejo-token
+      data:
+        - secretKey: token
+          property: token
+      templateData:
+        RENOVATE_TOKEN: "{{ .token }}"
+    - name: renovate-github-token
+      templateEngineVersion: v2
+      vaultPath: renovate/github-token
+      data:
+        - secretKey: token
+          property: token
+      templateData:
+        GITHUB_COM_TOKEN: "{{ .token }}"
+        # GITHUB_COM_TOKEN adds a hostRule for github.com only; ghcr.io is queried
+        # anonymously with a short-lived, heavily rate-limited token. The same PAT
+        # (scope read:packages) authenticates ghcr.io lookups. hostRules is
+        # parsed as JSON5 from the env var; the github.com rule from
+        # GITHUB_COM_TOKEN is added after it and is not overwritten.
+        RENOVATE_HOST_RULES: '[{"matchHost":"ghcr.io","hostType":"docker","username":"VizzleTF","password":"{{ .token }}"}]'
+    - name: renovate-notify-telegram
+      templateEngineVersion: v2
+      # Shared bot with Robusta — same Vault path, same chat: one Telegram bot
+      # for the whole homelab (alerts + renovate digest).
+      vaultPath: robusta/telegram
+      data:
+        - secretKey: bot_token
+          property: bot_token
+        - secretKey: chat_id
+          property: chat_id
+      templateData:
+        TELEGRAM_BOT_TOKEN: "{{ .bot_token }}"
+        TELEGRAM_CHAT_ID: "{{ .chat_id }}"
+
+  limitRange:
+    enabled: true
+    defaults:
+      cpu: 1000m
+      memory: 1Gi
+    defaultRequests:
+      cpu: 50m
+      memory: 128Mi
+
+  # Daily Telegram digest of Renovate PRs, read from the Forgejo API.
+  workloads:
+    - name: notify                  # -> CronJob renovate-notify
+      type: cronjob
+      schedule: "0 8 * * *"         # two hours after the 06:00 scan
+      spec:
+        timeZone: UTC
+      job:
+        activeDeadlineSeconds: 300
+        ttlSecondsAfterFinished: 86400
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: notify
+          image:
+            repository: badouralix/curl-jq
+            tag: "latest@sha256:3670578737d1d2019b10a4f9e607284101feb9fdd6b0478e78ea87bf61d96145"
+          # The image has no versioned tags; a ":latest" tag defaults to Always even with a digest.
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/scripts/digest.sh"]
+          envFrom:
+            - secretRef:
+                name: renovate-forgejo-token
+            - secretRef:
+                name: renovate-notify-telegram
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      persistence:
+        script:
+          configMap:
+            name: renovate-notify-script
+            defaultMode: 0755
+          mountPath: /scripts
+        tmp:
+          emptyDir: {}
+          mountPath: /tmp
+
+  configMaps:
+    - name: notify-script           # -> renovate-notify-script
+      data:
+        digest.sh: |
+          #!/bin/sh
+          set -eu
+
+          : "${RENOVATE_TOKEN:?RENOVATE_TOKEN must be set}"
+          : "${TELEGRAM_BOT_TOKEN:?TELEGRAM_BOT_TOKEN must be set}"
+          : "${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID must be set}"
+
+          TG_API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
+          FG_API="https://git.example.com/api/v1"
+          FG_WEB="https://git.example.com"
+          REPO="vizzle/homelab"
+          PR_AUTHOR="renovate-bot"   # Forgejo login Renovate commits/opens PRs as
+          NOW=$(date -u +%s)
+          DAY_AGO=$((NOW - 86400))
+
+          fg_get() {
+            curl -sSf \
+              -H "Authorization: token ${RENOVATE_TOKEN}" \
+              -H "Accept: application/json" \
+              "${FG_API}/$1"
+          }
+
+          # Strip Renovate's commit prefix / "Update|Pin " noise, then HTML-escape.
+          clean_title() {
+            printf '%s' "$1" \
+              | sed -e 's/^chore(deps): //' -e 's/^Update //' -e 's/^Pin //' \
+              | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+          }
+
+          # --- Merged in last 24h (the "what landed in the cluster" changelog) ---
+          # Renovate PRs carry no labels in this repo — match by author login instead.
+          closed=$(fg_get "repos/${REPO}/pulls?state=closed&sort=newest&limit=50")
+          merged_tsv=$(printf '%s' "$closed" | jq -r --argjson s "$DAY_AGO" --arg a "$PR_AUTHOR" '
+            [ .[]
+              | select(.user.login == $a)
+              | select(.merged_at != null)
+              | select((.merged_at | fromdateiso8601) > $s)
+            ] | sort_by(.merged_at) | .[]
+            | [ (.number|tostring), .title, .html_url ]
+            | @tsv')
+          merged_count=$(printf '%s' "$merged_tsv" | grep -c . || true)
+
+          merged_block=""
+          if [ "$merged_count" -gt 0 ]; then
+            merged_block=$(printf '%s\n' "$merged_tsv" | while IFS="$(printf '\t')" read -r num title url; do
+              [ -n "$num" ] || continue
+              printf '  • <a href="%s">#%s</a> %s\n' "$url" "$num" "$(clean_title "$title")"
+            done)
+          fi
+
+          # --- Open Renovate PRs (not auto-merged — every one warrants a look) ---
+          open_prs=$(fg_get "repos/${REPO}/pulls?state=open&limit=50")
+          open_tsv=$(printf '%s' "$open_prs" | jq -r --arg a "$PR_AUTHOR" '
+            [ .[] | select(.user.login == $a) ] | sort_by(.created_at) | .[]
+            | [ (.number|tostring), (.mergeable|tostring), .created_at, .title, .html_url ]
+            | @tsv')
+          open_count=$(printf '%s' "$open_tsv" | grep -c . || true)
+
+          open_block=""
+          if [ "$open_count" -gt 0 ]; then
+            open_block=$(printf '%s\n' "$open_tsv" | while IFS="$(printf '\t')" read -r num mergeable created title url; do
+              [ -n "$num" ] || continue
+              age_days=$(( (NOW - $(printf '%s' "$created" | jq -rR 'fromdateiso8601')) / 86400 ))
+              flag=""
+              [ "$mergeable" = "false" ] && flag=" ⚠️conflict"
+              printf '  • <a href="%s">#%s</a> %s · open %sd%s\n' "$url" "$num" "$(clean_title "$title")" "$age_days" "$flag"
+            done)
+          fi
+
+          # --- Dependency Dashboard: what Renovate itself flagged (errored / queued) ---
+          # Discover the dashboard issue by title (number is not stable across repos).
+          dash_num=$(fg_get "repos/${REPO}/issues?state=open&type=issues&limit=50" \
+            | jq -r '[.[] | select(.title == "Dependency Dashboard")][0].number // empty')
+          dash_body=""
+          [ -n "$dash_num" ] && dash_body=$(fg_get "repos/${REPO}/issues/${dash_num}" | jq -r '.body // ""')
+
+          # Extract clean update titles for a given dashboard marker (one per line).
+          dash_titles() {
+            printf '%s\n' "$dash_body" \
+              | grep -oE "<!-- $1=[^>]*-->.*" \
+              | sed -E "s/<!-- $1=[^>]*-->//; s/\[([^]]*)\]\([^)]*\)/\1/g" \
+              | while IFS= read -r t; do printf '%s\n' "$(clean_title "$t")"; done
+          }
+          dash_block() {
+            # $1=marker  $2=icon+label ; emits a section only when non-empty
+            titles=$(dash_titles "$1")
+            [ -n "$titles" ] || return 0
+            n=$(printf '%s\n' "$titles" | grep -c .)
+            printf '\n%s (%s)\n' "$2" "$n"
+            printf '%s\n' "$titles" | sed 's/^/  • /'
+          }
+
+          errored=$(dash_titles "retry-branch" | grep -c . || true)
+          pending_checks=$(dash_titles "approvePr-branch" | grep -c . || true)
+          pending_approval=$(dash_titles "approve-branch" | grep -c . || true)
+          rate_limited=$(dash_titles "unlimit-branch" | grep -c . || true)
+          awaiting=$(dash_titles "unschedule-branch" | grep -c . || true)
+          repo_problems=$(printf '%s\n' "$dash_body" \
+            | awk '/^## Repository Problems/{f=1;next} /^## /{f=0} f' \
+            | grep -cE '^[[:space:]]*[-]' || true)
+
+          queued=$((errored + pending_checks + pending_approval + rate_limited + awaiting))
+
+          # --- Idle: nothing merged, no open PR, nothing queued → one-line heartbeat ---
+          if [ "$merged_count" -eq 0 ] && [ "$open_count" -eq 0 ] && [ "$queued" -eq 0 ] && [ "$repo_problems" -eq 0 ]; then
+            printf '<b>🤖 Renovate</b> — всё тихо, ничего в очереди · %s UTC\n' \
+              "$(date -u +'%Y-%m-%d')" > /tmp/message.txt
+          else
+            {
+              printf '<b>🤖 Renovate</b> — <a href="%s/%s">%s</a> · %s UTC\n' \
+                "$FG_WEB" "$REPO" "$REPO" "$(date -u +'%Y-%m-%d')"
+
+              if [ "$merged_count" -gt 0 ]; then
+                printf '\n✅ <b>Merged (24h): %s</b>\n%s\n' "$merged_count" "$merged_block"
+              fi
+
+              if [ "$open_count" -gt 0 ]; then
+                printf '\n📂 <b>Open PRs: %s</b> <i>(not auto-merged)</i>\n%s\n' "$open_count" "$open_block"
+              fi
+
+              dash_block "retry-branch"     "❗ <b>Errored</b>"
+              dash_block "approve-branch"   "⏳ <b>Pending approval</b>"
+              dash_block "approvePr-branch" "🔁 <b>Awaiting status checks</b>"
+              dash_block "unlimit-branch"   "⏸️ <b>Rate-limited</b>"
+              dash_block "unschedule-branch" "🕓 <b>Awaiting schedule</b>"
+
+              if [ "$repo_problems" -gt 0 ]; then
+                printf '\n⚠️ <b>Repository problems (%s)</b> — <a href="%s/%s/issues/%s">see dashboard</a>\n' \
+                  "$repo_problems" "$FG_WEB" "$REPO" "${dash_num:-}"
+              fi
+            } > /tmp/message.txt
+          fi
+
+          # Telegram caps at 4096 chars
+          if [ "$(wc -c < /tmp/message.txt)" -gt 4000 ]; then
+            head -c 3900 /tmp/message.txt > /tmp/message.trunc
+            printf '\n…truncated…' >> /tmp/message.trunc
+            mv /tmp/message.trunc /tmp/message.txt
+          fi
+
+          curl -sSf -X POST "${TG_API}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text@/tmp/message.txt" \
+            -d "parse_mode=HTML" \
+            -d "disable_web_page_preview=true" \
+            -o /tmp/tg-resp.json
+
+          printf 'digest sent, telegram response: %s\n' "$(jq -r '.ok' /tmp/tg-resp.json)"
