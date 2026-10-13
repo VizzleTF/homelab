@@ -3,10 +3,6 @@
 # Used to be a side CronJob of the velero component (ns velero) although it has
 # nothing to do with Velero; moved into its own component when Velero was
 # retired (obsidian/113 Backups/Backup Overview.md) so it would not leave with it.
-#
-# The Vault path `velero/s3-ovh` is kept as is: it is the OVH key that outlived
-# Velero; renaming the path would need a matching change in cnpg and the
-# snapshot CronJobs.
 homelab-common:
   # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
@@ -18,16 +14,16 @@ homelab-common:
     - name: tfstate-mirror-rclone-env
       data:
         - secretKey: garage_tfstate_ak
-          vaultPath: terraform/s3-terraform-state
+          vaultPath: tfstate-mirror/s3-terraform-state
           property: ACCESS_KEY_ID
         - secretKey: garage_tfstate_sk
-          vaultPath: terraform/s3-terraform-state
+          vaultPath: tfstate-mirror/s3-terraform-state
           property: ACCESS_SECRET_KEY
         - secretKey: ovh_ak
-          vaultPath: velero/s3-ovh
+          vaultPath: shared/s3-ovh
           property: ACCESS_KEY_ID
         - secretKey: ovh_sk
-          vaultPath: velero/s3-ovh
+          vaultPath: shared/s3-ovh
           property: ACCESS_SECRET_KEY
       templateData:
         RCLONE_CONFIG_GARAGE_TFSTATE_TYPE: "s3"

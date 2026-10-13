@@ -22,13 +22,15 @@ global:
     # `eso-ns-<namespace>` for listed namespaces and `eso-own` for the rest.
     access:
       grants:
-        backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, velero/s3-ovh]
-        s3-ovh: [velero/s3-ovh]
+        # velero/s3-ovh stays until the legacy-path cleanup.
+        backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, shared/s3-ovh, velero/s3-ovh]
+        s3-ovh: [shared/s3-ovh, velero/s3-ovh]
         cnpg-backup: [shared/s3-cnpg-backup]
         db-roles: [forgejo/forgejo, authentik/authentik, atuin/atuin]
         valkey: [valkey/valkey]
         # robusta/telegram stays until the legacy-path cleanup.
         telegram: [shared/telegram, robusta/telegram]
+        # Legacy: tfstate-mirror now reads its own tfstate-mirror/s3-terraform-state.
         tfstate: [terraform/s3-terraform-state]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
         # Cloudflare DNS token: external-dns owns it, cert-manager DNS-01 reads it.
@@ -95,7 +97,7 @@ global:
         endpoint: https://s3.de.io.cloud.ovh.net
         bucket: offsite-homelab
         prefix: restic-apps
-        keyVaultPath: velero/s3-ovh
+        keyVaultPath: shared/s3-ovh
         passwordVaultPath: shared/restic-ovh
         # Off-site keeps longer history; targets may still override `retain`.
         retain:
