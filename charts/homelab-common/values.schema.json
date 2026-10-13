@@ -135,8 +135,6 @@
         "workloads": { "type": "array", "description": "Deployments and CronJobs (+ Service) with standard labels, selector and defaults.", "items": { "$ref": "#/$defs/Workload" } },
         "configMaps": { "type": "array", "description": "ConfigMaps named like workloads.", "items": { "$ref": "#/$defs/ConfigMapSpec" } },
         "secrets": { "type": "array", "description": "Plain Secrets named like workloads, for generated non-sensitive objects.", "items": { "$ref": "#/$defs/SecretSpec" } },
-        "apps": { "type": "array", "deprecated": true, "description": "Raw pass-through; use workloads/configMaps/secrets. Removed in 2.0.0.", "items": { "$ref": "#/$defs/AppSpec" } },
-        "cronJobs": { "type": "array", "deprecated": true, "description": "Raw pass-through; use workloads with type cronjob. Removed in 2.0.0.", "items": { "$ref": "#/$defs/GenericCronJobSpec" } },
         "persistentVolumeClaims": { "type": "array", "description": "PVCs, kept on uninstall (helm.sh/resource-policy: keep).", "items": { "$ref": "#/$defs/PVCSpec" } },
         "volsync": { "type": "array", "description": "VolSync restic backups of a PVC to the global repos.", "items": { "$ref": "#/$defs/VolsyncSpec" } },
         "authentikBlueprints": { "type": "array", "description": "Authentik blueprint ConfigMaps (rendered into ns authentik).", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
@@ -297,25 +295,6 @@
         }
       }
     },
-    "AppSpec": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["name"],
-      "properties": {
-        "name": { "type": "string" },
-        "fullnameOverride": { "type": "string" },
-        "secret": { "$ref": "#/$defs/PassThroughResource" },
-        "configMap": { "$ref": "#/$defs/PassThroughResource" },
-        "deployment": { "$ref": "#/$defs/PassThroughResource" },
-        "service": { "$ref": "#/$defs/PassThroughResource" }
-      }
-    },
-    "GenericCronJobSpec": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["name", "spec"],
-      "properties": { "name": { "type": "string" }, "spec": { "type": "object" } }
-    },
     "PVCSpec": {
       "type": "object",
       "additionalProperties": false,
@@ -436,17 +415,6 @@
         "type": { "type": "string", "description": "Secret type; default Opaque." },
         "data": { "$ref": "#/$defs/StringMap", "description": "Base64-encoded data." },
         "stringData": { "$ref": "#/$defs/StringMap", "description": "Plain-text data." }
-      }
-    },
-    "PassThroughResource": {
-      "type": "object",
-      "description": "K8s resource bodies are passed through toYaml; no field-level validation.",
-      "properties": {
-        "metadata": { "type": "object" },
-        "spec": { "type": "object" },
-        "type": { "type": "string" },
-        "data": { "type": "object" },
-        "stringData": { "type": "object" }
       }
     }
   }

@@ -1,5 +1,5 @@
 {{/*
-Resource name of a workloads[]/configMaps[]/secrets[]/apps[]/cronJobs[] item:
+Resource name of a workloads[]/configMaps[]/secrets[] item:
 the release name when it already contains the item name, else <release>-<name>.
 */}}
 {{- define "homelab-common.app.fullname" -}}

@@ -1,9 +1,0 @@
-{{- $hc := index .Values "homelab-common" | default dict }}
-{{- range $job := $hc.cronJobs | default list }}
----
-apiVersion: batch/v1
-kind: CronJob
-{{ include "homelab-common.metadata" (dict "name" (include "homelab-common.app.fullname" (dict "app" $job "root" $)) "root" $) }}
-spec:
-  {{- toYaml $job.spec | nindent 2 }}
-{{- end }}

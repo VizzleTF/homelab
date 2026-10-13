@@ -116,10 +116,6 @@ homelab-common:
   #   labels: {argocd.argoproj.io/secret-type: repository}
   #   stringData: {type: helm}
 
-  # Deprecated (removed in 2.0.0): raw pass-through, use workloads/configMaps/secrets.
-  apps: []
-  cronJobs: []
-
 
   # PVC definitions
   persistentVolumeClaims: []

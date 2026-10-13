@@ -2,7 +2,7 @@
 """Deterministic drift checks between the repo and its documentation.
 
 Covers what a script can verify without judgement: the config.yaml contract
-of every argocd/{apps,infra}/* folder, homelab-common migration guards, Obsidian registries and
+of every argocd/{apps,infra}/* folder, the homelab-common legacySelector guard, Obsidian registries and
 cheatsheets vs argocd/{apps,infra,standalone}, wave/namespace in the registry
 tables and cheatsheet headers vs config.yaml, pinned chart versions in
 cheatsheets, broken wikilinks, the skills index vs skill folders, and repo
@@ -10,7 +10,7 @@ paths in backticks that do not exist. Facts in prose (commands, runbook steps)
 need a reviewer: see the auditing-docs skill.
 
 Usage: scripts/audit-docs.py [--vault obsidian]   (run from the repo root)
-Without the vault (CI) only the config.yaml, migration-guard, skills index and
+Without the vault (CI) only the config.yaml, legacySelector, skills index and
 repo-path checks run.
 Output: `path: level: message`. Exit 1 on any error.
 """
@@ -232,20 +232,9 @@ for kind in ("apps", "infra"):
             if not ok:
                 report(cfg, "error", "ignoreDiff must be a block string holding a YAML list")
 
-# 8. homelab-common migration guards (1.19 workloads engine). The raw
-# pass-through keys apps/cronJobs are deprecated: only the files listed here
-# may still use them, and each migration PR shrinks the list. legacySelector
-# keeps the immutable selector of a Deployment created before 1.19; it is
-# allowed only for these (app folder, workload name) pairs.
-LEGACY_KEYS_ALLOWED = {
-    "argocd/apps/atuin/values.yaml", "argocd/apps/cnpg/values.yaml",
-    "argocd/apps/crowdsec-scraper/values.yaml", "argocd/apps/immich/values.yaml",
-    "argocd/apps/may/values.yaml", "argocd/apps/netbird/values.yaml",
-    "argocd/apps/opencloud/values.yaml", "argocd/apps/openwrt-backup/values.yaml",
-    "argocd/apps/rss-to-telegram-bot/values.yaml", "argocd/apps/spotify-backup/values.yaml",
-    "argocd/apps/valkey/values.yaml", "argocd/infra/backup-drill/values.yaml",
-    "argocd/infra/openbao/values.yaml", "argocd/values/argocd.yaml",
-}
+# 8. homelab-common guard: legacySelector keeps the immutable selector of a
+# Deployment created before homelab-common 1.19; it is allowed only for these
+# (app folder, workload name) pairs, never for a new workload.
 LEGACY_SELECTOR_ALLOWED = {
     ("atuin", "atuin"), ("crowdsec-scraper", "scraper"), ("may", "may"),
     ("netbird", "peer"), ("netbird", "peer-2"), ("opencloud", "opencloud"),
@@ -254,10 +243,6 @@ LEGACY_SELECTOR_ALLOWED = {
 values_files = sorted(REPO.glob("argocd/*/*/values.yaml")) + sorted(REPO.glob("argocd/*/*/homelab-values.yaml"))
 for vf in values_files + [REPO / "argocd/values/argocd.yaml"]:
     hc = (yaml.safe_load(vf.read_text()) or {}).get("homelab-common") or {}
-    rel = vf.as_posix().removeprefix("./")
-    for k in ("apps", "cronJobs"):
-        if hc.get(k) and rel not in LEGACY_KEYS_ALLOWED:
-            report(vf, "error", f"homelab-common.{k} is deprecated; use workloads/configMaps/secrets")
     for w in hc.get("workloads") or []:
         if "legacySelector" in w and (vf.parent.name, w.get("name")) not in LEGACY_SELECTOR_ALLOWED:
             report(vf, "error", f"workload {w.get('name')}: legacySelector only for Deployments created before 1.19")
