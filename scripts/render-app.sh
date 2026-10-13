@@ -46,7 +46,7 @@ fi
 tpl() { helm template "$app" "$@" --namespace "$ns" --include-crds "${caps[@]}"; }
 
 if [[ "$(get homelabOnly)" != "true" ]]; then
-  repo=$(get repoURL); chart=$(get chart); chart=${chart:-$app}
+  repo=$(get repoURL); chart=$(get chart)
   if [[ "$repo" == http* ]]; then
     tpl "$chart" --repo "$repo" --version "$(get targetRevision)" -f "$dir/values.yaml"
   else  # scheme-less repoURL = OCI registry
