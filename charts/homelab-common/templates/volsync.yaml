@@ -14,6 +14,9 @@
 {{- if not $repo }}{{ fail (printf "volsync: unknown repo %q for %q — define global.volsync.repos.%s" $t.repo $name $t.repo) }}{{ end }}
 {{- $secretName := printf "%s-restic-%s" $name $t.repo }}
 {{- $path := printf "%s/%s%s" $repo.bucket (empty $repo.prefix | ternary "" (printf "%s/" $repo.prefix)) $name }}
+{{- range (list $repo.passwordVaultPath $repo.keyVaultPath) }}
+{{- include "homelab-common.assertVaultPath" (dict "root" $ "path" . "where" (printf "volsync %s/%s" $name $t.repo)) }}
+{{- end }}
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret

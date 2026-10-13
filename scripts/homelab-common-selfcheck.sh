@@ -46,6 +46,15 @@ Y
 must_fail "pvc without storageClassName" <<'Y'
 homelab-common: {persistentVolumeClaims: [{name: d, accessModes: [ReadWriteOnce], size: 1Gi}]}
 Y
+must_fail "foreign vaultPath without grant" <<'Y'
+homelab-common: {externalSecrets: [{name: a, vaultPath: other/x, data: [{secretKey: k, property: p}]}]}
+Y
+must_fail "three-segment vaultPath" <<'Y'
+homelab-common: {externalSecrets: [{name: a, vaultPath: t/a/b, data: [{secretKey: k, property: p}]}]}
+Y
+must_fail "volsync repo paths without the backup grant" <<'Y'
+homelab-common: {volsync: [{name: d, targets: [{repo: garage, schedule: "0 1 * * *"}]}]}
+Y
 
 # limitRange defaults: null = requests-only
 tpl > "$out_dir/lr.yaml" <<'Y' || { echo "FAIL: limitRange render"; cat "$out_dir/lr.yaml"; exit 1; }
@@ -53,7 +62,11 @@ homelab-common: {limitRange: {enabled: true, defaults: null}}
 Y
 
 tpl > "$out_dir/render.yaml" <<'Y' || { echo "FAIL: reference render"; cat "$out_dir/render.yaml"; exit 1; }
+global:
+  openbao: {access: {namespaces: {t: [backup]}}}   # volsync reads shared/restic-* through the grant
 homelab-common:
+  externalSecrets:
+    - {name: t-app, vaultPath: t/app, data: [{secretKey: k, property: p}]}
   persistentVolumeClaims:
     - {name: t-data, accessModes: [ReadWriteOnce], size: 1Gi, storageClassName: longhorn}
   workloads:
@@ -129,6 +142,7 @@ checks = {
   'configMap named like workloads': ('ConfigMap', 't-notify-script') in docs,
   'secret fullnameOverride + labels': docs[('Secret', 'helm-oci')]['metadata']['labels']['argocd.argoproj.io/secret-type'] == 'repository',
   'pvc storageClassName rendered': docs[('PersistentVolumeClaim', 't-data')]['spec']['storageClassName'] == 'longhorn',
+  'own-namespace vaultPath under pathPrefix': docs[('ExternalSecret', 't-app')]['spec']['data'][0]['remoteRef']['key'] == 'homelab/k8s/t/app',
   'volsync drill label by default': docs[('ReplicationSource', 't-data-garage')]['metadata']['labels'].get('homelab.dr/drill') == 't-data',
   'volsync drill false -> no label': 'homelab.dr/drill' not in docs[('ReplicationSource', 't-big-garage')]['metadata']['labels'],
   'limitRange enabled -> 500m/512Mi, 50m/64Mi': docs[('LimitRange', 'default-limits')]['spec']['limits'][0] == {'type': 'Container', 'default': {'cpu': '500m', 'memory': '512Mi'}, 'defaultRequest': {'cpu': '50m', 'memory': '64Mi'}},

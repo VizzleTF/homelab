@@ -69,8 +69,8 @@
                   "endpoint": { "type": "string" },
                   "bucket": { "type": "string" },
                   "prefix": { "type": "string" },
-                  "keyVaultPath": { "type": "string" },
-                  "passwordVaultPath": { "type": "string" },
+                  "keyVaultPath": { "$ref": "#/$defs/VaultPath" },
+                  "passwordVaultPath": { "$ref": "#/$defs/VaultPath" },
                   "retain": { "type": "object", "description": "Default retain for targets of this repo." }
                 }
               }
@@ -143,13 +143,18 @@
         "networkPolicy": { "$ref": "#/$defs/NetworkPolicySpec", "description": "Default-deny ingress CiliumNetworkPolicy default-ingress plus allow entries." }
       }
     },
+    "VaultPath": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+/[a-z0-9-]+$",
+      "description": "OpenBao path under global.vault.pathPrefix: <namespace>/<name>, or a grant from global.openbao.access (checked at render time)."
+    },
     "ExternalSecretSpec": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "data"],
       "properties": {
         "name": { "type": "string" },
-        "vaultPath": { "type": "string" },
+        "vaultPath": { "$ref": "#/$defs/VaultPath" },
         "targetName": { "type": "string" },
         "creationPolicy": { "type": "string", "enum": ["Owner", "Merge", "Orphan", "None"] },
         "deletionPolicy": { "type": "string", "enum": ["Delete", "Merge", "Retain"] },
@@ -167,7 +172,7 @@
             "properties": {
               "secretKey": { "type": "string" },
               "property": { "type": "string" },
-              "vaultPath": { "type": "string" }
+              "vaultPath": { "$ref": "#/$defs/VaultPath" }
             }
           }
         }

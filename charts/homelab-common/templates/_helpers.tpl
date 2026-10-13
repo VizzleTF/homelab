@@ -57,3 +57,25 @@ name: {{ $vault.secretStore }}
 kind: {{ $vault.secretStoreKind }}
 {{- end }}
 {{- end }}
+
+{{/*
+Fail the render when a SecretStore-mode release reads an OpenBao path its role
+cannot: anything outside <namespace>/ that is not a grant of one of the groups
+global.openbao.access.namespaces lists for the namespace (the same map
+scripts/openbao-eso-access.sh turns into OpenBao policies).
+dict "root" $ "path" <path under pathPrefix> "where" <what reads it>
+*/}}
+{{- define "homelab-common.assertVaultPath" -}}
+{{- $g := .root.Values.global | default dict }}
+{{- if eq (($g.vault | default dict).secretStoreKind | default "") "SecretStore" }}
+{{- $ns := .root.Release.Namespace }}
+{{- $access := ($g.openbao | default dict).access | default dict }}
+{{- $ok := eq (first (splitList "/" .path)) $ns }}
+{{- range (index ($access.namespaces | default dict) $ns | default list) }}
+{{- if has $.path (index ($access.grants | default dict) . | default list) }}{{ $ok = true }}{{ end }}
+{{- end }}
+{{- if not $ok }}
+{{- fail (printf "%s: OpenBao path %q is outside namespace %q and in none of its grants — add it to global.openbao.access in argocd/values/global.yaml and run scripts/openbao-eso-access.sh" .where .path $ns) }}
+{{- end }}
+{{- end }}
+{{- end }}
