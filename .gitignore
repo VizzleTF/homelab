@@ -27,7 +27,6 @@ Thumbs.db
 
 # Workspace-only artefacts (not part of the homelab repo)
 /.claudeignore
-/.editorconfig
 /.vscode/
 /obsidian
 /docs/

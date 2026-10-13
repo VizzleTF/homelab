@@ -1,9 +1,7 @@
-# Force LF line endings for text files
-*.yaml text eol=lf
-*.yml text eol=lf
-*.md text eol=lf
-*.tf text eol=lf
-*.sh text eol=lf
-*.cfg text eol=lf
-*.j2 text eol=lf
-*.ini text eol=lf
+# LF everywhere: the repo is edited on WSL, macOS and Linux and consumed by
+# ArgoCD/Helm on Linux. Binary files are never normalised.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.tgz binary
