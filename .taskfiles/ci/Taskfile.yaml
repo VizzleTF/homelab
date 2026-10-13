@@ -7,7 +7,7 @@ tasks:
     desc: yamllint + shellcheck + repo-side doc/contract checks (matches CI yamllint job)
     dir: '{{.ROOT_DIR}}'
     cmds:
-      - yamllint .
+      - yamllint --strict .
       - git ls-files -z '*.sh' '.git-hooks/*' | xargs -0 shellcheck -x -S warning
       - python3 scripts/lint-skills.py
       - python3 scripts/audit-docs.py

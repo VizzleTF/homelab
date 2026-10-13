@@ -77,7 +77,7 @@ spec:
           - LoadBalancerIP
       selector:
         matchExpressions:
-          - { key: somekey, operator: NotIn, values: [neverusethis] }
+          - {key: somekey, operator: NotIn, values: [neverusethis]}
       attributes:
         communities:
           standard: ["65010:100"]

@@ -34,7 +34,7 @@ jobs:
           ln -sf /tmp/yamllint/bin/yamllint /usr/local/bin/yamllint
           yamllint --version
       - name: Lint
-        run: yamllint .
+        run: yamllint --strict .
       - name: shellcheck
         # Same version as .mise.toml and the pre-commit hook (shellcheck-py).
         run: |

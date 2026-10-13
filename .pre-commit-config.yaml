@@ -6,8 +6,8 @@ repos:
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0  # keep in sync with .mise.toml
     hooks:
-      - id: yamllint  # reads .yamllint.yml like CI `yamllint .`; warnings shown, not fatal
-        verbose: true
+      - id: yamllint  # reads .yamllint.yml like CI; every finding fails
+        args: [--strict]
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1  # keep in sync with .mise.toml
     hooks:
