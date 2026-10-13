@@ -1,12 +1,16 @@
 # Cilium agent (:9962) and operator (:9963) metrics. The chart's ServiceMonitor
 # needs prometheus-operator CRDs, which this cluster does not run.
+# Lives in victoria-metrics like every other VM object; namespaceSelector points at kube-system.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMPodScrape
 metadata:
   name: cilium-agent
-  namespace: kube-system
+  namespace: victoria-metrics
 spec:
   jobLabel: k8s-app
+  namespaceSelector:
+    matchNames:
+      - kube-system
   selector:
     matchLabels:
       k8s-app: cilium
@@ -18,8 +22,11 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMPodScrape
 metadata:
   name: cilium-operator
-  namespace: kube-system
+  namespace: victoria-metrics
 spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
   selector:
     matchLabels:
       io.cilium/app: operator
