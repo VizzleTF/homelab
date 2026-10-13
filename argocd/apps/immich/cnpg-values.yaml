@@ -30,7 +30,7 @@ cluster:
       memory: "4Gi"
       cpu: "2"
 
-  # Role name MUST equal the `username` key in immich-db-credentials (Vault
+  # Role name MUST equal the `username` key in immich-main-user-credentials (Vault
   # immich/main-database → "immich"), else CNPG refuses to reconcile the managed
   # role: "wrong username 'immich' in secret, expected '<role>'" every ~16 min.
   # The cluster was barman-restored (2026-05); restored data + all 66 tables +
@@ -47,7 +47,7 @@ cluster:
       inherit: true
       connectionLimit: -1
       passwordSecret:
-        name: immich-db-credentials
+        name: immich-main-user-credentials
 
   postgresql:
     parameters:
@@ -88,8 +88,9 @@ cluster:
     # init). Must be a kubernetes.io/basic-auth secret whose `username` == owner.
     # Default `<cluster>-app` (username=app) mismatches → "while updating database
     # owner password: wrong username 'app', expected 'immich'". immich-main-user-
-    # credentials is the purpose-built basic-auth secret (username=immich, same
-    # Vault immich/main-database password as immich-db-credentials).
+    # credentials is the one basic-auth secret for the immich DB user (username
+    # immich, OpenBao immich/main-database); the role, the server and the
+    # pg-logical dump all read it.
     secret:
       name: immich-main-user-credentials
     postInitSQL:
