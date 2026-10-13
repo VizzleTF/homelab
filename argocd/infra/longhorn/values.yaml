@@ -1,4 +1,14 @@
 homelab-common:
+  # requests-only: default limits would cap instance-manager and engine-image
+  # pods. Gives the chart pods without resources (engine-image, longhorn-ui,
+  # driver-deployer, jobs) a request instead of BestEffort. Needs
+  # homelab-common >= 2.1.0 (`defaults: null`).
+  limitRange:
+    enabled: true
+    defaults: null
+    defaultRequests:
+      cpu: 10m
+      memory: 32Mi
   httpRoutes:
     - name: longhorn
       hostname: longhorn
@@ -97,3 +107,13 @@ longhornManager:
     limits:
       memory: 512Mi
       cpu: 250m
+
+# Chart sets no resources (BestEffort); live use 2-4m / 28-31Mi per replica.
+longhornGlobalManager:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

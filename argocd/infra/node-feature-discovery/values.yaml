@@ -4,12 +4,22 @@
 # intel.feature.node.kubernetes.io/gpu=true — no manual node labeling needed.
 
 master:
+  revisionHistoryLimit: 2
   resources:
     requests:
       cpu: 20m
       memory: 64Mi
     limits:
       cpu: 100m
+      memory: 128Mi
+
+# Chart default 10m/128Mi request, 1Gi limit; live use ~13Mi.
+gc:
+  revisionHistoryLimit: 2
+  resources:
+    requests:
+      memory: 32Mi
+    limits:
       memory: 128Mi
 
 worker:
