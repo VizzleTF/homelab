@@ -1,8 +1,7 @@
-chart: lampac
-repoURL: https://vizzletf.github.io/lampac_helm
-targetRevision: "0.1.10"
+homelabOnly: true
 wave: "2"
 extraManifests: true
+# KEDA (manifests/httpscaledobject.yaml) owns the replica count.
 ignoreDiff: |
   - group: apps
     kind: Deployment
