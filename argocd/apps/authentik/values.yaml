@@ -628,18 +628,6 @@ homelab-common:
         TREK_OIDC_CLIENT_SECRET: "{{ .trek_oidc_client_secret }}"
         WAZUH_OIDC_CLIENT_SECRET: "{{ .wazuh_oidc_client_secret }}"
 
-
-    # DB credentials secret for CNPG cluster bootstrap
-    - name: authentik-db-credentials
-      vaultPath: authentik/authentik
-      data:
-        - secretKey: db_password
-          property: db_password
-      templateData:
-        username: "authentik"
-        password: "{{ .db_password }}"
-
-
   httpRoutes:
     - name: authentik
       hostname: authentik

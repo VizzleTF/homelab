@@ -63,17 +63,6 @@ homelab-common:
       data:
         - secretKey: password
           property: password
-    - name: immich-app-secrets
-      vaultPath: immich/app-secrets
-      data:
-        - secretKey: db_password
-          property: password
-          vaultPath: immich/main-database
-        - secretKey: jwt_secret
-          property: jwt_secret
-      templateData:
-        DB_PASSWORD: "{{ .db_password }}"
-        JWT_SECRET: "{{ .jwt_secret }}"
     
     - name: immich-db-credentials
       vaultPath: immich/main-database
