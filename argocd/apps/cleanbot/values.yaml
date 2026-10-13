@@ -3,8 +3,6 @@
 # Vault:  homelab/k8s/cleanbot/app-secrets  (bot_token, webhook_header_secret, webhook_path_secret)
 
 homelab-common:
-  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
-  # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
 
@@ -15,8 +13,6 @@ homelab-common:
       storageClassName: longhorn
       size: 1Gi
 
-  # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
-  # obsidian/113 Backups/Backup Overview.md.
   volsync:
     - name: cleanbot
       moverSecurityContext:

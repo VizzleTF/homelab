@@ -3,8 +3,6 @@
 
 # Platform resources via the homelab-common chart
 homelab-common:
-  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
-  # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
     allow:
@@ -14,7 +12,7 @@ homelab-common:
       - namespaces: [victoria-metrics]
         ports: [9187]
 
-  # Backup v2 (obsidian/113 Backups/Backup Overview.md). The library is 250Gi
+  # The library is 250Gi
   # (~184Gi used), RWX through the Longhorn share-manager, so the mover's
   # accessMode must be ReadWriteMany or it cannot mount. The restic index cache
   # is 10Gi: the default 2Gi is too small for this many files. Off-site runs
@@ -261,6 +259,10 @@ server:
                   values: ["true"]
   controllers:
     main:
+      # Roll on DB/OIDC secret rotation. Not immich-valkey: it rotates together
+      # with valkey (valkey cheatsheet).
+      annotations:
+        secret.reloader.stakater.com/reload: immich-main-user-credentials,immich-oidc-secret
       containers:
         main:
           image:
