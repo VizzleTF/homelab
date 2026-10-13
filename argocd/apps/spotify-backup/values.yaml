@@ -77,7 +77,6 @@ homelab-common:
             type: RuntimeDefault
         initContainers:
           - name: prep-cache
-            # renovate: image=busybox
             image: busybox:1.38.0
             command: [sh, -c]
             args:

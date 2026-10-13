@@ -7,11 +7,13 @@ spec:
   groups:
     - name: renovate
       rules:
-        # RenovateCronJobFailing удалён — покрывается upstream KubeJobFailed.
-        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #39.
+        # RenovateCronJobFailing was dropped: upstream KubeJobFailed covers it.
         - alert: RenovateScanMissing
+          # CronJob status, not Job objects: Jobs are deleted 24h after they finish
+          # (ttlSecondsAfterFinished), and job_name=~"renovate-.*" also matched the
+          # daily renovate-notify Jobs, so a dead scan never fired.
           expr: |
-            (time() - max(kube_job_status_completion_time{namespace="renovate", job_name=~"renovate-.*"})) > 172800
+            time() - kube_cronjob_status_last_successful_time{namespace="renovate", cronjob="renovate"} > 172800
           for: 30m
           labels:
             severity: warning
