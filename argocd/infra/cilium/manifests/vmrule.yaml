@@ -14,7 +14,7 @@ spec:
             severity: warning
           annotations:
             summary: "Метрики cilium-agent не собираются"
-            description: "VMPodScrape kube-system/cilium-agent не отдаёт данных 30 минут — дропы и состояние датаплейна снова не видны."
+            description: "VMPodScrape victoria-metrics/cilium-agent не отдаёт данных 30 минут — дропы и состояние датаплейна снова не видны."
 
         # Traffic to an IP that no longer belongs to any endpoint. The one case
         # seen so far: a host-side iSCSI session left behind by an old
