@@ -330,6 +330,38 @@ homelab-common:
               echo "dr-pack ${ts} uploaded (${size} bytes)"
 
   externalSecrets:
+    # rclone remotes for the raft-snapshot and dr-pack CronJobs: garage = bucket
+    # `snapshots` (shared/s3-snapshots), ovh = `vaka-homelab` under snapshots/
+    # (velero/s3-ovh, the OVH key that outlived Velero).
+    - name: snapshots-rclone
+      data:
+        - secretKey: garage_ak
+          vaultPath: shared/s3-snapshots
+          property: ACCESS_KEY_ID
+        - secretKey: garage_sk
+          vaultPath: shared/s3-snapshots
+          property: ACCESS_SECRET_KEY
+        - secretKey: ovh_ak
+          vaultPath: velero/s3-ovh
+          property: ACCESS_KEY_ID
+        - secretKey: ovh_sk
+          vaultPath: velero/s3-ovh
+          property: ACCESS_SECRET_KEY
+      templateData:
+        RCLONE_CONFIG_GARAGE_TYPE: "s3"
+        RCLONE_CONFIG_GARAGE_PROVIDER: "Other"
+        RCLONE_CONFIG_GARAGE_ENDPOINT: "https://s3.example.com"
+        RCLONE_CONFIG_GARAGE_REGION: "garage"
+        RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: "{{ .garage_ak }}"
+        RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: "{{ .garage_sk }}"
+        RCLONE_CONFIG_OVH_TYPE: "s3"
+        RCLONE_CONFIG_OVH_PROVIDER: "Other"
+        RCLONE_CONFIG_OVH_ENDPOINT: "https://s3.de.io.cloud.ovh.net"
+        RCLONE_CONFIG_OVH_REGION: "de"
+        RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
+        RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
     # Creds for the weekly off-site DR pack: the passphrase and the restic-apps
     # bucket key (it goes into 01-bootstrap.env inside the pack).
     - name: dr-pack-creds

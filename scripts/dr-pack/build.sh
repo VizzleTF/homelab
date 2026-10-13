@@ -61,14 +61,15 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
 
   # S3 keys and restic repository passwords. Sources are the live Secrets
   # that ESO keeps in the cluster:
-  #   kube-system/snapshots-rclone  — `snapshots` bucket keys (Garage) and OVH
+  #   openbao/snapshots-rclone      — `snapshots` bucket keys (Garage) and OVH
   #   <ns>/<app>-restic-garage|ovh  — `restic-apps` bucket key + restic passwords
   # The donor app for the restic creds is configurable (default rsstt, the
   # smallest and most stable volume); the key and password are shared by all repos.
   RESTIC_DONOR_NS="${RESTIC_DONOR_NS:-rsstt}"
   RESTIC_DONOR_APP="${RESTIC_DONOR_APP:-rss-to-telegram-bot}"
 
-  sn() { local key="$1"; kubectl -n kube-system get secret snapshots-rclone -o jsonpath="{.data.${key}}" 2>/dev/null | base64 -d; }
+  # An empty value is marked like the CF token, so the pack never ships blank keys silently.
+  sn() { local v; v=$(kubectl -n openbao get secret snapshots-rclone -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d || true); echo "${v:-MISSING-snapshots-rclone}"; }
   rs() { local target="$1" key="$2"; kubectl -n "$RESTIC_DONOR_NS" get secret "${RESTIC_DONOR_APP}-restic-${target}" -o jsonpath="{.data.${key}}" 2>/dev/null | base64 -d; }
 
   echo "GARAGE_SNAPSHOTS_ACCESS_KEY=$(sn RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID)"
