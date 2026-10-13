@@ -15,8 +15,6 @@
 # NOTE: chart 0.5.15 flipped settings.openbao_url default to https://. Our
 # OpenBao service does NOT terminate TLS on :8200 — pin it back to http:// here.
 
-replicaCount: 1
-
 settings:
   openbao_url: "http://openbao.openbao:8200"
 
@@ -24,10 +22,6 @@ resources:
   limits:
     # Throttled 70% of periods at 100m.
     cpu: 250m
-    memory: 128Mi
   requests:
     cpu: 15m
     memory: 100Mi
-
-serviceAccount:
-  create: true

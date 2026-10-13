@@ -444,7 +444,6 @@ server:
   dataStorage:
     size: 2Gi
     storageClass: local-path
-    accessMode: ReadWriteOnce
     annotations:
       helm.sh/resource-policy: keep
 
@@ -452,13 +451,11 @@ server:
     enabled: true
     size: 1Gi
     storageClass: local-path
-    accessMode: ReadWriteOnce
     annotations:
       helm.sh/resource-policy: keep
 
   ha:
     enabled: true
-    replicas: 3
     raft:
       enabled: true
       setNodeId: true
