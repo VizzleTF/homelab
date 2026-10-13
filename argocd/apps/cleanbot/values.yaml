@@ -1,31 +1,19 @@
 # Cleanbot — Telegram bot that deletes old messages in forum topics.
-# Chart:  https://git.example.com/api/packages/vizzle/helm  cleanbot (version in config.yaml)
 # Source: https://git.example.com/vizzle/cleanbot
 # Vault:  homelab/k8s/cleanbot/app-secrets  (bot_token, webhook_header_secret, webhook_path_secret)
-
-# No image tag: the chart uses its appVersion, so a chart bump is the image bump.
-image:
-  repository: git.example.com/vizzle/cleanbot
-
-bot:
-  # ESO creates cleanbot-secrets from OpenBao (homelab-common.externalSecrets below).
-  existingSecret: cleanbot-secrets
-  webhookBaseUrl: "https://cleanbot.example.com"
-
-# The chart's Ingress is on by default; routing comes from homelab-common.httpRoutes.
-ingress:
-  enabled: false
-
-persistence:
-  enabled: true
-  storageClass: longhorn
-  size: 1Gi
 
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
+
+  persistentVolumeClaims:
+    - name: cleanbot
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 1Gi
 
   # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
   # obsidian/113 Backups/Backup Overview.md.
@@ -60,3 +48,70 @@ homelab-common:
       service:
         name: cleanbot
         port: 8080
+
+  # Only non-defaults: every other setting keeps its default from
+  # src/cleanjob/config.py, so an image bump brings its own defaults.
+  configMaps:
+    - name: cleanbot
+      data:
+        WEBHOOK_BASE_URL: "https://cleanbot.example.com"
+
+  workloads:
+    - name: cleanbot                # -> Deployment + Service "cleanbot"
+      pod:
+        # Explicit on purpose: only dropping serviceAccountName (SSA) keeps the
+        # deprecated serviceAccount field, so pods would still ask for the pruned
+        # SA "cleanbot" from the old chart (checked by a server-side dry-run).
+        serviceAccountName: default
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          fsGroup: 10001
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: cleanbot
+          image:
+            repository: git.example.com/vizzle/cleanbot
+            tag: "0.2.9"
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: cleanbot-secrets
+            - configMapRef:
+                name: cleanbot
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+      persistence:
+        data:
+          claim: cleanbot           # SQLite on a RWO claim: one replica, strategy Recreate
+          mountPath: /data
+        tmp:
+          emptyDir: {}              # writable /tmp under readOnlyRootFilesystem
+          mountPath: /tmp
