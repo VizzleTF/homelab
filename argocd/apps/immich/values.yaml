@@ -63,7 +63,7 @@ homelab-common:
       data:
         - secretKey: password
           property: password
-    
+
     - name: immich-db-credentials
       vaultPath: immich/main-database
       data:
@@ -74,7 +74,7 @@ homelab-common:
       templateData:
         username: "{{ .username }}"
         password: "{{ .password }}"
-    
+
     - name: immich-main-user-credentials
       vaultPath: immich/main-database
       templateType: kubernetes.io/basic-auth
@@ -86,7 +86,7 @@ homelab-common:
       templateData:
         username: "{{ .username }}"
         password: "{{ .password }}"
-    
+
     - name: cnpg-s3-backup
       vaultPath: shared/s3-cnpg-backup
       data:
@@ -139,7 +139,7 @@ homelab-common:
               }
             }
           }
-  
+
   httpRoutes:
     - name: immich
       hostname: immich
@@ -160,7 +160,7 @@ homelab-common:
       service:
         name: immich-server
         port: 2283
-  
+
   cnpgDatabases:
     - name: immich
       owner: immich
@@ -202,9 +202,9 @@ homelab-common:
                 ls -lh /dump
             env:
               - name: IM_USER
-                valueFrom: {secretKeyRef: {name: immich-db-credentials, key: username}}
+                valueFrom: {secretKeyRef: {name: immich-main-user-credentials, key: username}}
               - name: IM_PASS
-                valueFrom: {secretKeyRef: {name: immich-db-credentials, key: password}}
+                valueFrom: {secretKeyRef: {name: immich-main-user-credentials, key: password}}
             volumeMounts:
               - name: dump
                 mountPath: /dump
@@ -296,12 +296,12 @@ server:
             DB_USERNAME:
               valueFrom:
                 secretKeyRef:
-                  name: immich-db-credentials
+                  name: immich-main-user-credentials
                   key: username
             DB_PASSWORD:
               valueFrom:
                 secretKeyRef:
-                  name: immich-db-credentials
+                  name: immich-main-user-credentials
                   key: password
             # Shared Valkey (ns valkey); Immich on DB index 1, argocd on DB 0
             REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
