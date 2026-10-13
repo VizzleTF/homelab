@@ -1,6 +1,5 @@
 ---
 # Cilium BGP — eBGP peering with OpenWrt to announce LoadBalancer IPs.
-# Replaces (in a follow-up PR) the L2 ARP announcement model.
 #
 # Topology
 #   Cluster ASN : 65010
@@ -15,10 +14,9 @@ metadata:
     # BGP CRDs are installed by cilium-operator at runtime after it sees
     # bgpControlPlane.enabled=true in the ConfigMap (wave 0). Push CR apply
     # to a later wave so the chart resources land first and the operator
-    # has time to register the CRDs; SkipDryRunOnMissingResource lets the
-    # first attempt succeed even if the CRD is briefly missing.
+    # has time to register the CRDs; the AppSet-wide
+    # SkipDryRunOnMissingResource lets the first attempt pass the dry-run.
     argocd.argoproj.io/sync-wave: "5"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   # Apply to every node — all 4 bare-metal nodes (3 CP + worker) peer with OpenWrt for ECMP.
   nodeSelector: {}
@@ -38,7 +36,6 @@ metadata:
   name: openwrt-peer
   annotations:
     argocd.argoproj.io/sync-wave: "5"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   # TCP MD5 auth deliberately omitted — the OpenWrt 25.12 kernel ships without
   # CONFIG_TCP_MD5SIG, and BIRD logs "Kernel does not support TCP MD5 signatures"
@@ -72,7 +69,6 @@ metadata:
     advertise: lb-pool
   annotations:
     argocd.argoproj.io/sync-wave: "5"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   advertisements:
     - advertisementType: Service

@@ -120,17 +120,17 @@ To add a new app, create `argocd/apps/<name>/` with `config.yaml` and `values.ya
 
 ## Sync waves
 
-Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`; the two standalone Applications under `argocd/standalone/` carry their own annotation. The waves record dependency order. ArgoCD enforces them only among resources of one sync: the root app orders the standalone Applications and the ApplicationSets, but ApplicationSet-generated Applications sync on their own (no progressive sync), and the per-app `retry` absorbs the rest.
+Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the dependency layer it belongs to. It is documentation, not an ordering mechanism. ApplicationSet-generated Applications sync independently (progressive syncs are off because RollingSync disables autosync), so the template does not stamp a sync-wave on them; the per-app `retry` plus `SkipDryRunOnMissingResource` absorb CRDs that arrive with another app. The two standalone Applications under `argocd/standalone/` carry a real annotation, ordered by the root app. Cold-start order lives in `scripts/dr/phases/`.
 
 | Wave    | Components |
 |---------|------------|
 | **-10** | argocd (self-management), gateway-api (CRDs) |
 | **-5**  | cilium, cert-manager |
-| **-4**  | longhorn, openbao, csi-snapshotter |
+| **-4**  | longhorn, openbao, csi-snapshotter, local-path-provisioner |
 | **-3**  | kubelet-csr-approver, metrics-server, spegel, volsync |
 | **-2**  | external-secrets, cnpg-operator, keda, external-dns, external-dns-openwrt, victoria-metrics-k8s-stack |
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, node-feature-discovery, tuppr, victoria-logs, wazuh-operator |
-| **0**   | cloudflared, intel-device-plugins-gpu, kyverno, local-path-provisioner, reloader, smartctl-exporter, tfstate-mirror |
+| **0**   | cloudflared, intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, tfstate-mirror |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, kyverno-policies, backup-drill |
 | **2**   | renovate; apps: atuin, authentik, cleanbot, forgejo, immich, lampac, may, obsidian-livesync, opencloud, rss-to-telegram-bot, spotify-backup, trek, vaultwarden, wazuh |
 | **3**   | forgejo-runner, netbird, crowdsec-scraper, openwrt-backup |

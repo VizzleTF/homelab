@@ -4,9 +4,10 @@ metadata:
   name: infrastructure
   namespace: argocd
   annotations:
-    # Страховка от каскада: даже если корень снова получит финалайзер или
-    # prune, ArgoCD не удалит этот AppSet. Его удаление уносит по
-    # ownerReferences все дочерние Application, а те — свои namespace'ы и PVC.
+    # Cascade guard: even if root gets a finalizer or prune again, ArgoCD
+    # does not delete this AppSet. Deleting it would take every child
+    # Application via ownerReferences, and they would take their namespaces
+    # and PVCs.
     argocd.argoproj.io/sync-options: Delete=false
 spec:
   goTemplate: true
@@ -37,13 +38,17 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{ dig \"namespace\" .path.basename . }}"
+  # No argocd.argoproj.io/sync-wave on generated Applications: they are
+  # created by the ApplicationSet controller, not synced by a parent, so a
+  # wave would order nothing (progressive syncs stay off: RollingSync turns
+  # off autosync). config.yaml `wave` documents the dependency layer only;
+  # cold-start order lives in scripts/dr/phases/.
   templatePatch: |
     metadata:
       annotations:
-        argocd.argoproj.io/sync-wave: "{{ .wave }}"
         # argocd-diff CI job (argocd-diff-preview) renders an app only when one of
         # these paths changes in the PR; without it every PR renders every app.
-        argocd-diff-preview/watch-pattern: "argocd/infra/{{ .path.basename }}/.*, argocd/appsets/.*, argocd/values/global.yaml"
+        argocd-diff-preview/watch-pattern: "{{ .path.path }}/.*, argocd/appsets/.*, argocd/values/global.yaml"
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
         app.kubernetes.io/part-of: infrastructure
@@ -53,11 +58,11 @@ spec:
       sources:
         {{- if not (index . "homelabOnly") }}
         - repoURL: "{{ .repoURL }}"
-          chart: "{{ dig "chart" .path.basename . }}"
-          targetRevision: "{{ dig "targetRevision" "*" . }}"
+          chart: "{{ .chart }}"
+          targetRevision: "{{ .targetRevision }}"
           helm:
             valueFiles:
-              - "$values/argocd/infra/{{ .path.basename }}/values.yaml"
+              - "$values/{{ .path.path }}/values.yaml"
         {{- end }}
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
@@ -65,14 +70,14 @@ spec:
           helm:
             valueFiles:
               - "$values/argocd/values/global.yaml"
-              - "$values/argocd/infra/{{ .path.basename }}/{{ dig "homelabValuesFile" "values.yaml" . }}"
+              - "$values/{{ .path.path }}/{{ dig "homelabValuesFile" "values.yaml" . }}"
         - repoURL: ssh://git@git.example.com:22/vizzle/homelab.git
           targetRevision: HEAD
           ref: values
         {{- if index . "extraManifests" }}
         - repoURL: ssh://git@git.example.com:22/vizzle/homelab.git
           targetRevision: HEAD
-          path: "argocd/infra/{{ .path.basename }}/manifests"
+          path: "{{ .path.path }}/manifests"
         {{- end }}
       {{- if index . "ignoreDiff" }}
       ignoreDifferences:
@@ -86,6 +91,10 @@ spec:
           - CreateNamespace=true
           - ServerSideApply=true
           - RespectIgnoreDifferences=true
+          # Resources whose CRD arrives with another Application (VMRule in
+          # cilium/longhorn/volsync, BGP CRs) wait for it via retry instead of
+          # failing the dry-run of the whole sync.
+          - SkipDryRunOnMissingResource=true
         retry:
           limit: 5
           backoff:
