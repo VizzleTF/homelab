@@ -1,7 +1,5 @@
-# CloudNativePG Operator Configuration
-# Minimal configuration for HomeLab environment
+# CloudNativePG operator. Only non-default values.
 
-# Resource limits for operator
 resources:
   limits:
     cpu: 100m
@@ -14,35 +12,27 @@ additionalEnv:
   - name: GOMEMLIMIT
     value: "135MiB"
 
-# Enable CRDs installation
-crds:
-  create: true
-
-# Webhook configuration
-webhook:
-  port: 9443
-  mutating:
-    create: true
-    failurePolicy: Fail
-  validating:
-    create: true
-    failurePolicy: Fail
-
-# Operator configuration
 config:
-  create: true
-  name: cnpg-controller-manager-config
-  secret: false
-  clusterWide: true
-  # Reduce concurrent reconciles for HomeLab
+  # Default 10; two shared clusters do not need more.
   maxConcurrentReconciles: 5
 
-# Service account
 serviceAccount:
-  create: true
   name: cnpg-manager
 
+# Two replicas for the webhooks (failurePolicy Fail blocks every Cluster
+# change while the operator is down), on different nodes: without the
+# anti-affinity both could land on one node and the second replica bought
+# nothing.
 replicaCount: 2
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: cloudnative-pg
+            app.kubernetes.io/instance: cnpg-operator
+
 homelab-common:
   # Default-deny ingress for the whole namespace (also covers the sibling app
   # sharing it); only vmagent (victoria-metrics) scrapes from outside.
