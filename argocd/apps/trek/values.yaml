@@ -31,14 +31,13 @@ env:
   OIDC_DISPLAY_NAME: "Authentik"
   OIDC_SCOPE: "openid email profile"
 
+# Volumes are declared in homelab-common (persistentVolumeClaims below, kept
+# on uninstall); the chart only mounts them.
 persistence:
-  enabled: true
   data:
-    size: 1Gi
-    storageClassName: longhorn
+    existingClaim: trek-data
   uploads:
-    size: 10Gi
-    storageClassName: longhorn
+    existingClaim: trek-uploads
 
 resources:
   requests:
@@ -53,6 +52,16 @@ ingress:
   enabled: false
 
 homelab-common:
+  persistentVolumeClaims:
+    - name: trek-data
+      accessModes: [ReadWriteOnce]
+      storageClassName: longhorn
+      size: 1Gi
+    - name: trek-uploads
+      accessModes: [ReadWriteOnce]
+      storageClassName: longhorn
+      size: 10Gi
+
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
