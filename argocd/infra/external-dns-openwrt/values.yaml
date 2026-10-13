@@ -7,7 +7,7 @@ homelab-common:
 
   externalSecrets:
     - name: openwrt-credentials
-      vaultPath: openwrt
+      vaultPath: external-dns-openwrt/luci
       data:
         - secretKey: host
           property: host

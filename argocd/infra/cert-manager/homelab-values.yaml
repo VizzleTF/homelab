@@ -6,6 +6,16 @@ homelab-common:
     allow:
       - namespaces: [victoria-metrics]
 
+  externalSecrets:
+    # DNS-01 token for ClusterIssuer cloudflare-issuer, the same token as
+    # external-dns (grant `cloudflare`). Name and key are fixed: the
+    # ClusterIssuer, DR phase 03 and the dr-pack read cloudflare-api-token/api-token.
+    - name: cloudflare-api-token
+      vaultPath: external-dns/cloudflare
+      data:
+        - secretKey: api-token
+          property: cloudflare_api_token
+
   certificates:
     - name: wildcard-tls
       namespace: kube-system

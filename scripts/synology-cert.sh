@@ -6,8 +6,8 @@
 # custom paths (see ~/.acme.sh/renew.sh on the box):
 #     --home ~/.acme.sh  --config-home ~/.acme.sh/data  --cert-home ~/.acme.sh/certs
 # CF credentials come from ~/.acme.sh/cf.env (CF_Token + CF_Account_ID),
-# the same token also used by k8s cert-manager (cloudflare-api-token Secret)
-# and ExternalDNS (ESO path home/homelab/k8s/externaldns).
+# the same token as OpenBao home/homelab/k8s/external-dns/cloudflare, which ESO
+# feeds to ExternalDNS and cert-manager.
 #
 # DSM cert archive: /usr/syno/etc/certificate/_archive/<id>/ — each is a
 # 6-char random id with cert.pem/chain.pem/fullchain.pem/privkey.pem.

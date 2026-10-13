@@ -10,7 +10,7 @@ homelab-common:
       targetName: external-dns-cloudflare
       deletionPolicy: Retain
       templateEngineVersion: v2
-      vaultPath: externaldns
+      vaultPath: external-dns/cloudflare
       data:
         - secretKey: cloudflare_api_token
           property: cloudflare_api_token
@@ -44,11 +44,11 @@ extraArgs:
   - --cloudflare-proxied
   - --cloudflare-dns-records-per-page=5000
 
-# Префикс задан явно, хотя и совпадает с дефолтом v0.22: строка стоит рядом
-# с annotationFilter, где имя аннотации написано целиком, и они обязаны
-# совпадать. Менять только вместе — при рассинхроне external-dns перестаёт
-# видеть target и подставляет адрес Gateway, Cloudflare такую запись
-# отвергает, а policy: sync сносит живые CNAME (так лёг DNS 12.09.2026).
+# The prefix is explicit although it equals the v0.22 default: it sits next to
+# annotationFilter, which spells the annotation name in full, and the two must
+# match. Change them only together: out of sync, external-dns stops seeing the
+# target and substitutes the Gateway address, Cloudflare rejects that record,
+# and policy: sync deletes the live CNAMEs (DNS went down this way 2026-09-12).
 annotationPrefix: external-dns.kubernetes.io/
 
 annotationFilter: "external-dns.kubernetes.io/cloudflare-proxied in (true)"
