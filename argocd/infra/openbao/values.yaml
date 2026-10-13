@@ -69,7 +69,7 @@ homelab-common:
         - name: upload
           image:
             repository: rclone/rclone
-            tag: "1.75"
+            tag: "1.75.2"
           command: ["sh", "-c"]
           args:
             - |
@@ -248,7 +248,7 @@ homelab-common:
                 stat -c '%s' "/work/dr-pack-${ts}.tar.gz.gpg" > /work/size
                 echo "encrypted dr-pack-${ts}.tar.gz.gpg ($(cat /work/size) bytes)"
           - name: upload
-            image: rclone/rclone:1.75
+            image: rclone/rclone:1.75.2
             command: ["/bin/sh", "-c"]
             env:
               - name: HOME
