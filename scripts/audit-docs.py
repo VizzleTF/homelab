@@ -237,9 +237,17 @@ LEGACY_SELECTOR_ALLOWED = {
     ("netbird", "peer"), ("netbird", "peer-2"), ("opencloud", "opencloud"),
     ("valkey", "valkey"), ("keda-add-ons-http", "loading-proxy"),
 }
+# 9. volsync[].name is the restic repository path: it must be unique across
+# the whole cluster, not just the namespace (a collision mixes two volumes'
+# snapshots in one repo).
+volsync_names = {}
 values_files = sorted(REPO.glob("argocd/*/*/values.yaml")) + sorted(REPO.glob("argocd/*/*/homelab-values.yaml"))
 for vf in values_files + [REPO / "argocd/values/argocd.yaml"]:
     hc = (yaml.safe_load(vf.read_text()) or {}).get("homelab-common") or {}
+    for v in hc.get("volsync") or []:
+        if v.get("name") in volsync_names:
+            report(vf, "error", f"volsync name {v['name']} also used in {volsync_names[v['name']]}")
+        volsync_names.setdefault(v.get("name"), vf.as_posix())
     for w in hc.get("workloads") or []:
         if "legacySelector" in w and (vf.parent.name, w.get("name")) not in LEGACY_SELECTOR_ALLOWED:
             report(vf, "error", f"workload {w.get('name')}: legacySelector only for Deployments created before 1.19")
