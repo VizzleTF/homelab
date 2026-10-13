@@ -15,12 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install helm
+        run: scripts/ci-install-helm.sh
+      - name: Tag matches Chart.yaml
         run: |
           set -eu
-          VERSION=v3.16.4
-          curl -fsSL "https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz" | tar -xz -C /tmp
-          install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
-          helm version --short
+          VERSION=$(sed -n 's/^version:[[:space:]]*//p' charts/homelab-common/Chart.yaml)
+          [ "${GITHUB_REF_NAME#homelab-common-v}" = "$VERSION" ] || {
+            echo "::error::tag ${GITHUB_REF_NAME} does not match Chart.yaml version ${VERSION}"; exit 1; }
+      - name: Lint
+        run: helm lint --strict charts/homelab-common
       - name: Package
         run: helm package charts/homelab-common -d /tmp/
       # Use Forgejo's Helm Chart Museum API endpoint (POST /api/packages/{owner}/helm/api/charts)
@@ -28,7 +31,7 @@ jobs:
       - name: Push to Forgejo Helm registry
         run: |
           set -eu
-          PKG=$(ls /tmp/homelab-common-*.tgz | head -1)
+          PKG="/tmp/homelab-common-${GITHUB_REF_NAME#homelab-common-v}.tgz"
           echo "Pushing $PKG"
           curl -sS --fail-with-body \
             -u "${PUBLISHER_USER}:${PUBLISHER_TOKEN}" \
