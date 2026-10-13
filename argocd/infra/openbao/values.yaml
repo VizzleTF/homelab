@@ -9,97 +9,91 @@ homelab-common:
   # `bao operator raft snapshot restore` loads into an empty cluster, so the
   # PVCs need no backup. SA `openbao` is the StatefulSet's own, so the k8s-auth
   # role openbao-snapshot accepts its token without extra bindings.
-  cronJobs:
-    - name: openbao-raft-snapshot
-      spec:
-        schedule: "5 2 * * *"
-        concurrencyPolicy: Forbid
-        startingDeadlineSeconds: 600
-        successfulJobsHistoryLimit: 1
-        failedJobsHistoryLimit: 3
-        jobTemplate:
-          spec:
-            backoffLimit: 2
-            activeDeadlineSeconds: 1800
-            template:
-              spec:
-                restartPolicy: OnFailure
-                serviceAccountName: openbao
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 100
-                  runAsGroup: 1000
-                  fsGroup: 1000
-                  seccompProfile:
-                    type: RuntimeDefault
-                initContainers:
-                  - name: snapshot
-                    # renovate: image=quay.io/openbao/openbao
-                    image: quay.io/openbao/openbao:2.7.1
-                    command: ["/bin/sh", "-c"]
-                    args:
-                      - |
-                        set -eu
-                        export BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
-                        JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-                        BAO_TOKEN=$(bao write -field=token auth/kubernetes/login                           role=openbao-snapshot jwt="$JWT")
-                        export BAO_TOKEN
-                        ts=$(date -u +%Y-%m-%dT%H%M)
-                        bao operator raft snapshot save "/snap/raft-${ts}.snap"
-                        ls -lh /snap/
-                        test -s "/snap/raft-${ts}.snap"
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      readOnlyRootFilesystem: true
-                      capabilities:
-                        drop: [ALL]
-                    volumeMounts:
-                      - name: snap
-                        mountPath: /snap
-                    resources:
-                      requests:
-                        cpu: 50m
-                        memory: 128Mi
-                      limits:
-                        cpu: 500m
-                        memory: 512Mi
-                containers:
-                  - name: upload
-                    # renovate: image=rclone/rclone
-                    image: rclone/rclone:1.75
-                    command: ["sh", "-c"]
-                    args:
-                      - |
-                        set -eu
-                        for dst in garage:snapshots/openbao ovh:offsite-homelab/snapshots/openbao; do
-                          echo "=== copy -> $dst"
-                          rclone copy /snap "$dst" --verbose
-                          echo "=== prune >90d in $dst"
-                          rclone delete "$dst" --min-age 90d --verbose
-                        done
-                        rclone size garage:snapshots/openbao
-                    envFrom:
-                      - secretRef:
-                          name: snapshots-rclone
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      readOnlyRootFilesystem: true
-                      capabilities:
-                        drop: [ALL]
-                    volumeMounts:
-                      - name: snap
-                        mountPath: /snap
-                        readOnly: true
-                    resources:
-                      requests:
-                        cpu: 50m
-                        memory: 128Mi
-                      limits:
-                        cpu: 500m
-                        memory: 512Mi
-                volumes:
-                  - name: snap
-                    emptyDir: {}
+  workloads:
+    - name: raft-snapshot           # -> CronJob openbao-raft-snapshot
+      type: cronjob
+      schedule: "5 2 * * *"
+      job:
+        activeDeadlineSeconds: 1800
+      pod:
+        serviceAccountName: openbao
+        automountServiceAccountToken: true   # the snapshot step logs in with the SA token
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        initContainers:
+          - name: snapshot
+            # renovate: image=quay.io/openbao/openbao
+            image: quay.io/openbao/openbao:2.7.1
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                export BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
+                JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                BAO_TOKEN=$(bao write -field=token auth/kubernetes/login                           role=openbao-snapshot jwt="$JWT")
+                export BAO_TOKEN
+                ts=$(date -u +%Y-%m-%dT%H%M)
+                bao operator raft snapshot save "/snap/raft-${ts}.snap"
+                ls -lh /snap/
+                test -s "/snap/raft-${ts}.snap"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+              - name: snap
+                mountPath: /snap
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+        volumes:
+          - name: snap
+            emptyDir: {}
+      containers:
+        - name: upload
+          image:
+            repository: rclone/rclone
+            tag: "1.75"
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              for dst in garage:snapshots/openbao ovh:offsite-homelab/snapshots/openbao; do
+                echo "=== copy -> $dst"
+                rclone copy /snap "$dst" --verbose
+                echo "=== prune >90d in $dst"
+                rclone delete "$dst" --min-age 90d --verbose
+              done
+              rclone size garage:snapshots/openbao
+          envFrom:
+            - secretRef:
+                name: snapshots-rclone
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: snap
+              mountPath: /snap
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
 
     # Weekly off-site copy of the DR pack (Shamir + raft snapshot + S3/CF creds)
     # to both S3 targets. The local scripts/dr-pack/build.sh still makes the
@@ -110,234 +104,223 @@ homelab-common:
     # Vaultwarden master password: the pack sits in the same S3 as the backups,
     # and a leaked S3 key must not also open the password store.
     # Keep the passphrase in Vaultwarden as "10 - DR pack passphrase (off-site)".
-    - name: dr-pack-offsite
-      spec:
-        schedule: "40 2 * * 0"
-        concurrencyPolicy: Forbid
-        startingDeadlineSeconds: 600
-        successfulJobsHistoryLimit: 1
-        failedJobsHistoryLimit: 3
-        jobTemplate:
-          spec:
-            backoffLimit: 2
-            activeDeadlineSeconds: 1800
-            template:
-              spec:
-                restartPolicy: OnFailure
-                serviceAccountName: openbao-dr-pack
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 65532
-                  runAsGroup: 65532
-                  fsGroup: 65532
-                  seccompProfile:
-                    type: RuntimeDefault
-                initContainers:
-                  # Collect: kubectl+jq+curl only exist in alpine/k8s, gpg and
-                  # rclone live in other images, hence three steps.
-                  - name: collect
-                    # renovate: image=alpine/k8s
-                    image: alpine/k8s:1.37.1
-                    imagePullPolicy: IfNotPresent
-                    command: ["/bin/sh", "-c"]
-                    env:
-                      - name: HOME
-                        value: /work
-                    envFrom:
-                      - secretRef:
-                          name: snapshots-rclone
-                      - secretRef:
-                          name: dr-pack-restic-key
-                      - secretRef:
-                          name: dr-pack-restic-pw
-                      - secretRef:
-                          name: dr-pack-restic-pw-ovh
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      capabilities:
-                        drop: [ALL]
-                    volumeMounts:
-                      - name: work
-                        mountPath: /work
-                    resources:
-                      requests:
-                        cpu: 50m
-                        memory: 128Mi
-                      limits:
-                        cpu: "1"
-                        memory: 512Mi
-                    args:
-                      - |
-                        set -eu
-                        work=/work/pack
-                        mkdir -p "$work"
-                        date -u +%Y-%m-%dT%H%M > /work/ts
+    - name: dr-pack-offsite         # -> CronJob openbao-dr-pack-offsite
+      type: cronjob
+      schedule: "40 2 * * 0"
+      job:
+        activeDeadlineSeconds: 1800
+      pod:
+        serviceAccountName: openbao-dr-pack
+        automountServiceAccountToken: true   # collect uses the SA token for kubectl and the OpenBao login
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          fsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+        initContainers:
+          # Collect: kubectl+jq+curl only exist in alpine/k8s, gpg and
+          # rclone live in other images, hence three steps.
+          - name: collect
+            # renovate: image=alpine/k8s
+            image: alpine/k8s:1.37.1
+            command: ["/bin/sh", "-c"]
+            env:
+              - name: HOME
+                value: /work
+            envFrom:
+              - secretRef:
+                  name: snapshots-rclone
+              - secretRef:
+                  name: dr-pack-restic-key
+              - secretRef:
+                  name: dr-pack-restic-pw
+              - secretRef:
+                  name: dr-pack-restic-pw-ovh
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+              - name: work
+                mountPath: /work
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: "1"
+                memory: 512Mi
+            args:
+              - |
+                set -eu
+                work=/work/pack
+                mkdir -p "$work"
+                date -u +%Y-%m-%dT%H%M > /work/ts
 
-                        echo "=== 1/3 Shamir bundle + root token ==="
-                        kubectl -n openbao get secret openbao-keys -o json \
-                          | jq '{unseal_keys_b64: [.data["key-0"], .data["key-1"], .data["key-2"]] | map(@base64d),
-                                 unseal_shares: 3, unseal_threshold: 3}' > "$work/00-shamir.json"
-                        root=$(kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d \
-                          || kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.root_token}' | base64 -d)
-                        jq --arg rt "$root" '. + {root_token: $rt}' "$work/00-shamir.json" > "$work/00-shamir.json.tmp"
-                        mv "$work/00-shamir.json.tmp" "$work/00-shamir.json"
-                        unset root
+                echo "=== 1/3 Shamir bundle + root token ==="
+                kubectl -n openbao get secret openbao-keys -o json \
+                  | jq '{unseal_keys_b64: [.data["key-0"], .data["key-1"], .data["key-2"]] | map(@base64d),
+                         unseal_shares: 3, unseal_threshold: 3}' > "$work/00-shamir.json"
+                root=$(kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d \
+                  || kubectl -n openbao get secret openbao-root-token -o jsonpath='{.data.root_token}' | base64 -d)
+                jq --arg rt "$root" '. + {root_token: $rt}' "$work/00-shamir.json" > "$work/00-shamir.json.tmp"
+                mv "$work/00-shamir.json.tmp" "$work/00-shamir.json"
+                unset root
 
-                        echo "=== 2/3 raft snapshot ==="
-                        # HTTP API, not the bao CLI: this image lacks it, and a
-                        # fourth image for one command is not worth it.
-                        BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
-                        JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-                        login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
-                        TOKEN=$(curl -sf -X POST "$BAO_ADDR/v1/auth/kubernetes/login" -d "$login" | jq -r .auth.client_token)
-                        [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "auth failed"; exit 1; }
-                        curl -sf -H "X-Vault-Token: $TOKEN" "$BAO_ADDR/v1/sys/storage/raft/snapshot" -o "$work/02-vault-raft-snapshot.snap"
-                        unset TOKEN login
-                        test -s "$work/02-vault-raft-snapshot.snap"
+                echo "=== 2/3 raft snapshot ==="
+                # HTTP API, not the bao CLI: this image lacks it, and a
+                # fourth image for one command is not worth it.
+                BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
+                JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
+                TOKEN=$(curl -sf -X POST "$BAO_ADDR/v1/auth/kubernetes/login" -d "$login" | jq -r .auth.client_token)
+                [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "auth failed"; exit 1; }
+                curl -sf -H "X-Vault-Token: $TOKEN" "$BAO_ADDR/v1/sys/storage/raft/snapshot" -o "$work/02-vault-raft-snapshot.snap"
+                unset TOKEN login
+                test -s "$work/02-vault-raft-snapshot.snap"
 
-                        echo "=== 3/3 bootstrap env ==="
-                        {
-                          echo "# generated $(date -u -Iseconds) by dr-pack-offsite CronJob"
-                          echo "RESTIC_PASSWORD_GARAGE=$PW_GARAGE"
-                          echo "RESTIC_PASSWORD_OVH=$PW_OVH"
-                          echo "GARAGE_RESTIC_ACCESS_KEY=$GARAGE_RESTIC_AK"
-                          echo "GARAGE_RESTIC_SECRET=$GARAGE_RESTIC_SK"
-                          echo "GARAGE_SNAPSHOTS_ACCESS_KEY=$RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID"
-                          echo "GARAGE_SNAPSHOTS_SECRET=$RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY"
-                          echo "OVH_S3_ACCESS_KEY=$RCLONE_CONFIG_OVH_ACCESS_KEY_ID"
-                          echo "OVH_S3_SECRET_KEY=$RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY"
-                          cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
-                          echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
-                        } > "$work/01-bootstrap.env"
-                        # Same format as scripts/dr-pack/build.sh: DR phases 01/04 read
-                        # exactly these variables, so the packs are interchangeable.
-                        {
-                          echo "# Refreshed: $(date -u -Iseconds)"
-                          echo "GATEWAY_EXTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
-                          echo "GATEWAY_INTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway-internal -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
-                          echo "GATEWAY_TLS_IP=$(kubectl -n kube-system get gateway cilium-gateway-tls -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
-                        } > "$work/03-cluster.env"
-                        kubectl get nodes -o wide > "$work/04-nodes.txt" 2>/dev/null || true
-                        echo "collected $(ls -1 "$work" | wc -l) files"
-                  - name: encrypt
-                    # The only image in the cluster with gpg: the CNPG postgres base.
-                    # renovate: image=ghcr.io/cloudnative-pg/postgresql
-                    image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
-                    imagePullPolicy: IfNotPresent
-                    command: ["/bin/sh", "-c"]
-                    env:
-                      - name: HOME
-                        value: /work
-                      - name: GNUPGHOME
-                        value: /work/gnupg
-                    envFrom:
-                      - secretRef:
-                          name: dr-pack-creds
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      capabilities:
-                        drop: [ALL]
-                    volumeMounts:
-                      - name: work
-                        mountPath: /work
-                    resources:
-                      requests:
-                        cpu: 50m
-                        memory: 128Mi
-                      limits:
-                        cpu: "1"
-                        memory: 512Mi
-                    args:
-                      - |
-                        set -eu
-                        ts=$(cat /work/ts)
-                        mkdir -p "$GNUPGHOME"
-                        chmod 700 "$GNUPGHOME"
-                        tar -C /work/pack -czf /work/dr-pack.tar.gz .
-                        gpg --batch --yes --pinentry-mode loopback --passphrase "$DR_PACK_PASSPHRASE" --symmetric --cipher-algo AES256 --output "/work/dr-pack-${ts}.tar.gz.gpg" /work/dr-pack.tar.gz
-                        rm -rf /work/pack /work/dr-pack.tar.gz "$GNUPGHOME"
-                        stat -c '%s' "/work/dr-pack-${ts}.tar.gz.gpg" > /work/size
-                        echo "encrypted dr-pack-${ts}.tar.gz.gpg ($(cat /work/size) bytes)"
-                  - name: upload
-                    # renovate: image=rclone/rclone
-                    image: rclone/rclone:1.75
-                    imagePullPolicy: IfNotPresent
-                    command: ["/bin/sh", "-c"]
-                    env:
-                      - name: HOME
-                        value: /work
-                    envFrom:
-                      - secretRef:
-                          name: snapshots-rclone
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      capabilities:
-                        drop: [ALL]
-                    volumeMounts:
-                      - name: work
-                        mountPath: /work
-                    resources:
-                      requests:
-                        cpu: 50m
-                        memory: 128Mi
-                      limits:
-                        cpu: "1"
-                        memory: 512Mi
-                    args:
-                      - |
-                        set -eu
-                        ts=$(cat /work/ts)
-                        f="/work/dr-pack-${ts}.tar.gz.gpg"
-                        for dst in garage:snapshots/dr-pack ovh:offsite-homelab/snapshots/dr-pack; do
-                          echo "--- upload -> $dst"
-                          rclone copy "$f" "$dst" --verbose
-                          # Keep the last 8 weekly copies.
-                          n=$(rclone lsf "$dst" | wc -l)
-                          if [ "$n" -gt 8 ]; then
-                            rclone lsf "$dst" | sort | head -n $((n - 8)) | while IFS= read -r old; do
-                              [ -n "$old" ] || continue
-                              rclone deletefile "$dst/$old" && echo "pruned $old"
-                            done
-                          fi
-                        done
-                        rm -f "$f"
-                containers:
-                  - name: metrics
-                    # renovate: image=curlimages/curl
-                    image: curlimages/curl:8.22.0
-                    imagePullPolicy: IfNotPresent
-                    command: ["/bin/sh", "-c"]
-                    env:
-                      - name: VM_URL
-                        value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
-                    securityContext:
-                      allowPrivilegeEscalation: false
-                      capabilities:
-                        drop: [ALL]
-                    volumeMounts:
-                      - name: work
-                        mountPath: /work
-                    resources:
-                      requests:
-                        cpu: 10m
-                        memory: 32Mi
-                      limits:
-                        cpu: 200m
-                        memory: 128Mi
-                    args:
-                      - |
-                        set -eu
-                        ts=$(cat /work/ts)
-                        size=$(cat /work/size)
-                        printf 'homelab_dr_pack_timestamp %s\nhomelab_dr_pack_bytes %s\n' "$(date -u +%s)" "$size" > /work/metrics.txt
-                        curl -sf -X POST --data-binary @/work/metrics.txt "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
-                        echo "dr-pack ${ts} uploaded (${size} bytes)"
-
-                volumes:
-                  - name: work
-                    emptyDir:
-                      medium: Memory
-                      sizeLimit: 512Mi
+                echo "=== 3/3 bootstrap env ==="
+                {
+                  echo "# generated $(date -u -Iseconds) by dr-pack-offsite CronJob"
+                  echo "RESTIC_PASSWORD_GARAGE=$PW_GARAGE"
+                  echo "RESTIC_PASSWORD_OVH=$PW_OVH"
+                  echo "GARAGE_RESTIC_ACCESS_KEY=$GARAGE_RESTIC_AK"
+                  echo "GARAGE_RESTIC_SECRET=$GARAGE_RESTIC_SK"
+                  echo "GARAGE_SNAPSHOTS_ACCESS_KEY=$RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID"
+                  echo "GARAGE_SNAPSHOTS_SECRET=$RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY"
+                  echo "OVH_S3_ACCESS_KEY=$RCLONE_CONFIG_OVH_ACCESS_KEY_ID"
+                  echo "OVH_S3_SECRET_KEY=$RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY"
+                  cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
+                  echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
+                } > "$work/01-bootstrap.env"
+                # Same format as scripts/dr-pack/build.sh: DR phases 01/04 read
+                # exactly these variables, so the packs are interchangeable.
+                {
+                  echo "# Refreshed: $(date -u -Iseconds)"
+                  echo "GATEWAY_EXTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
+                  echo "GATEWAY_INTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway-internal -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
+                  echo "GATEWAY_TLS_IP=$(kubectl -n kube-system get gateway cilium-gateway-tls -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
+                } > "$work/03-cluster.env"
+                kubectl get nodes -o wide > "$work/04-nodes.txt" 2>/dev/null || true
+                echo "collected $(ls -1 "$work" | wc -l) files"
+          - name: encrypt
+            # The only image in the cluster with gpg: the CNPG postgres base.
+            # renovate: image=ghcr.io/cloudnative-pg/postgresql
+            image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
+            command: ["/bin/sh", "-c"]
+            env:
+              - name: HOME
+                value: /work
+              - name: GNUPGHOME
+                value: /work/gnupg
+            envFrom:
+              - secretRef:
+                  name: dr-pack-creds
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+              - name: work
+                mountPath: /work
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: "1"
+                memory: 512Mi
+            args:
+              - |
+                set -eu
+                ts=$(cat /work/ts)
+                mkdir -p "$GNUPGHOME"
+                chmod 700 "$GNUPGHOME"
+                tar -C /work/pack -czf /work/dr-pack.tar.gz .
+                gpg --batch --yes --pinentry-mode loopback --passphrase "$DR_PACK_PASSPHRASE" --symmetric --cipher-algo AES256 --output "/work/dr-pack-${ts}.tar.gz.gpg" /work/dr-pack.tar.gz
+                rm -rf /work/pack /work/dr-pack.tar.gz "$GNUPGHOME"
+                stat -c '%s' "/work/dr-pack-${ts}.tar.gz.gpg" > /work/size
+                echo "encrypted dr-pack-${ts}.tar.gz.gpg ($(cat /work/size) bytes)"
+          - name: upload
+            # renovate: image=rclone/rclone
+            image: rclone/rclone:1.75
+            command: ["/bin/sh", "-c"]
+            env:
+              - name: HOME
+                value: /work
+            envFrom:
+              - secretRef:
+                  name: snapshots-rclone
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+              - name: work
+                mountPath: /work
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                cpu: "1"
+                memory: 512Mi
+            args:
+              - |
+                set -eu
+                ts=$(cat /work/ts)
+                f="/work/dr-pack-${ts}.tar.gz.gpg"
+                for dst in garage:snapshots/dr-pack ovh:offsite-homelab/snapshots/dr-pack; do
+                  echo "--- upload -> $dst"
+                  rclone copy "$f" "$dst" --verbose
+                  # Keep the last 8 weekly copies.
+                  n=$(rclone lsf "$dst" | wc -l)
+                  if [ "$n" -gt 8 ]; then
+                    rclone lsf "$dst" | sort | head -n $((n - 8)) | while IFS= read -r old; do
+                      [ -n "$old" ] || continue
+                      rclone deletefile "$dst/$old" && echo "pruned $old"
+                    done
+                  fi
+                done
+                rm -f "$f"
+        volumes:
+          - name: work
+            emptyDir:
+              medium: Memory
+              sizeLimit: 512Mi
+      containers:
+        - name: metrics
+          image:
+            repository: curlimages/curl
+            tag: "8.22.0"
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: VM_URL
+              value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: work
+              mountPath: /work
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          args:
+            - |
+              set -eu
+              ts=$(cat /work/ts)
+              size=$(cat /work/size)
+              printf 'homelab_dr_pack_timestamp %s\nhomelab_dr_pack_bytes %s\n' "$(date -u +%s)" "$size" > /work/metrics.txt
+              curl -sf -X POST --data-binary @/work/metrics.txt "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
+              echo "dr-pack ${ts} uploaded (${size} bytes)"
 
   externalSecrets:
     # Creds for the weekly off-site DR pack: the passphrase and the restic-apps
