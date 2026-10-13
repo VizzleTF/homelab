@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Deterministic drift checks between the repo and its documentation.
 
-Covers what a script can verify without judgement: Obsidian registries and
+Covers what a script can verify without judgement: the config.yaml contract
+of every argocd/{apps,infra}/* folder, Obsidian registries and
 cheatsheets vs argocd/{apps,infra,standalone}, wave/namespace in the registry
 tables and cheatsheet headers vs config.yaml, pinned chart versions in
 cheatsheets, broken wikilinks, the skills index vs skill folders, and repo
@@ -9,7 +10,7 @@ paths in backticks that do not exist. Facts in prose (commands, runbook steps)
 need a reviewer: see the auditing-docs skill.
 
 Usage: scripts/audit-docs.py [--vault obsidian]   (run from the repo root)
-Without the vault (CI) only the skills index and repo-path checks run.
+Without the vault (CI) only the config.yaml, skills index and repo-path checks run.
 Output: `path: level: message`. Exit 1 on any error.
 """
 import argparse
@@ -184,6 +185,51 @@ for doc in docs:
                 # CLAUDE.md is always loaded: a dead path there is an error.
                 level = "error" if doc.name == "CLAUDE.md" and doc.parent == REPO else "warning"
                 report(doc, level, f"path `{p}` does not exist")
+
+# 7. config.yaml contract. The AppSet template reads optional keys with
+# index/dig, so a typo (extraManifest, namspace) or a missing chart: renders
+# silently wrong instead of failing; Renovate skips a file without chart:.
+CONFIG_KEYS = {"chart", "repoURL", "targetRevision", "namespace", "wave", "homelabOnly",
+               "extraManifests", "homelabValuesFile", "cnpgValuesFile", "ignoreDiff"}
+UPSTREAM_KEYS = ("chart", "repoURL", "targetRevision")
+for kind in ("apps", "infra"):
+    for cfg in sorted((REPO / f"argocd/{kind}").glob("*/config.yaml")):
+        c = yaml.safe_load(cfg.read_text()) or {}
+        folder = cfg.parent
+        for k in sorted(set(c) - CONFIG_KEYS):
+            report(cfg, "error", f"unknown key '{k}'")
+        for k in ("homelabOnly", "extraManifests"):
+            if k in c and c[k] is not True:
+                report(cfg, "error", f"{k} must be true or absent, got {c[k]!r}")
+        if c.get("homelabOnly"):
+            for k in UPSTREAM_KEYS:
+                if k in c:
+                    report(cfg, "error", f"homelabOnly app must not set {k}")
+        else:
+            for k in UPSTREAM_KEYS:
+                if not c.get(k):
+                    report(cfg, "error", f"missing {k} (required unless homelabOnly)")
+        rev = c.get("targetRevision")
+        if rev is not None and not (isinstance(rev, str) and re.fullmatch(r"v?\d+(\.\d+)*([-+][\w.]+)?", rev)):
+            report(cfg, "error", f"targetRevision must be an exact quoted version, got {rev!r}")
+        if not (isinstance(c.get("wave"), str) and re.fullmatch(r"-?\d+", c["wave"])):
+            report(cfg, "error", f"wave must be a quoted integer, got {c.get('wave')!r}")
+        if c.get("namespace") == folder.name:
+            report(cfg, "warning", "namespace equals the folder name; drop it")
+        if bool(c.get("extraManifests")) != (folder / "manifests").is_dir():
+            report(cfg, "error", "extraManifests: true if and only if manifests/ exists")
+        for k in ("homelabValuesFile", "cnpgValuesFile"):
+            if k in c and not (folder / str(c[k])).is_file():
+                report(cfg, "error", f"{k} {c[k]} does not exist")
+        if "cnpgValuesFile" in c and kind != "apps":
+            report(cfg, "error", "cnpgValuesFile is only rendered by the apps AppSet")
+        if "ignoreDiff" in c:
+            try:
+                ok = isinstance(c["ignoreDiff"], str) and isinstance(yaml.safe_load(c["ignoreDiff"]), list)
+            except yaml.YAMLError:
+                ok = False
+            if not ok:
+                report(cfg, "error", "ignoreDiff must be a block string holding a YAML list")
 
 if not HAVE_VAULT:
     report(VAULT, "warning", "vault not found: registry, cheatsheet and wikilink checks skipped")
