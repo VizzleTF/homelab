@@ -4,7 +4,7 @@
     "config:best-practices",
     ":dependencyDashboard"
   ],
-  "description": "rebaseWhen=behind-base-branch (было auto, сменено 2026-07-26): Forgejo branch protection держала block_on_outdated_branch=true (выключено 2026-08-02), а `auto` на платформе gitea ребейзит только конфликтующие ветки — «отстал от base» Renovate детектит лишь через GitHub-специфичный признак. Ветка устаревала после первого же чужого merge, automerge отдавал 405, PR висел вечно, и очередь упиралась в prConcurrentLimit=10 (10 мёртвых PR = все новые уходят в Rate-Limited на дашборде). Проверено 2026-07-26: 10 открытых PR возрастом до 2 месяцев, все с зелёным CI и automerge:true.",
+  "description": "rebaseWhen=behind-base-branch: on the gitea/forgejo platform `auto` rebases only conflicting branches, so a branch that fell behind main never got rebased, automerge returned 405 and stale PRs filled prConcurrentLimit (seen 2026-07-26).",
   "timezone": "UTC",
   "configMigration": true,
   "osvVulnerabilityAlerts": true,
@@ -14,7 +14,7 @@
     "automerge": true
   },
   "lockFileMaintenance": {
-    "description": "Выключено: единственный lock-файл (terraform_talos/.terraform.lock.hcl) Renovate и так переписывает в PR с бампом провайдера, а одна плановая пересборка хэшей раз в неделю ничего не даёт. config:best-practices включает lockFileMaintenance по умолчанию — без явного false запись висит в `Awaiting Schedule`.",
+    "description": "Off: the only lock file (terraform_talos/.terraform.lock.hcl) is rewritten in every provider bump PR anyway. config:best-practices enables it by default, so without an explicit false the entry sits in `Awaiting Schedule`.",
     "enabled": false
   },
   "prConcurrentLimit": 10,
@@ -24,19 +24,19 @@
   "rebaseWhen": "behind-base-branch",
   "packageRules": [
     {
-      "description": "Все обновления (major, minor, patch, pin) авто-мёржатся после зелёного CI. Никаких ручных подтверждений: CI (gitleaks + yamllint + helm-lint) — единственный gate. minimumReleaseAge УБРАН 2026-06-14: Renovate default minimumReleaseAgeBehaviour=timestamp-required держал вечно pending GHCR-образы без OCI `created` timestamp (may/omniroute/cnpg-postgresql застряли — debug dry-run подтвердил 'Marking N release(s) as pending, do not have a releaseTimestamp'). Buffer ломал трекинг тише, чем защищал. CI+ArgoCD health — реальный gate.",
+      "description": "Every update (major, minor, patch, pin) automerges once the required CI checks are green (gitleaks, yamllint, helm-lint, kubeconform, argocd-diff); CI plus ArgoCD health is the gate. No minimumReleaseAge: with the default timestamp-required behaviour GHCR images without an OCI `created` timestamp stayed pending forever (removed 2026-06-14).",
       "matchUpdateTypes": ["major", "minor", "patch", "pin"],
       "automerge": true,
       "automergeType": "pr",
       "addLabels": ["automerge"]
     },
     {
-      "description": "Label `major` на major bump-ах — для визуальной фильтрации в Forgejo UI и Dependency Dashboard. Не блокирует merge, только маркирует.",
+      "description": "Label major bumps for filtering in the Forgejo UI and the Dependency Dashboard. Does not block the merge.",
       "matchUpdateTypes": ["major"],
       "addLabels": ["major"]
     },
     {
-      "description": "Critical-infra major label: major-бампы CRD-несущих компонентов помечаются для видимости в Forgejo UI / Dependency Dashboard. Гейт ручного approve снят 2026-06-12 по решению пользователя: АБСОЛЮТНО всё на автомёрже, CI — единственный gate. Откат: вернуть automerge:false + dependencyDashboardApproval:true в это правило.",
+      "description": "Label major bumps of CRD-carrying components as critical-infra for visibility. Manual approval was dropped on 2026-06-12 (owner decision: everything automerges). Rollback: add automerge:false + dependencyDashboardApproval:true here.",
       "matchPackageNames": [
         "cilium",
         "cloudnative-pg",
@@ -52,49 +52,52 @@
       "addLabels": ["critical-infra"]
     },
     {
-      "description": "Docker digest-only обновления выключены: каждый upstream rebuild создавал бы шум-PR без version delta. Реальные version bump-ы ловятся helm/kubernetes/custom-regex managers.",
+      "description": "Digest-only docker updates are off: every upstream rebuild would open a PR without a version change.",
       "matchDatasources": ["docker"],
       "matchUpdateTypes": ["digest"],
       "enabled": false
     },
     {
-      "description": "config:best-practices тянет docker:pinDigests (pinDigests:true) → массовые @sha256-pin PR по всем image-тегам. Мы трактуем digest-ы как шум (см. правило выше). Отключаем digest-пиннинг, оставляем tag-only поведение. Образы, которым нужен явный digest (curl-jq в notify-cronjob), пинятся вручную в манифесте.",
+      "description": "config:best-practices enables docker:pinDigests, which would open @sha256 pin PRs for every image tag. Tags only; images that need a digest pin it by hand in the manifest.",
       "matchDatasources": ["docker"],
       "pinDigests": false
     },
     {
-      "description": "Forgejo Actions runner эмулирует GHES artifact protocol до v3 включительно. actions/upload-artifact и download-artifact v3.2.x+ перешли на @actions/artifact v2 (v4 protocol) и падают с GHESNotSupportedError. Пин <3.2.0 до миграции с Forgejo Actions на нативный workflow runtime.",
+      "description": "The Forgejo Actions runner speaks the GHES artifact protocol up to v3. upload/download-artifact 3.2.x+ use the v4 protocol and fail with GHESNotSupportedError.",
       "matchManagers": ["github-actions"],
       "matchPackageNames": ["actions/upload-artifact", "actions/download-artifact"],
       "allowedVersions": "<3.2.0"
     },
     {
-      "description": "lampac публикует каждый релиз ДВАЖДЫ — `X.Y.Z` и `vX.Y.Z`. Pin без `v` + Renovate выбирает абсолютный максимум (v-префиксный) = смена префикса non-v→v, которую Renovate трактует как не-бамп и молча скипает. Из-за этого образ застрял на 1.4.3 с 2026-06-01 (pin floating→semver) при доступном 1.34.0. Лочим non-v lineage, чтобы трекинг не ломался о prefix-flip.",
+      "description": "lampac publishes every release twice, `X.Y.Z` and `vX.Y.Z`. Renovate picks the v-prefixed maximum, treats the prefix flip as a non-bump and skips it silently (stuck on 1.4.3 while 1.34.0 existed). Lock to the non-v lineage.",
       "matchPackageNames": ["ghcr.io/lampac-nextgen/lampac"],
       "allowedVersions": "!/^v/"
     },
     {
-      "description": "Группа `apps`: все апдейты внутри argocd/apps/** идут одним батч-PR. Apps менее критичны чем infra — ошибочный bump = downtime одного приложения, не кластера.",
+      "description": "Group `apps`: updates under argocd/apps/** go in one batch PR; a bad bump takes down one app, not the cluster.",
       "matchFileNames": ["argocd/apps/**"],
       "groupName": "apps"
     },
     {
-      "description": "Группа `infra`: инфраструктурные апдейты (per-component infra + AppSet-шаблоны + standalone Application'ы + raw manifests + shared values) идут одним батч-PR. Объединяет всё что управляет CRDs/Gateway/Storage/CNI/Vault/ArgoCD.",
+      "description": "Group `infra`: infra components, AppSet templates, standalone Applications and shared values go in one batch PR. CRD-carrying charts are excluded and get a PR each: a CRD change keeps argocd-diff red until the PR is labelled diff-reviewed, and inside the batch it held every harmless bump with it (PR #815, 2026-10-07).",
       "matchFileNames": [
         "argocd/infra/**",
         "argocd/appsets/**",
         "argocd/standalone/**",
         "argocd/values/**"
       ],
+      "matchPackageNames": [
+        "!/^(?:.+/)?(argo-cd|cert-manager|cilium|cloudnative-pg|external-secrets|intel-device-plugins-operator|keda|keda-add-ons-http|kyverno|longhorn|node-feature-discovery|plugin-barman-cloud|snapshot-controller|tuppr|victoria-metrics-k8s-stack|volsync|wazuh-operator|kubernetes-sigs/gateway-api)$/"
+      ],
       "groupName": "infra"
     },
     {
-      "description": "Группа `talos`: версии Talos OS / Kubernetes для bare-metal нод (terraform bootstrap-версия в nodes.yaml). Отдельный batch-PR — апгрейд нод требует ручного `terraform apply` + tuppr enacts rolling-upgrade живого кластера. Держать в синхроне с tuppr CRD image-версиями (installer/talosctl/kubelet).",
+      "description": "Group `talos`: Talos OS / Kubernetes bootstrap versions in nodes.yaml. Separate PR: a node upgrade needs a manual `terraform apply`, tuppr rolls the live cluster. Keep in sync with the tuppr image versions (installer/talosctl/kubelet).",
       "matchFileNames": ["terraform_talos/configs/**"],
       "groupName": "talos"
     },
     {
-      "description": "external-dns не авто-мёржится: он управляет реальными DNS-записями с policy: sync, и ломающее изменение видно только постфактум. 12.09.2026 автомёрж 1.21.1 -> 1.22.0 снёс внешний DNS на четыре часа — в v0.22.0 сменился дефолтный префикс аннотаций (external-dns.alpha.kubernetes.io/ -> external-dns.kubernetes.io/, без fallback), target с Gateway перестал читаться. PR читать глазами, сверяясь с release notes. Правило стоит последним: в Renovate побеждает более позднее совпавшее правило, раньше общий automerge и группа infra его перекрывали (01.10.2026 1.22.0 -> 1.23.0 смёржился сам). Своя группа держит его вне батч-PR infra.",
+      "description": "external-dns does not automerge: it owns real DNS records with policy: sync, and a breaking change shows only after the fact. On 2026-09-12 the 1.21.1 -> 1.22.0 automerge took external DNS down for four hours (annotation prefix changed without fallback). Read the release notes. The rule stays last because a later matching rule wins; its own group keeps it out of the infra batch.",
       "matchPackageNames": ["external-dns"],
       "matchDatasources": ["helm"],
       "automerge": false,
@@ -104,7 +107,7 @@
   ],
   "customManagers": [
     {
-      "description": "Helm-чарты в standalone Application'ах и ApplicationSet-шаблонах (формат repoURL→chart→targetRevision). Glob = argocd/standalone + argocd/appsets (после миграции с applications/infrastructure). Ловит argo-cd, homelab-common (×3: оба appset + standalone), cluster (immich cnpg-шаблон в apps-appset).",
+      "description": "Helm charts in standalone Applications and ApplicationSet templates (repoURL -> chart -> targetRevision): argo-cd, homelab-common (both AppSets + standalone argocd), cluster (immich CNPG source in the apps AppSet).",
       "customType": "regex",
       "managerFilePatterns": ["/argocd/(standalone|appsets)/.+\\.ya?ml$/"],
       "datasourceTemplate": "helm",
@@ -113,7 +116,7 @@
       ]
     },
     {
-      "description": "Git-source чарты/CRD в standalone Application'ах (repoURL github .git + path + targetRevision, без chart:). Ловит gateway-api (kubernetes-sigs/gateway-api). datasource=github-releases по depName из github-пути.",
+      "description": "Git-source charts/CRDs in standalone Applications (github .git repoURL + path + targetRevision, no chart:): gateway-api. datasource github-releases, depName from the GitHub path.",
       "customType": "regex",
       "managerFilePatterns": ["/argocd/standalone/.+\\.ya?ml$/"],
       "datasourceTemplate": "github-releases",
@@ -122,7 +125,7 @@
       ]
     },
     {
-      "description": "Helm-чарты в argocd/{apps,infra}/*/config.yaml (структурный YAML chart/repoURL/targetRevision). `chart:` ОБЯЗАТЕЛЕН в каждом config.yaml, даже когда совпадает с именем каталога: ApplicationSet его подставляет сам, а этот матчер без него файл молча пропускает (2026-09-24 «cleanup» убрал chart: из 37 файлов, и Renovate ослеп на неделю).JSONata парсит YAML структурно — datasource выбирается по наличию scheme в repoURL: со scheme (https://) = helm chart-индекс, scheme-less = OCI-артефакт = docker. Заменяет два прежних regex-менеджера (colon-hack [^\\s:] + lazy [\\s\\S]*?targetRevision, зависевший от порядка строк и ломкий о блок-скаляр ignoreDiff). Покрывает ~40 helm config.yaml + OCI (forgejo, forgejo-runner, tuppr). homelab-common тут НЕ резолвится — он в appsets templatePatch (см. helm-regex менеджер ниже).",
+      "description": "Charts in argocd/{apps,infra}/*/config.yaml, parsed structurally with JSONata. `chart:` is required in every config.yaml even when it equals the folder name: without it this manager skips the file (2026-09-24 a cleanup removed it from 37 files and Renovate went blind for a week; scripts/audit-docs.py now fails CI on it). repoURL with a scheme = helm index, scheme-less = OCI = docker datasource. homelab-common is pinned in the AppSet templates, see the first manager.",
       "customType": "jsonata",
       "fileFormat": "yaml",
       "managerFilePatterns": ["/argocd/(apps|infra)/[^/]+/config\\.ya?ml$/"],
@@ -131,7 +134,7 @@
       ]
     },
     {
-      "description": "immich-machine-learning: тег = <immich release>-openvino. Docker-datasource на ghcr.io/immich-app/immich-machine-learning отдаёт \"no-result\" — у образа ~187k тегов (PR-билды), GHCR капает n на 1000 и сортирует oldest→newest, поэтому один lookup = 187 последовательных страниц tags/list; walk отваливается даже с аутентифицированным hostRule (RENOVATE_HOST_RULES для ghcr.io, добавлен 2026-07-28, проблему не снял). ML публикуется тем же релизом, что и immich-server, поэтому версию берём из github-releases immich-app/immich, а суффикс `-openvino` держим ВНЕ currentValue, чтобы Renovate заменял только цифры.",
+      "description": "immich-machine-learning tag = <immich release>-openvino. The docker datasource returns no-result for ghcr.io/immich-app/immich-machine-learning (~187k tags, GHCR pages 1000 oldest-first), even with an authenticated hostRule. ML ships with the same release as immich-server, so the version comes from github-releases immich-app/immich and `-openvino` stays outside currentValue.",
       "customType": "regex",
       "managerFilePatterns": ["/argocd/apps/immich/values\\.ya?ml$/"],
       "datasourceTemplate": "github-releases",
@@ -141,7 +144,7 @@
       ]
     },
     {
-      "description": "Образы через `# renovate: image=<repo>` коммент (одна строка `image: repo:tag[@sha256:...]`). datasource фиксирован docker. Захватывает только тег + опц. digest.",
+      "description": "Images marked with a `# renovate: image=<repo>` comment above a single `image: repo:tag[@sha256:...]` line. Captures the tag and an optional digest.",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
@@ -154,7 +157,7 @@
       ]
     },
     {
-      "description": "Образы/бинарники/версии через `# renovate: datasource=<ds> depName=<name>` коммент. БЕЗ статического datasourceTemplate — иначе он перебил бы captured-группу `datasource` (template-поле приоритетнее группы в Renovate), и github-releases (siderolabs/talos) падал бы на docker → Docker Hub 401. datasource берётся ТОЛЬКО из захваченной группы. Покрывает argocd/** (talosctl/installer/kubelet docker, talos github-releases) и terraform_talos/configs/** (Talos OS / Kubernetes bootstrap-версии в nodes.yaml). И .forgejo/workflows/** — пины инструментов job-а argocd-diff (argocd-diff-preview, docker CLI; pluto/yq/kubeconform читаются из .mise.toml). И .devcontainer/Dockerfile — ARG-пины CLI.",
+      "description": "Versions marked with `# renovate: datasource=<ds> depName=<name>`. No datasourceTemplate on purpose: a template overrides the captured group, and github-releases deps (siderolabs/talos) would hit Docker Hub. Covers argocd/**, terraform_talos/configs/** (nodes.yaml), .forgejo/workflows/** (argocd-diff job tools) and .devcontainer/Dockerfile.",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
