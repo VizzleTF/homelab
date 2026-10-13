@@ -6,24 +6,19 @@
 
 # Chart default request is 250m CPU per component; real p95 is 2-9m.
 operator:
-  replicas: 1
   resources:
     requests:
       cpu: 20m
-      memory: 20Mi
     limits:
       cpu: 500m
-      memory: 64Mi
 
 scaler:
   replicas: 1   # default 3, too many for a single KEDA install
   resources:
     requests:
       cpu: 20m
-      memory: 20Mi
     limits:
       cpu: 500m
-      memory: 64Mi
 
 interceptor:
   replicas:
@@ -32,10 +27,8 @@ interceptor:
   resources:
     requests:
       cpu: 20m
-      memory: 20Mi
     limits:
       cpu: 500m
-      memory: 64Mi
   # Lampac cold start (initialDelaySeconds=60): how long to wait before
   # forwarding to a freshly scaled-up pod (code default 300s).
   responseHeaderTimeout: "120s"

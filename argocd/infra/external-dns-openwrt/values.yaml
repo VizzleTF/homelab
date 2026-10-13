@@ -37,7 +37,6 @@ provider:
       # renovate: datasource=docker depName=ghcr.io/vizzletf/external-dns-openwrt-next
       repository: ghcr.io/vizzletf/external-dns-openwrt-next
       tag: "v0.8.0"
-      pullPolicy: IfNotPresent
 
     # Probes are not overridden: since v0.7.0 the webhook serves its API on
     # 127.0.0.1:8888 only and /healthz plus metrics on :8080, exactly what the
@@ -180,20 +179,7 @@ resources:
     memory: 32Mi
 
 serviceAccount:
-  create: true
   name: external-dns-openwrt
 
-rbac:
-  create: true
-
 podSecurityContext:
-  fsGroup: 65534
-  runAsNonRoot: true
   runAsUser: 65534
-
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop:
-      - ALL

@@ -97,20 +97,19 @@ encryption:
 bpf:
   masquerade: true
 
-# Hubble observability platform
 # Agent metrics (:9962, scraped by manifests/vmpodscrape.yaml). Without them a
 # node dropping ~2 packets/s to a stale iSCSI target for weeks went unnoticed
 # (cilium_drop_count_total{reason="Stale or unroutable IP"}, 2026-09-24).
 prometheus:
   enabled: true
 
+# Relay off since 2026-10: no UI, and `hubble observe` inside cilium-agent
+# (the CiliumPolicyDenied runbook) reads the local node without it.
 hubble:
-  # Relay off since 2026-10: no UI, and `hubble observe` inside cilium-agent
-  # (the CiliumPolicyDenied runbook) reads the local node without it.
   relay:
-    enabled: false
+    enabled: false  # pinned: deliberate, keep off if the default flips
   ui:
-    enabled: false
+    enabled: false  # pinned: deliberate, keep off if the default flips
 
 # Kubernetes API server configuration
 k8sServiceHost: localhost
@@ -134,15 +133,8 @@ bandwidthManager:
   enabled: true
   bbr: true
 
-# Enable L7 proxy for Ingress Controller support
-l7Proxy: true
-
 # BGP Control Plane — eBGP peering with OpenWrt (10.11.11.1, ASN 65000).
 # CRs live in manifests/cilium-bgp.yaml. MD5 auth deliberately disabled
 # (OpenWrt 25.12 kernel lacks CONFIG_TCP_MD5SIG).
 bgpControlPlane:
   enabled: true
-
-# Ingress Controller — disabled, Gateway API used exclusively
-ingressController:
-  enabled: false

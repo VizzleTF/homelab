@@ -4,10 +4,5 @@
 # intel.feature.node.kubernetes.io/gpu=true — DaemonSet targets those nodes automatically
 
 # CR/DS name override: chart default `gpudeviceplugin-sample` → `gpu`
-# DaemonSet becomes `intel-gpu-plugin-gpu` (вместо `-gpudeviceplugin-sample`).
+# DaemonSet becomes `intel-gpu-plugin-gpu` (instead of `-gpudeviceplugin-sample`).
 name: gpu
-
-sharedDevNum: 1
-logLevel: 2
-enableMonitoring: true
-nodeFeatureRule: true

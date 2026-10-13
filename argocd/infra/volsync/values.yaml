@@ -1,14 +1,9 @@
-# VolSync — асинхронная репликация PV. Основа backup-схемы v2 (см. obsidian/113 Backups/Backup Overview.md):
-# на каждый PVC два ReplicationSource (restic → Garage, restic → OVH), а
-# восстановление — ручной ReplicationDestination (scripts/dr/restore-app.sh).
+# VolSync: asynchronous PV replication. The base of backup scheme v2 (see obsidian/113 Backups/Backup Overview.md):
+# every PVC gets two ReplicationSources (restic → Garage, restic → OVH), and a
+# restore is a manual ReplicationDestination (scripts/dr/restore-app.sh).
 #
-# Wave -3: после csi-snapshotter (-4, ставит snapshot.storage.k8s.io CRD) и
-# Longhorn, до приложений — их ReplicationSource'ы ссылаются на CRD VolSync.
-
-# CRD (ReplicationSource/Destination) ставит сам чарт.
-manageCRDs: true
-
-replicaCount: 1
+# Wave -3: after csi-snapshotter (-4, installs the snapshot.storage.k8s.io CRDs) and
+# Longhorn, before the apps, whose ReplicationSources reference the VolSync CRDs.
 
 resources:
   requests:
@@ -19,8 +14,8 @@ resources:
     memory: 512Mi
 
 metrics:
-  # kube-rbac-proxy перед /metrics. VMAgent ходит с SA-токеном — оставляем auth.
-  disableAuth: false
+  # kube-rbac-proxy in front of /metrics; vmagent scrapes with its SA token.
+  disableAuth: false  # pinned: keep auth on if the default flips
 
 homelab-common:
   # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
