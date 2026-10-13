@@ -38,6 +38,9 @@ resources:
     memory: 1Gi
 
 deployment:
+  # Roll the pod when ESO rotates a secret it reads (env is read once at start).
+  annotations:
+    secret.reloader.stakater.com/reload: forgejo-db-credentials,forgejo-admin-credentials
   env:
     - name: FORGEJO__database__PASSWD
       valueFrom:
