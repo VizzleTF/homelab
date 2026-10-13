@@ -64,17 +64,6 @@ homelab-common:
         - secretKey: password
           property: password
 
-    - name: immich-db-credentials
-      vaultPath: immich/main-database
-      data:
-        - secretKey: username
-          property: username
-        - secretKey: password
-          property: password
-      templateData:
-        username: "{{ .username }}"
-        password: "{{ .password }}"
-
     - name: immich-main-user-credentials
       vaultPath: immich/main-database
       templateType: kubernetes.io/basic-auth
