@@ -1,11 +1,13 @@
 # OpenWrt config backup — cluster-side CronJob.
-# SSH root@10.11.12.1 (main router) → `sysupgrade -b -` стримит config-tarball
-# в stdout → uploads в Garage (on-site) + OVH (off-site, independent, versioned).
-# Бэкап-логика в кластере, НЕ на роутере (не храним бэкап на том, что бэкапим).
+# SSH root@10.11.12.1 (main router) → `sysupgrade -b -` streams the config tarball
+# to stdout → upload to Garage (on-site) + OVH (off-site, independent, versioned).
+# The backup logic lives in the cluster, NOT on the router (never keep a backup
+# on the thing being backed up).
 #
-# `sysupgrade -b` дефолтно включает /etc/config/* + /etc/bird.conf (BGP-пир для
-# Cilium LB!) + dnsmasq + usteer(BTM) + crontabs + dropbear/authorized_keys —
-# bird2-пакет регистрирует conffile, править /etc/sysupgrade.conf не надо.
+# `sysupgrade -b` includes /etc/config/* + /etc/bird.conf (the BGP peer for the
+# Cilium LB!) + dnsmasq + usteer (BTM) + crontabs + dropbear/authorized_keys by
+# default — the bird2 package registers its conffile, no need to edit
+# /etc/sysupgrade.conf.
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
@@ -13,16 +15,16 @@ homelab-common:
     enabled: true
 
   externalSecrets:
-    # SSH private key (reuse existing admin id_rsa). Pubkey уже в
-    # /etc/dropbear/authorized_keys на роутере. Vault: home/homelab/k8s/openwrt-backup/ssh.
+    # SSH private key (reuses the existing admin id_rsa). The pubkey is already in
+    # /etc/dropbear/authorized_keys on the router. Vault: home/homelab/k8s/openwrt-backup/ssh.
     - name: openwrt-ssh-key
       vaultPath: openwrt-backup/ssh
       data:
         - secretKey: id_rsa
           property: id_rsa
 
-    # rclone creds: Garage (dedicated bucket config-backups — НЕ velero-backups,
-    # иначе Velero валит garage-default BSL на "invalid top-level dir") + OVH (off-site).
+    # rclone creds: Garage (dedicated bucket config-backups — NOT velero-backups,
+    # otherwise Velero fails the garage-default BSL with "invalid top-level dir") + OVH (off-site).
     - name: openwrt-backup-rclone
       data:
         - secretKey: garage_ak
@@ -53,67 +55,59 @@ homelab-common:
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
 
-  cronJobs:
-    - name: config-backup
-      spec:
-        schedule: "30 5 * * 0"          # Sundays 05:30 UTC (weekly, config low-churn)
-        concurrencyPolicy: Forbid
-        startingDeadlineSeconds: 600
-        successfulJobsHistoryLimit: 1
-        failedJobsHistoryLimit: 3
-        jobTemplate:
-          spec:
-            backoffLimit: 2
-            activeDeadlineSeconds: 600
-            template:
-              spec:
-                restartPolicy: OnFailure
-                securityContext:
-                  # root нужен для apk add; backup-pod короткоживущий
-                  runAsUser: 0
-                  runAsGroup: 0
-                  seccompProfile:
-                    type: RuntimeDefault
-                containers:
-                  - name: backup
-                    # renovate: image=alpine
-                    image: alpine:3.24
-                    command: ["/bin/sh", "-c"]
-                    args:
-                      - |
-                        set -eu
-                        apk add --no-cache openssh-client rclone >/dev/null
-                        ts=$(date -u +%Y%m%dT%H%M%SZ)
-                        mkdir -p /tmp/b
-                        echo "[$(date -u)] ssh sysupgrade -b root@10.11.12.1"
-                        ssh -i /ssh/id_rsa -T \
-                          -o StrictHostKeyChecking=accept-new \
-                          -o UserKnownHostsFile=/tmp/known_hosts \
-                          -o ConnectTimeout=15 \
-                          root@10.11.12.1 "sysupgrade -b -" > "/tmp/b/owrt-router-$ts.tar.gz"
-                        ls -lh /tmp/b/
-                        gzip -t /tmp/b/*.tar.gz   # sanity: valid gzip
-                        for r in garage:config-backups/openwrt ovh:offsite-homelab/openwrt; do
-                          echo "[$(date -u)] rclone copy -> $r/"
-                          rclone copy /tmp/b "$r/" --s3-acl=private --stats-one-line
-                          rclone delete "$r/" --min-age 2160h --rmdirs || true
-                        done
-                        echo "[$(date -u)] done"
-                    envFrom:
-                      - secretRef:
-                          name: openwrt-backup-rclone
-                    volumeMounts:
-                      - name: ssh
-                        mountPath: /ssh
-                        readOnly: true
-                    resources:
-                      requests: { cpu: 25m, memory: 64Mi }
-                      limits: { cpu: 500m, memory: 256Mi }
-                volumes:
-                  - name: ssh
-                    secret:
-                      secretName: openwrt-ssh-key
-                      defaultMode: 0400
-                      items:
-                        - key: id_rsa
-                          path: id_rsa
+  workloads:
+    - name: config-backup           # -> CronJob openwrt-backup-config-backup
+      type: cronjob
+      schedule: "30 5 * * 0"        # Sundays 05:30 UTC (weekly, configs change rarely)
+      # Chart defaults: concurrencyPolicy Forbid, startingDeadlineSeconds 600,
+      # history 1/3, backoffLimit 2, restartPolicy OnFailure.
+      job:
+        activeDeadlineSeconds: 600
+      pod:
+        securityContext:
+          runAsUser: 0              # root for apk add; the pod is short-lived
+          runAsGroup: 0
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: backup
+          image:
+            repository: alpine
+            tag: "3.24.2"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              apk add --no-cache openssh-client rclone >/dev/null
+              ts=$(date -u +%Y%m%dT%H%M%SZ)
+              mkdir -p /tmp/b
+              echo "[$(date -u)] ssh sysupgrade -b root@10.11.12.1"
+              ssh -i /ssh/id_rsa -T \
+                -o StrictHostKeyChecking=accept-new \
+                -o UserKnownHostsFile=/tmp/known_hosts \
+                -o ConnectTimeout=15 \
+                root@10.11.12.1 "sysupgrade -b -" > "/tmp/b/owrt-router-$ts.tar.gz"
+              ls -lh /tmp/b/
+              gzip -t /tmp/b/*.tar.gz   # sanity: valid gzip
+              for r in garage:config-backups/openwrt ovh:offsite-homelab/openwrt; do
+                echo "[$(date -u)] rclone copy -> $r/"
+                rclone copy /tmp/b "$r/" --s3-acl=private --stats-one-line
+                rclone delete "$r/" --min-age 2160h --rmdirs || true
+              done
+              echo "[$(date -u)] done"
+          envFrom:
+            - secretRef:
+                name: openwrt-backup-rclone
+          resources:
+            requests: {cpu: 25m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+      persistence:
+        ssh:
+          secret:
+            secretName: openwrt-ssh-key
+            defaultMode: 0400
+            items:
+              - key: id_rsa
+                path: id_rsa
+          mountPath: /ssh
+          readOnly: true
