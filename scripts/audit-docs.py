@@ -6,13 +6,15 @@ of every argocd/{apps,infra}/* folder, the homelab-common legacySelector guard, 
 cheatsheets vs argocd/{apps,infra,standalone}, wave/namespace in the registry
 tables and cheatsheet headers vs config.yaml, pinned chart versions in
 cheatsheets, broken wikilinks, the skills index vs skill folders, repo
-paths in backticks that do not exist, and apps-appset vs infra-appset parity.
+paths in backticks that do not exist, apps-appset vs infra-appset parity,
+and Authentik blueprints (grant_types set, no launch_url, no ambiguous profile
+!Find, every blueprint ConfigMap mounted by blueprints.configMaps and back).
 Facts in prose (commands, runbook steps) need a reviewer: see the
 auditing-docs skill.
 
 Usage: scripts/audit-docs.py [--vault obsidian]   (run from the repo root)
 Without the vault (CI) only the config.yaml, legacySelector, skills index,
-repo-path and AppSet parity checks run.
+repo-path, AppSet parity and blueprint checks run.
 Output: `path: level: message`. Exit 1 on any error.
 """
 import argparse
@@ -242,6 +244,7 @@ LEGACY_SELECTOR_ALLOWED = {
 # the whole cluster, not just the namespace (a collision mixes two volumes'
 # snapshots in one repo).
 volsync_names = {}
+bp_cms = {}
 values_files = sorted(REPO.glob("argocd/*/*/values.yaml")) + sorted(REPO.glob("argocd/*/*/homelab-values.yaml"))
 for vf in values_files + [REPO / "argocd/values/argocd.yaml"]:
     hc = (yaml.safe_load(vf.read_text()) or {}).get("homelab-common") or {}
@@ -252,6 +255,26 @@ for vf in values_files + [REPO / "argocd/values/argocd.yaml"]:
     for w in hc.get("workloads") or []:
         if "legacySelector" in w and (vf.parent.name, w.get("name")) not in LEGACY_SELECTOR_ALLOWED:
             report(vf, "error", f"workload {w.get('name')}: legacySelector only for Deployments created before 1.19")
+    # Authentik blueprints: rules the importer does not enforce.
+    for b in hc.get("authentikBlueprints") or []:
+        if b.get("name") in bp_cms:
+            report(vf, "error", f"blueprint ConfigMap {b['name']} also rendered by {bp_cms[b['name']]}")
+        bp_cms.setdefault(b.get("name"), vf.as_posix())
+        for fname, body in (b.get("blueprints") or {}).items():
+            if "authentik_providers_oauth2.oauth2provider" in body and "grant_types:" not in body:
+                report(vf, "error", f"{fname}: grant_types missing (model default [] rejects every login)")
+            if re.search(r"^\s+launch_url:", body, re.M):
+                report(vf, "error", f"{fname}: launch_url is read-only, use meta_launch_url")
+            if "[scope_name, profile]" in body:
+                report(vf, "error", f"{fname}: ambiguous !Find, match the profile mapping by name")
+# Every blueprint ConfigMap must be mounted into the worker, and every mount
+# must have a ConfigMap behind it.
+AK_VALUES = REPO / "argocd/apps/authentik/values.yaml"
+mounted = ((yaml.safe_load(AK_VALUES.read_text()) or {}).get("blueprints") or {}).get("configMaps") or []
+for name in sorted(set(bp_cms) - set(mounted)):
+    report(bp_cms[name], "error", f"blueprint ConfigMap {name} not in authentik blueprints.configMaps (never mounted)")
+for name in sorted(set(mounted) - set(bp_cms)):
+    report(AK_VALUES, "error", f"blueprints.configMaps lists {name}, which nothing renders (worker FailedMount)")
 
 # 10. README "Sync waves" table: every argocd/{apps,infra} folder and the two
 # standalone apps listed once, with the wave of its config.yaml (the public
