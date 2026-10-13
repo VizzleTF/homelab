@@ -55,4 +55,9 @@ kubectl apply -f "$REPO_ROOT/argocd/root-application.yaml"
 log_info "kicking root Application sync"
 kubectl -n argocd annotate app root argocd.argoproj.io/refresh=hard --overwrite >/dev/null
 
+# Phases 01-08 installed charts with helm; ArgoCD now owns those objects, so
+# the helm release records are dead weight (and confuse a later `helm list`).
+log_info "deleting bootstrap helm release records (ArgoCD owns the objects)"
+kubectl delete secret -A -l owner=helm --ignore-not-found >/dev/null
+
 log_ok "phase 10 argocd complete — ApplicationSets will now render the rest of the cluster"

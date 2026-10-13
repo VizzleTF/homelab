@@ -14,7 +14,6 @@ helm repo add openbao-autounseal https://vizzletf.github.io/openbao_autounseal >
 helm repo update openbao openbao-autounseal >/dev/null
 
 kubectl create ns openbao 2>/dev/null || true
-kubectl label ns openbao pod-security.kubernetes.io/enforce=privileged --overwrite >/dev/null
 
 log_info "installing OpenBao (will start sealed/uninitialized)"
 helm_apply openbao openbao/openbao openbao \
