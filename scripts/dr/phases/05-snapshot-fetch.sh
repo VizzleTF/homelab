@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Phase 05 — подтянуть свежий Raft-снапшот OpenBao из S3, если копия в
-# DR-pack устарела.
+# Phase 05 — pull a fresh OpenBao Raft snapshot from S3 when the copy in the
+# DR pack is stale.
 #
-# Раньше здесь ставился Velero, чтобы достать снапшот из его репозитория.
-# Теперь снапшоты лежат в S3 обычными файлами (`snapshots/openbao/raft-*.snap`,
-# кладёт CronJob openbao-raft-snapshot), поэтому достаточно rclone — ни
-# оператора, ни CRD, ни BSL.
+# This phase used to install Velero to get the snapshot out of its repository.
+# Snapshots are now plain files in S3 (`snapshots/openbao/raft-*.snap`, written
+# by CronJob openbao/openbao-raft-snapshot), so rclone is enough — no
+# operator, no CRDs, no BSL.
 #
-# Работает изнутри кластера (kubectl уже есть), чтобы не требовать rclone на
-# машине оператора. Garage — основной источник, OVH — fallback.
+# Runs inside the cluster (kubectl is already there) so the operator's machine
+# needs no rclone. Garage is the primary source, OVH the fallback.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh

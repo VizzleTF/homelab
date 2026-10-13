@@ -50,21 +50,21 @@ log_ok "wrote 00-shamir.json.gpg"
 log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
 {
   echo "# Refreshed: $(date -Iseconds)"
-  # Cloudflare-токен нужен фазам 03 (cert-manager) и 04 (external-dns).
-  # Берём из живого кластера, а не требуем env: в окружении оператора он может
-  # называться как угодно (у нас — CF_AUTH_TOKEN), и пакет молча уезжал с
-  # MISSING. Явный CF_API_TOKEN, если задан, всё ещё имеет приоритет.
+  # Phases 03 (cert-manager) and 04 (external-dns) need the Cloudflare token.
+  # Read it from the live cluster instead of requiring an env var: in the
+  # operator's shell it may have any name (here CF_AUTH_TOKEN), and the pack
+  # silently shipped with MISSING. An explicit CF_API_TOKEN still wins.
   CF_TOKEN="${CF_API_TOKEN:-}"
   [[ -n "$CF_TOKEN" ]] || CF_TOKEN=$(kubectl -n cert-manager get secret cloudflare-api-token     -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d)
   [[ -n "$CF_TOKEN" ]] || CF_TOKEN=$(kubectl -n external-dns get secret external-dns-cloudflare     -o jsonpath='{.data.cloudflare_api_token}' 2>/dev/null | base64 -d)
   echo "CF_API_TOKEN=${CF_TOKEN:-MISSING-cloudflare-token}"
 
-  # S3-ключи и пароли restic-репозиториев. Источники — живые Secret'ы,
-  # которые ESO держит в кластере:
-  #   kube-system/snapshots-rclone  — ключи бакета `snapshots` (Garage) и OVH
-  #   <ns>/<app>-restic-garage|ovh  — ключ бакета `restic-apps` + пароли restic
-  # Приложение-донор для restic-кредов настраивается (по умолчанию rsstt —
-  # самый маленький и стабильный том); ключ и пароль общие для всех репозиториев.
+  # S3 keys and restic repository passwords. Sources are the live Secrets
+  # that ESO keeps in the cluster:
+  #   kube-system/snapshots-rclone  — `snapshots` bucket keys (Garage) and OVH
+  #   <ns>/<app>-restic-garage|ovh  — `restic-apps` bucket key + restic passwords
+  # The donor app for the restic creds is configurable (default rsstt, the
+  # smallest and most stable volume); the key and password are shared by all repos.
   RESTIC_DONOR_NS="${RESTIC_DONOR_NS:-rsstt}"
   RESTIC_DONOR_APP="${RESTIC_DONOR_APP:-rss-to-telegram-bot}"
 
@@ -78,9 +78,9 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
 
   echo "GARAGE_RESTIC_ACCESS_KEY=$(rs garage AWS_ACCESS_KEY_ID)"
   echo "GARAGE_RESTIC_SECRET=$(rs garage AWS_SECRET_ACCESS_KEY)"
-  # Без этих двух паролей ни один restic-репозиторий не открыть, а OpenBao
-  # (где они лежат в обычной жизни) сам восстанавливается из бэкапа — это
-  # единственная циклическая зависимость всей схемы.
+  # Without these two passwords no restic repository opens, and OpenBao
+  # (where they normally live) is itself restored from a backup — the only
+  # circular dependency of the whole scheme.
   echo "RESTIC_PASSWORD_GARAGE=$(rs garage RESTIC_PASSWORD)"
   echo "RESTIC_PASSWORD_OVH=$(rs ovh RESTIC_PASSWORD)"
 
@@ -98,9 +98,10 @@ log_ok "wrote 01-bootstrap.env"
 
 # --- 02 latest Raft snapshot ---
 log_info "fetching latest OpenBao Raft snapshot"
-# CronJob openbao-raft-snapshot кладёт снапшот в оба S3 ежедневно; здесь
-# снимаем свежий прямо с живого пода, чтобы не гоняться за окном расписания.
-# Фаза 05 DR умеет добрать последний из S3, если этот файл протух.
+# CronJob openbao/openbao-raft-snapshot writes a snapshot to both S3 targets
+# daily; here we take a fresh one straight from the live pod so we don't depend
+# on the schedule window. DR phase 05 pulls the latest one from S3 if this file
+# goes stale.
 kubectl -n openbao exec openbao-0 -- env \
   BAO_TOKEN="$ROOT" BAO_ADDR=http://127.0.0.1:8200 \
   bao operator raft snapshot save /tmp/raft.snap >/dev/null
