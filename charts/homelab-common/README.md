@@ -43,6 +43,17 @@ no `global` defaults of its own.
 `values.yaml` has an example for every key; `values.schema.json` rejects
 unknown keys and typos.
 
+## OpenBao paths
+
+Every `vaultPath` (and the VolSync repositories' `keyVaultPath` /
+`passwordVaultPath`) is `<namespace>/<name>` under `global.vault.pathPrefix`;
+the schema rejects any other shape. In SecretStore mode the render fails when a
+path lies outside the release namespace and is not a grant of one of the groups
+`global.openbao.access.namespaces` lists for it: add the grant in
+`argocd/values/global.yaml` and run `scripts/openbao-eso-access.sh`, otherwise
+ESO gets permission denied at runtime. Raw-manifest ExternalSecrets are not
+checked.
+
 ## Workloads
 
 Pod (`pod:`) and container bodies are native Kubernetes fields. The chart adds:
