@@ -17,11 +17,15 @@ helm_apply cert-manager jetstack/cert-manager cert-manager \
   --version "$(chart_version cert-manager)" \
   -f "$REPO_ROOT/argocd/infra/cert-manager/values.yaml"
 
-# CF token Secret — applied directly (ESO not up yet)
+# Bootstrap CF token Secret (ESO is not up yet). In git it is ESO-managed and
+# ESO does not adopt a Secret it did not create: phase 10 deletes every
+# homelab.dr/bootstrap=true Secret and ESO recreates it from OpenBao.
 log_info "creating cloudflare-api-token Secret"
 kubectl -n cert-manager create secret generic cloudflare-api-token \
   --from-literal=api-token="$CF_API_TOKEN" \
-  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  --dry-run=client -o yaml \
+  | kubectl label --local -f - homelab.dr/bootstrap=true -o yaml \
+  | kubectl apply -f - >/dev/null
 
 log_info "applying ClusterIssuer"
 kubectl apply -f "$REPO_ROOT/argocd/infra/cert-manager/manifests/clusterissuer-cloudflare.yaml"
