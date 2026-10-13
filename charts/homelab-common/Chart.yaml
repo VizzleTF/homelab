@@ -2,7 +2,7 @@ apiVersion: v2
 name: homelab-common
 description: Shared Helm chart for homelab apps — workloads (Deployment/CronJob + Service), ConfigMaps/Secrets, ExternalSecrets, HTTP/TLS routes, Certificates, PVCs, VolSync, CNPG databases, RBAC, LimitRange, CiliumNetworkPolicy
 type: application
-version: 2.0.1
+version: 2.1.0
 kubeVersion: ">=1.28.0"
 icon: https://raw.githubusercontent.com/VizzleTF/homelab/main/charts/homelab-common/icon.png
 keywords:

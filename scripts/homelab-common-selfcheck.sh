@@ -43,6 +43,14 @@ Y
 must_fail "containers inside pod" <<'Y'
 homelab-common: {workloads: [{name: a, pod: {containers: []}, containers: [{name: a, image: {repository: x, tag: "1"}}]}]}
 Y
+must_fail "pvc without storageClassName" <<'Y'
+homelab-common: {persistentVolumeClaims: [{name: d, accessModes: [ReadWriteOnce], size: 1Gi}]}
+Y
+
+# limitRange defaults: null = requests-only
+tpl > "$out_dir/lr.yaml" <<'Y' || { echo "FAIL: limitRange render"; cat "$out_dir/lr.yaml"; exit 1; }
+homelab-common: {limitRange: {enabled: true, defaults: null}}
+Y
 
 tpl > "$out_dir/render.yaml" <<'Y' || { echo "FAIL: reference render"; cat "$out_dir/render.yaml"; exit 1; }
 homelab-common:
@@ -82,11 +90,16 @@ homelab-common:
     - {name: notify-script, data: {a: b}}
   secrets:
     - {name: repo, fullnameOverride: helm-oci, labels: {argocd.argoproj.io/secret-type: repository}, stringData: {type: helm}}
+  volsync:
+    - {name: t-data, targets: [{repo: garage, schedule: "0 1 * * *"}]}
+    - {name: t-big, claim: t-data, drill: false, targets: [{repo: garage, schedule: "0 2 * * *"}]}
+  limitRange: {enabled: true}
 Y
 
-python3 - "$out_dir/render.yaml" <<'P' || fail=1
+python3 - "$out_dir/render.yaml" "$out_dir/lr.yaml" <<'P' || fail=1
 import sys, yaml
 docs = {(d['kind'], d['metadata']['name']): d for d in yaml.safe_load_all(open(sys.argv[1])) if d}
+lr_only_req = next(d for d in yaml.safe_load_all(open(sys.argv[2])) if d and d['kind'] == 'LimitRange')['spec']['limits'][0]
 web, api, cj = docs[('Deployment', 't-web')], docs[('Deployment', 't-api')], docs[('CronJob', 't-job')]
 p, a = web['spec']['template']['spec'], api['spec']['template']['spec']
 std = {'app.kubernetes.io/name': 't-web', 'app.kubernetes.io/instance': 't', 'app.kubernetes.io/managed-by': 'Helm'}
@@ -115,6 +128,11 @@ checks = {
   'no reloader on cronjob': 'annotations' not in cj['metadata'],
   'configMap named like workloads': ('ConfigMap', 't-notify-script') in docs,
   'secret fullnameOverride + labels': docs[('Secret', 'helm-oci')]['metadata']['labels']['argocd.argoproj.io/secret-type'] == 'repository',
+  'pvc storageClassName rendered': docs[('PersistentVolumeClaim', 't-data')]['spec']['storageClassName'] == 'longhorn',
+  'volsync drill label by default': docs[('ReplicationSource', 't-data-garage')]['metadata']['labels'].get('homelab.dr/drill') == 't-data',
+  'volsync drill false -> no label': 'homelab.dr/drill' not in docs[('ReplicationSource', 't-big-garage')]['metadata']['labels'],
+  'limitRange enabled -> 500m/512Mi, 50m/64Mi': docs[('LimitRange', 'default-limits')]['spec']['limits'][0] == {'type': 'Container', 'default': {'cpu': '500m', 'memory': '512Mi'}, 'defaultRequest': {'cpu': '50m', 'memory': '64Mi'}},
+  'limitRange defaults null -> requests only': 'default' not in lr_only_req and lr_only_req['defaultRequest'] == {'cpu': '50m', 'memory': '64Mi'},
 }
 for k, v in checks.items():
     print(('ok   ' if v else 'FAIL ') + k)

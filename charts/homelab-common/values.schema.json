@@ -91,6 +91,8 @@
         "accessMode": { "type": "string" },
         "cacheCapacity": { "type": "string" },
         "moverSecurityContext": { "type": "object" },
+        "moverResources": { "type": "object" },
+        "drill": { "type": "boolean", "description": "In the weekly restore drill (label homelab.dr/drill=<name> on its ReplicationSources); default true. false for volumes larger than the drill's DRILL_SIZE or without both garage and ovh targets." },
         "targets": {
           "type": "array",
           "minItems": 1,
@@ -264,7 +266,8 @@
         "enabled": { "type": "boolean" },
         "name": { "type": "string" },
         "defaults": {
-          "type": "object",
+          "type": ["object", "null"],
+          "description": "Default limits; null = requests-only (no default: block).",
           "additionalProperties": false,
           "properties": { "cpu": { "type": ["string", "integer"] }, "memory": { "type": "string" } }
         },
@@ -298,12 +301,12 @@
     "PVCSpec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "accessModes", "size"],
+      "required": ["name", "accessModes", "storageClassName", "size"],
       "properties": {
         "name": { "type": "string" },
         "size": { "type": "string" },
         "accessModes": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-        "storageClassName": { "type": "string" },
+        "storageClassName": { "type": "string", "minLength": 1 },
         "labels": { "type": "object", "additionalProperties": { "type": "string" } },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
       }

@@ -28,7 +28,6 @@ metadata:
   labels:
     {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   annotations:
-    argocd.argoproj.io/sync-options: Replace=true
     external-dns.kubernetes.io/hostname: {{ $hostname }}
     {{- if eq $kind "external" }}
     external-dns.kubernetes.io/cloudflare-proxied: "true"

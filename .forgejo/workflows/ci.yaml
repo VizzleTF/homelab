@@ -61,6 +61,16 @@ jobs:
         run: scripts/ci-install-helm.sh
       - name: Lint homelab-common
         run: helm lint --strict charts/homelab-common
+      - name: Published chart version is immutable
+        # A change under charts/homelab-common must carry a version not yet in
+        # the registry. Chart.yaml is excluded: helm package re-serialises it.
+        run: |
+          set -eu
+          v=$(sed -n 's/^version:[[:space:]]*//p' charts/homelab-common/Chart.yaml)
+          tmp=$(mktemp -d)
+          helm pull homelab-common --repo https://git.example.com/api/packages/vizzle/helm --version "$v" --untar -d "$tmp" 2>/dev/null || exit 0  # unpublished: new release
+          diff -r --exclude=Chart.yaml "$tmp/homelab-common" charts/homelab-common >/dev/null || {
+            echo "::error::charts/homelab-common differs from published $v; bump version in Chart.yaml"; exit 1; }
       - name: Self-check of the workloads engine
         run: |
           apt-get update -qq

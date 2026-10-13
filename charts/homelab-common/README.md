@@ -32,11 +32,11 @@ no `global` defaults of its own.
 | `externalSecrets` | ExternalSecrets read from OpenBao through the release's own SecretStore (rendered automatically) |
 | `httpRoutes`, `tlsRoutes` | Gateway API routes on the external, internal or both gateways; TLS passthrough |
 | `certificates` | cert-manager Certificates |
-| `persistentVolumeClaims` | PVCs, always with `helm.sh/resource-policy: keep` |
-| `volsync` | restic backups of a PVC to every repository in `global.volsync.repos` |
+| `persistentVolumeClaims` | PVCs, always with `helm.sh/resource-policy: keep`; `storageClassName` required |
+| `volsync` | restic backups of a PVC to every repository in `global.volsync.repos`; `drill` (default true) labels the ReplicationSources `homelab.dr/drill=<name>` for the weekly restore drill, `false` for volumes larger than its `DRILL_SIZE` |
 | `cnpgDatabases` | CloudNativePG `Database` CRs |
 | `networkPolicy` | default-deny ingress CiliumNetworkPolicy `default-ingress` plus `allow` entries |
-| `limitRange` | namespace LimitRange `default-limits` |
+| `limitRange` | namespace LimitRange `default-limits`; `defaults: null` = requests-only (no default limits) |
 | `rbac` | ServiceAccount + ClusterRole + ClusterRoleBinding sets |
 | `authentikBlueprints` | Authentik blueprint ConfigMaps |
 
@@ -100,3 +100,8 @@ All three run in CI. A release is a `homelab-common-v<version>` tag matching
 `Chart.yaml`; the publish workflow pushes the package to the Forgejo Helm
 registry, and Renovate bumps the pin in the two ApplicationSets and the
 standalone `argocd` Application.
+
+A published version is immutable: any change under `charts/homelab-common`
+needs a new `version` in `Chart.yaml`, and the helm-lint CI job fails when the
+files differ from the registry package of the same version. The registry keeps
+every version, so a rollback is the old pin in those three places.

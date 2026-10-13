@@ -47,17 +47,16 @@ homelab-common:
   #           resources: ["pods"]
   #           verbs: ["get", "list"]
 
-  # LimitRange
-  limitRange: null
-  # Example:
-  # limitRange:
-  #   enabled: true
-  #   defaults:
-  #     cpu: 500m
-  #     memory: 512Mi
-  #   defaultRequests:
-  #     cpu: 50m
-  #     memory: 64Mi
+  # LimitRange "default-limits": nothing renders until a value file sets
+  # `enabled: true` (in the app that owns the namespace). `defaults: null` =
+  # requests-only (no default limits).
+  limitRange:
+    defaults:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequests:
+      cpu: 50m
+      memory: 64Mi
 
   # CNPG Databases
   cnpgDatabases: []
@@ -119,6 +118,11 @@ homelab-common:
 
   # PVC definitions
   persistentVolumeClaims: []
+  # Example:
+  # - name: myapp-data
+  #   accessModes: [ReadWriteOnce]
+  #   storageClassName: longhorn  # required
+  #   size: 5Gi
 
   # Authentik Blueprints (ConfigMaps in ns authentik for declarative OIDC providers)
   authentikBlueprints: []
