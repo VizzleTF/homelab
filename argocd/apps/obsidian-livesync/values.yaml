@@ -3,7 +3,7 @@
 # Chart default is busybox:latest with pullPolicy Always: a mutable tag pulled
 # on every restart, invisible to Renovate. Same pin as the other init containers.
 initImage:
-  repository: busybox
+  repository: busybox  # pinned: Renovate needs repository next to tag
   tag: "1.38.0"
   pullPolicy: IfNotPresent
 
@@ -17,21 +17,19 @@ createAdminSecret: false
 extraSecretName: obsidian-livesync-couchdb-creds
 
 image:
-  repository: couchdb
+  repository: couchdb  # pinned: Renovate needs repository next to tag
   tag: "3.5.2"
 
 persistentVolume:
   enabled: true
   storageClass: longhorn
-  accessModes:
-    - ReadWriteOnce
   size: 5Gi
 
 # The data is the sync hub: keep the PVC when the StatefulSet is deleted or scaled.
 persistentVolumeClaimRetentionPolicy:
   enabled: true
-  whenScaled: Retain
-  whenDeleted: Retain
+  whenScaled: Retain  # pinned: keep the PVC if the default flips
+  whenDeleted: Retain  # pinned: keep the PVC if the default flips
 
 # Single node: no anti-affinity and no chart NetworkPolicy for cluster traffic.
 networkPolicy:
@@ -45,7 +43,6 @@ couchdbConfig:
     single_node: true
     max_document_size: 50000000
   chttpd:
-    bind_address: any
     require_valid_user: true
     max_http_request_size: 4294967296
     enable_cors: true

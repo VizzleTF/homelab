@@ -1,7 +1,7 @@
 # WazuhCluster (manager + indexer + dashboard) rendered by the wazuh-cluster
 # chart into a single CR; the wazuh-operator (argocd/infra/wazuh-operator)
 # reconciles it. See obsidian/112 ArgoCD/Apps/all/wazuh.md for the whole stack design.
-namespace: wazuh
+namespace: wazuh  # pinned: the chart puts .Values.namespace, not the release namespace, on every CR
 # ArgoCD creates the namespace (CreateNamespace=true).
 createNamespace: false
 
@@ -24,10 +24,9 @@ sizing:
 # the security index is initialised from it, so a second owner would only cause
 # churn.
 externalSecrets:
-  enabled: false
+  enabled: false  # pinned: the chart's ESO path is half-wired, see above
 
 cluster:
-  enabled: true
   name: wazuh
   spec:
     version: "4.14.7"

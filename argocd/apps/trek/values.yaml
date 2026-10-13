@@ -1,23 +1,13 @@
 # TREK — self-hosted collaborative travel planner (NestJS + React, SQLite).
 # Chart pins fsGroup:1000 and exposes no securityContext override → image runs as
-# UID 1000 (Node). No LimitRange-incompatible knobs; resources set below.
-
-image:
-  pullPolicy: IfNotPresent
-
-service:
-  type: ClusterIP
-  port: 3000
+# UID 1000 (Node). No LimitRange-incompatible knobs; resources are the chart defaults.
 
 # ENCRYPTION_KEY / ADMIN_* / OIDC_CLIENT_SECRET are read from this ESO-managed
 # Secret (see homelab-common.externalSecrets). Setting existingSecret makes the
 # chart skip its own Secret template — no name clash.
 existingSecret: trek-secret
-existingSecretKey: ENCRYPTION_KEY
 
 env:
-  NODE_ENV: production
-  PORT: 3000
   DEFAULT_LANGUAGE: "ru"
   # Behind Cloudflare tunnel + Gateway (TLS terminated upstream).
   APP_URL: "https://trek.example.com"
@@ -38,18 +28,6 @@ persistence:
     existingClaim: trek-data
   uploads:
     existingClaim: trek-uploads
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
-
-# Chart's own Ingress unused — exposure via homelab-common HTTPRoute below.
-ingress:
-  enabled: false
 
 homelab-common:
   persistentVolumeClaims:
