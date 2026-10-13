@@ -2,32 +2,16 @@
 # Read-only in-cluster mirror of the Forgejo on the ops node: external CNPG
 # postgres (shared cnpg-cluster), internal route via homelab-common, no OAuth.
 
-replicaCount: 1
-
-strategy:
-  type: Recreate
-
-image:
-  rootless: true
-
 persistence:
-  enabled: true
   # RWO volume from homelab-common (persistentVolumeClaims below).
   create: false
-  mount: true
   claimName: forgejo-data-rwo
 
 # ssh stays a ClusterIP Service, never on the shared LB address: clones and
 # pushes go to the instance on the ops node, and a mirror accepts neither.
 service:
-  http:
-    type: ClusterIP
-    port: 3000
   ssh:
-    type: ClusterIP
-
-ingress:
-  enabled: false
+    type: ClusterIP  # pinned: a mirror takes no ssh, keep it off the LB
 
 resources:
   requests:
@@ -127,8 +111,6 @@ gitea:
 
   metrics:
     enabled: true
-    serviceMonitor:
-      enabled: false
 
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,

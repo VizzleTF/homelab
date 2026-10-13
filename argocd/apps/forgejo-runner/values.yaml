@@ -6,29 +6,11 @@
 # wrenix's chart 0.7.x is the last release on codeberg — guard requires explicit ack.
 knownLastVersion: true
 
-replicaCount: 1
-
 runner:
   config:
-    create: true
     existingInitSecret: forgejo-runner-init
     file:
-      log:
-        level: info
-        job_level: info
       runner:
-        file: ".runner"
-        capacity: 1
-        timeout: 3h
-        insecure: false
-        fetch_timeout: 5s
-        fetch_interval: 2s
-        # Chart defaults. Helm merges maps, so dropping them here would not remove
-        # them from the rendered config; `envs: null` would.
-        envs:
-          A_TEST_ENV_NAME_1: a_test_env_value_1
-          A_TEST_ENV_NAME_2: a_test_env_value_2
-        env_file: .env
         # act_runner runs JS actions with the node binary from these images, so the
         # newest label must carry a node runtime at least as new as the actions we
         # use. actions/checkout v7 declares `using: node24`, which cannot start on
@@ -48,24 +30,14 @@ runner:
           - ubuntu-24.04:docker://node:24-bookworm
           - ubuntu-22.04:docker://node:22-bookworm
           - ubuntu-20.04:docker://node:20-bookworm
-      cache:
-        enabled: true
-        dir: ""
-        host: ""
-        port: 0
-        external_server: ""
       container:
-        network: ""
-        enable_ipv6: false
         privileged: true
-        options:
-        workdir_parent:
+        options:  # pinned: null default, renders only when set here
+        workdir_parent:  # pinned: null default, renders only when set here
         valid_volumes:
           - "**"
-        docker_host: "-"
-        force_pull: false
       host:
-        workdir_parent:
+        workdir_parent:  # pinned: null default, renders only when set here
 
 # Privileged DinD must not share a node with etcd and the Talos secrets: CI jobs
 # (gitleaks, helm, kaniko) run untrusted-ish code as root there, and their disk
@@ -101,13 +73,6 @@ dnsConfig:
   options:
     - name: ndots
       value: "2"
-
-securityContext:
-  privileged: true
-
-serviceAccount:
-  create: true
-  automount: true
 
 homelab-common:
   externalSecrets:
