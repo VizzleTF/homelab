@@ -10,21 +10,30 @@
 # homelab-common renders SA `eso-<release>` + SecretStore per release and picks
 # `eso-ns-<namespace>` when the namespace is in the map, `eso-own` otherwise.
 # Idempotent: re-run after every change of the map. Roles and policies that
-# left the map are not deleted (list them with --dry-run and remove by hand).
+# left the map stay until a run with --prune, which deletes every eso-* role and
+# policy the map no longer names. Prune only after the PR that removed them is
+# synced: a live SecretStore may still log in with the role.
 #
 # Needs: bao (admin token in ~/.vault-token or BAO_TOKEN), yq (mikefarah), jq.
 # BAO_CMD overrides how bao is run (DR phase 07 runs it inside the openbao pod).
-# Usage: scripts/openbao-eso-access.sh [--dry-run]
+# Usage: scripts/openbao-eso-access.sh [--dry-run] [--prune]
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 export BAO_ADDR="${BAO_ADDR:-https://openbao.example.com}"
 DRY=0
+PRUNE=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY=1 ;;
+    --prune) PRUNE=1 ;;
+    *) echo "usage: $0 [--dry-run] [--prune]" >&2; exit 2 ;;
+  esac
+done
 if [[ -n "${BAO_CMD:-}" ]]; then
   # shellcheck disable=SC2086  # BAO_CMD is a command line on purpose
   bao() { $BAO_CMD "$@"; }
 fi
-[[ "${1:-}" == "--dry-run" ]] && DRY=1
 
 AUTH_MOUNT=kubernetes
 TTL=1h
@@ -90,4 +99,22 @@ for ns in $(jq -r '.namespaces | keys[]' <<<"$access"); do
     token_ttl="$TTL" \
     token_type="$TOKEN_TYPE"
   [[ "$DRY" -eq 1 ]] || echo "role eso-ns-$ns ($policies)"
+done
+
+[[ "$PRUNE" -eq 1 ]] || exit 0
+
+# Only eso-* objects are ours: openbao-snapshot, default, root etc. are never touched.
+# Roles go first so no role is left pointing at a deleted policy.
+want_roles=$( { echo eso-own; jq -r '.namespaces | keys[] | "eso-ns-" + .' <<<"$access"; } | sort)
+have_roles=$(bao list -format=json "auth/$AUTH_MOUNT/role" | jq -r '.[] | select(startswith("eso-"))' | sort)
+for r in $(comm -13 <(echo "$want_roles") <(echo "$have_roles")); do
+  run bao delete "auth/$AUTH_MOUNT/role/$r"
+  [[ "$DRY" -eq 1 ]] || echo "deleted role $r"
+done
+
+want_policies=$( { echo eso-own; jq -r '.grants | keys[] | "eso-grant-" + .' <<<"$access"; } | sort)
+have_policies=$(bao policy list -format=json | jq -r '.[] | select(startswith("eso-"))' | sort)
+for p in $(comm -13 <(echo "$want_policies") <(echo "$have_policies")); do
+  run bao policy delete "$p"
+  [[ "$DRY" -eq 1 ]] || echo "deleted policy $p"
 done
