@@ -5,6 +5,12 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
+    # argocd-diff renders this app only when its own inputs change.
+    argocd-diff-preview/watch-pattern: "argocd/standalone/argocd-application.yaml, argocd/values/.*"
+    argocd.argoproj.io/manifest-generate-paths: "/argocd/standalone/argocd-application.yaml;/argocd/values"
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    app.kubernetes.io/part-of: infrastructure
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:

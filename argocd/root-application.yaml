@@ -3,15 +3,15 @@ kind: Application
 metadata:
   name: root
   namespace: argocd
-  # Без resources-finalizer намеренно. С ним удаление root запускает каскад:
-  # ArgoCD сносит оба ApplicationSet, k8s GC по ownerReferences убирает 54
-  # дочерних Application, и финалайзер каждого из них удаляет уже сами
-  # ресурсы — namespace'ы и PVC. Попутно исчезает и сам ArgoCD (standalone
-  # argocd-application), так что уборка обрывается на середине.
-  # preserveResourcesOnDeletion в AppSet тут не спасает: он лишь не даёт AppSet
-  # самому проставить финалайзер, а в нашем шаблоне Application тот задан явно.
-  # Без финалайзера удаление root оставляет всё осиротевшим и работающим —
-  # ровно то, что нужно, пока чинишь git.
+  # No resources-finalizer on purpose. With it, deleting root cascades: ArgoCD
+  # deletes both ApplicationSets, the k8s GC removes the 54 child Applications
+  # via ownerReferences, and each of their finalizers deletes the resources
+  # themselves, namespaces and PVCs included. ArgoCD itself (the standalone
+  # argocd Application) goes too, so the cleanup stops halfway.
+  # preserveResourcesOnDeletion on the AppSets does not help: it only stops the
+  # AppSet from adding the finalizer, and our template sets it explicitly.
+  # Without the finalizer, deleting root leaves everything orphaned and
+  # running, which is what you want while fixing git.
 spec:
   project: root
   sources:
@@ -27,17 +27,12 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
-  ignoreDifferences:
-    - group: argoproj.io
-      kind: Application
-      jsonPointers:
-        - /status
   syncPolicy:
     automated:
-      # prune: false — корень не удаляет то, что пропало из git. Иначе любая
-      # потерянная директория (или ошибка в CI) уносит AppProject/AppSet/
-      # standalone вместе с их ресурсами. Цена: удалённые из git объекты этих
-      # трёх типов надо убирать руками — операция редкая и осознанная.
+      # prune: false: root does not delete what disappeared from git. Otherwise
+      # a lost directory (or a CI mistake) would take AppProjects, AppSets and
+      # standalone apps with their resources. Cost: objects of these three
+      # kinds removed from git are deleted by hand, rarely and on purpose.
       prune: false
       selfHeal: true
     syncOptions:
