@@ -12,31 +12,18 @@ source "$(dirname "$0")/../lib/common.sh"
 
 require_kubectl
 
-# Apps with restorable data backups. Ключи таблицы в restore-app.sh. БД
-# приезжают через barman/pg_dump, не сюда. Forgejo живёт на ops-ноде и
-# восстанавливается отдельно (obsidian/113 Backups/Forgejo Recovery.md). netbird и crowdsec-scraper
-# намеренно отсутствуют: их PVC пусты — state пира лежит вне тома
-# (/var/lib/netbird), это известная дыра, а не потеря бэкапа.
-APPS_TO_RESTORE=(
-  vaultwarden
-  cleanbot
-  may
-  rsstt
-  opencloud-config
-  opencloud
-  trek-data
-  trek
-  obsidian-livesync
-  immich
-  wazuh-manager
-)
-
+# Every homelab-common.volsync[] volume in git (restore-app.sh --list). DBs come
+# back through barman/pg_dump, not here; Forgejo lives on the ops node
+# (obsidian/113 Backups/Forgejo Recovery.md). immich-library (250Gi) goes last.
 RESTORE_SCRIPT="$(dirname "$0")/../restore-app.sh"
 [ -x "$RESTORE_SCRIPT" ] || die "missing restore-app.sh"
 
-for app in "${APPS_TO_RESTORE[@]}"; do
-  log_info "restoring app: $app"
-  "$RESTORE_SCRIPT" "$app" || log_warn "$app restore failed — continuing"
+mapfile -t VOLUMES < <("$RESTORE_SCRIPT" --list | awk 'NR > 1 { print $1 }' | grep -v '^immich-library$'; echo immich-library)
+log_info "volumes to restore: ${VOLUMES[*]}"
+
+for vol in "${VOLUMES[@]}"; do
+  log_info "restoring volume: $vol"
+  "$RESTORE_SCRIPT" "$vol" || log_warn "$vol restore failed — continuing"
 done
 
 log_ok "phase 09 apps-restore complete"
