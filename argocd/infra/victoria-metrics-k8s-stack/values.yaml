@@ -34,7 +34,7 @@ homelab-common:
         admin-password: "{{ .admin_password }}"
 
     - name: grafana-oidc-secret
-      vaultPath: victoria-metrics/grafana/oidc
+      vaultPath: victoria-metrics/oidc
       data:
         - secretKey: client_id
           property: client_id

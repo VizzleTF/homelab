@@ -587,7 +587,9 @@ homelab-common:
                 policy_engine_mode: any
 
   externalSecrets:
-    # Config secret for authentik (referenced via existingSecret.secretName)
+    # Config secret for authentik (referenced via existingSecret.secretName).
+    # OIDC client secrets are read from each app's own <ns>/oidc (grant
+    # oidc-clients), the single copy the app's ExternalSecret reads too.
     - name: authentik-config
       vaultPath: authentik/authentik
       data:
@@ -596,17 +598,23 @@ homelab-common:
         - secretKey: db_password
           property: db_password
         - secretKey: grafana_oidc_client_secret
-          property: grafana_oidc_client_secret
+          vaultPath: victoria-metrics/oidc
+          property: client_secret
         - secretKey: argocd_oidc_client_secret
-          property: argocd_oidc_client_secret
+          vaultPath: argocd/oidc
+          property: client_secret
         - secretKey: immich_oidc_client_secret
-          property: immich_oidc_client_secret
+          vaultPath: immich/oidc
+          property: client_secret
         - secretKey: forgejo_oidc_client_secret
-          property: forgejo_oidc_client_secret
+          vaultPath: forgejo/oidc
+          property: client_secret
         - secretKey: trek_oidc_client_secret
-          property: trek_oidc_client_secret
+          vaultPath: trek/oidc
+          property: client_secret
         - secretKey: wazuh_oidc_client_secret
-          property: wazuh_oidc_client_secret
+          vaultPath: wazuh/oidc
+          property: client_secret
       templateData:
         AUTHENTIK_SECRET_KEY: "{{ .secret_key }}"
         # Via PgBouncer (transaction pooling) — see argocd/apps/cnpg/manifests/pooler.yaml.
@@ -701,7 +709,7 @@ global:
     seccompProfile:
       type: RuntimeDefault
   # Rollout server+worker when ESO patches `authentik-config` (new
-  # *_OIDC_CLIENT_SECRET entry added by scaffolding-authentik-oidc skill).
+  # *_OIDC_CLIENT_SECRET entry from an app's <ns>/oidc, scaffolding-authentik-oidc skill).
   # Without this, freshly-added blueprints fail !Env resolution silently.
   # Watched by stakater/reloader (argocd/infra/reloader).
   deploymentAnnotations:

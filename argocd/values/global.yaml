@@ -33,10 +33,13 @@ global:
         # Legacy: tfstate-mirror now reads its own tfstate-mirror/s3-terraform-state.
         tfstate: [terraform/s3-terraform-state]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
+        # Each app's OIDC client secret, read by Authentik for its blueprints' !Env.
+        oidc-clients: [argocd/oidc, victoria-metrics/oidc, immich/oidc, wazuh/oidc, trek/oidc, forgejo/oidc]
         # Cloudflare DNS token: external-dns owns it, cert-manager DNS-01 reads it.
         cloudflare: [external-dns/cloudflare]
       namespaces:
         argocd: [valkey, telegram]
+        authentik: [oidc-clients]
         backup-drill: [backup]
         cert-manager: [cloudflare]
         cleanbot: [backup]

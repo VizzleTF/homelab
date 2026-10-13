@@ -169,7 +169,8 @@ homelab-common:
 
   # Declarative OIDC application/provider in Authentik for the Forgejo on the
   # ops node (git.example.com). FORGEJO_OIDC_CLIENT_SECRET resolves via !Env from
-  # the authentik-config secret (argocd/apps/authentik/values.yaml).
+  # the authentik-config secret (argocd/apps/authentik/values.yaml), which reads
+  # OpenBao forgejo/oidc; the ops-node Forgejo keeps its copy in its database.
   authentikBlueprints:
     - name: authentik-blueprint-forgejo
       blueprints:
