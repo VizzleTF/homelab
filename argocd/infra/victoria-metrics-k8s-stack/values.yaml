@@ -44,6 +44,99 @@ homelab-common:
         client-id: "{{ .client_id }}"
         client-secret: "{{ .client_secret }}"
 
+    # Alertmanager config. Robusta's bot token feeds the telegram-direct
+    # receiver: alerts about the delivery path itself (Robusta down,
+    # notifications failing) must not go through that path.
+    - name: alertmanager-config
+      vaultPath: robusta/telegram
+      data:
+        - secretKey: bot_token
+          property: bot_token
+      templateData:
+        alertmanager.yaml: |
+            global:
+              resolve_timeout: 5m
+
+            route:
+              group_by: ['alertname', 'cluster', 'service']
+              group_wait: 10s
+              group_interval: 10s
+              repeat_interval: 12h
+              receiver: 'robusta'
+              routes:
+                - matchers:
+                    - alertname=~"RobustaRunnerDown|AlertmanagerNotificationsFailing"
+                  receiver: 'telegram-direct'
+
+            # ─── Inhibit rules: «1 событие = 1 алерт» ───
+            # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md
+            inhibit_rules:
+              # K8s нода недоступна → глушим всё что висит на ней
+              - source_matchers:
+                  - alertname="KubeNodeUnreachable"
+                target_matchers:
+                  - alertname=~"KubeNodeNotReady|KubeNodeReadinessFlapping|KubeletDown|KubePodNotReady|KubeContainerWaiting|KubePodCrashLooping|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch|TargetDown|NodeMemoryHighUtilization"
+                equal: ['node']
+
+              # apiserver лёг → cascade на client'ов
+              - source_matchers:
+                  - alertname="KubeAPIDown"
+                target_matchers:
+                  - alertname=~"KubeAggregatedAPIDown|KubeClientErrors|KubeStateMetricsListErrors|KubeStateMetricsWatchErrors|TargetDown|KubeClientCertificateExpiration"
+
+              # vmagent больше не доставляет данные → все вторичные «remote write/queue» молчат
+              - source_matchers:
+                  - alertname="PersistentQueueIsDroppingData"
+                target_matchers:
+                  - alertname=~"ScrapePoolHasNoTargets|TargetDown"
+
+              # Pod крашлупит → не надо дополнительно NotReady/ContainerWaiting на тот же pod
+              - source_matchers:
+                  - alertname="KubePodCrashLooping"
+                target_matchers:
+                  - alertname=~"KubePodNotReady|KubeContainerWaiting"
+                equal: ['namespace', 'pod']
+
+              # Rollout stuck → не дублировать ReplicasMismatch на ту же workload
+              - source_matchers:
+                  - alertname=~"KubeDeploymentRolloutStuck|KubeStatefulSetUpdateNotRolledOut|KubeDaemonSetRolloutStuck"
+                target_matchers:
+                  - alertname=~"KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch"
+                equal: ['namespace']
+
+              # VPN-парк (cluster=vps): скрейпер потерял mesh → молчат все
+              # зависимые проверки. Один алерт вместо восьми.
+              - source_matchers:
+                  - alertname="VpsScraperMeshDown"
+                target_matchers:
+                  - alertname=~"VpsHostDown|VpsCrowdsecDown|VpsTextfileScrapeError|RemnawavePanelMetricsAbsent|RemnawaveNodeDown|TargetDown"
+
+              # Чартовый TargetDown группируется по (cluster,job,namespace,service)
+              # и для VPS не несёт метки host — наши per-host алерты информативнее.
+              - source_matchers:
+                  - alertname=~"VpsHostDown|RemnawavePanelMetricsAbsent"
+                target_matchers:
+                  - alertname="TargetDown"
+                equal: ['cluster']
+
+              # critical > warning по тому же алерту (для двух-уровневых rule)
+              - source_matchers:
+                  - severity="critical"
+                target_matchers:
+                  - severity="warning"
+                equal: ['alertname', 'namespace', 'instance']
+
+            receivers:
+              - name: 'robusta'
+                webhook_configs:
+                  - url: http://robusta-runner.robusta.svc.cluster.local/api/alerts
+                    send_resolved: true
+              - name: 'telegram-direct'
+                telegram_configs:
+                  - bot_token: '{{ .bot_token }}'
+                    chat_id: 0000000000
+                    send_resolved: true
+
   limitRange:
     enabled: true
     defaults:
