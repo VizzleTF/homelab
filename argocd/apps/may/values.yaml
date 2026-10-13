@@ -1,15 +1,24 @@
-# May — homelab-common.apps + persistentVolumeClaims (pvc.yaml)
+# May: self-hosted vehicle management (fuel, expenses, maintenance).
+# Source: https://github.com/dannymcc/may
+# Vault: homelab/k8s/may/app-secrets
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
 
-  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот и
-  # льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
-  volsync:
+  persistentVolumeClaims:
     - name: may
-      claim: may
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: longhorn
+      size: 5Gi
+
+  # Backup v2 (see obsidian/113 Backups/Backup Overview.md): VolSync takes a Longhorn
+  # CSI snapshot and pushes it with restic to two independent targets: garage
+  # (on-prem) and ovh (off-site).
+  volsync:
+    - name: may                     # restic repo path, cluster-wide unique; claim defaults to name
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -41,81 +50,52 @@ homelab-common:
         name: may
         port: 5050
 
-  persistentVolumeClaims:
-    - name: may
-      accessModes:
-        - ReadWriteOnce
-      storageClassName: longhorn
-      size: 5Gi
-      labels:
-        app: may
-
-  apps:
-    - name: may
-      deployment:
-        metadata:
-          labels:
-            app: may
-        spec:
-          replicas: 1
-          strategy:
-            type: Recreate
-          selector:
-            matchLabels:
-              app: may
-          template:
-            metadata:
-              labels:
-                app: may
-            spec:
-              automountServiceAccountToken: false
-              # ndots:2 — pod resolv.conf defaults to ndots:5, so external names
-              # with <5 dots burn 3-4 NXDOMAIN search-suffix lookups before the
-              # real one. Cuts that tax for outbound calls.
-              dnsConfig:
-                options:
-                  - name: ndots
-                    value: "2"
-              securityContext:
-                fsGroup: 1000
-                seccompProfile:
-                  type: RuntimeDefault
-              containers:
-                - name: may
-                  # renovate: image=ghcr.io/dannymcc/may
-                  image: ghcr.io/dannymcc/may:0.44.2
-                  imagePullPolicy: IfNotPresent
-                  ports:
-                    - name: http
-                      containerPort: 5050
-                      protocol: TCP
-                  envFrom:
-                    - secretRef:
-                        name: may-app-secrets
-                  resources:
-                    limits:
-                      cpu: 200m
-                      memory: 350Mi
-                    requests:
-                      cpu: 15m
-                      memory: 200Mi
-                  volumeMounts:
-                    - name: data
-                      mountPath: /app/data
-              volumes:
-                - name: data
-                  persistentVolumeClaim:
-                    claimName: may
-      service:
-        metadata:
-          labels:
-            app: may
-        spec:
-          type: ClusterIP
+  workloads:
+    - name: may                     # -> Deployment + Service "may"
+      legacySelector:
+        app: may                    # immutable selector of the Deployment created before 1.19
+      pod:
+        # ndots:2: the default ndots:5 burns 3-4 NXDOMAIN lookups per external name.
+        dnsConfig:
+          options:
+            - name: ndots
+              value: "2"
+        securityContext:
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: may
+          image:
+            repository: ghcr.io/dannymcc/may
+            tag: "0.44.2"
           ports:
-            - port: 5050
-              targetPort: http
-              protocol: TCP
-              name: http
-          selector:
-            app: may
+            - name: http
+              containerPort: 5050
+          envFrom:
+            - secretRef:
+                name: may-app-secrets   # -> secret.reloader.stakater.com/reload: may-app-secrets
+          # The entrypoint runs `flask db upgrade` before gunicorn: a cold start
+          # takes ~20s at 200m CPU, longer with a migration. Up to 5 min here.
+          startupProbe:
+            tcpSocket:
+              port: http
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:                # / answers 302 -> /auth/login
+              path: /
+              port: http
+          livenessProbe:
+            tcpSocket:
+              port: http
+          resources:
+            requests:
+              cpu: 15m
+              memory: 200Mi
+            limits:
+              cpu: 200m
+              memory: 350Mi
+      persistence:
+        data:
+          claim: may                # must be listed in persistentVolumeClaims; RWO -> strategy Recreate
+          mountPath: /app/data
