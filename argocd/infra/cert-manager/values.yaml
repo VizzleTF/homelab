@@ -1,7 +1,6 @@
-# Cert-Manager (jetstack) — только ключи чарта; homelab-common вынесен в homelab-values.yaml из-за values.schema.json
+# Cert-Manager (jetstack): chart keys only; homelab-common lives in homelab-values.yaml because of values.schema.json
 crds:
   enabled: true
-  keep: true
 
 resources:
   requests:

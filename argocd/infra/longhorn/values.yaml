@@ -13,15 +13,11 @@ homelab-common:
 # UI/API stay ClusterIP: the manager API (9500) can delete volumes and has no
 # auth, so it must not be announced over BGP. UI access goes through the
 # internal HTTPRoute above.
-metrics:
-  serviceMonitor:
-    enabled: false
 persistence:
   # longhorn-manager owns the default SC `longhorn` through the ConfigMap
   # `longhorn-storageclass` (it overwrites any external manifest). Replica
   # auto-balance comes from the global setting below (best-effort), so no
   # extra StorageClass is needed for it.
-  defaultClass: true
   defaultClassReplicaCount: 2
   reclaimPolicy: Retain
 defaultSettings:
@@ -44,17 +40,14 @@ defaultSettings:
   # 1.11 docs describing millicores for v2, 1.12.1 validates BOTH engines as a
   # percentage capped at 40 — "value 1250 for data engine v2 should be less than
   # or equal to 40" — and one invalid key makes Longhorn drop the whole
-  # customized default block, same trap as disableRevisionCounter below.
+  # customized default block, same trap as freezeFilesystemForSnapshot below.
   guaranteedInstanceManagerCPU: '{"v1":"12","v2":"12"}'
-  # Revision counters off to cut load. v1 key only: since 1.12.1 Longhorn
-  # rejects `v2` here ("mismatched data engines for setting Disable Revision
-  # Counter"), which dropped the whole customized default block with a warning
-  # on every reconcile. Same format as the chart default.
-  disableRevisionCounter: '{"v1":"true"}'
   # fsfreeze while a snapshot is taken: without it a CSI snapshot is only
   # crash-consistent, and restoring SQLite or a DB equals starting after a
   # power cut. Freezing makes it FS-consistent for a sub-second I/O pause.
-  # v1 key only, like disableRevisionCounter above.
+  # v1 key only: since 1.12.1 Longhorn rejects `v2` for v1-only settings (it
+  # did for disableRevisionCounter: "mismatched data engines"), which dropped
+  # the whole customized default block with a warning on every reconcile.
   freezeFilesystemForSnapshot: '{"v1":"true"}'
   # Clean up system-generated snapshots automatically.
   autoCleanupSystemGeneratedSnapshot: "true"

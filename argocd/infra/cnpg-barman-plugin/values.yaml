@@ -8,9 +8,6 @@
 # Clusters reference it via .spec.plugins + an ObjectStore CR
 # (objectstores.barmancloud.cnpg.io) in the cluster's own namespace.
 
-crds:
-  create: true
-
 resources:
   requests:
     cpu: 10m
