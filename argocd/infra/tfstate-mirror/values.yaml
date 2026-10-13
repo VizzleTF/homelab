@@ -1,12 +1,12 @@
-# Off-site копия terraform state: Garage → OVH.
+# Off-site copy of the Terraform state: Garage → OVH.
 #
-# Жила в компоненте velero (ns velero) как побочный CronJob, хотя к Velero
-# отношения не имеет — при выводе Velero (obsidian/113 Backups/Backup Overview.md) вынесена
-# в собственный компонент, чтобы не уехать вместе с ним.
+# Used to be a side CronJob of the velero component (ns velero) although it has
+# nothing to do with Velero; moved into its own component when Velero was
+# retired (obsidian/113 Backups/Backup Overview.md) so it would not leave with it.
 #
-# Vault-путь `velero/s3-ovh` оставлен как есть: это ключ OVH, переживший
-# Velero; переименование пути потребовало бы синхронной правки в cnpg и
-# snapshot-CronJob'ах.
+# The Vault path `velero/s3-ovh` is kept as is: it is the OVH key that outlived
+# Velero; renaming the path would need a matching change in cnpg and the
+# snapshot CronJobs.
 homelab-common:
   # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
@@ -44,3 +44,48 @@ homelab-common:
         RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+
+  workloads:
+    # Daily off-site copy of the Garage bucket terraform-state → OVH
+    # offsite-homelab/terraform-state. The state changes rarely (manual terraform
+    # apply); the copy gives DR outside the Synology.
+    #
+    # rclone COPY, not sync: a source-side delete does not reach OVH. tfstate is
+    # a single file overwritten in place, so protection from a corrupt overwrite
+    # is VERSIONING on the OVH bucket offsite-homelab (enabled + noncurrent-expire
+    # 30d, 2026-05-29). Garage has no versioning (PutBucketVersioning is
+    # Unimplemented in Garage 2.x), so the source is unversioned, which is fine.
+    - name: ovh-mirror
+      fullnameOverride: tfstate-bucket-mirror-ovh  # live name, kept
+      type: cronjob
+      schedule: "0 8 * * *"                       # 08:00 UTC
+      job:
+        activeDeadlineSeconds: 600
+      containers:
+        - name: rclone
+          image:
+            repository: rclone/rclone
+            tag: "1.75"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "[$(date -u)] starting rclone copy garage_tfstate:terraform-state -> ovh:offsite-homelab/terraform-state/"
+              rclone copy \
+                --s3-acl=private \
+                --transfers=2 \
+                --checkers=4 \
+                --stats=1m \
+                --stats-one-line \
+                garage_tfstate:terraform-state ovh:offsite-homelab/terraform-state/
+              echo "[$(date -u)] copy complete"
+          envFrom:
+            - secretRef:
+                name: tfstate-mirror-rclone-env
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
