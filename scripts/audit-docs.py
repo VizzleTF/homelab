@@ -249,7 +249,7 @@ LEGACY_KEYS_ALLOWED = {
 LEGACY_SELECTOR_ALLOWED = {
     ("atuin", "atuin"), ("crowdsec-scraper", "scraper"), ("may", "may"),
     ("netbird", "peer"), ("netbird", "peer-2"), ("opencloud", "opencloud"),
-    ("valkey", "valkey"),
+    ("valkey", "valkey"), ("keda-add-ons-http", "loading-proxy"),
 }
 values_files = sorted(REPO.glob("argocd/*/*/values.yaml")) + sorted(REPO.glob("argocd/*/*/homelab-values.yaml"))
 for vf in values_files + [REPO / "argocd/values/argocd.yaml"]:
