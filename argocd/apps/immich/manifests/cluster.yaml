@@ -1,0 +1,103 @@
+# Dedicated CNPG cluster for Immich (VectorChord image). Raw manifest like the
+# shared cnpg-cluster: one way to describe a CNPG Cluster in this repo. The spec
+# is the cloudnative-pg/cluster chart 0.9.0 render it replaced, byte for byte,
+# so ArgoCD updates the live Cluster in place (same tracking-id, no recreate).
+# Never `argocd app sync --replace` a Cluster: delete+recreate wipes the CR and
+# its PVCs. Mutate with `kubectl patch --type=json` when SSA cannot.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: immich-cluster
+  namespace: immich
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: 1
+  # PG17 -> 18 via CNPG declarative offline pg_upgrade (vchord pinned at 1.1.0
+  # on both sides). Compound <pgmajor>.<pgminor>-<vchord> tag: a known-hard case
+  # for Renovate, bumped by hand.
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:18.3-1.1.0
+  imagePullPolicy: IfNotPresent
+  postgresUID: 26
+  postgresGID: 26
+  storage:
+    size: 10Gi
+    storageClass: longhorn
+  resources:
+    limits:
+      cpu: "2"
+      memory: 4Gi
+    requests:
+      cpu: 100m
+      memory: 1Gi
+  affinity:
+    topologyKey: topology.kubernetes.io/zone
+  env:
+    # Barman Cloud Plugin against Garage needs a region.
+    - name: AWS_DEFAULT_REGION
+      value: garage
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  stopDelay: 1800
+  logLevel: info
+  enableSuperuserAccess: true
+  enablePDB: true
+  postgresql:
+    shared_preload_libraries:
+      - vchord.so
+    parameters:
+      # Disk writes (2026-10): CNPG's archive_timeout=5min closed a 16 MB WAL
+      # segment every 5 min and wal_init_zero zero-filled each new one, ~4.6
+      # GB/day per instance against ~0.4 GB/day of real WAL. 30min keeps the
+      # barman RPO acceptable for a homelab; lz4 shrinks full-page images, and
+      # rarer checkpoints mean fewer of them.
+      archive_timeout: 30min
+      checkpoint_timeout: 15min
+      effective_cache_size: 2GB
+      maintenance_work_mem: 256MB
+      max_connections: "200"
+      max_wal_size: 2GB
+      shared_buffers: 512MB
+      wal_compression: lz4
+      wal_init_zero: "off"
+      work_mem: 16MB
+  managed:
+    # Role name MUST equal the `username` key of immich-main-user-credentials
+    # (OpenBao immich/main-database -> "immich"), else CNPG refuses to reconcile
+    # the role ("wrong username"). The restored data and the immich DB are owned
+    # by `immich`, non-superuser. ArgoCD SSA does not add new roles[] entries:
+    # patch them in with kubectl patch --type=json.
+    roles:
+      - comment: Immich application user for database access
+        connectionLimit: -1
+        ensure: present
+        inherit: true
+        login: true
+        name: immich
+        passwordSecret:
+          name: immich-main-user-credentials
+        superuser: false
+  monitoring:
+    disableDefaultQueries: false
+    tls:
+      enabled: false
+  bootstrap:
+    initdb:
+      database: immich
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
+      # CNPG reconciles the owner's password from this basic-auth secret
+      # (ongoing, not only at init); its `username` must equal the owner.
+      secret:
+        name: immich-main-user-credentials
+      owner: immich
+  # WAL archiving + base backups via the Barman Cloud Plugin (ObjectStore in
+  # objectstore.yaml). serverName keeps the in-tree layout so the plugin
+  # continues the existing catalog.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        serverName: immich-cluster
+        barmanObjectName: "immich-cluster-store"

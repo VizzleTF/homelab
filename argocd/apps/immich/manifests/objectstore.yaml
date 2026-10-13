@@ -1,11 +1,8 @@
 # Barman Cloud Plugin object store for immich-cluster, replacing the in-tree
 # .spec.backup.barmanObjectStore (deprecated in CNPG). destinationPath and
-# serverName (set on the Cluster plugin entry in cnpg-values.yaml) mirror the
+# serverName (set on the Cluster plugin entry in cluster.yaml) mirror the
 # in-tree layout, so the plugin continues the existing catalog and WALs:
 # s3://cnpg-backups/immich-cluster-restored/immich-cluster.
-# A raw manifest, not the chart's ObjectStore: the chart marks that one as a
-# Helm pre-install/pre-upgrade hook, which ArgoCD would recreate on every sync
-# underneath the running WAL archiver.
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:

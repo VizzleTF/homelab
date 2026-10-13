@@ -76,14 +76,6 @@ spec:
             valueFiles:
               - "$values/{{ .path.path }}/values.yaml"
         {{- end }}
-        {{- if index . "cnpgValuesFile" }}
-        - repoURL: https://cloudnative-pg.github.io/charts
-          chart: cluster
-          targetRevision: "0.9.0"
-          helm:
-            valueFiles:
-              - "$values/{{ .path.path }}/{{ .cnpgValuesFile }}"
-        {{- end }}
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
           targetRevision: "2.0.0"

@@ -191,7 +191,7 @@ for doc in docs:
 # index/dig, so a typo (extraManifest, namspace) or a missing chart: renders
 # silently wrong instead of failing; Renovate skips a file without chart:.
 CONFIG_KEYS = {"chart", "repoURL", "targetRevision", "namespace", "wave", "homelabOnly",
-               "extraManifests", "homelabValuesFile", "cnpgValuesFile", "ignoreDiff"}
+               "extraManifests", "homelabValuesFile", "ignoreDiff"}
 UPSTREAM_KEYS = ("chart", "repoURL", "targetRevision")
 for kind in ("apps", "infra"):
     for cfg in sorted((REPO / f"argocd/{kind}").glob("*/config.yaml")):
@@ -219,11 +219,8 @@ for kind in ("apps", "infra"):
             report(cfg, "warning", "namespace equals the folder name; drop it")
         if bool(c.get("extraManifests")) != (folder / "manifests").is_dir():
             report(cfg, "error", "extraManifests: true if and only if manifests/ exists")
-        for k in ("homelabValuesFile", "cnpgValuesFile"):
-            if k in c and not (folder / str(c[k])).is_file():
-                report(cfg, "error", f"{k} {c[k]} does not exist")
-        if "cnpgValuesFile" in c and kind != "apps":
-            report(cfg, "error", "cnpgValuesFile is only rendered by the apps AppSet")
+        if "homelabValuesFile" in c and not (folder / str(c["homelabValuesFile"])).is_file():
+            report(cfg, "error", f"homelabValuesFile {c['homelabValuesFile']} does not exist")
         if "ignoreDiff" in c:
             try:
                 ok = isinstance(c["ignoreDiff"], str) and isinstance(yaml.safe_load(c["ignoreDiff"]), list)

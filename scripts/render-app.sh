@@ -3,10 +3,9 @@
 # stdout. Sources mirror argocd/appsets/{apps,infra}-appset.yaml:
 #   1. upstream chart (repoURL/chart/targetRevision from config.yaml) with
 #      values.yaml — skipped when homelabOnly: true
-#   2. cloudnative-pg/cluster with cnpgValuesFile — when set (apps only)
-#   3. homelab-common with global.yaml + values.yaml (or homelabValuesFile) —
+#   2. homelab-common with global.yaml + values.yaml (or homelabValuesFile) —
 #      the WHOLE file, the chart reads its `homelab-common:` key itself
-#   4. raw manifests/*.yaml — when extraManifests: true
+#   3. raw manifests/*.yaml — when extraManifests: true
 # homelab-common comes from the Forgejo chart-museum at the version pinned in
 # the appset (what ArgoCD deploys); HC_LOCAL=1 uses charts/homelab-common
 # instead (to preview an unpublished chart change).
@@ -52,12 +51,6 @@ if [[ "$(get homelabOnly)" != "true" ]]; then
   else  # scheme-less repoURL = OCI registry
     tpl "oci://$repo/$chart" --version "$(get targetRevision)" -f "$dir/values.yaml"
   fi
-fi
-
-if [[ $kind == apps && -n "$(get cnpgValuesFile)" ]]; then
-  cnpg_ver=$(grep -A2 'chart: cluster' "$appset" | sed -n 's/.*targetRevision: "\(.*\)"/\1/p')
-  tpl cluster --repo https://cloudnative-pg.github.io/charts --version "$cnpg_ver" \
-    -f "$dir/$(get cnpgValuesFile)"
 fi
 
 hcv=$(get homelabValuesFile); hc_values="$dir/${hcv:-values.yaml}"
