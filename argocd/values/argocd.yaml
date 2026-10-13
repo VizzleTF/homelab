@@ -23,17 +23,7 @@ homelab-common:
         port: 443
 
   secrets:
-    - name: oci-helm-forgejo
-      fullnameOverride: helm-oci-forgejo
-      labels:
-        argocd.argoproj.io/secret-type: repository
-      stringData:
-        type: helm
-        name: forgejo-helm
-        url: code.forgejo.org/forgejo-helm
-        enableOCI: "true"
-
-    - name: redis                   # -> argocd-redis
+    - name: redis                  # -> argocd-redis
       stringData:
         auth: ""
 
@@ -77,61 +67,18 @@ homelab-common:
     # Forgejo SSH access: a dedicated ed25519 keypair for the argocd-bot user in Forgejo.
     # Forgejo now lives on the ops node outside the cluster; git.example.com is a
     # static record in OpenWrt pointing at 10.11.11.153 (see obsidian/111 Memory/Ops Node.md).
-    - name: argocd-repo-ssh-forgejo-default
+    # A credential template, not a repository Secret: it matches every repo
+    # under vizzle/ for every AppProject (project-scoped repository Secrets each
+    # needed a copy, and root broke without its own). Public OCI chart repos
+    # (code.forgejo.org and others) need no Secret at all.
+    - name: argocd-repo-creds-forgejo
       vaultPath: argocd/repo-ssh-forgejo
       templateMetadata:
         labels:
-          argocd.argoproj.io/secret-type: repository
+          argocd.argoproj.io/secret-type: repo-creds
       templateData:
-        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
+        url: "ssh://git@git.example.com:22/vizzle"
         type: git
-        project: default
-        sshPrivateKey: "{{ .sshPrivateKey }}"
-      data:
-        - secretKey: sshPrivateKey
-          property: sshPrivateKey
-
-    - name: argocd-repo-ssh-forgejo-applications
-      vaultPath: argocd/repo-ssh-forgejo
-      templateMetadata:
-        labels:
-          argocd.argoproj.io/secret-type: repository
-      templateData:
-        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
-        type: git
-        project: applications
-        sshPrivateKey: "{{ .sshPrivateKey }}"
-      data:
-        - secretKey: sshPrivateKey
-          property: sshPrivateKey
-
-    - name: argocd-repo-ssh-forgejo-infrastructure
-      vaultPath: argocd/repo-ssh-forgejo
-      templateMetadata:
-        labels:
-          argocd.argoproj.io/secret-type: repository
-      templateData:
-        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
-        type: git
-        project: infrastructure
-        sshPrivateKey: "{{ .sshPrivateKey }}"
-      data:
-        - secretKey: sshPrivateKey
-          property: sshPrivateKey
-
-    # The root Application lives in its own AppProject, and repository
-    # credentials are project-scoped: without this entry ArgoCD finds no key for
-    # the repo and falls back to an ssh agent that does not exist, failing with
-    # "SSH agent requested but SSH_AUTH_SOCK not-specified".
-    - name: argocd-repo-ssh-forgejo-root
-      vaultPath: argocd/repo-ssh-forgejo
-      templateMetadata:
-        labels:
-          argocd.argoproj.io/secret-type: repository
-      templateData:
-        url: "ssh://git@git.example.com:22/vizzle/homelab.git"
-        type: git
-        project: root
         sshPrivateKey: "{{ .sshPrivateKey }}"
       data:
         - secretKey: sshPrivateKey
