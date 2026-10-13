@@ -282,6 +282,9 @@ jobs:
             done
             if docker start -a argocd-diff-preview; then
               docker cp argocd-diff-preview:/output .
+              # A PR that touches no Application (scripts, docs) renders nothing and the
+              # tool writes no manifests; empty files let every check below pass cleanly.
+              mkdir -p output && touch output/base-branch.yaml output/target-branch.yaml
               docker rm -f argocd-diff-preview >/dev/null
               exit 0
             fi
