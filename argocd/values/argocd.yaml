@@ -22,26 +22,20 @@ homelab-common:
         name: argocd-server
         port: 443
 
-  apps:
+  secrets:
     - name: oci-helm-forgejo
       fullnameOverride: helm-oci-forgejo
-      secret:
-        metadata:
-          labels:
-            argocd.argoproj.io/secret-type: repository
-        type: Opaque
-        stringData:
-          type: helm
-          name: forgejo-helm
-          url: code.forgejo.org/forgejo-helm
-          enableOCI: "true"
+      labels:
+        argocd.argoproj.io/secret-type: repository
+      stringData:
+        type: helm
+        name: forgejo-helm
+        url: code.forgejo.org/forgejo-helm
+        enableOCI: "true"
 
-    - name: redis
-      fullnameOverride: argocd-redis
-      secret:
-        type: Opaque
-        stringData:
-          auth: ""
+    - name: redis                   # -> argocd-redis
+      stringData:
+        auth: ""
 
   externalSecrets:
     # Valkey ACL user `app` for externalRedis.existingSecret. The chart
