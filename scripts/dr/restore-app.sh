@@ -9,9 +9,11 @@
 #   claim                PVC name (default: name)
 #   accessMode           else the claim's persistentVolumeClaims[] accessModes[0]
 #   cacheCapacity        restic cache (default 2Gi)
-#   moverSecurityContext.runAsUser   mover uid (empty = root)
 #   namespace            config.yaml namespace, else the folder name
 #   size                 the claim's persistentVolumeClaims[] size, else VCT_SIZE
+# The mover runs as root: restic must lchown files back to their owners
+# (opencloud-data failed as uid 1000, 41d8e3d8). volsync[].moverSecurityContext
+# is the backup mover's uid and is ignored here.
 #
 # What comes back is the VOLUME, not objects: pods, SAs and namespaces come
 # from git through ArgoCD. The source is DR_RESTIC_TARGET=garage|ovh.
@@ -38,7 +40,7 @@ declare -A ALIAS=(
   [opencloud]=opencloud-data [trek]=trek-uploads
 )
 
-# Print "name|namespace|claim|size|accessMode|uid|cache" for every volsync entry.
+# Print "name|namespace|claim|size|accessMode|cache" for every volsync entry.
 volume_table() {
   local f dir ns
   for f in "$REPO_ROOT"/argocd/{apps,infra}/*/values.yaml; do
@@ -51,16 +53,15 @@ volume_table() {
       | ([$pvcs[] | select(.name == $claim)][0] // {}) as $pvc
       | [.name, $ns, $claim, ($pvc.size // ""),
          (.accessMode // ($pvc.accessModes // [])[0] // "ReadWriteOnce"),
-         ((.moverSecurityContext.runAsUser // "") | tostring),
          (.cacheCapacity // "2Gi")] | join("|")'
-  done | while IFS='|' read -r name ns claim size mode uid cache; do
+  done | while IFS='|' read -r name ns claim size mode cache; do
     [[ -n $size ]] || size=${VCT_SIZE[$claim]:-}
-    echo "$name|$ns|$claim|$size|$mode|$uid|$cache"
+    echo "$name|$ns|$claim|$size|$mode|$cache"
   done
 }
 
 if [[ "${1:-}" == --list ]]; then
-  volume_table | column -t -s'|' -N NAME,NAMESPACE,PVC,SIZE,MODE,UID,CACHE
+  volume_table | column -t -s'|' -N NAME,NAMESPACE,PVC,SIZE,MODE,CACHE
   exit 0
 fi
 
@@ -75,7 +76,7 @@ if [[ -n "${2:-}" ]]; then
 else
   ROW=$(volume_table | grep "^${APP}|" || true)
   [[ -n "$ROW" ]] || die "no homelab-common.volsync entry named '$APP' (see $0 --list)"
-  IFS='|' read -r REPO NS PVC SIZE MODE UID_ CACHE <<<"$ROW"
+  IFS='|' read -r REPO NS PVC SIZE MODE CACHE <<<"$ROW"; UID_=""
   [[ -n "$SIZE" ]] || die "$APP: no size for claim $PVC (add it to persistentVolumeClaims or VCT_SIZE)"
 fi
 

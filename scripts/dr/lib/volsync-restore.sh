@@ -100,9 +100,12 @@ spec:
     cacheAccessModes: [ReadWriteOnce]${mover_sc}
 EOF
 
+  # 1 min per Gi, never under 15 min.
+  local gi=1; [[ $size == *Gi ]] && gi=${size%Gi}
+  local timeout=$(( gi * 60 > 900 ? gi * 60 : 900 ))
   wait_for "$ns/$repo restored" \
     "kubectl -n $ns get replicationdestination dr-${repo} -o jsonpath='{.status.lastSyncTime}' | grep -q ." \
-    900
+    "$timeout"
 
   log_ok "$ns/$pvc restored from $target"
   return 0
