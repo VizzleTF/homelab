@@ -54,6 +54,11 @@ jobs:
         run: scripts/ci-install-helm.sh
       - name: Lint homelab-common
         run: helm lint --strict charts/homelab-common
+      - name: Self-check of the workloads engine
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends python3 python3-yaml >/dev/null
+          scripts/homelab-common-selfcheck.sh
       - name: Render diff vs the published chart
         # What a charts/ change does to every consumer; argocd-diff only sees
         # it in the later PR that bumps the pin. Informational, never fails on

@@ -10,6 +10,8 @@ kind: LimitRange
 metadata:
   name: {{ $lr.name | default "default-limits" }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 spec:
   limits:
     - type: Container

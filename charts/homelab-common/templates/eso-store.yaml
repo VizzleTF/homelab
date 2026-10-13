@@ -23,6 +23,8 @@ kind: ServiceAccount
 metadata:
   name: eso-{{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   {{- if $presync }}
   annotations:
     argocd.argoproj.io/hook: PreSync
@@ -35,6 +37,8 @@ kind: SecretStore
 metadata:
   name: openbao-{{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   {{- if $presync }}
   annotations:
     argocd.argoproj.io/hook: PreSync

@@ -6,6 +6,8 @@ kind: Certificate
 metadata:
   name: {{ .name }}
   namespace: {{ .namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 spec:
   secretName: {{ .secretName | default .name }}
   issuerRef:

@@ -7,8 +7,7 @@ metadata:
   name: {{ .name }}
   namespace: authentik
   labels:
-    app.kubernetes.io/name: authentik
-    app.kubernetes.io/part-of: authentik
+    {{- include "homelab-common.labels" (dict "root" $ "extra" (dict "app.kubernetes.io/name" "authentik" "app.kubernetes.io/part-of" "authentik")) | nindent 4 }}
 data:
   {{- range $filename, $content := .blueprints }}
   {{ $filename }}: |

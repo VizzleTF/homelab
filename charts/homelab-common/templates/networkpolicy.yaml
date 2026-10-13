@@ -10,6 +10,8 @@ kind: CiliumNetworkPolicy
 metadata:
   name: default-ingress
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
 spec:
   endpointSelector: {}
   ingress:

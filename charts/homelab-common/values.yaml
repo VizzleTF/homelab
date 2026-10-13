@@ -1,5 +1,6 @@
 # Default values for homelab-common (shared Helm chart).
-# global.* (vault, gateway, dns, volsync) приходит из argocd/values/global.yaml — он всегда первый в valueFiles.
+# global.* (vault, gateway, dns, volsync) comes from argocd/values/global.yaml, always the first valueFile.
+# Every object gets app.kubernetes.io/{name,instance,managed-by}; no chart version label.
 
 homelab-common:
   # ExternalSecrets to create
@@ -63,30 +64,61 @@ homelab-common:
   # Example:
   # cnpgDatabases:
   #   - name: myapp
-  #     owner: myapp_user
+  #     owner: myapp
   #     clusterName: cnpg-cluster
   #     extensions: []
 
-  # apps: опционально secret / configMap / deployment / service
-  apps: []
-
-  # Generic CronJobs (pass-through spec).
-  cronJobs: []
+  # Workloads: Deployment (default) | CronJob, plus a Service when a
+  # container declares ports. Name: <release>-<name>, or the release name when it
+  # contains <name>. Values win over every default below.
+  # Defaults: revisionHistoryLimit 2, automountServiceAccountToken false,
+  # enableServiceLinks false, strategy Recreate when a ReadWriteOnce claim is
+  # mounted; Reloader annotations for every Secret/ConfigMap the pod references
+  # (reload: false turns them off). CronJob: Forbid, startingDeadlineSeconds 600,
+  # history 1/3, backoffLimit 2, restartPolicy OnFailure.
+  workloads: []
   # Example:
-  # - name: spotify-backup
-  #   spec:
-  #     schedule: "0 4 * * *"
-  #     concurrencyPolicy: Forbid
-  #     successfulJobsHistoryLimit: 1
-  #     failedJobsHistoryLimit: 3
-  #     jobTemplate:
-  #       spec:
-  #         backoffLimit: 2
-  #         template:
-  #           spec:
-  #             restartPolicy: OnFailure
-  #             containers: [...]
-  #             volumes: [...]
+  # - name: myapp
+  #   legacySelector: {app: myapp}  # only for a Deployment created before 1.19 (selector is immutable)
+  #   annotations: {}               # labels: {} too
+  #   pod:                          # native PodSpec fields except containers
+  #     securityContext: {fsGroup: 1000}
+  #   containers:                   # native Container fields; image is {repository, tag}
+  #     - name: myapp
+  #       image:
+  #         repository: ghcr.io/org/myapp
+  #         tag: "1.2.3"
+  #       ports:
+  #         - name: http
+  #           containerPort: 8080
+  #       envFrom:
+  #         - secretRef: {name: myapp-app}
+  #       readinessProbe:           # native probes
+  #         httpGet: {path: /, port: http}
+  #   persistence:                  # volume name -> source + mount (all containers unless `containers`)
+  #     data: {claim: myapp-data, mountPath: /data}   # claim must be in persistentVolumeClaims
+  #     tmp: {emptyDir: {}, mountPath: /tmp}
+  #   service: {}                   # native ServiceSpec overrides; false = no Service
+  #   spec: {}                      # native controller spec overrides (replicas, strategy, timeZone, ...)
+  # - name: export
+  #   type: cronjob
+  #   schedule: "0 3 * * *"
+  #   job: {activeDeadlineSeconds: 1800}   # native JobSpec overrides
+  #   containers: [...]
+
+  # Plain ConfigMaps / Secrets, named like workloads.
+  configMaps: []
+  # - name: config
+  #   data: {app.conf: "..."}
+  secrets: []
+  # - name: repo
+  #   fullnameOverride: helm-oci-forgejo
+  #   labels: {argocd.argoproj.io/secret-type: repository}
+  #   stringData: {type: helm}
+
+  # Deprecated (removed in 2.0.0): raw pass-through, use workloads/configMaps/secrets.
+  apps: []
+  cronJobs: []
 
 
   # PVC definitions

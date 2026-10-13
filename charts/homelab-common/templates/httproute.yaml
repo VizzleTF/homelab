@@ -25,6 +25,8 @@ kind: HTTPRoute
 metadata:
   name: {{ $r.name }}{{ if eq $gateway "both" }}-{{ $kind }}{{ end }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
     external-dns.kubernetes.io/hostname: {{ $hostname }}

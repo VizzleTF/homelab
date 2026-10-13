@@ -1,0 +1,25 @@
+{{- /* configMaps[] / secrets[]: plain objects named like workloads (release prefix unless contained). The file name avoids "secret": .gitignore drops *secret*.yaml. */}}
+{{- $hc := index .Values "homelab-common" | default dict }}
+{{- range $cm := $hc.configMaps | default list }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "homelab-common.metadata" (dict "name" (include "homelab-common.app.fullname" (dict "app" $cm "root" $)) "root" $ "meta" $cm) }}
+data:
+  {{- toYaml ($cm.data | default dict) | nindent 2 }}
+{{- end }}
+{{- range $s := $hc.secrets | default list }}
+---
+apiVersion: v1
+kind: Secret
+{{ include "homelab-common.metadata" (dict "name" (include "homelab-common.app.fullname" (dict "app" $s "root" $)) "root" $ "meta" $s) }}
+type: {{ $s.type | default "Opaque" }}
+{{- with $s.stringData }}
+stringData:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $s.data }}
+data:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
