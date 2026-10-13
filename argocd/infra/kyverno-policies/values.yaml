@@ -39,6 +39,3 @@ vpolExclude:
 # a cluster-wide admission outage — nothing new can be scheduled while the
 # controller is down.
 failurePolicy: Ignore
-
-# Report on what is already running, not just on new admissions.
-background: true

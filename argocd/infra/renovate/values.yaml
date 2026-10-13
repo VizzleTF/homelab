@@ -22,21 +22,16 @@ homelab-common:
           property: token
       templateData:
         GITHUB_COM_TOKEN: "{{ .token }}"
-        # GITHUB_COM_TOKEN даёт hostRule ТОЛЬКО для matchHost=github.com (hostType=github)
-        # — ghcr.io Renovate ходит анонимно. Анонимный GHCR-токен короткоживущий и
-        # жёстко rate-limited, а ghcr.io/immich-app/immich-machine-learning имеет
-        # ~186k тегов = 187 последовательных страниц tags/list на каждый lookup
-        # (GHCR капает n на 1000 и сортирует oldest→newest, поэтому Renovate обязан
-        # вычитать ВСЕ страницы). Walk отваливался посреди пагинации → getTags вернул
-        # null → "Failed to look up docker package ...: no-result" в Dependency
-        # Dashboard. Тот же PAT (scope read:packages) снимает лимит.
-        # hostRules — тип array/object, env-переменная парсится JSON5; github.com-правило
-        # из GITHUB_COM_TOKEN добавляется ПОСЛЕ и не затирается.
+        # GITHUB_COM_TOKEN adds a hostRule for github.com only; ghcr.io is queried
+        # anonymously with a short-lived, heavily rate-limited token. The same PAT
+        # (scope read:packages) authenticates ghcr.io lookups. hostRules is
+        # parsed as JSON5 from the env var; the github.com rule from
+        # GITHUB_COM_TOKEN is added after it and is not overwritten.
         RENOVATE_HOST_RULES: '[{"matchHost":"ghcr.io","hostType":"docker","username":"VizzleTF","password":"{{ .token }}"}]'
     - name: renovate-notify-telegram
       templateEngineVersion: v2
-      # Shared bot with Robusta — same Vault path, same chat. Single Telegram bot
-      # для всего homelab (alerts + renovate digest).
+      # Shared bot with Robusta — same Vault path, same chat: one Telegram bot
+      # for the whole homelab (alerts + renovate digest).
       vaultPath: robusta/telegram
       data:
         - secretKey: bot_token
@@ -74,9 +69,6 @@ envFrom:
 
 env:
   LOG_LEVEL: info
-  RENOVATE_PLATFORM: gitea
-  RENOVATE_ENDPOINT: https://git.example.com/api/v1/
-  RENOVATE_AUTODISCOVER: "false"
   RENOVATE_REPOSITORY_CACHE: "enabled"
   NODE_OPTIONS: "--max-old-space-size=1024"
 
