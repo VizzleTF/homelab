@@ -7,9 +7,9 @@ createNamespace: false
 
 # No sizing profile: homelab sizing is set explicitly below (profile XS is close
 # but pins indexer storage at 10Gi and master at 5Gi, too small for 30d of alerts).
+# The storage class is set once, in cluster.spec.
 sizing:
   profile: ""
-  storageClassName: longhorn
 
 # The chart's externalSecrets block is deliberately NOT used (operator 2026.9.1).
 # It only puts an externalSecretRef into the CR, and that path is half-wired:
@@ -243,6 +243,9 @@ cluster:
           cpu: "1"
           memory: 1Gi
 
+# The chart fills in clusterRefs (this WazuhCluster) for opensearchAuthConfig,
+# opensearchRoleMappings and every detection-content entry below.
+
 # Sign-in through Authentik. The dashboard keeps its local login as well: the
 # operator forces the basic auth domain on and it is what `kibanaserver` uses to
 # talk to the indexer, so removing it takes the dashboard down with it (operator
@@ -252,9 +255,6 @@ opensearchAuthConfig:
   enabled: true
   name: wazuh-auth
   spec:
-    clusterRefs:
-      - name: wazuh
-        namespace: wazuh
     # The basic domain has to be declared explicitly. Leaving this block out
     # does NOT preserve a default: the operator emits a config.yml holding only
     # the domains named here, so omitting it produced activeAuthDomains=["oidc"]
@@ -313,9 +313,6 @@ opensearchAuthConfig:
 opensearchRoleMappings:
   - name: all-access-wazuh-admins
     spec:
-      clusterRefs:
-        - name: wazuh
-          namespace: wazuh
       roleName: all_access
       description: "admin + Authentik group wazuh-admins -> all_access"
       backendRoles:
@@ -325,8 +322,8 @@ opensearchRoleMappings:
         # Required by the certificate hot-reload API.
         - "CN=admin,OU=Security,O=Wazuh,L=San Francisco,ST=California,C=US"
 
-# Detection content. The chart fills in clusterRefs for every entry. Each
-# change rolls the manager StatefulSet (content is subPath-mounted).
+# Detection content. Each change rolls the manager StatefulSet (content is
+# subPath-mounted).
 wazuhRules:
   # Noise control, checked with wazuh-logtest against real events. What is
   # left after it: sshd/sudo/su logins, FIM changes, SCA score summaries,

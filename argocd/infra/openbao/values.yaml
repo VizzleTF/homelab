@@ -420,16 +420,6 @@ homelab-common:
             resources: ["gateways"]
             verbs: ["get", "list"]
 
-    - serviceAccount:
-        name: openbao
-        create: false
-      clusterRole:
-        name: openbao-server
-        rules:
-          - apiGroups: [""]
-            resources: ["pods"]
-            verbs: ["get", "list", "watch"]
-
   limitRange:
     enabled: true
     defaults:
