@@ -69,9 +69,15 @@ homelab-common:
             type: RuntimeDefault
         # Keep it off the control-plane nodes: lampac downloads and runs the
         # TorrServer binary at runtime (Falco "drop and execute new binary"),
-        # which should not happen next to etcd. Stateless, so any worker is fine.
-        nodeSelector:
-          kubernetes.io/hostname: talos-worker-01
+        # which should not happen next to etcd. Stateless, so any
+        # non-control-plane node is fine.
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
       containers:
         - name: lampac
           # Upstream tags every release as both `X.Y.Z` and `vX.Y.Z`. Stay on the
