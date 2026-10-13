@@ -225,12 +225,6 @@ configs:
       jqPathExpressions:
         - '.spec.managed.roles[]?.connectionLimit'
         - '.spec.managed.roles[]?.inherit'
-    resource.customizations.ignoreDifferences.external-secrets.io_ExternalSecret: |
-      jqPathExpressions:
-        - '.spec.data[]?.remoteRef.conversionStrategy'
-        - '.spec.data[]?.remoteRef.decodingStrategy'
-        - '.spec.data[]?.remoteRef.metadataPolicy'
-        - '.spec.data[]?.remoteRef.nullBytePolicy'
     resource.customizations.ignoreDifferences.apps_StatefulSet: |
       jqPathExpressions:
         - '.spec.volumeClaimTemplates[]?.apiVersion'
