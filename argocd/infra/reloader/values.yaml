@@ -12,10 +12,6 @@
 # (set in argocd/apps/authentik/values.yaml).
 
 reloader:
-  watchGlobally: true
-  reloadStrategy: default
-  ignoreSecrets: false
-  ignoreConfigMaps: false
   # Bootstrap + cold-start safety:
   # - syncAfterRestart: when reloader (re)starts, reconcile annotated
   #   Deployments whose mounted Secret/CM hash drifted while reloader was
@@ -27,9 +23,7 @@ reloader:
   # happened before the reloader process was watching.
   syncAfterRestart: true
   reloadOnCreate: true
-  logLevel: info
   deployment:
-    replicas: 1
     resources:
       requests:
         cpu: 20m

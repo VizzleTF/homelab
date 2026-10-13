@@ -7,7 +7,7 @@
 # Baseline, not restricted: restricted would flag almost everything here
 # (Longhorn, Cilium and the Wazuh operator all need privileges by
 # design), and a report nobody can act on is noise.
-podSecurityStandard: baseline
+podSecurityStandard: baseline  # pinned: deliberate choice (comment above), also the chart default
 
 # Enforce (since 2026-09-24). The Audit reports showed violations only in the
 # namespaces below, all privileged by design; every other namespace is clean,
