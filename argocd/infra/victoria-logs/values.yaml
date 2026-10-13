@@ -1,12 +1,12 @@
-# VictoriaLogs single — хранилище логов кластера + Vector (DaemonSet) — коллектор.
-# Vector — sub-chart, DaemonSet на всех узлах, kubernetes_logs source → Elasticsearch bulk → VL.
-# Просмотр: Grafana plugin victoriametrics-logs-datasource, dashboard 22759 (Vector-schema).
+# VictoriaLogs single — cluster log storage + Vector (DaemonSet) as the collector.
+# Vector is a sub-chart, a DaemonSet on every node: kubernetes_logs source → Elasticsearch bulk → VL.
+# Viewing: Grafana plugin victoriametrics-logs-datasource, dashboard 22759 (Vector schema).
 
 fullnameOverride: victoria-logs
 
 server:
   retentionPeriod: "7d"
-  # Страховка от PVC-переполнения при log storm — упираемся раньше VolumeAlmostFull.
+  # Guard against a full PVC during a log storm — hit this before VolumeAlmostFull.
   retentionDiskSpaceUsage: "9GiB"
 
   # Write amplification (2026-10): VL itself wrote ~1.8 GB/day, but each
@@ -29,11 +29,7 @@ server:
                 operator: DoesNotExist
 
   persistentVolume:
-    enabled: true
     storageClassName: longhorn
-    size: 10Gi
-    accessModes:
-      - ReadWriteOnce
 
   resources:
     requests:
@@ -46,12 +42,8 @@ server:
     - name: GOMEMLIMIT
       value: "860MiB"
 
-  # Метрики — через VMServiceScrape (argocd/infra/victoria-logs/manifests/vmservicescrape.yaml).
-  serviceMonitor:
-    enabled: false
-
-# Vector-коллектор (sub-chart). Собирает /var/log/pods на всех узлах, включая CP.
-# Поды Vector-а исключают сами себя через label vector.dev/exclude=true — нет петли логов.
+# Vector collector (sub-chart). Collects /var/log/pods on every node, CP included.
+# Vector pods exclude themselves via the vector.dev/exclude=true label — no log loop.
 vector:
   enabled: true
 
@@ -74,25 +66,19 @@ vector:
       cpu: 50m
       memory: 128Mi
     limits:
-      # 512Mi → OOM на старте (burst чтения существующих /var/log/pods/* с начала
-      # плюс 70+ NFD-лейблов на событие до drop-фильтра node_labels).
-      # 1Gi → стартовый burst на worker дошёл до 1018Mi (2026-09), поднято.
+      # 512Mi → OOM at startup (burst of reading existing /var/log/pods/* from the start
+      # plus 70+ NFD labels per event before the node_labels drop filter).
+      # 1Gi → the startup burst on the worker reached 1018Mi (2026-09), raised.
       memory: 1536Mi
 
-  # Метрики prom-exporter :9090 — через VMPodScrape (vmpodscrape-vector.yaml).
-  # Service не нужен — скрейпим pod'ы напрямую.
-  service:
-    enabled: false
-
-  # Отсекаем шум CP-компонент на уровне коллектора — дешевле, чем фильтровать на VL.
-  # VM-чарт сам добавляет sinks.vlogs с автогенерированным endpoint'ом и VL-* headers,
-  # здесь только diff: новая transform filter_noise + переключаем parser на её выход.
+  # Drop CP component noise in the collector — cheaper than filtering in VL.
+  # The VM chart adds sinks.vlogs itself with a generated endpoint and VL-* headers;
+  # only the diff is here: a new filter_noise transform + parser switched to its output.
   customConfig:
     sources:
       k8s:
-        type: kubernetes_logs
-        # Drop тяжёлые NFD-лейблы узла (feature.node.kubernetes.io/*) и annotations —
-        # 70+ полей на событие. Пустая строка отключает поле полностью.
+        # Drop the heavy node NFD labels (feature.node.kubernetes.io/*) and annotations —
+        # 70+ fields per event. An empty string disables the field entirely.
         node_annotation_fields:
           node_labels: ""
         pod_annotation_fields:
@@ -100,11 +86,11 @@ vector:
         namespace_annotation_fields:
           namespace_labels: ""
 
-      # kube-apiserver audit log. Talos пишет его на CP-ноды в /var/log/audit/kube,
-      # а Vector уже монтирует /var/log с хоста — дополнительный том не нужен.
-      # На worker'е файлов нет, source там просто простаивает.
-      # read_from: end обязателен: файлы ротируются по 100MB, читать их с начала
-      # значит залить SIEM историей за сутки при каждом рестарте пода.
+      # kube-apiserver audit log. Talos writes it on CP nodes to /var/log/audit/kube,
+      # and Vector already mounts /var/log from the host — no extra volume needed.
+      # Workers have no such files, the source just idles there.
+      # read_from: end is required: files rotate at 100MB, reading them from the start
+      # would flood the SIEM with a day of history on every pod restart.
       kube_audit:
         type: file
         include:
@@ -123,15 +109,11 @@ vector:
           ctrl_noise = cn == "kube-controller-manager" && match(m, r'Event occurred.*SuccessfulCreate')
           !(apiserver_noise || etcd_noise || ctrl_noise)
       parser:
-        type: remap
         inputs: [filter_noise]
-        source: |
-          .log = parse_json(.message) ?? .message
-          del(.message)
 
-      # Только то, что имеет смысл держать в SIEM: изменения секретов и RBAC
-      # плюс exec/attach/port-forward в поды. Полный audit — это ~100MB за пару
-      # часов на каждой CP-ноде, такой поток Wazuh не нужен и вреден.
+      # Only what is worth keeping in the SIEM: secret and RBAC changes plus
+      # exec/attach/port-forward into pods. The full audit is ~100MB per couple
+      # of hours on each CP node; Wazuh neither needs nor benefits from that stream.
       kube_audit_security:
         type: filter
         inputs: [kube_audit]
@@ -147,21 +129,21 @@ vector:
           stage == "ResponseComplete" && ((sensitive && mutating) || escalation)
 
     sinks:
-      # Дифф к чартовому sinks.vlogs (2026-10, меньше записи в VL):
-      # VL-Ignore-Fields — служебные поля, по которым никто не ищет, а они
-      # ~половина каждой записи (pod_labels остаются: по
-      # app.kubernetes.io/name фильтрует дашборд Explorer); batch.timeout_secs —
-      # реже и крупнее bulk.
+      # Diff to the chart's sinks.vlogs (2026-10, fewer writes to VL):
+      # VL-Ignore-Fields — service fields nobody searches by, yet they are
+      # ~half of every record (pod_labels stay: the Explorer dashboard filters
+      # by app.kubernetes.io/name); batch.timeout_secs — fewer, larger bulk
+      # requests.
       vlogs:
         batch:
           timeout_secs: 10
         request:
           headers:
             VL-Ignore-Fields: kubernetes.pod_labels.pod-template-hash,kubernetes.pod_labels.controller-revision-hash,kubernetes.container_id,kubernetes.container_image_id,kubernetes.pod_ips,kubernetes.pod_uid,file,source_type
-      # Talos не умеет audit-webhook в сторону Falco/Wazuh, поэтому события едут
-      # в менеджер обычным syslog (LoadBalancer 10.11.10.140:514/udp, см. [[wazuh]]).
-      # Логи в VictoriaLogs при этом идут своим путём — VM-чарт сам добавляет
-      # sinks.vlogs, эта секция его не отменяет.
+      # Talos cannot send an audit webhook to Falco/Wazuh, so the events reach
+      # the manager over plain syslog (LoadBalancer 10.11.10.140:514/udp, see [[wazuh]]).
+      # Logs to VictoriaLogs take their own path — the VM chart adds
+      # sinks.vlogs itself, this section does not replace it.
       wazuh_syslog:
         type: socket
         inputs: [kube_audit_security]

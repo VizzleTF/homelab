@@ -151,36 +151,21 @@ argocdReleaseOverride: victoria-metrics-k8s-stack
 
 # VictoriaMetrics Operator
 victoria-metrics-operator:
-  enabled: true
   operator:
-    # operator v0.69+ требует prometheus-operator CRDs (PrometheusRule/ServiceMonitor/etc)
-    # на startup, иначе CrashLoop. У нас prometheus-operator не установлен,
-    # все мониторинговые ресурсы уже native VM (VMRule/VMServiceScrape) → converter не нужен.
+    # operator v0.69+ needs the prometheus-operator CRDs (PrometheusRule/ServiceMonitor/etc)
+    # at startup, otherwise CrashLoop. prometheus-operator is not installed here and
+    # every monitoring resource is native VM (VMRule/VMServiceScrape) → no converter needed.
     disable_prometheus_converter: true
-    resources:
-      requests:
-        cpu: 20m
-        memory: 64Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
 
   # Webhook certificate management via cert-manager
   admissionWebhooks:
-    enabled: true
     certManager:
       enabled: true
       # Operator will create self-signed Issuer automatically
       # Certificates will be rotated automatically by cert-manager
 
-# Default dashboards
-defaultDashboards:
-  enabled: true
-  defaultTimezone: Asia/Nicosia
-
 # Default monitoring rules
 defaultRules:
-  enabled: true
   rules:
     Watchdog: {enabled: false}
     InfoInhibitor: {enabled: false}
@@ -238,11 +223,11 @@ defaultRules:
     # VMAlert — noisy info
     RecordingRulesNoData: {enabled: false}
 
-    # ─── One-event-one-alert cleanup (см. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md) ───
-    # Каскадные дубликаты глушатся через alertmanager inhibit_rules.
-    # Здесь — упреждающие/late twins/SaaS-уровень шум, не actionable в homelab.
+    # ─── One-event-one-alert cleanup (see obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md) ───
+    # Cascading duplicates are silenced by alertmanager inhibit_rules.
+    # Here: predictive / late twins / SaaS-tier noise, not actionable in a homelab.
 
-    # Cluster resource overcommit — homelab сознательно overcommitted
+    # Cluster resource overcommit — the homelab is overcommitted on purpose
     KubeCPUOvercommit: {enabled: false}
     KubeMemoryOvercommit: {enabled: false}
 
@@ -382,10 +367,8 @@ defaultRules:
 
 # VMSingle - single node storage
 vmsingle:
-  enabled: true
   spec:
     retentionPeriod: "7d"
-    replicaCount: 1
     storageMetadata:
       annotations:
         helm.sh/resource-policy: keep
@@ -410,8 +393,6 @@ vmsingle:
       - name: GOMEMLIMIT
         value: "2600MiB"
     storage:
-      accessModes:
-        - ReadWriteOnce
       resources:
         requests:
           storage: 30Gi
@@ -421,13 +402,8 @@ vmsingle:
       # a lost node means a fresh empty TSDB on another one.
       storageClassName: local-path
 
-# VMCluster - disabled for homelab
-vmcluster:
-  enabled: false
-
 # VMAlert - alerting component
 vmalert:
-  enabled: true
   spec:
     replicaCount: 1
     notifier:
@@ -445,7 +421,6 @@ vmalert:
 
 # VMAgent - metrics scraper
 vmagent:
-  enabled: true
   spec:
     replicaCount: 1
     resources:
@@ -459,7 +434,6 @@ vmagent:
       - name: GOMEMLIMIT
         value: "430MiB"
     extraArgs:
-      promscrape.streamParse: "true"
       # apiserver /metrics on cp-02 = 16.9 MB (16 MiB default limit) — bumped to 64 MiB.
       # Unused histograms are dropped in kubeApiServer.vmScrape below.
       promscrape.maxScrapeSize: "64MB"
@@ -474,9 +448,7 @@ vmagent:
 
 # Alertmanager
 alertmanager:
-  enabled: true
   spec:
-    replicaCount: 1
     resources:
       requests:
         cpu: 20m
@@ -488,8 +460,6 @@ alertmanager:
 
 # Grafana
 grafana:
-  enabled: true
-
   plugins:
     - victoriametrics-metrics-datasource
     - victoriametrics-logs-datasource
@@ -515,8 +485,6 @@ grafana:
   # Admin credentials from ExternalSecret
   admin:
     existingSecret: grafana-admin-secret
-    userKey: admin-user
-    passwordKey: admin-password
 
   # Mount OIDC credentials secret
   extraSecretMounts:
@@ -539,19 +507,11 @@ grafana:
   # datasources via Helm chart provisioning, users via Authentik OIDC (allow_sign_up).
   # No PVC → nothing to back up.
   persistence:
-    enabled: false
+    enabled: false  # pinned: declarative Grafana, no PVC to back up
 
   # Sidecar for dashboards and datasources
   sidecar:
-    datasources:
-      enabled: true
-      label: grafana_datasource
-      labelValue: "1"
     dashboards:
-      enabled: true
-      label: grafana_dashboard
-      labelValue: "1"
-      defaultFolderName: default
       # Not the default /var/lib/grafana/dashboards: the sidecar volume mounted
       # there hides /var/lib/grafana/dashboards/grafana-com, where the
       # download-dashboards init container puts the gnetId dashboards below.
@@ -590,7 +550,6 @@ grafana:
 
 # Prometheus Node Exporter
 prometheus-node-exporter:
-  enabled: true
   resources:
     requests:
       cpu: 15m
@@ -599,13 +558,9 @@ prometheus-node-exporter:
       # 200m throttled 27-48% of periods; scrapes took up to 0.58s.
       cpu: 500m
       memory: 105Mi
-  extraArgs:
-    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
-    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|erofs|sysfs|tracefs)$
 
 # Kube State Metrics
 kube-state-metrics:
-  enabled: true
   resources:
     requests:
       cpu: 20m
@@ -616,12 +571,6 @@ kube-state-metrics:
 
 # Kubelet scraping
 kubelet:
-  enabled: true
-  vmScrapes:
-    cadvisor:
-      enabled: true
-    probes:
-      enabled: true
   # Override relabelConfigs: replace labelmap(__meta_kubernetes_node_label_(.+)) which
   # copies ALL node labels including 65 NFD feature labels from Talos → 87 labels/metric,
   # exceeding VMSingle default maxLabelsPerTimeseries=30 → all cadvisor metrics dropped.
@@ -650,7 +599,6 @@ kubelet:
 
 # API Server scraping
 kubeApiServer:
-  enabled: true
   # ~49% of all series (241k of 495k, 2026-09-24) were apiserver/etcd-client
   # histograms that no rule or dashboard reads: dashboards use the _sum/_count
   # of apiserver_request_duration_seconds. 2026-10: the SLI histogram (37k
@@ -674,7 +622,6 @@ kubeApiServer:
 
 # CoreDNS scraping
 coreDns:
-  enabled: true
   vmScrape:
     enabled: true
 
@@ -688,7 +635,6 @@ kubeScheduler:
 
 # Kube Proxy scraping
 kubeProxy:
-  enabled: false
   vmScrape:
     enabled: false
 

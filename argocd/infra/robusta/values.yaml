@@ -3,22 +3,16 @@
 
 clusterName: "homelab"
 
-# No SaaS, no bundled kube-prometheus-stack, no HolmesGPT. HolmesGPT's
-# AutoInvestigateAlerts sent a separate message on top of every alert
-# (holmes_chat creates its own finding); the goal is one message per alert.
-enablePlatformPlaybooks: false
-enableHolmesGPT: false
-enablePrometheusStack: false
+# No HolmesGPT. Its AutoInvestigateAlerts sent a separate message on top of
+# every alert (holmes_chat creates its own finding); the goal is one message
+# per alert.
+enableHolmesGPT: false  # pinned: one message per alert
 
-grafanaRenderer:
-  enableContainer: false
-
-# Offline mode: empty account_id, no SaaS. signing_key is required even
+# Offline mode (empty default account_id), no SaaS. signing_key is required even
 # offline and comes from the ExternalSecret through env.
 # Robusta substitutes {{ env.VAR }} (Jinja), NOT $(VAR) (the Kubernetes form).
 globalConfig:
   signing_key: "{{ env.SIGNING_KEY }}"
-  account_id: ""
   check_prometheus_flags: false
   prometheus_url: "http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc.cluster.local:8428"
   grafana_url: "https://grafana.example.com"
@@ -30,8 +24,6 @@ runner:
       memory: 512Mi
     limits:
       memory: 1024Mi
-  log_level: INFO
-  sendAdditionalTelemetry: false
   # Read-only root FS; the chart mounts the writable volumes itself.
   hardenedFs: true
   # Extends the runner's RBAC to the CNPG Cluster CRD, so "CNPG cluster
@@ -39,8 +31,6 @@ runner:
   # keys StrimziPodSet, CNPGCluster, ExecutionContext.
   customCRD:
     - "CNPGCluster"
-  serviceMonitor:
-    path: /metrics
   additional_env_vars:
     - name: SIGNING_KEY
       valueFrom:
@@ -59,23 +49,13 @@ runner:
 kubewatch:
   resources:
     requests:
-      cpu: 10m
       memory: 128Mi
     limits:
       memory: 256Mi
   config:
     resource:
-      pod: true
-      deployment: true
-      daemonset: true
-      statefulset: true
-      job: true
-      node: true
-      event: true
-      ingress: true
       # Noisy kinds off.
       configmap: false
-      secret: false
       serviceaccount: false
       namespace: false
 
