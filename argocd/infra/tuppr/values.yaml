@@ -1,21 +1,14 @@
 # tuppr — Talos & Kubernetes Upgrade Controller (home-operations/tuppr).
-# Управляет апгрейдами декларативно через CRD TalosUpgrade + KubernetesUpgrade
-# (manifests/). Maintenance-windows, CEL healthChecks, Renovate-driven bumps.
+# Drives upgrades declaratively through the TalosUpgrade and KubernetesUpgrade
+# CRs (manifests/): maintenance windows, CEL health checks, Renovate-driven bumps.
 #
-# Talos machine config должен иметь:
+# The Talos machine config must have:
 #   machine.features.kubernetesTalosAPIAccess.enabled=true
 #   allowedKubernetesNamespaces=[system-upgrade]
 #   allowedRoles=[os:admin]
 # Patch: terraform_talos/modules/talos/patches/controlplane.yaml.tftpl
 #
-# Replace для legacy: scripts/talos-upgrade.sh оставлен как break-glass.
-
-replicaCount: 1
-
-image:
-  repository: ghcr.io/home-operations/tuppr
-  pullPolicy: IfNotPresent
-  # tag: ""   # default = chart appVersion (auto-bumped по тегу релиза)
+# scripts/talos-upgrade.sh stays as the break-glass path.
 
 resources:
   requests:
@@ -26,49 +19,23 @@ resources:
     memory: 256Mi
 
 controller:
-  # info вместо default debug — chart-author TODO до stable, у нас однако
-  # production-like (управляет ребутами). debug включай вручную при дебаге.
-  logLevel: info
-
-  leaderElection:
-    enabled: true
-
   metrics:
-    enabled: true
     port: 8080
-    secure: false   # plain HTTP — scrape через VMServiceScrape без TLS
 
-webhook:
-  enabled: true
-  port: 9443
-
-rbac:
-  create: true
-
-monitoring:
-  # Используем VMServiceScrape (manifests/vmservicescrape.yaml), не ServiceMonitor.
-  serviceMonitor:
-    enabled: false
-  prometheusRule:
-    enabled: false
-  dashboards:
-    enabled: false
-
-# Tolerations переопределены: из дефолта чарта убран `node.kubernetes.io/
-# unschedulable`. Чарт держит его, чтобы контроллер мог жить на cordoned ноде и
-# «раскордонить её после ребута», но у нас это давало ровно обратный эффект —
-# контроллер оставался на ноде, которую сам же драйнит:
+# The chart default also tolerates node.kubernetes.io/unschedulable, so the
+# controller can live on a cordoned node and "uncordon it after the reboot".
+# Here that did the opposite: the controller stayed on the node it was draining.
 #
-#   2026-09-04 — tuppr cordon'ул worker-01, ArgoCD перекатил его Deployment,
-#     новый под сел обратно на cordoned worker-01, потерял in-flight состояние
-#     и навсегда завис в HealthChecking (см. фикс healthCheck #3).
-#   2026-09-05 — при апгрейде на v1.14.0 tuppr остался единственным не-DaemonSet
-#     подом на драйнящейся worker-01. Drain не может завершиться, пока под жив,
-#     а каждый пересозданный под садился на ту же ноду. Вечный `Draining`.
+#   2026-09-04 — tuppr cordoned worker-01, ArgoCD rolled its Deployment, the
+#     new pod landed on the cordoned worker-01 again, lost its in-flight state
+#     and hung in HealthChecking forever (see healthCheck fix #3).
+#   2026-09-05 — upgrading to v1.14.0, tuppr was the only non-DaemonSet pod on
+#     the draining worker-01. The drain cannot finish while the pod lives, and
+#     every recreated pod landed on the same node: `Draining` forever.
 #
-# Убирать toleration безопасно: parallelism=1, поэтому cordoned всегда ровно
-# одна нода из четырёх, и контроллеру есть куда сесть. Чтобы снять cordon с
-# ноды, находиться на ней не требуется.
+# Dropping the toleration is safe: parallelism=1, so exactly one node of four
+# is cordoned and the controller always has somewhere to go. Uncordoning a node
+# does not require running on it.
 tolerations:
   - key: CriticalAddonsOnly
     operator: Exists

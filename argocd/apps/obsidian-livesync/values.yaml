@@ -1,4 +1,4 @@
-# CouchDB chart values (apache/couchdb). Backend для Obsidian Self-hosted LiveSync.
+# CouchDB chart values (apache/couchdb): backend for Obsidian Self-hosted LiveSync.
 
 # Chart default is busybox:latest with pullPolicy Always: a mutable tag pulled
 # on every restart, invisible to Renovate. Same pin as the other init containers.
@@ -7,18 +7,14 @@ initImage:
   tag: "1.38.0"
   pullPolicy: IfNotPresent
 
-# Single-node: LiveSync требует single_node=true, кластер не нужен.
+# Single node: LiveSync needs single_node=true, no CouchDB cluster.
 clusterSize: 1
 
-# Admin creds из ESO-секрета (homelab-common → ExternalSecret), не из git.
-# Chart ждёт секрет с кастомными key-именами.
+# Admin creds come from the ESO secret below (homelab-common externalSecrets),
+# not from git. The chart reads its default key names (adminUsername,
+# adminPassword, cookieAuthSecret, erlangCookie) from extraSecretName.
 createAdminSecret: false
-adminUsername: admin
 extraSecretName: obsidian-livesync-couchdb-creds
-adminUsernameKey: adminUsername
-adminPasswordKey: adminPassword
-cookieAuthSecretKey: cookieAuthSecret
-erlangCookieKey: erlangCookie
 
 image:
   repository: couchdb
@@ -31,20 +27,20 @@ persistentVolume:
     - ReadWriteOnce
   size: 5Gi
 
-# Данные = sync-хаб, но PVC не пересоздавать при удалении StatefulSet.
+# The data is the sync hub: keep the PVC when the StatefulSet is deleted or scaled.
 persistentVolumeClaimRetentionPolicy:
   enabled: true
   whenScaled: Retain
   whenDeleted: Retain
 
-# Single node → anti-affinity не нужен, networkpolicy для кластерного трафика не нужен.
+# Single node: no anti-affinity and no chart NetworkPolicy for cluster traffic.
 networkPolicy:
   enabled: false
 
-# LiveSync-обязательная конфигурация CouchDB.
+# CouchDB settings LiveSync requires.
 couchdbConfig:
   couchdb:
-    # Стабильный server UUID (chart требует явно; не секрет). Не менять после init.
+    # Stable server UUID (the chart requires it; not a secret). Never change after init.
     uuid: 158082af61034052db27da49056dddc0
     single_node: true
     max_document_size: 50000000
@@ -63,7 +59,7 @@ couchdbConfig:
     credentials: "true"
     headers: accept, authorization, content-type, origin, referer
     methods: GET, PUT, POST, HEAD, DELETE
-  # Авто-compaction: LiveSync плодит ревизии, без compaction .couch пухнут.
+  # Auto-compaction: LiveSync creates many revisions; without it .couch files grow.
   smoosh:
     db_channels: upgrade_dbs,ratio_dbs,slack_dbs
     view_channels: upgrade_views,ratio_views,slack_views
@@ -81,11 +77,10 @@ homelab-common:
   networkPolicy:
     enabled: true
 
-  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот
-  # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
-  # CouchDB пишет .couch-файлы под root; moverSecurityContext не задаём —
-  # mover бежит от root и читает снапшот целиком (ns без PSA-ограничений).
-  # Второй уровень защиты у этих данных — живые реплики на устройствах.
+  # Backup v2 (obsidian/113 Backups/Backup Overview.md). CouchDB writes its
+  # .couch files as root, so no moverSecurityContext: the mover runs as root
+  # and reads the whole snapshot. Live replicas on the devices are the second
+  # copy of this data.
   volsync:
     - name: obsidian-livesync
       claim: database-storage-obsidian-livesync-couchdb-0
@@ -95,8 +90,8 @@ homelab-common:
         - repo: ovh
           schedule: "10 7 * * 0"
 
-  # CouchDB admin creds из OpenBao. Target-секрет с key-именами под couchdb chart
-  # (values.yaml: extraSecretName + *Key). Vault: homelab/k8s/obsidian-livesync/couchdb.
+  # CouchDB admin creds from OpenBao (homelab/k8s/obsidian-livesync/couchdb),
+  # with the key names the couchdb chart reads from extraSecretName.
   externalSecrets:
     - name: obsidian-livesync-couchdb-creds
       vaultPath: obsidian-livesync/couchdb
@@ -114,7 +109,7 @@ homelab-common:
   # reuse the Cloudflare-advertised HTTP/3 Alt-Svc against the TCP-only internal
   # gateway -> ERR_QUIC_PROTOCOL_ERROR at home. LAN sync now hairpins through
   # Cloudflare, so the free-plan 100 MB request cap applies to attachments again.
-  # E2E-шифрование в плагине → CouchDB/трафик не палят заметки.
+  # The plugin encrypts end to end, so CouchDB and the traffic never see notes.
   httpRoutes:
     - name: obsidian-livesync
       hostname: livesync

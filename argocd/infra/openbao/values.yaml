@@ -2,15 +2,13 @@
 
 homelab-common:
 
-  # Raft-снапшот в обе S3-цели напрямую (backup v2, см. obsidian/113 Backups/Backup Overview.md).
-  # Раньше снапшот снимал Velero pre-hook, а сам файл вывозился вместе с PVC
-  # data-openbao-0 двумя Schedule'ами. Здесь всё в одном месте: bao пишет
-  # снапшот в emptyDir, rclone раскладывает по garage и ovh.
+  # Raft snapshot straight to both S3 targets (backup v2, obsidian/113 Backups/Backup Overview.md):
+  # bao writes the snapshot to an emptyDir, rclone copies it to garage and ovh.
   #
-  # Снапшот самодостаточен — это полный слепок Raft-стора, восстанавливаемый
-  # `bao operator raft snapshot restore` в пустой кластер. PVC бэкапить не нужно.
-  # SA `openbao` — под ним же работает StatefulSet, поэтому k8s-auth роль
-  # openbao-snapshot принимает его токен без дополнительных привязок.
+  # The snapshot is self-contained: a full copy of the Raft store that
+  # `bao operator raft snapshot restore` loads into an empty cluster, so the
+  # PVCs need no backup. SA `openbao` is the StatefulSet's own, so the k8s-auth
+  # role openbao-snapshot accepts its token without extra bindings.
   cronJobs:
     - name: openbao-raft-snapshot
       spec:
@@ -103,15 +101,15 @@ homelab-common:
                   - name: snap
                     emptyDir: {}
 
-    # Недельная off-site копия DR-пакета (Shamir + raft snapshot + креды S3/CF)
-    # в оба S3. Локальный scripts/dr-pack/build.sh никуда не девается — он
-    # делает офлайн-копию на машине оператора; этот CronJob страхует случай
-    # «пакет на ноутбуке протух, а кластера уже нет».
+    # Weekly off-site copy of the DR pack (Shamir + raft snapshot + S3/CF creds)
+    # to both S3 targets. The local scripts/dr-pack/build.sh still makes the
+    # offline copy on the operator's machine; this CronJob covers "the pack on
+    # the laptop is stale and the cluster is already gone".
     #
-    # Шифруется отдельной фразой (Vault shared/dr-pack), а НЕ мастер-паролем
-    # Vaultwarden: пакет лежит в том же S3, что и бэкапы, и компрометация
-    # S3-ключа не должна давать ещё и доступ к хранилищу паролей.
-    # Фразу держать в Vaultwarden записью "10 - DR pack passphrase (off-site)".
+    # Encrypted with its own passphrase (OpenBao shared/dr-pack), NOT the
+    # Vaultwarden master password: the pack sits in the same S3 as the backups,
+    # and a leaked S3 key must not also open the password store.
+    # Keep the passphrase in Vaultwarden as "10 - DR pack passphrase (off-site)".
     - name: dr-pack-offsite
       spec:
         schedule: "40 2 * * 0"
@@ -135,8 +133,8 @@ homelab-common:
                   seccompProfile:
                     type: RuntimeDefault
                 initContainers:
-                  # Сбор материала: kubectl+jq+curl есть только в alpine/k8s,
-                  # gpg и rclone — в других образах, отсюда три шага.
+                  # Collect: kubectl+jq+curl only exist in alpine/k8s, gpg and
+                  # rclone live in other images, hence three steps.
                   - name: collect
                     # renovate: image=alpine/k8s
                     image: alpine/k8s:1.37.1
@@ -186,8 +184,8 @@ homelab-common:
                         unset root
 
                         echo "=== 2/3 raft snapshot ==="
-                        # HTTP API, а не bao CLI: в этом образе его нет,
-                        # а тащить четвёртый образ ради одной команды незачем.
+                        # HTTP API, not the bao CLI: this image lacks it, and a
+                        # fourth image for one command is not worth it.
                         BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
                         JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
                         login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
@@ -211,8 +209,8 @@ homelab-common:
                           cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
                           echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
                         } > "$work/01-bootstrap.env"
-                        # Тот же формат, что у scripts/dr-pack/build.sh — фазы 01/04 читают
-                        # именно эти переменные, пакеты взаимозаменяемы.
+                        # Same format as scripts/dr-pack/build.sh: DR phases 01/04 read
+                        # exactly these variables, so the packs are interchangeable.
                         {
                           echo "# Refreshed: $(date -u -Iseconds)"
                           echo "GATEWAY_EXTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
@@ -222,7 +220,7 @@ homelab-common:
                         kubectl get nodes -o wide > "$work/04-nodes.txt" 2>/dev/null || true
                         echo "collected $(ls -1 "$work" | wc -l) files"
                   - name: encrypt
-                    # Единственный образ в кластере с gpg — postgres-бейз от CNPG.
+                    # The only image in the cluster with gpg: the CNPG postgres base.
                     # renovate: image=ghcr.io/cloudnative-pg/postgresql
                     image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
                     imagePullPolicy: IfNotPresent
@@ -293,7 +291,7 @@ homelab-common:
                         for dst in garage:snapshots/dr-pack ovh:offsite-homelab/snapshots/dr-pack; do
                           echo "--- upload -> $dst"
                           rclone copy "$f" "$dst" --verbose
-                          # Держим 8 последних недельных копий.
+                          # Keep the last 8 weekly copies.
                           n=$(rclone lsf "$dst" | wc -l)
                           if [ "$n" -gt 8 ]; then
                             rclone lsf "$dst" | sort | head -n $((n - 8)) | while IFS= read -r old; do
@@ -342,8 +340,8 @@ homelab-common:
                       sizeLimit: 512Mi
 
   externalSecrets:
-    # Креды для недельного off-site DR-пакета: фраза шифрования и ключ бакета
-    # restic-apps (он попадает в 01-bootstrap.env внутри пакета).
+    # Creds for the weekly off-site DR pack: the passphrase and the restic-apps
+    # bucket key (it goes into 01-bootstrap.env inside the pack).
     - name: dr-pack-creds
       vaultPath: shared/dr-pack
       data:
@@ -385,8 +383,8 @@ homelab-common:
         port: 8200
 
   rbac:
-    # SA для недельного off-site DR-пакета: ровно три секрета по именам,
-    # ноды и Gateway'и для снимка топологии. Ничего не пишет и не удаляет.
+    # SA for the weekly off-site DR pack: exactly three Secrets by name, plus
+    # nodes and Gateways for the topology snapshot. Writes and deletes nothing.
     - serviceAccount:
         name: openbao-dr-pack
         create: true
@@ -421,10 +419,10 @@ homelab-common:
       memory: 256Mi
 
 server:
-  # RollingUpdate (chart default = OnDelete): auto-roll pods on image/chart bumps
-  # без ручного delete. Reverse-ordinal по одному, ждёт Ready между подами —
-  # autounseal расшиливает холодный pod (~30s) до readiness. active (openbao-0)
-  # катится последним. См. memory reference-openbao-autounseal-broken-full-reboot.
+  # RollingUpdate (chart default = OnDelete): image/chart bumps roll the pods
+  # without a manual delete. Reverse ordinal, one at a time, waiting for Ready:
+  # autounseal unseals a cold pod (~30s) before readiness. The active pod
+  # (openbao-0) rolls last.
   updateStrategyType: "RollingUpdate"
 
   # 200m limit throttled every pod (~25% of CFS periods) — the exec readiness
@@ -506,18 +504,6 @@ server:
         }
 
         service_registration "kubernetes" {}
-
-  securityContext:
-    pod:
-      seccompProfile:
-        type: RuntimeDefault
-    container:
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
-        add:
-          - IPC_LOCK
 
 # Agent injector off: no pod carries vault.hashicorp.com/agent-inject — every
 # secret comes through ESO. It only added a mutating webhook on all pods and

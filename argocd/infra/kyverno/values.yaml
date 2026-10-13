@@ -36,14 +36,6 @@ admissionController:
     extraArgs:
       leaderElectionRetryPeriod: 15s
   replicas: 1
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      # Chart default caps at 128Mi, which is tight once policies and the
-      # resource cache grow.
-      memory: 384Mi
 
 backgroundController:
   extraArgs:

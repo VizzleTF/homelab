@@ -1,7 +1,7 @@
 # Forgejo Runner (act_runner) — chart values + homelab-common section at the bottom.
-# Регистрация: ESO secret forgejo-runner-init {CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME}
-# из Vault home/homelab/k8s/forgejo/runner — pre-install hook job регистрирует runner и
-# сохраняет .runner JWT в Secret forgejo-runner-config (resource-policy: keep).
+# Registration: ESO secret forgejo-runner-init {CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME}
+# from OpenBao homelab/k8s/forgejo/runner; the chart's pre-install hook job registers
+# the runner and stores the .runner JWT in Secret forgejo-runner-config (resource-policy: keep).
 
 # wrenix's chart 0.7.x is the last release on codeberg — guard requires explicit ack.
 knownLastVersion: true
@@ -23,7 +23,8 @@ runner:
         insecure: false
         fetch_timeout: 5s
         fetch_interval: 2s
-        # Dummy envs из чарт-defaults — не убираем, чтобы соответствовать схеме.
+        # Chart defaults. Helm merges maps, so dropping them here would not remove
+        # them from the rendered config; `envs: null` would.
         envs:
           A_TEST_ENV_NAME_1: a_test_env_value_1
           A_TEST_ENV_NAME_2: a_test_env_value_2
@@ -73,7 +74,7 @@ runner:
 nodeSelector:
   kubernetes.io/hostname: talos-worker-01
 
-# DinD — sidecar для исполнения jobs.
+# DinD sidecar that runs the jobs.
 dind:
   resources:
     requests:
@@ -110,10 +111,10 @@ serviceAccount:
 
 homelab-common:
   externalSecrets:
-    # Init-secret для register job: env-vars CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME.
-    # Vault path: home/homelab/k8s/forgejo/runner с ключами token, instance, name.
-    # PreSync hook + sync-wave -10 — синкается ДО chart-овского pre-install Job (wave 0).
-    # deletionPolicy: Retain — k8s Secret переживает delete-recreate цикл ES при rerun хуков.
+    # Init secret for the register job: env CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME
+    # from homelab/k8s/forgejo/runner (keys token, instance, name).
+    # PreSync hook + sync-wave -10: synced BEFORE the chart's pre-install Job (wave 0).
+    # deletionPolicy: Retain: the Secret survives the ES delete-recreate cycle on hook reruns.
     - name: forgejo-runner-init
       annotations:
         argocd.argoproj.io/hook: PreSync
