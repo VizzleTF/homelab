@@ -1,4 +1,4 @@
-# Atuin — self-hosted shell-history sync server (homelab-common.apps workload).
+# Atuin — self-hosted shell-history sync server (homelab-common workload).
 # Stateless: all state in shared cnpg-cluster (DB `atuin`). No PVC.
 # DB via cnpg-cluster-rw DIRECT (not the pooler): atuin/sqlx prepared statements
 # break under pgbouncer transaction-mode pooling.
@@ -31,83 +31,57 @@ homelab-common:
   limitRange:
     enabled: true
 
-  apps:
-    - name: atuin
-      deployment:
-        metadata:
-          labels:
-            app: atuin
-        spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              app: atuin
-          template:
-            metadata:
-              labels:
-                app: atuin
-            spec:
-              automountServiceAccountToken: false
-              securityContext:
-                runAsNonRoot: true
-                runAsUser: 1000
-                runAsGroup: 1000
-                fsGroup: 1000
-                seccompProfile:
-                  type: RuntimeDefault
-              containers:
-                - name: atuin
-                  # renovate: image=ghcr.io/atuinsh/atuin
-                  image: ghcr.io/atuinsh/atuin:18.23.0
-                  imagePullPolicy: IfNotPresent
-                  # Image entrypoint is `atuin server`; `start` launches the sync server.
-                  args: ["start"]
-                  ports:
-                    - name: http
-                      containerPort: 8888
-                      protocol: TCP
-                  env:
-                    - name: ATUIN_HOST
-                      value: "0.0.0.0"
-                    - name: ATUIN_PORT
-                      value: "8888"
-                    # Locked down post-registration. `atuin login` on new devices works
-                    # regardless; this only gates new-account signups. Flip to "true"
-                    # temporarily if registering a fresh account (see obsidian/112 ArgoCD/Apps/all/atuin.md).
-                    - name: ATUIN_OPEN_REGISTRATION
-                      value: "false"
-                  envFrom:
-                    - secretRef:
-                        name: atuin-db
-                  livenessProbe:
-                    httpGet:
-                      path: /
-                      port: http
-                    initialDelaySeconds: 10
-                    periodSeconds: 30
-                  readinessProbe:
-                    httpGet:
-                      path: /
-                      port: http
-                    initialDelaySeconds: 5
-                    periodSeconds: 15
-                  resources:
-                    limits:
-                      cpu: 250m
-                      memory: 256Mi
-                    requests:
-                      cpu: 15m
-                      memory: 64Mi
-      service:
-        metadata:
-          labels:
-            app: atuin
-        spec:
-          type: ClusterIP
+  workloads:
+    - name: atuin                   # -> Deployment + Service "atuin"
+      legacySelector:
+        app: atuin                  # immutable selector of the Deployment created before 1.19
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: atuin
+          image:
+            repository: ghcr.io/atuinsh/atuin
+            tag: "18.23.0"
+          # Image entrypoint is `atuin server`; `start` launches the sync server.
+          args: ["start"]
           ports:
-            - port: 8888
-              targetPort: http
-              protocol: TCP
-              name: http
-          selector:
-            app: atuin
+            - name: http
+              containerPort: 8888
+          env:
+            - name: ATUIN_HOST
+              value: "0.0.0.0"
+            - name: ATUIN_PORT
+              value: "8888"
+            # Locked down post-registration. `atuin login` on new devices works
+            # regardless; this only gates new-account signups. Flip to "true"
+            # temporarily if registering a fresh account (see obsidian/112 ArgoCD/Apps/all/atuin.md).
+            - name: ATUIN_OPEN_REGISTRATION
+              value: "false"
+          envFrom:
+            - secretRef:
+                name: atuin-db      # -> secret.reloader.stakater.com/reload: atuin-db
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi
+            requests:
+              cpu: 15m
+              memory: 64Mi
