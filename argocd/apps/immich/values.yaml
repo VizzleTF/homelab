@@ -1,7 +1,7 @@
 # Immich Self-hosted Photo and Video Backup Solution
 # Configuration for HomeLab deployment with CNPG PostgreSQL
 
-# Общие ресурсы через homelab-common chart
+# Platform resources via the homelab-common chart
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
@@ -14,38 +14,36 @@ homelab-common:
       - namespaces: [victoria-metrics]
         ports: [9187]
 
-  # Backup v2 (см. obsidian/113 Backups/Backup Overview.md): VolSync снимает Longhorn CSI-снапшот
-  # и льёт restic в две независимые цели — garage (on-prem) и ovh (off-site).
-  # Библиотека 250Gi (реально ~184Gi), RWX через Longhorn share-manager —
-  # accessMode снапшота обязан быть ReadWriteMany, иначе mover не примонтирует.
-  # Кэш индексов restic поднят до 10Gi: на таком количестве файлов дефолтных
-  # 2Gi не хватает. Off-site — раз в неделю: полная заливка идёт часами.
-  # pgdata CNPG сюда не попадает — это отдельный PVC с barman/pg_dump.
+  # Backup v2 (obsidian/113 Backups/Backup Overview.md). The library is 250Gi
+  # (~184Gi used), RWX through the Longhorn share-manager, so the mover's
+  # accessMode must be ReadWriteMany or it cannot mount. The restic index cache
+  # is 10Gi: the default 2Gi is too small for this many files. Off-site runs
+  # weekly: a full upload takes hours. CNPG pgdata is a separate PVC covered by
+  # barman/pg_dump.
   volsync:
     - name: immich-library
       claim: immich-library-pvc
       accessMode: ReadWriteMany
       cacheCapacity: 10Gi
-      # Direct, а не Snapshot: снапшот 250Gi материализуется в клон-PVC, и две
-      # цели давали два клона по 250Gi × 2 реплики = 1 TiB — Longhorn не смог их
-      # разместить (cp-02/cp-03 имеют ~160Gi свободного), тома ушли в faulted.
-      # RWX-том монтируется параллельно, поэтому mover читает боевой PVC прямо
-      # на месте — ровно так же работал Velero FSB для этой библиотеки.
-      # Цена: чтение не атомарно, дозагруженные во время прогона файлы поедут
-      # в следующий снапшот. Для фотоархива это приемлемо.
+      # Direct, not Snapshot: a 250Gi snapshot materialises as a clone PVC, and
+      # two targets meant two clones of 250Gi x 2 replicas = 1 TiB that Longhorn
+      # could not place (cp-02/cp-03 have ~160Gi free); the volumes went faulted.
+      # The RWX volume mounts in parallel, so the mover reads the live PVC in
+      # place. Cost: the read is not atomic; files uploaded during a run go into
+      # the next snapshot. Acceptable for a photo archive.
       copyMethod: Direct
       targets:
         - repo: garage
           schedule: "30 3 * * *"
-        # Смещено на 5 часов от on-prem: два mover'а на одном томе одновременно
-        # ничего не ломают, но делят диск и 1 GbE.
+        # Five hours after on-prem: two movers on one volume break nothing,
+        # but they share the disk and the 1 GbE link.
         - repo: ovh
           schedule: "0 8 * * 0"
           retain:
             weekly: 8
-      # bootstrap намеренно нет: ReplicationDestination материализовал бы ещё
-      # один том на 250Gi. Восстановление библиотеки — осознанная операция,
-      # destination создаётся вручную по месту.
+      # No bootstrap on purpose: a ReplicationDestination would materialise
+      # another 250Gi volume. Restoring the library is a deliberate operation;
+      # the destination is created by hand.
 
   persistentVolumeClaims:
     - name: immich-library-pvc
@@ -108,8 +106,8 @@ homelab-common:
         - secretKey: ACCESS_SECRET_KEY
           property: ACCESS_SECRET_KEY
 
-    # rclone OVH creds для pg_dump → pg-logical CronJob (независимый off-site
-    # логический дамп immich DB, не зеркало barman). Vault: velero/s3-ovh.
+    # rclone OVH creds for the pg-logical CronJob (an independent off-site
+    # logical dump of the immich DB, not a barman mirror). OpenBao: velero/s3-ovh.
     - name: ovh-pglogical-rclone
       vaultPath: velero/s3-ovh
       data:
@@ -184,8 +182,8 @@ homelab-common:
         - name: earthdistance
 
   # Independent logical backup (pg_dump -Fc) immich DB → OVH pg-logical/immich-cluster/.
-  # Параллельно barman→Garage. immich владеет всей DB (owner) → дамп всей DB. Restore требует
-  # vchord-image (CREATE EXTENSION vchord). Тир секреты: daily 03:55, 90d.
+  # Runs alongside barman->Garage. immich owns the whole DB, so the dump covers it all.
+  # Restore needs the vchord image (CREATE EXTENSION vchord). Daily 03:55, 90d retention.
   cronJobs:
     - name: pglogical-offsite
       spec:
@@ -260,88 +258,93 @@ homelab-common:
                     emptyDir: {}
 
 _shared_config:
-  hostname: &hostname immich.example.com
   url: &url https://immich.example.com
-  # Server и ML публикуются одним релизом immich-app/immich. docker-datasource на
-  # ghcr.io/immich-app/* не работает: сотни тысяч тегов (PR-билды) = сотни страниц
-  # tags/list на каждый lookup, walk отваливается → "no-result" в Dependency
-  # Dashboard (hostRule с PAT не помог). Поэтому обе версии берём из github-releases
-  # immich-app/immich; у ML суффикс -openvino живёт вне currentValue (customManager
-  # в renovate.json). Обе бампаются одним PR — server и ML не разъезжаются.
+  # Server and ML ship in one immich-app/immich release. The docker datasource
+  # fails on ghcr.io/immich-app/* (hundreds of thousands of PR-build tags =
+  # hundreds of tags/list pages per lookup, "no-result" in the Dependency
+  # Dashboard), so both versions come from github-releases immich-app/immich;
+  # the ML -openvino suffix stays outside currentValue (customManager in
+  # renovate.json). One PR bumps both, so server and ML never drift.
   # renovate: datasource=github-releases depName=immich-app/immich
   version: &version "v3.3.1"
   # renovate: immich-ml
   ml_tag: &ml_tag "v3.3.1-openvino"
 
-# Pod-level securityContext + soft affinity for the server component.
-# Prefer the bare-metal ML worker so the server lands next to the ML pod (low-latency
-# inter-pod calls during re-encode + thumbnail/transcode jobs), but fall back to any
-# schedulable node if worker-01 is full or down — server is not GPU-bound, so a CP
-# can run it without contention.
-defaultPodOptions:
-  securityContext:
-    seccompProfile:
-      type: RuntimeDefault
-  affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/ml
-                operator: In
-                values: ["true"]
-
-# Controllers configuration for new chart structure
-controllers:
-  main:
-    containers:
-      main:
-        image:
-          tag: *version
-        resources:
-          requests:
-            cpu: 500m
-            memory: 2400Mi
-          limits:
-            # Server consolidates the v2.x microservices (job dispatcher, thumbnail
-            # generator, metadata extractor, transcode launcher). During bulk re-encode
-            # it was pinned at 1000m and the kernel throttled 93 % of periods, stealing
-            # 5.4 x more CPU time than the pod was allowed to run. Bump to 6 cores;
-            # worker-01 has 16 allocatable and runs at ~20 % otherwise.
-            cpu: 6000m
-            memory: 5Gi
-        env:
-          # PostgreSQL connection via CNPG
-          DB_HOSTNAME: "immich-cluster-rw"
-          DB_PORT: "5432"
-          DB_DATABASE_NAME: "immich"
-          DB_USERNAME:
-            valueFrom:
-              secretKeyRef:
-                name: immich-db-credentials
-                key: username
-          DB_PASSWORD:
-            valueFrom:
-              secretKeyRef:
-                name: immich-db-credentials
-                key: password
-          # Valkey connection — shared instance (ns valkey), Immich on DB index 1 to isolate from argocd (DB 0)
-          REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
-          REDIS_DBINDEX: "1"
-          REDIS_USERNAME: "app"
-          REDIS_PASSWORD:
-            valueFrom:
-              secretKeyRef:
-                name: immich-valkey
-                key: password
-          # Machine Learning service URL
-          IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
-          # Server URL
-          IMMICH_SERVER_URL: *url
-          PUBLIC_IMMICH_SERVER_URL: *url
-          # OAuth / Authentik — v2.x uses config file, not env vars
-          IMMICH_CONFIG_FILE: "/config/immich-config.json"
+# Server-only settings. Top-level controllers/defaultPodOptions/persistence in
+# the immich chart are shared by every component, so they also landed in the
+# ML pod (DB/Redis credentials, the OIDC config mount, the server affinity).
+server:
+  # Prefer the bare-metal ML worker so the server lands next to the ML pod
+  # (low-latency calls during re-encode, thumbnail and transcode jobs), but fall
+  # back to any node if worker-01 is full or down: the server is not GPU-bound.
+  defaultPodOptions:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/ml
+                  operator: In
+                  values: ["true"]
+  controllers:
+    main:
+      containers:
+        main:
+          image:
+            tag: *version
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2400Mi
+            limits:
+              # Server consolidates the v2.x microservices (job dispatcher, thumbnail
+              # generator, metadata extractor, transcode launcher). During bulk re-encode
+              # it was pinned at 1000m and the kernel throttled 93 % of periods, stealing
+              # 5.4 x more CPU time than the pod was allowed to run. Bump to 6 cores;
+              # worker-01 has 16 allocatable and runs at ~20 % otherwise.
+              cpu: 6000m
+              memory: 5Gi
+          env:
+            # PostgreSQL via CNPG
+            DB_HOSTNAME: "immich-cluster-rw"
+            DB_PORT: "5432"
+            DB_DATABASE_NAME: "immich"
+            DB_USERNAME:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-db-credentials
+                  key: username
+            DB_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-db-credentials
+                  key: password
+            # Shared Valkey (ns valkey); Immich on DB index 1, argocd on DB 0
+            REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
+            REDIS_DBINDEX: "1"
+            REDIS_USERNAME: "app"
+            REDIS_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-valkey
+                  key: password
+            IMMICH_SERVER_URL: *url
+            PUBLIC_IMMICH_SERVER_URL: *url
+            # OAuth / Authentik: v2+ reads it from a config file, not env vars
+            IMMICH_CONFIG_FILE: "/config/immich-config.json"
+  persistence:
+    immich-config:
+      type: secret
+      name: immich-oidc-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: true
 
 # Immich configuration
 immich:
@@ -353,7 +356,6 @@ immich:
 # Machine Learning component — OpenVINO image with Intel Iris Xe GPU (N100)
 # i915 Talos extension installed; Intel GPU Device Plugin advertises gpu.intel.com/i915.
 machine-learning:
-  enabled: true
   defaultPodOptions:
     securityContext:
       seccompProfile:
@@ -422,22 +424,3 @@ machine-learning:
       storageClass: "local-path"
       accessMode: ReadWriteOnce
       retain: true
-
-# Valkey: используем shared valkey-primary в ns `valkey` (DB index 1)
-valkey:
-  enabled: false
-
-persistence:
-  immich-config:
-    type: secret
-    name: immich-oidc-secret
-    advancedMounts:
-      main:
-        main:
-          - path: /config
-            readOnly: true
-
-# Service configuration - ClusterIP since we use HTTPRoute via Gateway API
-service:
-  main:
-    type: ClusterIP
