@@ -39,3 +39,7 @@ nodes:
     role: worker
     install_disk: /dev/nvme0n1
     mac: 78:55:36:07:31:d3
+    # Own prefix: NodeRestriction stops a node from setting node-role.kubernetes.io/*.
+    # immich-machine-learning selects on it (Iris Xe iGPU).
+    labels:
+      homelab.example.com/ml: "true"

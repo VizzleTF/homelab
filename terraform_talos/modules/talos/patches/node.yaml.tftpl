@@ -3,6 +3,9 @@ machine:
     disk: ${install_disk}
   features:
     stableHostname: false
+%{ if length(labels) > 0 ~}
+  nodeLabels: ${jsonencode(labels)}
+%{ endif ~}
   network:
     interfaces:
       - deviceSelector:
