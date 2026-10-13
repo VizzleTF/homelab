@@ -36,7 +36,7 @@ caps=()
 if kv=$(kubectl version -o json --request-timeout=5s 2>/dev/null | yq -r '.serverVersion.gitVersion'); then
   caps+=(--kube-version "$kv")
   # api-resources columns: NAME [SHORTNAMES] APIVERSION NAMESPACED KIND
-  while read -r gv kind; do caps+=(--api-versions "$gv" --api-versions "$gv/$kind"); done \
+  while read -r gv res_kind; do caps+=(--api-versions "$gv" --api-versions "$gv/$res_kind"); done \
     < <(kubectl api-resources --no-headers --request-timeout=10s | awk '{print $(NF-2), $NF}' | sort -u)
 else
   echo "warning: cluster unreachable, rendering without --kube-version/--api-versions" >&2
