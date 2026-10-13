@@ -480,7 +480,8 @@ grafana:
       token_url: https://authentik.example.com/application/o/token/
       api_url: https://authentik.example.com/application/o/userinfo/
       allow_sign_up: true
-      role_attribute_path: contains(groups[*], 'Grafana Admins') && 'Admin' || contains(groups[*], 'Grafana Editors') && 'Editor' || 'Viewer'
+      # Group declared in the authentik blueprint 00-grafana-groups.yaml.
+      role_attribute_path: contains(groups[*], 'grafana-admins') && 'Admin' || 'Viewer'
 
   # Admin credentials from ExternalSecret
   admin:

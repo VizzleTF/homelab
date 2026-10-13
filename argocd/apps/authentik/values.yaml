@@ -5,22 +5,23 @@ homelab-common:
   authentikBlueprints:
     - name: authentik-blueprint-grafana
       blueprints:
-        # Blueprint 1: create groups scope mapping first (no dependencies)
-        01-grafana-scope.yaml: |
+        # Blueprint 0: admin group, matched by role_attribute_path in
+        # argocd/infra/victoria-metrics-k8s-stack/values.yaml; everyone else is Viewer.
+        00-grafana-groups.yaml: |
           version: 1
           metadata:
-            name: Grafana OIDC - Groups Scope
+            name: Grafana Groups
           entries:
-            - model: authentik_providers_oauth2.scopemapping
+            - model: authentik_core.group
               identifiers:
-                name: "OAuth Mapping: OpenID 'groups' (Grafana)"
+                name: grafana-admins
               attrs:
-                name: "OAuth Mapping: OpenID 'groups' (Grafana)"
-                scope_name: groups
-                description: "Group memberships for role-based access"
-                expression: "return list(request.user.groups.values_list('name', flat=True))"
+                name: grafana-admins
+                users:
+                  - !Find [authentik_core.user, [username, vizzle]]
 
-        # Blueprint 2: create provider + app (references scope via !Find, runs after 01-)
+        # Blueprint 2: provider + app. The `groups` claim comes from the default
+        # profile mapping.
         02-grafana-oidc.yaml: |
           version: 1
           metadata:
@@ -48,7 +49,6 @@ homelab-common:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (Grafana)"]]
 
             # Application for Grafana
             - model: authentik_core.application
@@ -65,22 +65,8 @@ homelab-common:
 
     - name: authentik-blueprint-immich
       blueprints:
-        # Blueprint 1: create groups scope mapping first (no dependencies)
-        01-immich-scope.yaml: |
-          version: 1
-          metadata:
-            name: Immich OIDC - Groups Scope
-          entries:
-            - model: authentik_providers_oauth2.scopemapping
-              identifiers:
-                name: "OAuth Mapping: OpenID 'groups' (Immich)"
-              attrs:
-                name: "OAuth Mapping: OpenID 'groups' (Immich)"
-                scope_name: groups
-                description: "Group memberships"
-                expression: "return list(request.user.groups.values_list('name', flat=True))"
-
-        # Blueprint 2: create provider + app (references scope via !Find, runs after 01-)
+        # Blueprint 2: provider + app. The `groups` claim comes from the default
+        # profile mapping.
         02-immich-oidc.yaml: |
           version: 1
           metadata:
@@ -107,7 +93,6 @@ homelab-common:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (Immich)"]]
 
             - model: authentik_core.application
               identifiers:
@@ -136,22 +121,8 @@ homelab-common:
                 users:
                   - !Find [authentik_core.user, [username, vizzle]]
 
-        # Blueprint 1: create groups scope mapping first (no dependencies)
-        01-argocd-scope.yaml: |
-          version: 1
-          metadata:
-            name: ArgoCD OIDC - Groups Scope
-          entries:
-            - model: authentik_providers_oauth2.scopemapping
-              identifiers:
-                name: "OAuth Mapping: OpenID 'groups' (ArgoCD)"
-              attrs:
-                name: "OAuth Mapping: OpenID 'groups' (ArgoCD)"
-                scope_name: groups
-                description: "Group memberships for role-based access"
-                expression: "return list(request.user.groups.values_list('name', flat=True))"
-
-        # Blueprint 2: create provider + app (references scope via !Find, runs after 01-)
+        # Blueprint 2: provider + app. The `groups` claim comes from the default
+        # profile mapping.
         02-argocd-oidc.yaml: |
           version: 1
           metadata:
@@ -178,7 +149,6 @@ homelab-common:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (ArgoCD)"]]
 
             - model: authentik_core.application
               identifiers:
@@ -403,22 +373,8 @@ homelab-common:
                 users:
                   - !Find [authentik_core.user, [username, vizzle]]
 
-        # Blueprint 1: groups scope mapping (no dependencies).
-        01-wazuh-scope.yaml: |
-          version: 1
-          metadata:
-            name: Wazuh OIDC - Groups Scope
-          entries:
-            - model: authentik_providers_oauth2.scopemapping
-              identifiers:
-                name: "OAuth Mapping: OpenID 'groups' (Wazuh)"
-              attrs:
-                name: "OAuth Mapping: OpenID 'groups' (Wazuh)"
-                scope_name: groups
-                description: "Group memberships for role-based access"
-                expression: "return list(request.user.groups.values_list('name', flat=True))"
-
-        # Blueprint 2: provider + application (references the scope via !Find).
+        # Blueprint 2: provider + application. The `groups` claim comes from the
+        # default profile mapping.
         02-wazuh-oidc.yaml: |
           version: 1
           metadata:
@@ -447,7 +403,6 @@ homelab-common:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
-                  - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenID 'groups' (Wazuh)"]]
 
             - model: authentik_core.application
               identifiers:
