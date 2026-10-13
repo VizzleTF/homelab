@@ -9,7 +9,7 @@ homelab-common:
 
 # `networkPolicies.restrictInternalTraffic` (default true since 1.12.1) stays
 # on: Longhorn components stay isolated. Cross-namespace access is granted
-# per client: manifests/netpol-allow-monitoring.yaml (vmagent -> 9500).
+# per client: manifests/networkpolicy-allow-monitoring.yaml (vmagent -> 9500).
 # UI/API stay ClusterIP: the manager API (9500) can delete volumes and has no
 # auth, so it must not be announced over BGP. UI access goes through the
 # internal HTTPRoute above.

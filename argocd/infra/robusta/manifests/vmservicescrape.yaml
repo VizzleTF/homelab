@@ -1,5 +1,4 @@
-# Метки и имена портов соответствуют тому, что рендерит chart 0.35.0
-# (см. helm template ... services):
+# Labels and port names match the Services the chart renders:
 #   runner:    labels app=robusta-runner, port http
 #   forwarder: labels app=robusta-forwarder, port forwarder-metrics
 apiVersion: operator.victoriametrics.com/v1beta1

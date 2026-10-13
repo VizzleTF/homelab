@@ -1,7 +1,6 @@
-# Метрики VolSync живут за kube-rbac-proxy (Service volsync-metrics, порт https/8443),
-# поэтому одного `insecureSkipVerify` мало — нужен SA-токен vmagent'а и право
-# на nonResourceURL /metrics, которое чарт выносит в ClusterRole
-# volsync-metrics-reader (binding'а он не создаёт — это наша часть).
+# VolSync metrics sit behind kube-rbac-proxy (Service volsync-metrics, port
+# https/8443), so `insecureSkipVerify` alone is not enough: vmagent sends its SA
+# token, authorized by clusterrolebinding-metrics-reader.yaml.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
@@ -23,16 +22,3 @@ spec:
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       tlsConfig:
         insecureSkipVerify: true
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: volsync-metrics-reader-vmagent
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: volsync-metrics-reader
-subjects:
-  - kind: ServiceAccount
-    name: vmagent-victoria-metrics-k8s-stack
-    namespace: victoria-metrics
