@@ -5,20 +5,28 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
-    argocd.argoproj.io/sync-options: PruneLast=true
+    # The CRDs were applied with Replace=true (client-side apply could not
+    # store the ~300 KB httproutes CRD in last-applied-configuration). Hand
+    # the fields that manager still co-owns over to ServerSideApply.
+    argocd.argoproj.io/client-side-apply-migration-manager: argocd-application-controller
+    argocd-diff-preview/watch-pattern: "argocd/standalone/gateway-api.yaml"
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    app.kubernetes.io/part-of: infrastructure
   finalizers:
     - resources-finalizer.argocd.argoproj.io/background
 spec:
   project: infrastructure
-  source:
-    repoURL: https://github.com/kubernetes-sigs/gateway-api.git
-    targetRevision: v1.6.2
-    path: config/crd/experimental
+  sources:
+    - repoURL: https://github.com/kubernetes-sigs/gateway-api.git
+      targetRevision: v1.6.2
+      path: config/crd/experimental
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
   syncPolicy:
     automated:
+      # CRDs: never prune, a removed CRD deletes every route with it.
       prune: false
       selfHeal: true
     retry:
@@ -28,20 +36,9 @@ spec:
         factor: 2
         maxDuration: 3m
     syncOptions:
-      - CreateNamespace=false
-      - Replace=true
-      - RespectIgnoreDifferences=true
-  # Narrowed from /metadata/annotations (2026-07-29). Combined with
-  # RespectIgnoreDifferences=true, the broad pointer stripped every annotation
-  # from the manifest ArgoCD applies, including
-  # gateway.networking.k8s.io/bundle-version. The safe-upgrades
-  # ValidatingAdmissionPolicy that gateway-api v1.6.1 installs requires that
-  # annotation, so every httproutes CRD apply was denied.
-  # The original intent was only to keep the oversized
-  # kubectl.kubernetes.io/last-applied-configuration out of the diff.
-  ignoreDifferences:
-    - group: apiextensions.k8s.io
-      kind: CustomResourceDefinition
-      name: httproutes.gateway.networking.k8s.io
-      jsonPointers:
-        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+      # Server-side apply keeps no last-applied-configuration, so the large
+      # httproutes CRD fits without Replace=true. The safe-upgrades
+      # ValidatingAdmissionPolicy (gateway-api >= v1.6.1) needs the
+      # gateway.networking.k8s.io/bundle-version annotation, which the
+      # manifests carry.
+      - ServerSideApply=true
