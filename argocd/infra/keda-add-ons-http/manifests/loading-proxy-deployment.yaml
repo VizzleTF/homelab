@@ -12,6 +12,10 @@ metadata:
   labels:
     app.kubernetes.io/name: keda-loading-proxy
     app.kubernetes.io/part-of: infrastructure
+  annotations:
+    # Reloader rolls the pods when nginx.conf or loading.html change; both are
+    # subPath mounts, which never see ConfigMap updates in a running pod.
+    configmap.reloader.stakater.com/reload: keda-loading-proxy-config
 spec:
   replicas: 2
   revisionHistoryLimit: 3
@@ -27,9 +31,6 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: keda-loading-proxy
-      annotations:
-        # Roll the pods when the ConfigMap changes.
-        checksum/config: keda-loading-proxy-config
     spec:
       securityContext:
         runAsNonRoot: true
@@ -37,13 +38,10 @@ spec:
         runAsGroup: 101
         seccompProfile:
           type: RuntimeDefault
-      # DoNotSchedule, not ScheduleAnyway: all three control-plane nodes carry
-      # tuppr's PreferNoSchedule taint (tuppr.home-operations.com/outdated), so
-      # a soft constraint loses to the taint penalty and both replicas land on
-      # talos-worker-01. descheduler's RemoveDuplicates then evicts one every
-      # 5 min, the scheduler puts it back on the same node, and the loop never
-      # ends. matchLabelKeys keeps old ReplicaSet pods out of the skew math so
-      # the maxSurge:1 rollout is not blocked.
+      # DoNotSchedule, not ScheduleAnyway: a soft constraint lost to node
+      # scoring and both replicas once landed on one node. matchLabelKeys keeps
+      # old ReplicaSet pods out of the skew math so the maxSurge:1 rollout is
+      # not blocked.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
