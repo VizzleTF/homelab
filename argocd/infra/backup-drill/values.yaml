@@ -84,6 +84,10 @@ homelab-common:
           - apiGroups: ["volsync.backube"]
             resources: ["replicationdestinations"]
             verbs: ["get", "list", "create", "delete"]
+          # rotation = ReplicationSources labelled homelab.dr/drill
+          - apiGroups: ["volsync.backube"]
+            resources: ["replicationsources"]
+            verbs: ["list"]
 
   workloads:
     - name: restore-drill           # -> CronJob backup-drill-restore-drill
@@ -162,7 +166,11 @@ homelab-common:
               # one target forever. Result: each volume is checked every COUNT weeks, on
               # each target every 2*COUNT weeks.
               # Weeks count from epoch, not ISO: the ISO week number resets in January.
-              APPS="vaultwarden rss-to-telegram-bot cleanbot may forgejo-ops opencloud-data trek-uploads obsidian-livesync"
+              # The list is every VolSync volume with homelab-common `drill` on (label
+              # homelab.dr/drill=<name>), so adding or removing a volsync entry updates it.
+              VOLS=$(kubectl get replicationsources -A -l homelab.dr/drill -o jsonpath='{range .items[*]}{.metadata.labels.homelab\.dr/drill}{"\n"}{end}' | sort -u)
+              [ -n "$VOLS" ] || { echo "no ReplicationSource labelled homelab.dr/drill"; exit 1; }
+              APPS="$VOLS forgejo-ops"   # forgejo-ops is the ops-node dump, not VolSync
               set -- $APPS
               COUNT=$#
               WEEK=$(( $(date -u +%s) / 604800 ))

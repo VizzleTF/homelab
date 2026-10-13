@@ -30,6 +30,7 @@ homelab-common:
       # place. Cost: the read is not atomic; files uploaded during a run go into
       # the next snapshot. Acceptable for a photo archive.
       copyMethod: Direct
+      drill: false  # 250Gi (~190Gi used) does not fit the drill's 20Gi DRILL_SIZE
       targets:
         - repo: garage
           schedule: "30 3 * * *"
