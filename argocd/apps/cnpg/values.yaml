@@ -58,8 +58,8 @@ homelab-common:
         - secretKey: ACCESS_SECRET_KEY
           property: ACCESS_SECRET_KEY
 
-    # rclone OVH creds для pg_dump → pg-logical CronJob (независимый off-site
-    # логический дамп, не зеркало barman). Vault: home/homelab/k8s/velero/s3-ovh.
+    # rclone OVH creds for the pg_dump -> pg-logical CronJob (an independent off-site
+    # logical dump, not a barman mirror). Vault: home/homelab/k8s/velero/s3-ovh.
     - name: ovh-pglogical-rclone
       vaultPath: velero/s3-ovh
       data:
@@ -87,93 +87,84 @@ homelab-common:
   limitRange:
     enabled: true
 
-  # Independent logical backup (pg_dump -Fc) → OVH pg-logical/cnpg-cluster/.
-  # Параллельно barman→Garage (PITR on-site). pg_dump = self-contained, восстановим
-  # в любой PG, независим от Garage (переживает wipe). Per-DB как owner (без
-  # superuser-зависимости). initContainer дампит → emptyDir, main rclone copy (append,
-  # не sync) + prune >90d. Тир секреты: daily 03:50, 90d retention.
-  cronJobs:
-    - name: pglogical-offsite
-      spec:
-        schedule: "50 3 * * *"
-        concurrencyPolicy: Forbid
-        startingDeadlineSeconds: 600
-        successfulJobsHistoryLimit: 1
-        failedJobsHistoryLimit: 3
-        jobTemplate:
-          spec:
-            backoffLimit: 2
-            activeDeadlineSeconds: 3600
-            template:
-              spec:
-                restartPolicy: OnFailure
-                securityContext:
-                  runAsNonRoot: true
-                  runAsUser: 26
-                  runAsGroup: 26
-                  fsGroup: 26
-                  seccompProfile:
-                    type: RuntimeDefault
-                initContainers:
-                  - name: dump
-                    image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
-                    imagePullPolicy: IfNotPresent
-                    command: ["/bin/bash", "-c"]
-                    args:
-                      - |
-                        set -euo pipefail
-                        ts=$(date -u +%Y%m%dT%H%M%SZ)
-                        dump() {
-                          echo "[$(date -u)] pg_dump $1"
-                          PGPASSWORD="$3" pg_dump -h cnpg-cluster-rw -U "$2" -Fc -d "$1" \
-                            -f "/dump/$1-$ts.dump"
-                        }
-                        dump authentik "$AK_USER" "$AK_PASS"
-                        dump forgejo   "$FJ_USER" "$FJ_PASS"
-                        dump atuin     "$AT_USER" "$AT_PASS"
-                        ls -lh /dump
-                    env:
-                      - name: AK_USER
-                        valueFrom: { secretKeyRef: { name: authentik-db-credentials, key: username } }
-                      - name: AK_PASS
-                        valueFrom: { secretKeyRef: { name: authentik-db-credentials, key: password } }
-                      - name: FJ_USER
-                        valueFrom: { secretKeyRef: { name: forgejo-db-credentials, key: username } }
-                      - name: FJ_PASS
-                        valueFrom: { secretKeyRef: { name: forgejo-db-credentials, key: password } }
-                      - name: AT_USER
-                        valueFrom: { secretKeyRef: { name: atuin-db-credentials, key: username } }
-                      - name: AT_PASS
-                        valueFrom: { secretKeyRef: { name: atuin-db-credentials, key: password } }
-                    volumeMounts:
-                      - name: dump
-                        mountPath: /dump
-                    resources:
-                      requests: { cpu: 50m, memory: 128Mi }
-                      limits: { cpu: 500m, memory: 512Mi }
-                containers:
-                  - name: upload
-                    image: rclone/rclone:1.75
-                    imagePullPolicy: IfNotPresent
-                    command: ["/bin/sh", "-c"]
-                    args:
-                      - |
-                        set -eu
-                        echo "[$(date -u)] rclone copy /dump -> ovh:offsite-homelab/pg-logical/cnpg-cluster/"
-                        rclone copy /dump ovh:offsite-homelab/pg-logical/cnpg-cluster/ \
-                          --s3-acl=private --stats-one-line --stats=2m
-                        echo "[$(date -u)] prune >90d"
-                        rclone delete ovh:offsite-homelab/pg-logical/cnpg-cluster/ \
-                          --min-age 2160h --rmdirs || true
-                    envFrom:
-                      - secretRef:
-                          name: ovh-pglogical-rclone
-                    volumeMounts:
-                      - name: dump
-                        mountPath: /dump
-                    resources:
-                      requests: { cpu: 50m, memory: 128Mi }
-                      limits: { cpu: 500m, memory: 256Mi }
-                volumes:
-                  - name: dump
-                    emptyDir: {}
+  # Independent logical backup (pg_dump -Fc) -> OVH pg-logical/cnpg-cluster/.
+  # Runs alongside barman -> Garage (on-site PITR). pg_dump is self-contained,
+  # restorable into any PG and independent of Garage (survives a wipe). Per DB as
+  # its owner (no superuser dependency). The initContainer dumps into an emptyDir,
+  # the main container runs rclone copy (append, not sync) + prunes >90d.
+  # Tier: secrets, daily 03:50, 90d retention.
+  workloads:
+    - name: pglogical-offsite       # -> CronJob cnpg-pglogical-offsite
+      type: cronjob
+      schedule: "50 3 * * *"
+      job:
+        activeDeadlineSeconds: 3600
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 26
+          runAsGroup: 26
+          fsGroup: 26
+          seccompProfile:
+            type: RuntimeDefault
+        initContainers:
+          - name: dump
+            image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
+            command: ["/bin/bash", "-c"]
+            args:
+              - |
+                set -euo pipefail
+                ts=$(date -u +%Y%m%dT%H%M%SZ)
+                dump() {
+                  echo "[$(date -u)] pg_dump $1"
+                  PGPASSWORD="$3" pg_dump -h cnpg-cluster-rw -U "$2" -Fc -d "$1" \
+                    -f "/dump/$1-$ts.dump"
+                }
+                dump authentik "$AK_USER" "$AK_PASS"
+                dump forgejo   "$FJ_USER" "$FJ_PASS"
+                dump atuin     "$AT_USER" "$AT_PASS"
+                ls -lh /dump
+            env:
+              - name: AK_USER
+                valueFrom: {secretKeyRef: {name: authentik-db-credentials, key: username}}
+              - name: AK_PASS
+                valueFrom: {secretKeyRef: {name: authentik-db-credentials, key: password}}
+              - name: FJ_USER
+                valueFrom: {secretKeyRef: {name: forgejo-db-credentials, key: username}}
+              - name: FJ_PASS
+                valueFrom: {secretKeyRef: {name: forgejo-db-credentials, key: password}}
+              - name: AT_USER
+                valueFrom: {secretKeyRef: {name: atuin-db-credentials, key: username}}
+              - name: AT_PASS
+                valueFrom: {secretKeyRef: {name: atuin-db-credentials, key: password}}
+            volumeMounts:           # persistence mounts only into containers, not initContainers
+              - name: dump
+                mountPath: /dump
+            resources:
+              requests: {cpu: 50m, memory: 128Mi}
+              limits: {cpu: 500m, memory: 512Mi}
+      containers:
+        - name: upload
+          image:
+            repository: rclone/rclone
+            tag: "1.75"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "[$(date -u)] rclone copy /dump -> ovh:offsite-homelab/pg-logical/cnpg-cluster/"
+              rclone copy /dump ovh:offsite-homelab/pg-logical/cnpg-cluster/ \
+                --s3-acl=private --stats-one-line --stats=2m
+              echo "[$(date -u)] prune >90d"
+              rclone delete ovh:offsite-homelab/pg-logical/cnpg-cluster/ \
+                --min-age 2160h --rmdirs || true
+          envFrom:
+            - secretRef:
+                name: ovh-pglogical-rclone
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+      persistence:
+        dump:
+          emptyDir: {}
+          mountPath: /dump
