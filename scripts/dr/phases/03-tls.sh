@@ -24,7 +24,7 @@ kubectl -n cert-manager create secret generic cloudflare-api-token \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 log_info "applying ClusterIssuer"
-kubectl apply -f "$REPO_ROOT/argocd/infra/cert-manager/manifests/CloudFlare_ClusterIssuer.yaml"
+kubectl apply -f "$REPO_ROOT/argocd/infra/cert-manager/manifests/clusterissuer-cloudflare.yaml"
 
 wait_for "cloudflare-issuer Ready" \
   "kubectl get clusterissuer cloudflare-issuer -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}' | grep -q True" \

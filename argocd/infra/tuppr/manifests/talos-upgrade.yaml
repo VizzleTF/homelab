@@ -1,19 +1,18 @@
 # TalosUpgrade — declarative rolling upgrade of Talos OS on all CP nodes.
 #
-# КРИТИЧНО: tuppr НЕ имеет встроенного интервала между нодами.
-# "Пауза" реализуется через healthChecks (CEL): следующая нода не апгрейдится
-# пока ВСЕ чеки не PASS для текущего snapshot'а кластера. Главный gate —
-# Longhorn Volume robustness=healthy: реплики должны полностью восстановиться
-# на оставшихся нодах прежде чем мы тронем следующую.
+# CRITICAL: tuppr has no built-in interval between nodes.
+# The "pause" is the healthChecks (CEL): the next node is not upgraded until
+# ALL checks PASS against the current cluster snapshot. The main gate is
+# Longhorn Volume robustness=healthy: replicas must fully recover on the
+# remaining nodes before the next one is touched.
 #
-# parallelism: 1 обязателен (3 CP — параллельный reboot убьёт etcd quorum).
-# rebootMode: powercycle — workaround Talos v1.13+ unmountPodMounts hang
-# на Longhorn RWX-NFS (см. memory: reference_talos_113_upgrade_gotchas).
+# parallelism: 1 is mandatory (3 CP: a parallel reboot kills etcd quorum).
+# rebootMode: powercycle works around the Talos v1.13+ unmountPodMounts hang
+# on Longhorn RWX-NFS (see memory: reference_talos_113_upgrade_gotchas).
 apiVersion: tuppr.home-operations.com/v1alpha1
 kind: TalosUpgrade
 metadata:
   name: cluster
-  namespace: system-upgrade
 spec:
   talos:
     # Unfrozen 2026-08-18 (was pinned to v1.13.7 since the 2026-08-06 incident).
@@ -68,30 +67,32 @@ spec:
     timeout: 45m
 
   drain:
-    # chart 0.2.x: spec.drain переработан — допустимы только enabled +
-    # disableEviction. Поля deleteLocalData/ignoreDaemonSets/force убраны из
-    # CRD (force теперь в spec.policy.force, DS игнорируются хардкодом).
+    # spec.drain accepts only enabled + disableEviction. The
+    # deleteLocalData/ignoreDaemonSets/force fields are gone from the CRD (force
+    # moved to spec.policy.force, DaemonSets are always ignored).
     enabled: true
-    # Longhorn 1.7+ создаёт per-node PDB на instance-manager pods с
-    # minAvailable=1, allowedDisruptions=0. Eviction API всегда отказывает с
-    # "violates pod's disruption budget". Longhorn `nodeDrainPolicy=always-allow`
-    # PDB не lifts (PDB остаётся, allowedDisruptions считается k8s controller'ом).
-    # disableEviction=true заставляет tuppr использовать прямой DELETE — PDB
-    # применяется только к eviction API, не к DELETE. Replicas data сохраняется
-    # на disk (/var/lib/longhorn/), после reboot Longhorn reuse'ит её (grace
-    # period replicaReplenishmentWaitInterval=1800s покрывает Talos powercycle).
+    # Longhorn 1.7+ creates a per-node PDB on instance-manager pods with
+    # minAvailable=1, allowedDisruptions=0, so the Eviction API always refuses
+    # with "violates pod's disruption budget". Longhorn
+    # `nodeDrainPolicy=always-allow` does not lift it (the PDB stays and the k8s
+    # controller computes allowedDisruptions). disableEviction=true makes tuppr
+    # use a plain DELETE: PDBs apply only to the eviction API, not to DELETE.
+    # Replica data stays on disk (/var/lib/longhorn/) and Longhorn reuses it
+    # after the reboot (the replicaReplenishmentWaitInterval=1800s grace period
+    # covers a Talos powercycle).
     disableEviction: true
 
   maintenance:
     windows:
-      # Permanent: ежедневно 09:00 MSK на 6h. Окно открывается каждый день,
-      # но реальный rolling upgrade запускается только если spec.talos.version
-      # отличается от текущего (то есть после Renovate-PR merge). Не ночью:
-      # ночные часы заняты VolSync-бэкапами (00:10–03:30) и Forgejo/etcd дампами
-      # на ops-ноде.
+      # Permanent: daily 09:00 MSK for 6h. The window opens every day, but an
+      # actual rolling upgrade starts only when spec.talos.version differs from
+      # the running one (i.e. after a Renovate PR merge). Not at night: the
+      # night hours belong to VolSync backups (00:10-03:30) and the Forgejo/etcd
+      # dumps on the ops node.
       #
-      # Разовое окно под конкретный апгрейд — отдельный entry с датой в cron.
-      # Такой cron (`M H D Mon *`) повторяется каждый год: удалять следующим PR.
+      # A one-off window for a specific upgrade is a separate entry with a date
+      # in the cron. Such a cron (`M H D Mon *`) repeats every year: remove it
+      # in the next PR.
       #
       # Paused 2026-09-16..19: the v1.14.1 roll stalled half-way while etcd WAL
       # fsync p99 hit 2-7s, because Longhorn gave up waiting for worker-01's
@@ -102,21 +103,21 @@ spec:
         duration: "6h"
         timezone: "Europe/Moscow"
 
-  # ===== INTERVAL GATE между нодами =====
-  # tuppr re-enters HealthChecking фазу после каждой ноды. Все expr'ы должны
-  # пройти прежде чем взять следующую. Это и есть "interval" — не sleep,
-  # а точный gate на реальное состояние storage/db.
+  # ===== INTERVAL GATE between nodes =====
+  # tuppr re-enters the HealthChecking phase after every node. All exprs must
+  # pass before it takes the next one. This is the "interval": not a sleep,
+  # but an exact gate on the real storage/db state.
   healthChecks:
-    # 1. Все ноды Ready.
+    # 1. All nodes Ready.
     - apiVersion: v1
       kind: Node
       description: "All nodes Ready"
       expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
       timeout: 15m
 
-    # 2. ГЛАВНЫЙ GATE: все Longhorn-volumes healthy после rebuild'а реплик.
-    # Short-circuit на detached: detached volumes репортят robustness=unknown
-    # и без || заблокировали бы апгрейд навсегда.
+    # 2. MAIN GATE: all Longhorn volumes healthy after the replica rebuild.
+    # Short-circuit on detached: detached volumes report robustness=unknown
+    # and without the || would block the upgrade forever.
     - apiVersion: longhorn.io/v1beta2
       kind: Volume
       namespace: longhorn-system
@@ -124,17 +125,18 @@ spec:
       expr: "status.state != 'attached' || status.robustness == 'healthy'"
       timeout: 45m
 
-    # 3. Longhorn ноды ready (storage controller alive).
+    # 3. Longhorn nodes ready (storage controller alive).
     #
-    # НЕ проверяем condition Schedulable: Longhorn ставит его в False на любой
-    # cordoned ноде, а cordon'ит ноды сам tuppr перед апгрейдом. Если контроллер
-    # теряет in-flight состояние (2026-09-04: Renovate-бамп чарта tuppr приехал
-    # через ArgoCD ровно в maintenance-окно и перекатил Deployment посреди
-    # апгрейда worker-01), нода остаётся cordoned, чек Schedulable не проходит
-    # НИКОГДА, tuppr вечно висит в HealthChecking и не доходит до uncordon.
-    # Дедлок держался 4h, immich-machine-learning (nodeSelector ml=true, нода
-    # одна) всё это время был Pending. Целостность данных гейтит чек #2
-    # (attached volumes healthy) — Schedulable там ничего не добавлял.
+    # The Schedulable condition is NOT checked: Longhorn sets it to False on any
+    # cordoned node, and tuppr itself cordons nodes before the upgrade. If the
+    # controller loses its in-flight state (2026-09-04: a Renovate bump of the
+    # tuppr chart arrived through ArgoCD right inside the maintenance window and
+    # rolled the Deployment mid-upgrade of worker-01), the node stays cordoned,
+    # the Schedulable check NEVER passes, and tuppr hangs in HealthChecking
+    # forever without reaching uncordon. The deadlock lasted 4h, and
+    # immich-machine-learning (nodeSelector ml=true, a single such node) stayed
+    # Pending all along. Data integrity is gated by check #2 (attached volumes
+    # healthy); Schedulable added nothing there.
     - apiVersion: longhorn.io/v1beta2
       kind: Node
       namespace: longhorn-system
@@ -150,7 +152,7 @@ spec:
       expr: "status.readyInstances == object.spec.instances && status.phase == 'Cluster in healthy state'"
       timeout: 20m
 
-    # 5. CNPG immich-cluster (1 instance, отдельный ns).
+    # 5. CNPG immich-cluster (1 instance, its own ns).
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
       namespace: immich

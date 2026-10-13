@@ -46,8 +46,8 @@ kubectl apply \
   -f "$longhorn_manifests/longhorn-backuptarget.yaml" \
   -f "$longhorn_manifests/recurringjob-snapshot-cleanup.yaml" \
   -f "$longhorn_manifests/recurringjob-trim.yaml" \
-  -f "$longhorn_manifests/netpol-allow-monitoring.yaml" \
-  -f "$longhorn_manifests/netpol-ui.yaml"
+  -f "$longhorn_manifests/networkpolicy-allow-monitoring.yaml" \
+  -f "$longhorn_manifests/networkpolicy-ui.yaml"
 
 log_info "applying VolumeSnapshotClass for VolSync (driver.longhorn.io)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/volsync/manifests/volumesnapshotclass.yaml"
