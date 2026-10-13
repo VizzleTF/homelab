@@ -1,5 +1,5 @@
-# Общие top-level defaults для Helm (homelab-common и соглашения по кластеру).
-# Подключается первым в valueFiles ArgoCD у source homelab-common — дальше идут файлы приложения.
+# Shared top-level Helm defaults (homelab-common and cluster conventions).
+# Loaded first in the valueFiles of the homelab-common source; the app's own files follow.
 global:
   vault:
     # Every release reads OpenBao through its own SecretStore
@@ -27,13 +27,14 @@ global:
         cnpg-backup: [shared/s3-cnpg-backup]
         db-roles: [forgejo/forgejo, authentik/authentik, atuin/atuin]
         valkey: [valkey/valkey]
-        telegram: [robusta/telegram]
+        # robusta/telegram stays until the legacy-path cleanup.
+        telegram: [shared/telegram, robusta/telegram]
         tfstate: [terraform/s3-terraform-state]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
         externaldns: [externaldns]
         openwrt: [openwrt]
       namespaces:
-        argocd: [valkey]
+        argocd: [valkey, telegram]
         backup-drill: [backup]
         cleanbot: [backup]
         cnpg: [s3-ovh, cnpg-backup, db-roles]
@@ -48,6 +49,7 @@ global:
         opencloud: [backup]
         openwrt-backup: [s3-ovh]
         renovate: [telegram]
+        robusta: [telegram]
         rsstt: [backup]
         tfstate-mirror: [s3-ovh, tfstate]
         trek: [backup]
@@ -71,17 +73,17 @@ global:
       namespace: kube-system
       ip: 10.11.10.139
 
-  # VolSync (backup v2, см. obsidian/113 Backups/Backup Overview.md). Две независимые restic-цели:
-  # garage — on-prem (Synology), ovh — off-site. РАЗНЫЕ пароли репозиториев:
-  # зеркалом они не являются, порча одной не приезжает во вторую.
-  # Пароли обязаны лежать не только в OpenBao, но и в офлайн DR-pack — OpenBao
-  # восстанавливается из бэкапа, зашифрованного этими паролями.
+  # VolSync (backup v2, see obsidian/113 Backups/Backup Overview.md). Two independent
+  # restic targets: garage = on-prem (Synology), ovh = off-site. DIFFERENT repository
+  # passwords: the repos are not mirrors, so corruption of one never reaches the other.
+  # The passwords must also be in the offline DR-pack, not only in OpenBao: OpenBao
+  # itself is restored from a backup encrypted with them.
   volsync:
     snapshotClass: longhorn-volsync
-    # Клон под mover'а — эфемерный и в одну реплику: см. комментарий в
+    # The mover's clone is ephemeral and single-replica: see the comment in
     # argocd/infra/volsync/manifests/storageclass-clone.yaml.
     storageClass: longhorn-volsync-clone
-    # Кэш индексов restic — node-local, переживать смерть ноды не должен.
+    # The restic index cache is node-local; it need not survive a node loss.
     cacheStorageClass: local-path
     cacheCapacity: 2Gi
     repos:

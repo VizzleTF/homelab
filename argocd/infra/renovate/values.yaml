@@ -103,9 +103,9 @@ homelab-common:
         RENOVATE_HOST_RULES: '[{"matchHost":"ghcr.io","hostType":"docker","username":"VizzleTF","password":"{{ .token }}"}]'
     - name: renovate-notify-telegram
       templateEngineVersion: v2
-      # Shared bot with Robusta — same Vault path, same chat: one Telegram bot
-      # for the whole homelab (alerts + renovate digest).
-      vaultPath: robusta/telegram
+      # The homelab's one Telegram bot (grant `telegram`): alerts, ArgoCD
+      # notifications and this digest share the bot and the chat.
+      vaultPath: shared/telegram
       data:
         - secretKey: bot_token
           property: bot_token

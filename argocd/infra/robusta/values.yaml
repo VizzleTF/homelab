@@ -156,8 +156,8 @@ disabledPlaybooks:
   - WeeklyKRRScan
   - RobustaMaintenance
 
-# robusta-telegram: bot_token + signing_key for the Telegram sinks (chat_id is
-# a literal int above).
+# robusta-telegram: signing_key (robusta/app) + bot_token of the homelab's one
+# Telegram bot (shared/telegram, grant `telegram`); chat_id is a literal int above.
 homelab-common:
   # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
@@ -167,9 +167,10 @@ homelab-common:
 
   externalSecrets:
     - name: robusta-telegram
-      vaultPath: robusta/telegram
+      vaultPath: robusta/app
       data:
         - secretKey: bot_token
+          vaultPath: shared/telegram
           property: bot_token
         - secretKey: signing_key
           property: signing_key

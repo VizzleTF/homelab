@@ -44,11 +44,11 @@ homelab-common:
         client-id: "{{ .client_id }}"
         client-secret: "{{ .client_secret }}"
 
-    # Alertmanager config. Robusta's bot token feeds the telegram-direct
-    # receiver: alerts about the delivery path itself (Robusta down,
-    # notifications failing) must not go through that path.
+    # Alertmanager config. The homelab's Telegram bot (shared/telegram, grant
+    # `telegram`) feeds the telegram-direct receiver: alerts about the delivery
+    # path itself (Robusta down, notifications failing) must not go through it.
     - name: alertmanager-config
-      vaultPath: robusta/telegram
+      vaultPath: shared/telegram
       data:
         - secretKey: bot_token
           property: bot_token
@@ -68,58 +68,58 @@ homelab-common:
                     - alertname=~"RobustaRunnerDown|AlertmanagerNotificationsFailing"
                   receiver: 'telegram-direct'
 
-            # ─── Inhibit rules: «1 событие = 1 алерт» ───
-            # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md
+            # ─── Inhibit rules: one event = one alert ───
+            # See obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md
             inhibit_rules:
-              # K8s нода недоступна → глушим всё что висит на ней
+              # K8s node unreachable -> mute everything running on it
               - source_matchers:
                   - alertname="KubeNodeUnreachable"
                 target_matchers:
                   - alertname=~"KubeNodeNotReady|KubeNodeReadinessFlapping|KubeletDown|KubePodNotReady|KubeContainerWaiting|KubePodCrashLooping|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch|TargetDown|NodeMemoryHighUtilization"
                 equal: ['node']
 
-              # apiserver лёг → cascade на client'ов
+              # apiserver down -> cascade to its clients
               - source_matchers:
                   - alertname="KubeAPIDown"
                 target_matchers:
                   - alertname=~"KubeAggregatedAPIDown|KubeClientErrors|KubeStateMetricsListErrors|KubeStateMetricsWatchErrors|TargetDown|KubeClientCertificateExpiration"
 
-              # vmagent больше не доставляет данные → все вторичные «remote write/queue» молчат
+              # vmagent no longer delivers data -> all secondary remote write/queue alerts stay quiet
               - source_matchers:
                   - alertname="PersistentQueueIsDroppingData"
                 target_matchers:
                   - alertname=~"ScrapePoolHasNoTargets|TargetDown"
 
-              # Pod крашлупит → не надо дополнительно NotReady/ContainerWaiting на тот же pod
+              # Pod crashlooping -> no extra NotReady/ContainerWaiting for the same pod
               - source_matchers:
                   - alertname="KubePodCrashLooping"
                 target_matchers:
                   - alertname=~"KubePodNotReady|KubeContainerWaiting"
                 equal: ['namespace', 'pod']
 
-              # Rollout stuck → не дублировать ReplicasMismatch на ту же workload
+              # Rollout stuck -> do not duplicate ReplicasMismatch for the same workload
               - source_matchers:
                   - alertname=~"KubeDeploymentRolloutStuck|KubeStatefulSetUpdateNotRolledOut|KubeDaemonSetRolloutStuck"
                 target_matchers:
                   - alertname=~"KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch"
                 equal: ['namespace']
 
-              # VPN-парк (cluster=vps): скрейпер потерял mesh → молчат все
-              # зависимые проверки. Один алерт вместо восьми.
+              # VPN fleet (cluster=vps): the scraper lost the mesh -> every dependent
+              # check stays quiet. One alert instead of eight.
               - source_matchers:
                   - alertname="VpsScraperMeshDown"
                 target_matchers:
                   - alertname=~"VpsHostDown|VpsCrowdsecDown|VpsTextfileScrapeError|RemnawavePanelMetricsAbsent|RemnawaveNodeDown|TargetDown"
 
-              # Чартовый TargetDown группируется по (cluster,job,namespace,service)
-              # и для VPS не несёт метки host — наши per-host алерты информативнее.
+              # The chart's TargetDown groups by (cluster,job,namespace,service) and
+              # carries no host label for VPS; our per-host alerts say more.
               - source_matchers:
                   - alertname=~"VpsHostDown|RemnawavePanelMetricsAbsent"
                 target_matchers:
                   - alertname="TargetDown"
                 equal: ['cluster']
 
-              # critical > warning по тому же алерту (для двух-уровневых rule)
+              # critical > warning for the same alert (two-level rules)
               - source_matchers:
                   - severity="critical"
                 target_matchers:
