@@ -6,6 +6,14 @@
 # wrenix's chart 0.7.x is the last release on codeberg — guard requires explicit ack.
 knownLastVersion: true
 
+# The chart is EOL, so its appVersion and dind default never move again. Explicit
+# {registry, repository, tag} lets Renovate's helm-values manager bump both images;
+# the runner major does not automerge (renovate.json rule).
+image:
+  registry: code.forgejo.org  # pinned: Renovate needs registry+repository next to tag
+  repository: forgejo/runner  # pinned: Renovate needs registry+repository next to tag
+  tag: "12.7.3"
+
 runner:
   config:
     existingInitSecret: forgejo-runner-init
@@ -30,6 +38,7 @@ runner:
           - ubuntu-24.04:docker://node:24-bookworm
           - ubuntu-22.04:docker://node:22-bookworm
           - ubuntu-20.04:docker://node:20-bookworm
+        envs:  # pinned: null drops the chart's dummy A_TEST_ENV_NAME_* entries
       container:
         privileged: true
         options:  # pinned: null default, renders only when set here
@@ -42,12 +51,21 @@ runner:
 # Privileged DinD must not share a node with etcd and the Talos secrets: CI jobs
 # (gitleaks, helm, kaniko) run untrusted-ish code as root there, and their disk
 # and CPU bursts hit etcd on the control-plane nodes (same reason renovate is
-# pinned to the worker).
-nodeSelector:
-  kubernetes.io/hostname: talos-worker-01
+# pinned to the worker). Any non-control-plane node.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/control-plane
+              operator: DoesNotExist
 
 # DinD sidecar that runs the jobs.
 dind:
+  image:
+    registry: docker.io  # pinned: Renovate needs registry+repository next to tag
+    repository: library/docker  # pinned: Renovate needs registry+repository next to tag
+    tag: "29.3.1-dind"  # pinned: chart is EOL, its default never moves; Renovate bumps it here
   resources:
     requests:
       cpu: 100m

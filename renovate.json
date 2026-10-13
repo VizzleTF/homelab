@@ -118,6 +118,14 @@
       "addLabels": ["needs-review"]
     },
     {
+      "description": "forgejo/runner majors do not automerge: v13 has breaking changes, and argocd-diff runs only on this runner, so a broken runner blocks every PR. Merge by hand while no CI is running. Its own group keeps it out of the major-apps batch, which would otherwise lose automerge too.",
+      "matchPackageNames": ["code.forgejo.org/forgejo/runner"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["needs-review"],
+      "groupName": "forgejo-runner"
+    },
+    {
       "description": "external-dns does not automerge: it owns real DNS records with policy: sync, and a breaking change shows only after the fact. On 2026-09-12 the 1.21.1 -> 1.22.0 automerge took external DNS down for four hours (annotation prefix changed without fallback). Read the release notes. The rule stays last because a later matching rule wins; its own group keeps it out of the infra batch.",
       "matchPackageNames": ["external-dns"],
       "matchDatasources": ["helm"],
