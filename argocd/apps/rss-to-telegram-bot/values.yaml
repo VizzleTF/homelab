@@ -1,9 +1,11 @@
+# RSS-to-Telegram-Bot: posts RSS feed updates to Telegram chats (own fork of
+# https://github.com/Rongronggg9/RSS-to-Telegram-Bot). SQLite in /app/config.
+# Vault: homelab/k8s/rsstt/rss-to-telegram-bot
 homelab-common:
   # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
   # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
-
 
   externalSecrets:
     - name: rss-to-telegram-bot
@@ -21,24 +23,19 @@ homelab-common:
     - name: rss-to-telegram-bot
       accessModes:
         - ReadWriteOnce
+      storageClassName: longhorn
       size: 1Gi
       # volumeName intentionally unpinned — the PV changes on every Velero restore;
       # a stale pin makes the SSA dry-run reject the immutable field, breaking diff
       # (SYNC=Unknown). The global ignoreDifferences._PersistentVolumeClaim masks the
       # live volumeName instead. See reference_argocd_pvc_volumename_drift.
-      labels:
-        app.kubernetes.io/name: rss-to-telegram-bot
-        app.kubernetes.io/instance: rss-to-telegram-bot
 
-  # Backup v2 (пилот миграции, см. obsidian/113 Backups/Backup Overview.md). VolSync снимает Longhorn
-  # CSI-снапшот тома и льёт restic в две независимые цели: garage (on-prem) и
-  # ovh (off-site).
-  #
-  # Бот пишет SQLite в /app/config; снапшот тома — crash-consistent, для
-  # SQLite в WAL-режиме этого достаточно (восстановление проигрывает WAL).
+  # Backup v2 (see obsidian/113 Backups/Backup Overview.md): VolSync takes a Longhorn
+  # CSI snapshot of the volume and ships it with restic to two independent targets,
+  # garage (on-prem) and ovh (off-site). The snapshot is crash-consistent, which is
+  # enough for SQLite in WAL mode (recovery replays the WAL).
   volsync:
-    - name: rss-to-telegram-bot
-      claim: rss-to-telegram-bot
+    - name: rss-to-telegram-bot     # restic repo path; claim defaults to name
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -49,86 +46,69 @@ homelab-common:
         - repo: ovh
           schedule: "40 1 * * 0"
 
-  apps:
-    - name: rss-to-telegram-bot
-      deployment:
-        metadata:
-          labels:
-            app.kubernetes.io/name: rss-to-telegram-bot
-            app.kubernetes.io/instance: rss-to-telegram-bot
-          annotations:
-            argocd.argoproj.io/sync-options: Replace=true
-        spec:
-          replicas: 1
-          strategy:
-            type: Recreate
-          selector:
-            matchLabels:
-              app.kubernetes.io/name: rss-to-telegram-bot
-              app.kubernetes.io/instance: rss-to-telegram-bot
-          template:
-            metadata:
-              labels:
-                app.kubernetes.io/name: rss-to-telegram-bot
-                app.kubernetes.io/instance: rss-to-telegram-bot
-            spec:
-              automountServiceAccountToken: false
-              # ndots:2 — pod resolv.conf defaults to ndots:5, so external names
-              # with <5 dots (RSS feed hosts, api.telegram.org) burn 3-4 NXDOMAIN
-              # search-suffix lookups before the real one. Cuts that tax.
-              dnsConfig:
-                options:
-                  - name: ndots
-                    value: "2"
-              securityContext:
-                runAsNonRoot: true
-                runAsUser: 1000
-                runAsGroup: 1000
-                fsGroup: 1000
-                seccompProfile:
-                  type: RuntimeDefault
-              containers:
-                - name: rss-to-telegram-bot
-                  # renovate: image=ghcr.io/vizzletf/rss-to-telegram-bot-2
-                  image: ghcr.io/vizzletf/rss-to-telegram-bot-2:dev@sha256:2679ff61d7ac444009c02e12c3e37169763e1c0875bbecb3d22ad8c411b97931
-                  imagePullPolicy: Always
-                  securityContext:
-                    allowPrivilegeEscalation: false
-                    capabilities:
-                      drop:
-                        - ALL
-                  env:
-                    - name: PORT
-                      value: "8848"
-                  envFrom:
-                    - secretRef:
-                        name: rss-to-telegram-bot
-                  livenessProbe:
-                    tcpSocket:
-                      port: 8848
-                    initialDelaySeconds: 60
-                    periodSeconds: 30
-                    timeoutSeconds: 10
-                    failureThreshold: 3
-                  readinessProbe:
-                    tcpSocket:
-                      port: 8848
-                    initialDelaySeconds: 60
-                    periodSeconds: 30
-                    timeoutSeconds: 10
-                    failureThreshold: 3
-                  volumeMounts:
-                    - name: data
-                      mountPath: /app/config
-                  resources:
-                    requests:
-                      cpu: 25m
-                      memory: 160Mi
-                    limits:
-                      # Throttled 55% of periods at 100m.
-                      cpu: 250m
-                      memory: 256Mi
-              volumes:
-                - name: data
-                  persistentVolumeClaim:
-                    claimName: rss-to-telegram-bot
+  workloads:
+    - name: rss-to-telegram-bot     # -> Deployment "rss-to-telegram-bot"
+      service: false                # nothing calls the redirect server; the port is for probes
+      pod:
+        # ndots:2: the default ndots:5 burns 3-4 NXDOMAIN search-suffix lookups
+        # per external name (RSS feed hosts, api.telegram.org).
+        dnsConfig:
+          options:
+            - name: ndots
+              value: "2"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: rss-to-telegram-bot
+          image:
+            repository: ghcr.io/vizzletf/rss-to-telegram-bot-2
+            tag: dev@sha256:2679ff61d7ac444009c02e12c3e37169763e1c0875bbecb3d22ad8c411b97931
+          # Always + dev digest until the bot's CI publishes a semver tag.
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8848
+          env:
+            - name: PORT
+              value: "8848"
+          envFrom:
+            - secretRef:
+                name: rss-to-telegram-bot
+          # The redirect server listens ~12s after start; startupProbe allows 150s.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 160Mi
+            limits:
+              # Throttled 55% of periods at 100m.
+              cpu: 250m
+              memory: 256Mi
+      persistence:
+        data:
+          claim: rss-to-telegram-bot  # RWO -> strategy Recreate
+          mountPath: /app/config
