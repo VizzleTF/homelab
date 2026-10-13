@@ -379,6 +379,7 @@ jobs:
           set -euo pipefail
           apt-get update -qq
           apt-get install -y -qq python3-pip
+          # renovate: datasource=pypi depName=git-filter-repo
           pip install --quiet --break-system-packages git-filter-repo==2.47.0
 
       - name: Strip workspace-only paths for GitHub mirror

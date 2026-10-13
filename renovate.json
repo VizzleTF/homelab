@@ -12,9 +12,17 @@
     "enabled": true,
     "automerge": true
   },
+  "pre-commit": {
+    "enabled": true
+  },
+  "nix": {
+    "enabled": true
+  },
   "lockFileMaintenance": {
-    "description": "Off: the only lock file (terraform_talos/.terraform.lock.hcl) is rewritten in every provider bump PR anyway. config:best-practices enables it by default, so without an explicit false the entry sits in `Awaiting Schedule`.",
-    "enabled": false
+    "description": "Weekly refresh of nodes/ops/flake.lock (nix) and terraform_talos/.terraform.lock.hcl. Schedule `* * * * 1` because the Renovate CronJob runs at 06:00 UTC, outside the default `before 4am on monday`. No automerge: a merged flake.lock is live only after /deploying-ops-node.",
+    "enabled": true,
+    "schedule": ["* * * * 1"],
+    "addLabels": ["needs-review"]
   },
   "prConcurrentLimit": 10,
   "prHourlyLimit": 4,
@@ -97,6 +105,17 @@
       "description": "Group `talos`: Talos OS / Kubernetes bootstrap versions in nodes.yaml. Separate PR: a node upgrade needs a manual `terraform apply`, tuppr rolls the live cluster. Keep in sync with the tuppr image versions (installer/talosctl/kubelet).",
       "matchFileNames": ["terraform_talos/configs/**"],
       "groupName": "talos"
+    },
+    {
+      "description": "Lint tools are pinned in .mise.toml (CI reads it), .pre-commit-config.yaml (hook revs) and the devcontainer. One PR bumps all copies so CI and the hooks run the same version.",
+      "matchPackageNames": ["/yamllint/", "/gitleaks/", "/shellcheck/"],
+      "groupName": "lint-tools"
+    },
+    {
+      "description": "Flake input updates of the ops node do not automerge: nixpkgs versioning turns nixos-26.05 -> nixos-26.11 into a minor update that rule 1 would merge, and a merged flake change is live only after /deploying-ops-node.",
+      "matchManagers": ["nix"],
+      "automerge": false,
+      "addLabels": ["needs-review"]
     },
     {
       "description": "external-dns does not automerge: it owns real DNS records with policy: sync, and a breaking change shows only after the fact. On 2026-09-12 the 1.21.1 -> 1.22.0 automerge took external DNS down for four hours (annotation prefix changed without fallback). Read the release notes. The rule stays last because a later matching rule wins; its own group keeps it out of the infra batch.",
