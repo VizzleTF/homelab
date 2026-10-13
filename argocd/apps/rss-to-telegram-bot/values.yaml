@@ -2,8 +2,6 @@
 # https://github.com/Rongronggg9/RSS-to-Telegram-Bot). SQLite in /app/config.
 # Vault: homelab/k8s/rsstt/rss-to-telegram-bot
 homelab-common:
-  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
-  # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
 
@@ -30,10 +28,8 @@ homelab-common:
       # (SYNC=Unknown). The global ignoreDifferences._PersistentVolumeClaim masks the
       # live volumeName instead. See reference_argocd_pvc_volumename_drift.
 
-  # Backup v2 (see obsidian/113 Backups/Backup Overview.md): VolSync takes a Longhorn
-  # CSI snapshot of the volume and ships it with restic to two independent targets,
-  # garage (on-prem) and ovh (off-site). The snapshot is crash-consistent, which is
-  # enough for SQLite in WAL mode (recovery replays the WAL).
+  # A crash-consistent snapshot is enough for SQLite in WAL mode (recovery
+  # replays the WAL).
   volsync:
     - name: rss-to-telegram-bot     # restic repo path; claim defaults to name
       moverSecurityContext:

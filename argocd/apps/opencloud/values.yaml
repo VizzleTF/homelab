@@ -6,14 +6,9 @@
 # (LDAP) keeps running as the writable user store that PROXY_AUTOPROVISION_ACCOUNTS
 # writes into on first login.
 homelab-common:
-  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
-  # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
 
-  # Backup v2 (see obsidian/113 Backups/Backup Overview.md): VolSync takes a Longhorn
-  # CSI snapshot and ships it with restic to two independent targets: garage
-  # (on-prem) and ovh (off-site).
   volsync:
     - name: opencloud-config
       moverSecurityContext:

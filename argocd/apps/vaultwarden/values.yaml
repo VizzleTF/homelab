@@ -71,8 +71,6 @@ homelab-common:
   networkPolicy:
     enabled: true
 
-  # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
-  # obsidian/113 Backups/Backup Overview.md.
   # Data volume (RWO). Replaces the StatefulSet's RWX
   # vaultwarden-data-vaultwarden-0: SQLite locking over NFS is unreliable.
   persistentVolumeClaims:

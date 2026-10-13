@@ -13,10 +13,7 @@ homelab-common:
     allow:
       - namespaces: [victoria-metrics]
 
-  # Backup v2 (see obsidian/113 Backups/Backup Overview.md): VolSync takes a Longhorn CSI snapshot
-  # and ships restic to two independent targets — garage (on-prem) and ovh (off-site).
   # The netbird peer key: 100Mi, but without it the scraper loses mesh access.
-  # There was no off-site copy before — velero ran only a daily backup to garage.
   #
   # `name` sets the repository path (restic-apps/<name>) and therefore must be
   # unique cluster-wide. The PVC here has the same name as the peers' PVC in ns

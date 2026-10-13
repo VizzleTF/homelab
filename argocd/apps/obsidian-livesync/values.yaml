@@ -69,12 +69,10 @@ resources:
     memory: 512Mi
 
 homelab-common:
-  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
-  # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
 
-  # Backup v2 (obsidian/113 Backups/Backup Overview.md). CouchDB writes its
+  # CouchDB writes its
   # .couch files as root, so no moverSecurityContext: the mover runs as root
   # and reads the whole snapshot. Live replicas on the devices are the second
   # copy of this data.

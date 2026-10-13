@@ -40,13 +40,9 @@ homelab-common:
       storageClassName: longhorn
       size: 10Gi
 
-  # Default-deny ingress (homelab-common >= 1.17): own namespace, gateway,
-  # probes and API server only; extra sources from Hubble flows 2026-09-24.
   networkPolicy:
     enabled: true
 
-  # Backup v2: VolSync restic to garage (on-prem) and ovh (off-site),
-  # obsidian/113 Backups/Backup Overview.md.
   volsync:
     - name: trek-data
       moverSecurityContext:

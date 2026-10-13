@@ -9,8 +9,6 @@
 # so no single node drain/failure can take out both. HA is two separate peers,
 # NOT replicas=2 — the RWO identity PVC + one-identity-per-peer model forbids it.
 homelab-common:
-  # Backup v2 (see obsidian/113 Backups/Backup Overview.md): VolSync takes a Longhorn
-  # CSI snapshot and pushes restic to two independent targets, garage (on-prem) and ovh (off-site).
   # Each identity PVC holds /var/lib/netbird of one peer; losing it means re-enrolling
   # the peer (routes come back via the `router` group auto-join). No exec hook: the
   # identity files are static, a crash-consistent CSI snapshot is enough.
@@ -65,6 +63,9 @@ homelab-common:
     - name: peer                    # -> Deployment netbird-peer
       legacySelector:
         app: netbird-peer           # immutable selector of the Deployment created before 1.19
+      # The setup key only matters at enrollment; a reload would restart both
+      # peers at once and drop the LAN route.
+      reload: false
       annotations:
         argocd.argoproj.io/sync-wave: "1"
       pod:
@@ -129,6 +130,7 @@ homelab-common:
     - name: peer-2                  # -> Deployment netbird-peer-2
       legacySelector:
         app: netbird-peer-2         # immutable selector of the Deployment created before 1.19
+      reload: false                 # same as peer: the setup key only matters at enrollment
       annotations:
         argocd.argoproj.io/sync-wave: "0"
       pod:
