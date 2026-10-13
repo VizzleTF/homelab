@@ -1,34 +1,34 @@
 #!/usr/bin/env bash
-# scripts/dr-pack/to-bitwarden.sh — переложить DR-секреты из OpenBao в
-# Vaultwarden (bw CLI), чтобы они были доступны, когда кластера нет.
+# scripts/dr-pack/to-bitwarden.sh: copy the DR secrets from OpenBao into
+# Vaultwarden (bw CLI) so they are at hand when the cluster is gone.
 #
-# Зачем: восстановление упирается в замкнутый круг — пароли restic лежат в
-# OpenBao, а OpenBao восстанавливается из бэкапа, зашифрованного этими же
-# паролями. Круг разрывают две независимые копии вне кластера: офлайн DR-pack
-# и запись в Vaultwarden (у него собственная копия на каждом клиенте).
+# Why: recovery hits a loop. The restic passwords live in OpenBao, and OpenBao
+# is restored from a backup encrypted with those same passwords. Two
+# independent copies outside the cluster break the loop: the offline DR-pack
+# and a Vaultwarden item (every client keeps its own copy).
 #
-# Значения секретов передаются из bao в bw через переменные окружения и на
-# экран не выводятся: скрипт печатает только имена записей и статус.
+# Secret values go from bao to bw through environment variables and never
+# reach the screen: the script prints only item names and status.
 #
-# Два клиента:
-#   bw  — пишет. С Vaultwarden 1.37.4 только он: после фикса
-#         GHSA-7ccc-c43j-4p36 сервер требует в POST /api/ciphers поле
-#         `encryptedFor`, которое шлёт официальный CLI. Если `bw unlock`
-#         отвечает "Master password unlock data is required is null or
-#         undefined" — устарело закэшированное состояние: `bw logout && bw login`.
-#   rbw — только читает: rbw 1.15.0 поле не шлёт и получает 422 на add/edit.
-#         Выбирается по умолчанию, если разблокирован; DR_CLIENT=bw — явно bw.
+# Two clients:
+#   bw  - writes. Since Vaultwarden 1.37.4 only bw can: after the
+#         GHSA-7ccc-c43j-4p36 fix the server requires the `encryptedFor` field
+#         in POST /api/ciphers, which the official CLI sends. If `bw unlock`
+#         answers "Master password unlock data is required is null or
+#         undefined", the cached state is stale: `bw logout && bw login`.
+#   rbw - read-only: rbw 1.15.0 does not send the field and gets 422 on add/edit.
+#         It is the default when unlocked; DR_CLIENT=bw forces bw.
 #
 # Usage:
-#   # в своём терминале, не под `!` в Claude Code — bw unlock нужен TTY:
+#   # in your own terminal, not under `!` in Claude Code: bw unlock needs a TTY
 #   DR_CLIENT=bw BW_SESSION=$(bw unlock --raw) scripts/dr-pack/to-bitwarden.sh [--dry-run]
 #
 # Env:
-#   BW_FOLDER   имя папки в Vaultwarden (default: Infra / Homelab DR)
-#   BAO_MOUNT   KV-mount OpenBao (default: home)
-#   BAO_PREFIX  префикс путей (default: homelab/k8s)
-#   BW_SESSION  сессия официального CLI (альтернатива rbw)
-#   DR_CLIENT   rbw | bw — выбрать клиент явно (по умолчанию rbw, если разблокирован)
+#   BW_FOLDER   Vaultwarden folder name (default: Infra / Homelab DR)
+#   BAO_MOUNT   OpenBao KV mount (default: home)
+#   BAO_PREFIX  path prefix (default: homelab/k8s)
+#   BW_SESSION  official CLI session (alternative to rbw)
+#   DR_CLIENT   rbw | bw: pick the client explicitly (default rbw when unlocked)
 
 set -euo pipefail
 export BAO_ADDR="${BAO_ADDR:-https://openbao.example.com}"
@@ -65,14 +65,14 @@ MSG
   echo "client: $CLIENT"
 fi
 
-# Имена продолжают нумерацию существующих записей 01..07 в той же папке.
-# 11: без SECRET_KEY восстановленная на новой ops-ноде база Forgejo не
-# расшифровывает client secret Authentik, 2FA и пароли push-зеркал, а
-# OpenBao при полной потере кластера сам ещё не поднят.
-# Формат: имя | путь:поля[,поля];путь:поля
+# Names continue the numbering of the existing items 01..07 in the same folder.
+# 11: without SECRET_KEY a Forgejo database restored on a new ops node cannot
+# decrypt the Authentik client secret, 2FA and push-mirror passwords, and after
+# a full cluster loss OpenBao itself is not up yet.
+# Format: name | path:fields[,fields];path:fields
 ITEMS='
 08 - Restic repo passwords (backup v2)|shared/restic-garage:password;shared/restic-ovh:password
-09 - S3 keys backup v2 (restic-apps, snapshots, OVH)|shared/s3-restic-apps:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-snapshots:ACCESS_KEY_ID,ACCESS_SECRET_KEY;velero/s3-ovh:ACCESS_KEY_ID,ACCESS_SECRET_KEY
+09 - S3 keys backup v2 (restic-apps, snapshots, OVH)|shared/s3-restic-apps:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-snapshots:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-ovh:ACCESS_KEY_ID,ACCESS_SECRET_KEY
 10 - DR pack passphrase (off-site)|shared/dr-pack:passphrase
 11 - Forgejo instance secrets|forgejo/instance-secrets:SECRET_KEY,INTERNAL_TOKEN,JWT_SECRET,LFS_JWT_SECRET,MINIO_ACCESS_KEY_ID,MINIO_SECRET_ACCESS_KEY
 '
@@ -93,7 +93,7 @@ upsert() {
   notes="# заполняется scripts/dr-pack/to-bitwarden.sh из OpenBao
 "
 
-  # Значения читаются в переменную и уходят в клиент; на stdout не попадают.
+  # Values are read into a variable and handed to the client; never to stdout.
   for entry in $(echo "$spec" | tr ';' ' '); do
     path="${entry%%:*}"; fields="${entry#*:}"
     notes="${notes}
@@ -113,8 +113,8 @@ upsert() {
   done
   if [[ "$missing" = "1" ]]; then return 0; fi
 
-  # Первая строка payload'а становится полем «пароль». Если значение одно —
-  # кладём его туда, чтобы копировалось одним нажатием; иначе всё в заметке.
+  # The first payload line becomes the password field. With a single value it
+  # goes there so it copies with one click; otherwise everything is in the note.
   if [[ "$count" = "1" ]]; then first_line="$last_val"; else first_line="(see notes)"; fi
 
   if [[ "$DRY_RUN" = "1" ]]; then
@@ -123,14 +123,14 @@ upsert() {
   fi
 
   if [[ "$CLIENT" = "rbw" ]]; then
-    # Справка rbw обещает $EDITOR, но при неинтерактивном stdin редактор не
-    # запускается вовсе — payload читается прямо со stdin (первая строка =
-    # пароль, остальное = заметка). Через подменённый EDITOR запись молча
-    # создавалась пустой. Here-string, а не пайп: у цикла вызова свой stdin.
+    # rbw's help promises $EDITOR, but with a non-interactive stdin no editor
+    # starts at all: the payload is read straight from stdin (first line =
+    # password, the rest = note). A substituted EDITOR silently created an
+    # empty item. Here-string, not a pipe: the calling loop owns its stdin.
     local action=add
     if rbw get "$name" >/dev/null 2>&1; then action=edit; fi
     local err
-    # stderr rbw — только сообщение об ошибке API, значений в нём нет.
+    # rbw's stderr carries only the API error message, never values.
     if err=$(rbw "$action" --folder "$BW_FOLDER" "$name" <<< "$first_line
 $notes" 2>&1 >/dev/null); then
       if [[ "$action" = "edit" ]]; then echo "  UPD  $name"; else echo "  NEW  $name"; fi
@@ -159,9 +159,9 @@ $notes" 2>&1 >/dev/null); then
 }
 
 echo "=== DR secrets -> Vaultwarden (folder: $BW_FOLDER) ==="
-# Цикл читает из here-string, а не из пайпа: клиенты (rbw, bw) забирают stdin
-# себе, и при чтении из пайпа вторая и последующие строки таблицы просто
-# исчезали — запись 09 молча не создавалась.
+# The loop reads a here-string, not a pipe: the clients (rbw, bw) take stdin
+# for themselves, and with a pipe the second and later table rows simply
+# vanished, so item 09 was silently never created.
 while IFS='|' read -r name spec; do
   if [[ -z "$name" ]]; then continue; fi
   upsert "$name" "$spec"

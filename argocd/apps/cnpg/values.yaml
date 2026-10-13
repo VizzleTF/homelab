@@ -74,9 +74,9 @@ homelab-common:
           property: ACCESS_SECRET_KEY
 
     # rclone OVH creds for the pg_dump -> pg-logical CronJob (an independent off-site
-    # logical dump, not a barman mirror). Vault: home/homelab/k8s/velero/s3-ovh.
+    # logical dump, not a barman mirror). Vault: home/homelab/k8s/shared/s3-ovh.
     - name: ovh-pglogical-rclone
-      vaultPath: velero/s3-ovh
+      vaultPath: shared/s3-ovh
       data:
         - secretKey: ovh_ak
           property: ACCESS_KEY_ID

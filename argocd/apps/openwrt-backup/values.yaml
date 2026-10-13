@@ -32,10 +32,10 @@ homelab-common:
           vaultPath: openwrt-backup/s3-config-backups
           property: ACCESS_SECRET_KEY
         - secretKey: ovh_ak
-          vaultPath: velero/s3-ovh
+          vaultPath: shared/s3-ovh
           property: ACCESS_KEY_ID
         - secretKey: ovh_sk
-          vaultPath: velero/s3-ovh
+          vaultPath: shared/s3-ovh
           property: ACCESS_SECRET_KEY
       templateData:
         RCLONE_CONFIG_GARAGE_TYPE: "s3"

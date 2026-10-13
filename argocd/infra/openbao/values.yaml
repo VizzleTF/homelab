@@ -328,7 +328,7 @@ homelab-common:
   externalSecrets:
     # rclone remotes for the raft-snapshot and dr-pack CronJobs: garage = bucket
     # `snapshots` (shared/s3-snapshots), ovh = `vaka-homelab` under snapshots/
-    # (velero/s3-ovh, the OVH key that outlived Velero).
+    # (shared/s3-ovh, the shared OVH key).
     - name: snapshots-rclone
       data:
         - secretKey: garage_ak
@@ -338,10 +338,10 @@ homelab-common:
           vaultPath: shared/s3-snapshots
           property: ACCESS_SECRET_KEY
         - secretKey: ovh_ak
-          vaultPath: velero/s3-ovh
+          vaultPath: shared/s3-ovh
           property: ACCESS_KEY_ID
         - secretKey: ovh_sk
-          vaultPath: velero/s3-ovh
+          vaultPath: shared/s3-ovh
           property: ACCESS_SECRET_KEY
       templateData:
         RCLONE_CONFIG_GARAGE_TYPE: "s3"

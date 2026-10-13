@@ -52,7 +52,7 @@ homelab-common:
         GARAGE_AK: "{{ .ak }}"
         GARAGE_SK: "{{ .sk }}"
     - name: drill-s3-ovh
-      vaultPath: velero/s3-ovh
+      vaultPath: shared/s3-ovh
       data:
         - secretKey: ak
           property: ACCESS_KEY_ID
