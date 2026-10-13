@@ -14,6 +14,8 @@ spec:
   goTemplateOptions: ["missingkey=error"]
   syncPolicy:
     applicationsSync: create-update
+    # Stops the AppSet from adding its default foreground resources-finalizer;
+    # the template sets the background one explicitly (two finalizers otherwise).
     preserveResourcesOnDeletion: true
   # Pausing one app is one command and the AppSet leaves it alone:
   #   kubectl -n argocd patch app <APP> --type merge \

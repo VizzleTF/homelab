@@ -5,13 +5,14 @@ Covers what a script can verify without judgement: the config.yaml contract
 of every argocd/{apps,infra}/* folder, the homelab-common legacySelector guard, Obsidian registries and
 cheatsheets vs argocd/{apps,infra,standalone}, wave/namespace in the registry
 tables and cheatsheet headers vs config.yaml, pinned chart versions in
-cheatsheets, broken wikilinks, the skills index vs skill folders, and repo
-paths in backticks that do not exist. Facts in prose (commands, runbook steps)
-need a reviewer: see the auditing-docs skill.
+cheatsheets, broken wikilinks, the skills index vs skill folders, repo
+paths in backticks that do not exist, and apps-appset vs infra-appset parity.
+Facts in prose (commands, runbook steps) need a reviewer: see the
+auditing-docs skill.
 
 Usage: scripts/audit-docs.py [--vault obsidian]   (run from the repo root)
-Without the vault (CI) only the config.yaml, legacySelector, skills index and
-repo-path checks run.
+Without the vault (CI) only the config.yaml, legacySelector, skills index,
+repo-path and AppSet parity checks run.
 Output: `path: level: message`. Exit 1 on any error.
 """
 import argparse
@@ -273,6 +274,15 @@ if "## Sync waves" in readme:
     for name in sorted(set(listed) & set(waves)):
         if listed[name] != waves[name]:
             report("README.md", "error", f"{name}: README wave {listed[name]} != config {waves[name]}")
+
+# 11. The two AppSets differ only in name, generator path, project and the
+# part-of label (drift happened once: homelabOnly landed in infra-appset only).
+def appset_norm(kind):
+    text = (REPO / f"argocd/appsets/{kind}-appset.yaml").read_text()
+    return re.sub(r"\b(applications|infrastructure)\b|(?<=argocd/)(apps|infra)(?=/)", "@", text)
+if appset_norm("apps") != appset_norm("infra"):
+    report("argocd/appsets/infra-appset.yaml", "error",
+           "AppSets differ beyond name/generator path/project/part-of; keep them in step")
 
 if not HAVE_VAULT:
     report(VAULT, "warning", "vault not found: registry, cheatsheet and wikilink checks skipped")
