@@ -55,7 +55,7 @@ fi
 
 echo "==> Rendered homelab-common"
 fails=0
-for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml argocd/apps/*/cnpg-values.yaml \
+for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml \
          argocd/infra/*/values.yaml argocd/infra/*/homelab-values.yaml \
          argocd/values/argocd.yaml; do
   [[ -f "$f" ]] || continue

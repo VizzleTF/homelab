@@ -39,7 +39,6 @@
         "cilium",
         "cloudnative-pg",
         "ghcr.io/cloudnative-pg/postgresql",
-        "ghcr.io/tensorchord/cloudnative-vectorchord",
         "longhorn",
         "cert-manager",
         "argo-cd",
@@ -105,7 +104,7 @@
   ],
   "customManagers": [
     {
-      "description": "Helm charts in standalone Applications and ApplicationSet templates (repoURL -> chart -> targetRevision): argo-cd, homelab-common (both AppSets + standalone argocd), cluster (immich CNPG source in the apps AppSet).",
+      "description": "Helm charts in standalone Applications and ApplicationSet templates (repoURL -> chart -> targetRevision): argo-cd, homelab-common (both AppSets + standalone argocd).",
       "customType": "regex",
       "managerFilePatterns": ["/argocd/(standalone|appsets)/.+\\.ya?ml$/"],
       "datasourceTemplate": "helm",
