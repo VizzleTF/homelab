@@ -15,6 +15,15 @@ spec:
   syncPolicy:
     applicationsSync: create-update
     preserveResourcesOnDeletion: true
+  # Pausing one app is one command and the AppSet leaves it alone:
+  #   kubectl -n argocd patch app <APP> --type merge \
+  #     -p '{"spec":{"syncPolicy":{"automated":{"enabled":false}}}}'
+  # Resume with "enabled":true. List paused apps:
+  #   kubectl -n argocd get app -o json | jq -r '.items[]
+  #     | select(.spec.syncPolicy.automated.enabled==false) | .metadata.name'
+  ignoreApplicationDifferences:
+    - jsonPointers:
+        - /spec/syncPolicy/automated/enabled
   generators:
     - git:
         repoURL: ssh://git@git.example.com:22/vizzle/homelab.git
@@ -49,6 +58,9 @@ spec:
         # argocd-diff CI job (argocd-diff-preview) renders an app only when one of
         # these paths changes in the PR; without it every PR renders every app.
         argocd-diff-preview/watch-pattern: "{{ .path.path }}/.*, argocd/appsets/.*, argocd/values/global.yaml"
+        # Regenerate manifests only when the app's own folder or global.yaml
+        # changes, not on every commit to the monorepo.
+        argocd.argoproj.io/manifest-generate-paths: "/{{ .path.path }};/argocd/values/global.yaml"
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
         app.kubernetes.io/part-of: infrastructure
@@ -85,6 +97,7 @@ spec:
       {{- end }}
       syncPolicy:
         automated:
+          enabled: true
           prune: true
           selfHeal: true
         syncOptions:
