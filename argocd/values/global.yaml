@@ -22,16 +22,12 @@ global:
     # `eso-ns-<namespace>` for listed namespaces and `eso-own` for the rest.
     access:
       grants:
-        # velero/s3-ovh stays until the legacy-path cleanup.
-        backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, shared/s3-ovh, velero/s3-ovh]
-        s3-ovh: [shared/s3-ovh, velero/s3-ovh]
+        backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, shared/s3-ovh]
+        s3-ovh: [shared/s3-ovh]
         cnpg-backup: [shared/s3-cnpg-backup]
         db-roles: [forgejo/forgejo, authentik/authentik, atuin/atuin]
         valkey: [valkey/valkey]
-        # robusta/telegram stays until the legacy-path cleanup.
-        telegram: [shared/telegram, robusta/telegram]
-        # Legacy: tfstate-mirror now reads its own tfstate-mirror/s3-terraform-state.
-        tfstate: [terraform/s3-terraform-state]
+        telegram: [shared/telegram]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
         # Each app's OIDC client secret, read by Authentik for its blueprints' !Env.
         oidc-clients: [argocd/oidc, victoria-metrics/oidc, immich/oidc, wazuh/oidc, trek/oidc, forgejo/oidc]
@@ -55,7 +51,7 @@ global:
         renovate: [telegram]
         robusta: [telegram]
         rsstt: [backup]
-        tfstate-mirror: [s3-ovh, tfstate]
+        tfstate-mirror: [s3-ovh]
         trek: [backup]
         vaultwarden: [backup]
         victoria-metrics: [telegram]
