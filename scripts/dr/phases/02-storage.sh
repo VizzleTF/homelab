@@ -22,7 +22,6 @@ helm_apply local-path-provisioner containeroo/local-path-provisioner local-path-
   -f "$REPO_ROOT/argocd/infra/local-path-provisioner/values.yaml"
 
 kubectl create ns longhorn-system 2>/dev/null || true
-kubectl label ns longhorn-system pod-security.kubernetes.io/enforce=privileged --overwrite >/dev/null
 
 log_info "installing Longhorn"
 helm_apply longhorn longhorn/longhorn longhorn-system \
@@ -32,21 +31,32 @@ helm_apply longhorn longhorn/longhorn longhorn-system \
 wait_for "longhorn-manager DS Ready" \
   "kubectl -n longhorn-system rollout status ds/longhorn-manager --timeout=300s"
 
+# Release name = ArgoCD Application name, so ArgoCD adopts the same objects
+# (csi-snapshotter-snapshot-controller) instead of running a second controller.
 log_info "installing snapshot-controller"
-helm_apply snapshot-controller piraeus/snapshot-controller csi-snapshotter \
+helm_apply csi-snapshotter piraeus/snapshot-controller csi-snapshotter \
   --version "$(chart_version csi-snapshotter)" \
   -f "$REPO_ROOT/argocd/infra/csi-snapshotter/values.yaml"
 
-log_info "applying Longhorn extras (default BackupTarget + longhorn-retain SC)"
-kubectl apply -f "$REPO_ROOT/argocd/infra/longhorn/manifests/"
+# Explicit list: the directory also holds VMRule/VMServiceScrape, whose CRDs
+# arrive only with the VictoriaMetrics stack in phase 10.
+log_info "applying Longhorn extras (BackupTarget, StorageClass, RecurringJobs, network policies)"
+longhorn_manifests="$REPO_ROOT/argocd/infra/longhorn/manifests"
+kubectl apply \
+  -f "$longhorn_manifests/longhorn-backuptarget.yaml" \
+  -f "$longhorn_manifests/longhorn-retain-storageclass.yaml" \
+  -f "$longhorn_manifests/recurringjob-snapshot-cleanup.yaml" \
+  -f "$longhorn_manifests/recurringjob-trim.yaml" \
+  -f "$longhorn_manifests/netpol-allow-monitoring.yaml" \
+  -f "$longhorn_manifests/netpol-ui.yaml"
 
 log_info "applying VolumeSnapshotClass for VolSync (driver.longhorn.io)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/volsync/manifests/volumesnapshotclass.yaml"
 
-# VolSync ставим здесь, а не ждём ArgoCD (фаза 10): фаза 09 должна застать
-# оператор и его CRD готовыми, иначе volsync_restore падает на
-# "no matches for kind ReplicationDestination". Установка идемпотентна — ArgoCD
-# потом усыновит релиз как обычно.
+# VolSync is installed here instead of waiting for ArgoCD (phase 10): phase 09
+# needs the operator and its CRDs, otherwise volsync_restore fails with
+# "no matches for kind ReplicationDestination". The install is idempotent;
+# ArgoCD adopts the release later as usual.
 log_info "installing VolSync (needed by phase 09)"
 helm repo add backube https://backube.github.io/helm-charts/ >/dev/null 2>&1 || true
 helm repo update backube >/dev/null
