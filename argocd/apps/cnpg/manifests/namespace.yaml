@@ -1,0 +1,13 @@
+# Pod Security `baseline` for the shared Postgres namespace: the cluster-wide
+# default is privileged (terraform_talos controlplane patch), and a rebuild
+# would otherwise lose the label. Only metadata lives here: CreateNamespace
+# still creates the namespace, and Prune/Delete=false keep ArgoCD from ever
+# deleting it (and the local-path PVCs of cnpg-cluster) with the app.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cnpg
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
