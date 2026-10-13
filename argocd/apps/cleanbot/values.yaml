@@ -19,7 +19,6 @@ homelab-common:
   # obsidian/113 Backups/Backup Overview.md.
   volsync:
     - name: cleanbot
-      claim: cleanbot
       moverSecurityContext:
         runAsUser: 10001
         runAsGroup: 10001

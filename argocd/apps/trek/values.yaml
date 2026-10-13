@@ -62,7 +62,6 @@ homelab-common:
   # obsidian/113 Backups/Backup Overview.md.
   volsync:
     - name: trek-data
-      claim: trek-data
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -73,7 +72,6 @@ homelab-common:
         - repo: ovh
           schedule: "40 5 * * 0"
     - name: trek-uploads
-      claim: trek-uploads
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
