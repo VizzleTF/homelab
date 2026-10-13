@@ -70,9 +70,7 @@ scripts/dr/restore-app.sh <VOLSYNC_NAME>          # restore one
 DR_NAMESPACE=<ns> scripts/dr/restore-app.sh x <REPO> <PVC> <SIZE> [<ACCESS_MODE>] [<UID>]
 ```
 
-Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`, default `garage`). The volume list is `homelab-common.volsync[]` in git, with namespace, PVC, size, access mode, mover uid and restic cache read from the same values file (VCT-based claims get their size from `VCT_SIZE` in the script). Phase 09 restores every volume on that list. The script refuses to run when the PVC already exists, unless `DR_FORCE=1`. For immich it also reassigns database objects left owned by `immich_user` to `immich`; in a full DR `immich-cluster` does not exist yet at phase 09, so this step warns and skips — run it by hand once the cluster is up.
-
-Phase 09 skips netbird and crowdsec-scraper: their peer state lives outside the backed-up volume.
+Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`, default `garage`). The volume list is `homelab-common.volsync[]` in git, with namespace, PVC, size, access mode and restic cache read from the same values file (VCT-based claims get their size from `VCT_SIZE` in the script); the mover runs as root so restic can give files back their owners. The wait is 1 min per Gi of the claim, never under 15 min. Phase 09 restores every volume on that list. The script refuses to run when the PVC already exists, unless `DR_FORCE=1`. For immich it also reassigns database objects left owned by `immich_user` to `immich`; in a full DR `immich-cluster` does not exist yet at phase 09, so this step warns and skips — run it by hand once the cluster is up.
 
 ## Sanitization
 
