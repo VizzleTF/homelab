@@ -675,9 +675,8 @@ homelab-common:
           property: password
 
     # OIDC client secret and the dashboard's session-cookie signing password,
-    # referenced from opensearchAuthConfig above. The same client_secret is
-    # written to the authentik bootstrap path so the blueprint's !Env resolves
-    # to the identical value.
+    # referenced from opensearchAuthConfig above. Authentik reads the same
+    # wazuh/oidc client_secret (grant oidc-clients) for the blueprint's !Env.
     - name: wazuh-oidc
       vaultPath: wazuh/oidc
       data:

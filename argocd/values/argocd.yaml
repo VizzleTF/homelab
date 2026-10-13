@@ -39,7 +39,7 @@ homelab-common:
         - secretKey: password
           property: password
     - name: argocd-oidc-secret
-      vaultPath: argocd/argocd/oidc
+      vaultPath: argocd/oidc
       targetName: argocd-secret
       creationPolicy: Merge
       data:
@@ -49,7 +49,7 @@ homelab-common:
     # X-Gogs-Signature, so ArgoCD verifies it with the gogs secret. It lets
     # timeout.reconciliation stay at 10 min without slower deploys.
     - name: argocd-webhook-secret
-      vaultPath: argocd/argocd/webhook
+      vaultPath: argocd/webhook
       targetName: argocd-secret
       creationPolicy: Merge
       data:

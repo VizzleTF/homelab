@@ -91,7 +91,8 @@ homelab-common:
         - secretKey: ENCRYPTION_KEY
           property: encryption_key
         - secretKey: OIDC_CLIENT_SECRET
-          property: oidc_client_secret
+          vaultPath: trek/oidc
+          property: client_secret
 
   limitRange:
     enabled: true
