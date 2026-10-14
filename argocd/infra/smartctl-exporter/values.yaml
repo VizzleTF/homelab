@@ -27,3 +27,8 @@ homelab-common:
     enabled: true
     allow:
       - namespaces: [victoria-metrics]
+
+# The chart's only RBAC object is a RoleBinding to the PodSecurityPolicy role
+# unrestricted-psp, which no longer exists (PSP removed in k8s 1.25).
+rbac:
+  create: false
