@@ -33,7 +33,6 @@ provider:
       # v0.1.0 release from 2025-02-27, documented by upstream as upsert-only).
       # The fork fixes delete/update, multi-target and the dnsmasq reload.
       # Source: https://github.com/VizzleTF/external-dns-openwrt-next
-      # renovate: datasource=docker depName=ghcr.io/vizzletf/external-dns-openwrt-next
       repository: ghcr.io/vizzletf/external-dns-openwrt-next
       tag: "v0.8.0"
 
