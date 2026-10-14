@@ -1,4 +1,0 @@
-chart: forgejo
-repoURL: code.forgejo.org/forgejo-helm
-targetRevision: "17.3.0"
-wave: "2"

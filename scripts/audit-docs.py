@@ -43,8 +43,9 @@ CHEATSHEET_ALIAS = {
     "intel-device-plugins-gpu": "intel-device-plugins",
     "victoria-metrics-k8s-stack": "victoria-metrics",
 }
-# Cheatsheets in Infrastructure/all that are not ArgoCD Applications.
-NON_APP_CHEATSHEETS = {"talos-etcd-backup"}  # systemd timer on the ops node
+# Cheatsheets in {Apps,Infrastructure}/all that are not ArgoCD Applications:
+# both are services on the ops node (Forgejo, the etcd snapshot timer).
+NON_APP_CHEATSHEETS = {"talos-etcd-backup", "forgejo"}
 # Standalone Applications: file name -> Application name.
 STANDALONE = {"argocd-application.yaml": "argocd", "gateway-api.yaml": "gateway-api"}
 

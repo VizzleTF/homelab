@@ -610,8 +610,7 @@ homelab-common:
                 meta_description: File sync, share and collaboration
                 policy_engine_mode: any
 
-    # Serves the Forgejo on the ops node (git.example.com); the in-cluster mirror
-    # has no OAuth.
+    # Serves the Forgejo on the ops node (git.example.com).
     - name: authentik-blueprint-forgejo
       blueprints:
         # Legacy filename kept: renaming creates a new BlueprintInstance (duplicate key).
