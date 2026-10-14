@@ -25,6 +25,7 @@ tasks:
     dir: '{{.ROOT_DIR}}'
     cmds:
       - scripts/kubeconform-validate.sh
+      - scripts/hooks-selfcheck.sh
 
   values-drift:
     desc: Report values equal to chart defaults or unknown to the chart (not a gate)

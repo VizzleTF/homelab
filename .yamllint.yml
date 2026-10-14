@@ -4,6 +4,8 @@ ignore:
   - charts/*/templates/
   - charts/*/charts/
   - .git/
+  # Agent worktrees: checkouts of their own, linted from their own root.
+  - .claude/worktrees/
   - terraform_talos/.terraform/
   - .mise.toml
   # Hashed by the Talos Image Factory into the schematic ID (installer image):
