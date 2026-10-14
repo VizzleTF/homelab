@@ -12,7 +12,7 @@ knownLastVersion: true
 image:
   registry: code.forgejo.org  # pinned: Renovate needs registry+repository next to tag
   repository: forgejo/runner  # pinned: Renovate needs registry+repository next to tag
-  tag: "12.7.3"
+  tag: "12.13.2"
 
 runner:
   config:
@@ -65,7 +65,7 @@ dind:
   image:
     registry: docker.io  # pinned: Renovate needs registry+repository next to tag
     repository: library/docker  # pinned: Renovate needs registry+repository next to tag
-    tag: "29.3.1-dind"  # pinned: chart is EOL, its default never moves; Renovate bumps it here
+    tag: "29.9.0-dind"  # pinned: chart is EOL, its default never moves; Renovate bumps it here
   resources:
     requests:
       cpu: 100m
