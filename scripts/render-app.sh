@@ -9,25 +9,33 @@
 # homelab-common comes from the Forgejo chart-museum at the version pinned in
 # the appset (what ArgoCD deploys); HC_LOCAL=1 uses charts/homelab-common
 # instead (to preview an unpublished chart change).
+# `argocd` renders the standalone argocd Application (argo-cd + homelab-common).
 #
 # Usage: scripts/render-app.sh <app>
 # Requires helm and yq (.mise.toml); kubectl for the cluster capabilities.
+# Exit 3: the cluster is reachable and the live Application tracks objects this
+# render lacks (objects the change removes, or a source the render dropped);
+# the list goes to stderr.
 set -euo pipefail
 
-usage() { echo "usage: $0 <app>  (folder name under argocd/apps or argocd/infra)" >&2; exit 2; }
+usage() { echo "usage: $0 <app>  (folder name under argocd/apps or argocd/infra, or argocd)" >&2; exit 2; }
 [[ $# -eq 1 ]] || usage
 
 cd "$(git rev-parse --show-toplevel)"
 app="$1"
-if [[ -f "argocd/apps/$app/config.yaml" ]]; then kind=apps
-elif [[ -f "argocd/infra/$app/config.yaml" ]]; then kind=infra
-else echo "no argocd/{apps,infra}/$app/config.yaml" >&2; exit 1; fi
-
-dir="argocd/$kind/$app"
-cfg="$dir/config.yaml"
-appset="argocd/appsets/$kind-appset.yaml"
-get() { yq -r ".$1 // \"\"" "$cfg"; }
-ns=$(get namespace); ns=${ns:-$app}
+std=""
+case $app in
+  argocd) std=argocd/standalone/argocd-application.yaml; ns=argocd ;;
+  *)
+    if [[ -f "argocd/apps/$app/config.yaml" ]]; then kind=apps
+    elif [[ -f "argocd/infra/$app/config.yaml" ]]; then kind=infra
+    else echo "no argocd/{apps,infra}/$app/config.yaml (standalone: argocd)" >&2; exit 1; fi
+    dir="argocd/$kind/$app"
+    cfg="$dir/config.yaml"
+    appset="argocd/appsets/$kind-appset.yaml"
+    get() { yq -r ".$1 // \"\"" "$cfg"; }
+    ns=$(get namespace); ns=${ns:-$app} ;;
+esac
 
 # Like ArgoCD, pass the cluster's version and API groups so charts that gate on
 # .Capabilities (cilium GatewayClass, VAPs) render the same; offline = without.
@@ -44,27 +52,52 @@ fi
 # ArgoCD names the Helm release after the app.
 tpl() { helm template "$app" "$@" --namespace "$ns" --include-crds "${caps[@]}"; }
 
-if [[ "$(get homelabOnly)" != "true" ]]; then
-  repo=$(get repoURL); chart=$(get chart)
-  if [[ "$repo" == http* ]]; then
-    tpl "$chart" --repo "$repo" --version "$(get targetRevision)" -f "$dir/values.yaml"
-  else  # scheme-less repoURL = OCI registry
-    tpl "oci://$repo/$chart" --version "$(get targetRevision)" -f "$dir/values.yaml"
+out=$(mktemp); trap 'rm -f "$out"' EXIT
+trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP  # else a signal mid-render skips EXIT
+{
+  if [[ -n "$std" ]]; then
+    # Standalone argocd: argo-cd chart + homelab-common, versions from its Application.
+    src() { yq -r ".spec.sources[$1].$2" "$std"; }
+    tpl "$(src 0 chart)" --repo "$(src 0 repoURL)" --version "$(src 0 targetRevision)" -f argocd/values/argocd.yaml
+    if [[ "${HC_LOCAL:-}" == 1 ]]; then hc=(charts/homelab-common)
+    else hc=(homelab-common --repo "$(src 1 repoURL)" --version "$(src 1 targetRevision)"); fi
+    tpl "${hc[@]}" -f argocd/values/global.yaml -f argocd/values/argocd.yaml
+  else
+    if [[ "$(get homelabOnly)" != "true" ]]; then
+      repo=$(get repoURL); chart=$(get chart)
+      if [[ "$repo" == http* ]]; then
+        tpl "$chart" --repo "$repo" --version "$(get targetRevision)" -f "$dir/values.yaml"
+      else  # scheme-less repoURL = OCI registry
+        tpl "oci://$repo/$chart" --version "$(get targetRevision)" -f "$dir/values.yaml"
+      fi
+    fi
+
+    hcv=$(get homelabValuesFile); hc_values="$dir/${hcv:-values.yaml}"
+    if [[ "${HC_LOCAL:-}" == 1 ]]; then
+      tpl charts/homelab-common -f argocd/values/global.yaml -f "$hc_values"
+    else
+      hc_ver=$(grep -A1 'chart: homelab-common' "$appset" | sed -n 's/.*targetRevision: "\(.*\)"/\1/p')
+      tpl homelab-common --repo https://git.example.com/api/packages/vizzle/helm --version "$hc_ver" \
+        -f argocd/values/global.yaml -f "$hc_values"
+    fi
+
+    if [[ "$(get extraManifests)" == "true" ]]; then
+      for f in "$dir"/manifests/*.{yaml,yml,json}; do
+        [[ -f "$f" ]] || continue
+        echo "---"; echo "# Source: $f"; cat "$f"; echo  # echo: file may lack a trailing newline
+      done
+    fi
   fi
-fi
+} | tee "$out"
 
-hcv=$(get homelabValuesFile); hc_values="$dir/${hcv:-values.yaml}"
-if [[ "${HC_LOCAL:-}" == 1 ]]; then
-  tpl charts/homelab-common -f argocd/values/global.yaml -f "$hc_values"
-else
-  hc_ver=$(grep -A1 'chart: homelab-common' "$appset" | sed -n 's/.*targetRevision: "\(.*\)"/\1/p')
-  tpl homelab-common --repo https://git.example.com/api/packages/vizzle/helm --version "$hc_ver" \
-    -f argocd/values/global.yaml -f "$hc_values"
-fi
-
-if [[ "$(get extraManifests)" == "true" ]]; then
-  for f in "$dir"/manifests/*.{yaml,yml,json}; do
-    [[ -f "$f" ]] || continue
-    echo "---"; echo "# Source: $f"; cat "$f"; echo  # echo: file may lack a trailing newline
-  done
+# Blind-render guard (cd7f7f55: a shadowed loop variable silently dropped a whole
+# source). requiresPruning objects are already gone from git (suspended app,
+# Prune=false). Not the jsonpath filter ?(@.requiresPruning!=true): it matches
+# nothing for objects without the field.
+# shortcut: misses a dropped source with no live objects yet; upgrade if a new-app render goes blind.
+if [[ ${#caps[@]} -gt 0 ]]; then
+  missing=$(comm -13 <(yq -N -r 'select(.kind) | .kind + "/" + .metadata.name' "$out" | sort -u) \
+    <(kubectl -n argocd get app "$app" -o json 2>/dev/null \
+      | yq -p json -r '.status.resources[]? | select(.requiresPruning != true) | .kind + "/" + .name' | sort -u))
+  [[ -z $missing ]] || { printf 'warning: live app %s tracks objects missing from this render (removed by the change, or the render is blind):\n%s\n' "$app" "$missing" >&2; exit 3; }
 fi

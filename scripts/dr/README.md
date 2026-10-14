@@ -8,6 +8,7 @@ Idempotent disaster recovery for the homelab cluster. Brings a freshly-bootstrap
 2. **Phases are idempotent.** Each phase installs through `helm_apply` (`helm upgrade --install --wait`, `lib/common.sh`) and waits for readiness, so re-running is safe.
 3. **No manual TODO in the pack.** If something can't be auto-included it's a bug in `build.sh`, not a checkbox for the operator.
 4. **Self-contained scripts.** No hardcoded tokens / UUIDs / account IDs — those come from env vars or `~/dr-pack/` files at runtime.
+5. **Wait only for what is already on its way.** A `wait_for` target must follow from objects this phase or an earlier one applied (directly or through a controller already running, such as ESO or cert-manager). No Application syncs before phase 10 ends (7e6e6f5a).
 
 ## Quick start (after fresh Talos cluster is up + kubeconfig in place)
 
