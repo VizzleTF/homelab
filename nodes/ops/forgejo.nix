@@ -122,6 +122,10 @@
       # Forgejo's SSRF protection blocks unless local networks are allowed.
       migrations.ALLOW_LOCALNETWORKS = true;
 
+      # The push webhook to ArgoCD (argocd.example.com, a LAN-only gateway IP) is
+      # blocked by the default "external" list; ArgoCD then only polls (10 min).
+      webhook.ALLOWED_HOST_LIST = "external,argocd.example.com";
+
       metrics.ENABLED = true;
       log.LEVEL = "Info";
     };
