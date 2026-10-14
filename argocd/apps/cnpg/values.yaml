@@ -18,18 +18,6 @@ homelab-common:
         ports: [5432]
 
   externalSecrets:
-    - name: postgres-credentials
-      vaultPath: cnpg/postgres
-      data:
-        - secretKey: username
-          property: username
-        - secretKey: password
-          property: password
-      templateData:
-        username: "{{ .username }}"
-        password: "{{ .password }}"
-        postgres-password: "{{ .password }}"
-
     # CNPG-side credentials for shared cluster roles. Apps continue to read their
     # own secrets from their namespaces; these copies live in ns cnpg so the
     # Cluster CR can reference them via roles[].passwordSecret. CNPG expects a
