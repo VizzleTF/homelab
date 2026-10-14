@@ -1,93 +1,3 @@
-homelab-common:
-  # Default-deny ingress. UI/API come through the TLS gateway (ingress entity),
-  # webhooks through the gateway too; nothing scrapes ArgoCD metrics. The
-  # repo-server (:8081) has no auth, so it must stay unreachable from other
-  # namespaces.
-  networkPolicy:
-    enabled: true
-
-  certificates:
-    - name: argocd-server-tls
-      secretName: argocd-server-tls
-      issuerRef:
-        kind: ClusterIssuer
-        name: cloudflare-issuer
-      dnsNames:
-        - "*.example.com"
-
-  tlsRoutes:
-    - name: argocd
-      hostname: argocd
-      service:
-        name: argocd-server
-        port: 443
-
-  secrets:
-    - name: redis                  # -> argocd-redis
-      stringData:
-        auth: ""
-
-  externalSecrets:
-    # Valkey ACL user `app` for externalRedis.existingSecret. The chart
-    # reads keys redis-username / redis-password.
-    - name: argocd-valkey
-      vaultPath: valkey/valkey
-      templateData:
-        redis-username: "app"
-        redis-password: "{{ .password }}"
-      data:
-        - secretKey: password
-          property: password
-    - name: argocd-oidc-secret
-      vaultPath: argocd/oidc
-      targetName: argocd-secret
-      creationPolicy: Merge
-      data:
-        - secretKey: oidc.argocd.clientSecret
-          property: client_secret
-    # Forgejo push webhook (repo vizzle/homelab -> /api/webhook). Forgejo sends
-    # X-Gogs-Signature, so ArgoCD verifies it with the gogs secret. It lets
-    # timeout.reconciliation stay at 10 min without slower deploys.
-    - name: argocd-webhook-secret
-      vaultPath: argocd/webhook
-      targetName: argocd-secret
-      creationPolicy: Merge
-      data:
-        - secretKey: webhook.gogs.secret
-          property: secret
-
-    # The homelab's one Telegram bot (grant `telegram`).
-    - name: argocd-notifications-secret
-      vaultPath: shared/telegram
-      data:
-        - secretKey: telegram-token
-          property: bot_token
-        - secretKey: telegram-chatID
-          property: chat_id
-
-    # Forgejo SSH access: a dedicated ed25519 keypair for the argocd-bot user in Forgejo.
-    # Forgejo now lives on the ops node outside the cluster; git.example.com is a
-    # static record in OpenWrt pointing at 10.11.11.153 (see obsidian/111 Memory/Ops Node.md).
-    # A credential template, not a repository Secret: it matches every repo
-    # under vizzle/ for every AppProject (project-scoped repository Secrets each
-    # needed a copy, and root broke without its own). Public OCI chart repos
-    # (code.forgejo.org and others) need no Secret at all.
-    - name: argocd-repo-creds-forgejo
-      vaultPath: argocd/repo-ssh-forgejo
-      templateMetadata:
-        labels:
-          argocd.argoproj.io/secret-type: repo-creds
-      templateData:
-        url: "ssh://git@git.example.com:22/vizzle"
-        type: git
-        sshPrivateKey: "{{ .sshPrivateKey }}"
-      data:
-        - secretKey: sshPrivateKey
-          property: sshPrivateKey
-
-  limitRange:
-    enabled: true
-
 applicationSet:
   resources:
     # 116Mi max of 128Mi, CPU throttled 15% (2026-09).
@@ -136,7 +46,7 @@ configs:
     server.sessionMaxTokenAge: "720h"
     # 10 min, not 2: every periodic refresh PATCHes Application status in
     # etcd (~22/min across 60 apps, 2026-10). Git pushes arrive through the
-    # Forgejo webhook (argocd-webhook-secret above); selfHeal on live changes
+    # Forgejo webhook (argocd-webhook-secret below); selfHeal on live changes
     # does not depend on this timer.
     timeout.reconciliation: 600s
     accounts.mcp: apiKey
@@ -270,7 +180,7 @@ redis:
 
 externalRedis:
   host: valkey-primary.valkey.svc.cluster.local
-  # ACL user app (homelab-common ESO argocd-valkey above).
+  # ACL user app (homelab-common ESO argocd-valkey below).
   existingSecret: argocd-valkey
 
 redisSecretInit:
@@ -303,3 +213,93 @@ server:
     requests:
       cpu: 15m
       memory: 64Mi
+
+homelab-common:
+  # Default-deny ingress. UI/API come through the TLS gateway (ingress entity),
+  # webhooks through the gateway too; nothing scrapes ArgoCD metrics. The
+  # repo-server (:8081) has no auth, so it must stay unreachable from other
+  # namespaces.
+  networkPolicy:
+    enabled: true
+
+  certificates:
+    - name: argocd-server-tls
+      secretName: argocd-server-tls
+      issuerRef:
+        kind: ClusterIssuer
+        name: cloudflare-issuer
+      dnsNames:
+        - "*.example.com"
+
+  tlsRoutes:
+    - name: argocd
+      hostname: argocd
+      service:
+        name: argocd-server
+        port: 443
+
+  secrets:
+    - name: redis                  # -> argocd-redis
+      stringData:
+        auth: ""
+
+  externalSecrets:
+    # Valkey ACL user `app` for externalRedis.existingSecret. The chart
+    # reads keys redis-username / redis-password.
+    - name: argocd-valkey
+      vaultPath: valkey/valkey
+      templateData:
+        redis-username: "app"
+        redis-password: "{{ .password }}"
+      data:
+        - secretKey: password
+          property: password
+    - name: argocd-oidc-secret
+      vaultPath: argocd/oidc
+      targetName: argocd-secret
+      creationPolicy: Merge
+      data:
+        - secretKey: oidc.argocd.clientSecret
+          property: client_secret
+    # Forgejo push webhook (repo vizzle/homelab -> /api/webhook). Forgejo sends
+    # X-Gogs-Signature, so ArgoCD verifies it with the gogs secret. It lets
+    # timeout.reconciliation stay at 10 min without slower deploys.
+    - name: argocd-webhook-secret
+      vaultPath: argocd/webhook
+      targetName: argocd-secret
+      creationPolicy: Merge
+      data:
+        - secretKey: webhook.gogs.secret
+          property: secret
+
+    # The homelab's one Telegram bot (grant `telegram`).
+    - name: argocd-notifications-secret
+      vaultPath: shared/telegram
+      data:
+        - secretKey: telegram-token
+          property: bot_token
+        - secretKey: telegram-chatID
+          property: chat_id
+
+    # Forgejo SSH access: a dedicated ed25519 keypair for the argocd-bot user in Forgejo.
+    # Forgejo now lives on the ops node outside the cluster; git.example.com is a
+    # static record in OpenWrt pointing at 10.11.11.153 (see obsidian/111 Memory/Ops Node.md).
+    # A credential template, not a repository Secret: it matches every repo
+    # under vizzle/ for every AppProject (project-scoped repository Secrets each
+    # needed a copy, and root broke without its own). Public OCI chart repos
+    # (code.forgejo.org and others) need no Secret at all.
+    - name: argocd-repo-creds-forgejo
+      vaultPath: argocd/repo-ssh-forgejo
+      templateMetadata:
+        labels:
+          argocd.argoproj.io/secret-type: repo-creds
+      templateData:
+        url: "ssh://git@git.example.com:22/vizzle"
+        type: git
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+      data:
+        - secretKey: sshPrivateKey
+          property: sshPrivateKey
+
+  limitRange:
+    enabled: true

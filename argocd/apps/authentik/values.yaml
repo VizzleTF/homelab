@@ -1,3 +1,72 @@
+# Authentik: identity provider, SSO/OIDC for the homelab apps. Source: https://github.com/goauthentik/authentik
+
+# Use our ExternalSecret instead of chart-generated config secret
+authentik:
+  existingSecret:
+    secretName: "authentik-config"
+
+server:
+  # Live usage ~32m/442Mi; memory sits close to the chart's suggested 512Mi.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # Chart defaults (timeout 3s, threshold 3) kill the pod after 30s of GC/load
+  # stalls — source of the recurring restarts + gateway 502s.
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+
+worker:
+  # Live usage ~97m/370Mi.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # `ak healthcheck` forks a Python process; under load it needs more than the
+  # chart's 3s, and the liveness kills (exit 137, not OOM) restarted the worker
+  # every ~20min. Same treatment as server above.
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+  startupProbe:
+    timeoutSeconds: 5
+
+# Mount blueprints ConfigMaps (top-level chart setting, not under authentik:)
+blueprints:
+  configMaps:
+    - authentik-blueprint-grafana
+    - authentik-blueprint-argocd
+    - authentik-blueprint-immich
+    - authentik-blueprint-forgejo
+    - authentik-blueprint-trek
+    - authentik-blueprint-opencloud
+    - authentik-blueprint-enrollment-invitation
+    - authentik-blueprint-wazuh
+
+global:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # Rollout server+worker when ESO patches `authentik-config` (new
+  # *_OIDC_CLIENT_SECRET entry from an app's <ns>/oidc, scaffolding-authentik-oidc skill).
+  # Without this, freshly-added blueprints fail !Env resolution silently.
+  # Watched by stakater/reloader (argocd/infra/reloader).
+  deploymentAnnotations:
+    secret.reloader.stakater.com/reload: "authentik-config"
+
 homelab-common:
   networkPolicy:
     enabled: true
@@ -645,70 +714,3 @@ homelab-common:
             set:
               - name: X-Forwarded-Proto
                 value: https
-
-# Use our ExternalSecret instead of chart-generated config secret
-authentik:
-  existingSecret:
-    secretName: "authentik-config"
-
-server:
-  # Live usage ~32m/442Mi; memory sits close to the chart's suggested 512Mi.
-  resources:
-    requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
-      cpu: "1"
-      memory: 1Gi
-  # Chart defaults (timeout 3s, threshold 3) kill the pod after 30s of GC/load
-  # stalls — source of the recurring restarts + gateway 502s.
-  livenessProbe:
-    timeoutSeconds: 5
-    failureThreshold: 5
-  readinessProbe:
-    timeoutSeconds: 5
-    failureThreshold: 5
-
-worker:
-  # Live usage ~97m/370Mi.
-  resources:
-    requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
-      cpu: "1"
-      memory: 1Gi
-  # `ak healthcheck` forks a Python process; under load it needs more than the
-  # chart's 3s, and the liveness kills (exit 137, not OOM) restarted the worker
-  # every ~20min. Same treatment as server above.
-  livenessProbe:
-    timeoutSeconds: 5
-    failureThreshold: 5
-  readinessProbe:
-    timeoutSeconds: 5
-    failureThreshold: 5
-  startupProbe:
-    timeoutSeconds: 5
-
-# Mount blueprints ConfigMaps (top-level chart setting, not under authentik:)
-blueprints:
-  configMaps:
-    - authentik-blueprint-grafana
-    - authentik-blueprint-argocd
-    - authentik-blueprint-immich
-    - authentik-blueprint-forgejo
-    - authentik-blueprint-trek
-    - authentik-blueprint-opencloud
-    - authentik-blueprint-enrollment-invitation
-    - authentik-blueprint-wazuh
-
-global:
-  securityContext:
-    seccompProfile:
-      type: RuntimeDefault
-  # Rollout server+worker when ESO patches `authentik-config` (new
-  # *_OIDC_CLIENT_SECRET entry from an app's <ns>/oidc, scaffolding-authentik-oidc skill).
-  # Without this, freshly-added blueprints fail !Env resolution silently.
-  # Watched by stakater/reloader (argocd/infra/reloader).
-  deploymentAnnotations:
-    secret.reloader.stakater.com/reload: "authentik-config"

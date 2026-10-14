@@ -1,7 +1,7 @@
 homelabOnly: true
 wave: "2"
 extraManifests: true
-# KEDA (manifests/httpscaledobject.yaml) owns the replica count.
+# KEDA (manifests/httpscaledobject.yaml) owns the replica count (2026-05).
 ignoreDiff: |
   - group: apps
     kind: Deployment

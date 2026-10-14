@@ -97,12 +97,12 @@ homelab-common:
     # Init secret for the register job: env CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME
     # from homelab/k8s/forgejo/runner (keys token, instance, name).
     # PreSync hook + sync-wave -10: synced BEFORE the chart's pre-install Job (wave 0).
-    # deletionPolicy: Retain: the Secret survives the ES delete-recreate cycle on hook reruns.
+    # The ES owns its Secret, so a hook rerun deletes and recreates both; the
+    # PreSync wave above rebuilds the Secret before the Job runs.
     - name: forgejo-runner-init
       annotations:
         argocd.argoproj.io/hook: PreSync
         argocd.argoproj.io/sync-wave: "-10"
-      deletionPolicy: Retain
       vaultPath: forgejo/runner
       data:
         - secretKey: token

@@ -1,6 +1,177 @@
 # Immich Self-hosted Photo and Video Backup Solution
 # Configuration for HomeLab deployment with CNPG PostgreSQL
 
+_shared_config:
+  url: &url https://immich.example.com
+  # Server and ML ship in one immich-app/immich release. The docker datasource
+  # fails on ghcr.io/immich-app/* (hundreds of thousands of PR-build tags =
+  # hundreds of tags/list pages per lookup, "no-result" in the Dependency
+  # Dashboard), so both versions come from github-releases immich-app/immich;
+  # the ML -openvino suffix stays outside currentValue (customManager in
+  # renovate.json). One PR bumps both, so server and ML never drift.
+  # renovate: datasource=github-releases depName=immich-app/immich
+  version: &version "v3.3.1"
+  # renovate: immich-ml
+  ml_tag: &ml_tag "v3.3.1-openvino"
+
+# Server-only settings. Top-level controllers/defaultPodOptions/persistence in
+# the immich chart are shared by every component, so they also landed in the
+# ML pod (DB/Redis credentials, the OIDC config mount, the server affinity).
+server:
+  # Prefer the bare-metal ML worker so the server lands next to the ML pod
+  # (low-latency calls during re-encode, thumbnail and transcode jobs), but fall
+  # back to any node if worker-01 is full or down: the server is not GPU-bound.
+  defaultPodOptions:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/ml
+                  operator: In
+                  values: ["true"]
+  controllers:
+    main:
+      # Roll on DB/OIDC secret rotation. Not immich-valkey: it rotates together
+      # with valkey (valkey cheatsheet).
+      annotations:
+        secret.reloader.stakater.com/reload: immich-main-user-credentials,immich-oidc-secret
+      containers:
+        main:
+          image:
+            tag: *version
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2400Mi
+            limits:
+              # Server consolidates the v2.x microservices (job dispatcher, thumbnail
+              # generator, metadata extractor, transcode launcher). During bulk re-encode
+              # it was pinned at 1000m and the kernel throttled 93 % of periods, stealing
+              # 5.4 x more CPU time than the pod was allowed to run. Bump to 6 cores;
+              # worker-01 has 16 allocatable and runs at ~20 % otherwise.
+              cpu: 6000m
+              memory: 5Gi
+          env:
+            # PostgreSQL via CNPG
+            DB_HOSTNAME: "immich-cluster-rw"
+            DB_PORT: "5432"
+            DB_DATABASE_NAME: "immich"
+            DB_USERNAME:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-main-user-credentials
+                  key: username
+            DB_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-main-user-credentials
+                  key: password
+            # Shared Valkey (ns valkey); Immich on DB index 1, argocd on DB 0
+            REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
+            REDIS_DBINDEX: "1"
+            REDIS_USERNAME: "app"
+            REDIS_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-valkey
+                  key: password
+            IMMICH_SERVER_URL: *url
+            PUBLIC_IMMICH_SERVER_URL: *url
+            # OAuth / Authentik: v2+ reads it from a config file, not env vars
+            IMMICH_CONFIG_FILE: "/config/immich-config.json"
+  persistence:
+    immich-config:
+      type: secret
+      name: immich-oidc-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: true
+
+# Immich configuration
+immich:
+  persistence:
+    # Main library storage for photos and videos
+    library:
+      existingClaim: "immich-library-pvc"
+
+# Machine Learning component — OpenVINO image with Intel Iris Xe GPU (N100)
+# i915 Talos extension installed; Intel GPU Device Plugin advertises gpu.intel.com/i915.
+machine-learning:
+  defaultPodOptions:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    # Pin to dedicated bare-metal ML worker — CP VMs also carry intel.feature.node.kubernetes.io/gpu
+    # via VFIO iGPU passthrough, so a GPU-label affinity would not actually exclude them.
+    # Add the label with: kubectl label node <name> node-role.kubernetes.io/ml=true
+    nodeSelector:
+      node-role.kubernetes.io/ml: "true"
+  controllers:
+    main:
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            tag: *ml_tag
+          env:
+            MACHINE_LEARNING_DEVICE: GPU
+            # PRELOAD env warms the model cache on pod start — it does NOT pick the active
+            # model. The active CLIP model is read from Immich's system-config (DB or the
+            # IMMICH_CONFIG_FILE JSON via $IMMICH_CONFIG_FILE on the server). See
+            # immich-config.json templateData below for the authoritative setting.
+            # immich v3 split the flat PRELOAD__CLIP into __TEXTUAL/__VISUAL — the old
+            # flat form crashes ML on boot (pydantic SettingsError parsing "preload").
+            MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: nllb-clip-large-siglip__mrl
+            MACHINE_LEARNING_PRELOAD__CLIP__VISUAL: nllb-clip-large-siglip__mrl
+            MACHINE_LEARNING_WORKERS: "1"
+            MACHINE_LEARNING_WORKER_TIMEOUT: "0"
+          # First boot with NLLB-Large on OpenVINO compiles the visual encoder ONNX graph
+          # for ~10-25 min on an Intel iGPU (cached afterwards). Default startup probe of
+          # 60×10s = 10 min is too tight; raise to 240×10s = 40 min. timeoutSeconds bumped
+          # to 5 because gunicorn's single worker can't always reply to /ping in 1 s while
+          # loading model weights. Liveness/readiness defaults are kept — once Ready, the
+          # /ping endpoint is fast.
+          probes:
+            startup:
+              spec:
+                failureThreshold: 240
+                periodSeconds: 10
+                timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 4Gi
+            limits:
+              # NLLB-Large encoding pins to 2 cores at the previous 2000m limit and was
+              # throttled ~80 % of the time (cgroup nr_throttled 1258/3293, throttled_usec
+              # 295s/370s). Bump to 8 cores; worker-01 is 16-core, runs at ~20 % otherwise.
+              # OpenVINO offloads tensor ops to iGPU but pre/post-processing stays on CPU.
+              cpu: 8000m
+              # NLLB-Large peak ~13-14 GB during OpenVINO JIT compile (model file 14.9 GB
+              # on disk maps into memory plus working set). 8Gi was OOMKilled twice.
+              memory: 16Gi
+              gpu.intel.com/i915: "1"
+  persistence:
+    cache:
+      # NLLB-Large (~14.9 GB) + buffalo_l face detection + recognition + OpenVINO compile
+      # caches + HF download temp files filled 20Gi to 100 %. Bump to 30Gi.
+      size: 30Gi
+      type: persistentVolumeClaim
+      # ML model cache (NLLB/buffalo_l/OpenVINO) is fully regenerable — re-downloaded
+      # on demand — so node-local local-path instead of Longhorn (30Gi × 2 replicas
+      # = 60Gi saved). Single ML pod (replicas:1, Recreate, GPU-node-pinned) → RWO is
+      # fine; local-path is RWO-only and node-pins the PV to the GPU node anyway.
+      storageClass: "local-path"
+      accessMode: ReadWriteOnce
+      retain: true
+
 # Platform resources via the homelab-common chart
 homelab-common:
   networkPolicy:
@@ -224,174 +395,3 @@ homelab-common:
         dump:
           emptyDir: {}
           mountPath: /dump
-
-_shared_config:
-  url: &url https://immich.example.com
-  # Server and ML ship in one immich-app/immich release. The docker datasource
-  # fails on ghcr.io/immich-app/* (hundreds of thousands of PR-build tags =
-  # hundreds of tags/list pages per lookup, "no-result" in the Dependency
-  # Dashboard), so both versions come from github-releases immich-app/immich;
-  # the ML -openvino suffix stays outside currentValue (customManager in
-  # renovate.json). One PR bumps both, so server and ML never drift.
-  # renovate: datasource=github-releases depName=immich-app/immich
-  version: &version "v3.3.1"
-  # renovate: immich-ml
-  ml_tag: &ml_tag "v3.3.1-openvino"
-
-# Server-only settings. Top-level controllers/defaultPodOptions/persistence in
-# the immich chart are shared by every component, so they also landed in the
-# ML pod (DB/Redis credentials, the OIDC config mount, the server affinity).
-server:
-  # Prefer the bare-metal ML worker so the server lands next to the ML pod
-  # (low-latency calls during re-encode, thumbnail and transcode jobs), but fall
-  # back to any node if worker-01 is full or down: the server is not GPU-bound.
-  defaultPodOptions:
-    securityContext:
-      seccompProfile:
-        type: RuntimeDefault
-    affinity:
-      nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
-                - key: node-role.kubernetes.io/ml
-                  operator: In
-                  values: ["true"]
-  controllers:
-    main:
-      # Roll on DB/OIDC secret rotation. Not immich-valkey: it rotates together
-      # with valkey (valkey cheatsheet).
-      annotations:
-        secret.reloader.stakater.com/reload: immich-main-user-credentials,immich-oidc-secret
-      containers:
-        main:
-          image:
-            tag: *version
-          resources:
-            requests:
-              cpu: 500m
-              memory: 2400Mi
-            limits:
-              # Server consolidates the v2.x microservices (job dispatcher, thumbnail
-              # generator, metadata extractor, transcode launcher). During bulk re-encode
-              # it was pinned at 1000m and the kernel throttled 93 % of periods, stealing
-              # 5.4 x more CPU time than the pod was allowed to run. Bump to 6 cores;
-              # worker-01 has 16 allocatable and runs at ~20 % otherwise.
-              cpu: 6000m
-              memory: 5Gi
-          env:
-            # PostgreSQL via CNPG
-            DB_HOSTNAME: "immich-cluster-rw"
-            DB_PORT: "5432"
-            DB_DATABASE_NAME: "immich"
-            DB_USERNAME:
-              valueFrom:
-                secretKeyRef:
-                  name: immich-main-user-credentials
-                  key: username
-            DB_PASSWORD:
-              valueFrom:
-                secretKeyRef:
-                  name: immich-main-user-credentials
-                  key: password
-            # Shared Valkey (ns valkey); Immich on DB index 1, argocd on DB 0
-            REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
-            REDIS_DBINDEX: "1"
-            REDIS_USERNAME: "app"
-            REDIS_PASSWORD:
-              valueFrom:
-                secretKeyRef:
-                  name: immich-valkey
-                  key: password
-            IMMICH_SERVER_URL: *url
-            PUBLIC_IMMICH_SERVER_URL: *url
-            # OAuth / Authentik: v2+ reads it from a config file, not env vars
-            IMMICH_CONFIG_FILE: "/config/immich-config.json"
-  persistence:
-    immich-config:
-      type: secret
-      name: immich-oidc-secret
-      advancedMounts:
-        main:
-          main:
-            - path: /config
-              readOnly: true
-
-# Immich configuration
-immich:
-  persistence:
-    # Main library storage for photos and videos
-    library:
-      existingClaim: "immich-library-pvc"
-
-# Machine Learning component — OpenVINO image with Intel Iris Xe GPU (N100)
-# i915 Talos extension installed; Intel GPU Device Plugin advertises gpu.intel.com/i915.
-machine-learning:
-  defaultPodOptions:
-    securityContext:
-      seccompProfile:
-        type: RuntimeDefault
-    # Pin to dedicated bare-metal ML worker — CP VMs also carry intel.feature.node.kubernetes.io/gpu
-    # via VFIO iGPU passthrough, so a GPU-label affinity would not actually exclude them.
-    # Add the label with: kubectl label node <name> node-role.kubernetes.io/ml=true
-    nodeSelector:
-      node-role.kubernetes.io/ml: "true"
-  controllers:
-    main:
-      strategy: Recreate
-      containers:
-        main:
-          image:
-            tag: *ml_tag
-          env:
-            MACHINE_LEARNING_DEVICE: GPU
-            # PRELOAD env warms the model cache on pod start — it does NOT pick the active
-            # model. The active CLIP model is read from Immich's system-config (DB or the
-            # IMMICH_CONFIG_FILE JSON via $IMMICH_CONFIG_FILE on the server). See
-            # immich-config.json templateData above for the authoritative setting.
-            # immich v3 split the flat PRELOAD__CLIP into __TEXTUAL/__VISUAL — the old
-            # flat form crashes ML on boot (pydantic SettingsError parsing "preload").
-            MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: nllb-clip-large-siglip__mrl
-            MACHINE_LEARNING_PRELOAD__CLIP__VISUAL: nllb-clip-large-siglip__mrl
-            MACHINE_LEARNING_WORKERS: "1"
-            MACHINE_LEARNING_WORKER_TIMEOUT: "0"
-          # First boot with NLLB-Large on OpenVINO compiles the visual encoder ONNX graph
-          # for ~10-25 min on an Intel iGPU (cached afterwards). Default startup probe of
-          # 60×10s = 10 min is too tight; raise to 240×10s = 40 min. timeoutSeconds bumped
-          # to 5 because gunicorn's single worker can't always reply to /ping in 1 s while
-          # loading model weights. Liveness/readiness defaults are kept — once Ready, the
-          # /ping endpoint is fast.
-          probes:
-            startup:
-              spec:
-                failureThreshold: 240
-                periodSeconds: 10
-                timeoutSeconds: 5
-          resources:
-            requests:
-              cpu: 2000m
-              memory: 4Gi
-            limits:
-              # NLLB-Large encoding pins to 2 cores at the previous 2000m limit and was
-              # throttled ~80 % of the time (cgroup nr_throttled 1258/3293, throttled_usec
-              # 295s/370s). Bump to 8 cores; worker-01 is 16-core, runs at ~20 % otherwise.
-              # OpenVINO offloads tensor ops to iGPU but pre/post-processing stays on CPU.
-              cpu: 8000m
-              # NLLB-Large peak ~13-14 GB during OpenVINO JIT compile (model file 14.9 GB
-              # on disk maps into memory plus working set). 8Gi was OOMKilled twice.
-              memory: 16Gi
-              gpu.intel.com/i915: "1"
-  persistence:
-    cache:
-      # NLLB-Large (~14.9 GB) + buffalo_l face detection + recognition + OpenVINO compile
-      # caches + HF download temp files filled 20Gi to 100 %. Bump to 30Gi.
-      size: 30Gi
-      type: persistentVolumeClaim
-      # ML model cache (NLLB/buffalo_l/OpenVINO) is fully regenerable — re-downloaded
-      # on demand — so node-local local-path instead of Longhorn (30Gi × 2 replicas
-      # = 60Gi saved). Single ML pod (replicas:1, Recreate, GPU-node-pinned) → RWO is
-      # fine; local-path is RWO-only and node-pins the PV to the GPU node anyway.
-      storageClass: "local-path"
-      accessMode: ReadWriteOnce
-      retain: true

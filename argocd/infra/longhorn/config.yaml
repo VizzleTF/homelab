@@ -4,6 +4,7 @@ targetRevision: "1.13.0"
 namespace: longhorn-system
 wave: "-4"
 extraManifests: true
+# longhorn-manager rewrites syncRequestedAt on BackupTarget/default itself (2026-05).
 ignoreDiff: |
   - group: longhorn.io
     kind: BackupTarget

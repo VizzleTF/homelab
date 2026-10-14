@@ -1,28 +1,11 @@
-homelab-common:
-  # requests-only: default limits would cap instance-manager and engine-image
-  # pods. Gives the chart pods without resources (engine-image, longhorn-ui,
-  # driver-deployer, jobs) a request instead of BestEffort. Needs
-  # homelab-common >= 2.1.0 (`defaults: null`).
-  limitRange:
-    enabled: true
-    defaults: null
-    defaultRequests:
-      cpu: 10m
-      memory: 32Mi
-  httpRoutes:
-    - name: longhorn
-      hostname: longhorn
-      gateway: internal
-      service:
-        name: longhorn-frontend
-        port: 80
+# Longhorn: default replicated block storage. Source: https://github.com/longhorn/longhorn
 
 # `networkPolicies.restrictInternalTraffic` (default true since 1.12.1) stays
 # on: Longhorn components stay isolated. Cross-namespace access is granted
 # per client: manifests/networkpolicy-allow-monitoring.yaml (vmagent -> 9500).
 # UI/API stay ClusterIP: the manager API (9500) can delete volumes and has no
 # auth, so it must not be announced over BGP. UI access goes through the
-# internal HTTPRoute above.
+# internal HTTPRoute in homelab-common below.
 persistence:
   # longhorn-manager owns the default SC `longhorn` through the ConfigMap
   # `longhorn-storageclass` (it overwrites any external manifest). Replica
@@ -117,3 +100,22 @@ longhornGlobalManager:
     limits:
       cpu: 200m
       memory: 128Mi
+
+homelab-common:
+  # requests-only: default limits would cap instance-manager and engine-image
+  # pods. Gives the chart pods without resources (engine-image, longhorn-ui,
+  # driver-deployer, jobs) a request instead of BestEffort. Needs
+  # homelab-common >= 2.1.0 (`defaults: null`).
+  limitRange:
+    enabled: true
+    defaults: null
+    defaultRequests:
+      cpu: 10m
+      memory: 32Mi
+  httpRoutes:
+    - name: longhorn
+      hostname: longhorn
+      gateway: internal
+      service:
+        name: longhorn-frontend
+        port: 80

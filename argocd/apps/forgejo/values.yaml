@@ -124,8 +124,6 @@ homelab-common:
         - ReadWriteOnce
       storageClassName: longhorn
       size: 10Gi
-      labels:
-        app.kubernetes.io/name: forgejo
 
   # VolSync removed with the move: this instance is a read-only mirror of the
   # Forgejo on the ops node, and that one is backed up there — daily dump into

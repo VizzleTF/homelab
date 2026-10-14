@@ -1,5 +1,98 @@
 # OpenBao (MPL 2.0 fork of HashiCorp Vault): HA, Raft storage, KV v2 mount `home`.
 
+server:
+  # RollingUpdate (chart default = OnDelete): image/chart bumps roll the pods
+  # without a manual delete. Reverse ordinal, one at a time, waiting for Ready:
+  # autounseal unseals a cold pod (~30s) before readiness. The active pod
+  # (openbao-0) rolls last.
+  updateStrategyType: "RollingUpdate"
+
+  # 200m limit throttled every pod (~25% of CFS periods) — the exec readiness
+  # probe `bao status` then blew its 3s timeout, flapping the STS 3/3↔2/3 and the
+  # ArgoCD app Progressing↔Healthy.
+  resources:
+    requests:
+      memory: 250Mi
+      cpu: 150m
+    limits:
+      memory: 540Mi
+      cpu: 500m
+
+  readinessProbe:
+    timeoutSeconds: 5
+
+  extraEnvironmentVars:
+    GOMEMLIMIT: "460MiB"
+
+  # RWO: raft already keeps three copies. RWX put every member's boltdb on
+  # NFS via a share-manager pod, and all six share-managers sat on one node —
+  # one node loss took down all three members at once. Migrated member by
+  # member (remove-peer, recreate PVC, retry_join) on 2026-09-24.
+  # local-path since 2026-10: Longhorn's two replicas on top of raft's three
+  # meant six copies of every write on the SATA SSDs etcd shares. A lost node
+  # now means a lost member: remove-peer, delete the PVC, let it rejoin.
+  # volumeClaimTemplates are immutable — the STS is deleted with
+  # --cascade=orphan before sync (docs/reduce-disk-writes.md).
+  dataStorage:
+    size: 2Gi
+    storageClass: local-path
+    annotations:
+      helm.sh/resource-policy: keep
+
+  auditStorage:
+    enabled: true
+    size: 1Gi
+    storageClass: local-path
+    annotations:
+      helm.sh/resource-policy: keep
+
+  ha:
+    enabled: true
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+
+        disable_mlock = true
+
+        cache {
+          size = "32768"
+        }
+
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+
+        storage "raft" {
+          path = "/openbao/data"
+
+          retry_join {
+            leader_api_addr = "http://openbao-0.openbao-internal:8200"
+          }
+
+          retry_join {
+            leader_api_addr = "http://openbao-1.openbao-internal:8200"
+          }
+
+          retry_join {
+            leader_api_addr = "http://openbao-2.openbao-internal:8200"
+          }
+        }
+
+        service_registration "kubernetes" {}
+
+# Agent injector off: no pod carries vault.hashicorp.com/agent-inject — every
+# secret comes through ESO. It only added a mutating webhook on all pods and
+# an image (hashicorp/vault-k8s 1.7.2) with 3 critical CVEs.
+injector:
+  enabled: false
+
+ui:
+  enabled: true
+
 homelab-common:
   # Default-deny ingress: own namespace (raft :8201, autounseal, snapshot and
   # DR-pack jobs), node/gateway traffic, and External Secrets on :8200.
@@ -425,96 +518,3 @@ homelab-common:
     defaults:
       cpu: 250m
       memory: 256Mi
-
-server:
-  # RollingUpdate (chart default = OnDelete): image/chart bumps roll the pods
-  # without a manual delete. Reverse ordinal, one at a time, waiting for Ready:
-  # autounseal unseals a cold pod (~30s) before readiness. The active pod
-  # (openbao-0) rolls last.
-  updateStrategyType: "RollingUpdate"
-
-  # 200m limit throttled every pod (~25% of CFS periods) — the exec readiness
-  # probe `bao status` then blew its 3s timeout, flapping the STS 3/3↔2/3 and the
-  # ArgoCD app Progressing↔Healthy.
-  resources:
-    requests:
-      memory: 250Mi
-      cpu: 150m
-    limits:
-      memory: 540Mi
-      cpu: 500m
-
-  readinessProbe:
-    timeoutSeconds: 5
-
-  extraEnvironmentVars:
-    GOMEMLIMIT: "460MiB"
-
-  # RWO: raft already keeps three copies. RWX put every member's boltdb on
-  # NFS via a share-manager pod, and all six share-managers sat on one node —
-  # one node loss took down all three members at once. Migrated member by
-  # member (remove-peer, recreate PVC, retry_join) on 2026-09-24.
-  # local-path since 2026-10: Longhorn's two replicas on top of raft's three
-  # meant six copies of every write on the SATA SSDs etcd shares. A lost node
-  # now means a lost member: remove-peer, delete the PVC, let it rejoin.
-  # volumeClaimTemplates are immutable — the STS is deleted with
-  # --cascade=orphan before sync (docs/reduce-disk-writes.md).
-  dataStorage:
-    size: 2Gi
-    storageClass: local-path
-    annotations:
-      helm.sh/resource-policy: keep
-
-  auditStorage:
-    enabled: true
-    size: 1Gi
-    storageClass: local-path
-    annotations:
-      helm.sh/resource-policy: keep
-
-  ha:
-    enabled: true
-    raft:
-      enabled: true
-      setNodeId: true
-      config: |
-        ui = true
-
-        disable_mlock = true
-
-        cache {
-          size = "32768"
-        }
-
-        listener "tcp" {
-          tls_disable = 1
-          address = "[::]:8200"
-          cluster_address = "[::]:8201"
-        }
-
-        storage "raft" {
-          path = "/openbao/data"
-
-          retry_join {
-            leader_api_addr = "http://openbao-0.openbao-internal:8200"
-          }
-
-          retry_join {
-            leader_api_addr = "http://openbao-1.openbao-internal:8200"
-          }
-
-          retry_join {
-            leader_api_addr = "http://openbao-2.openbao-internal:8200"
-          }
-        }
-
-        service_registration "kubernetes" {}
-
-# Agent injector off: no pod carries vault.hashicorp.com/agent-inject — every
-# secret comes through ESO. It only added a mutating webhook on all pods and
-# an image (hashicorp/vault-k8s 1.7.2) with 3 critical CVEs.
-injector:
-  enabled: false
-
-ui:
-  enabled: true
