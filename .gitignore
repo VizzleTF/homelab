@@ -25,6 +25,9 @@ terraform_*/*.tfplan
 .DS_Store
 Thumbs.db
 
+# Python bytecode
+__pycache__/
+
 # Workspace-only artefacts (not part of the homelab repo)
 /.claudeignore
 /.vscode/

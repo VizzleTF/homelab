@@ -26,6 +26,9 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 command -v pluto >/dev/null || { echo "pluto not on PATH" >&2; exit 1; }
 
+# Pinned, not read from the cluster version: yannh/kubernetes-json-schema
+# publishes a new minor late, and -ignore-missing-schemas would turn a missing
+# version into a silent skip of every core kind. Bump once the schemas exist.
 KUBE_VERSION="${KUBE_VERSION:-1.37.0}"
 CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
@@ -78,9 +81,12 @@ for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml \
 done
 
 echo "==> pluto: deprecated APIs in raw manifests"
+# pluto targets the cluster's k8s version (tuppr, Renovate-tracked): rules need no schemas.
+K8S=$(sed -n 's/^[[:space:]]*version:[[:space:]]*\(v[^[:space:]]*\).*/\1/p' argocd/infra/tuppr/manifests/kubernetes-upgrade.yaml)
 CILIUM=$(sed -n 's/^targetRevision:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' argocd/infra/cilium/config.yaml)
+[[ -n "$K8S" && -n "$CILIUM" ]] || { echo "cannot read k8s/cilium version for pluto" >&2; exit 1; }
 if ! pluto detect-files -d argocd -o wide -f .pluto-versions.yaml \
-      -t "k8s=v${KUBE_VERSION},cilium=v${CILIUM}"; then
+      -t "k8s=${K8S},cilium=v${CILIUM}"; then
   echo "  FAIL: deprecated/removed apiVersion in argocd/ (see table above)"
   fails=$((fails + 1))
 fi

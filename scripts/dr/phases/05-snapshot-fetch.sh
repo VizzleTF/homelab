@@ -47,7 +47,9 @@ esac
 kubectl create ns dr-fetch 2>/dev/null || true
 kubectl -n dr-fetch delete pod snapshot-fetch --ignore-not-found >/dev/null 2>&1
 
-kubectl -n dr-fetch run snapshot-fetch --restart=Never --image=rclone/rclone:1.75 \
+# Same rclone tag as the Renovate-tracked CronJobs.
+RCLONE_TAG="$(chart_version infra/tfstate-mirror/values.yaml '[.. | select(.repository? == "rclone/rclone") | .tag][0]')"
+kubectl -n dr-fetch run snapshot-fetch --restart=Never --image="rclone/rclone:${RCLONE_TAG}" \
   --env="RCLONE_CONFIG_S_TYPE=s3" \
   --env="RCLONE_CONFIG_S_PROVIDER=Other" \
   --env="RCLONE_CONFIG_S_ENDPOINT=$ENDPOINT" \

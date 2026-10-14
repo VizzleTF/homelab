@@ -75,7 +75,7 @@ require_kubectl() {
     || die "kubectl not configured / cluster unreachable. Set KUBECONFIG."
 }
 
-# Chart version pinned in git, so DR installs exactly what ArgoCD runs.
+# Chart version (or image tag) pinned in git, so DR installs exactly what ArgoCD runs.
 # Usage: chart_version <component>           -> argocd/infra/<component>/config.yaml
 #        chart_version <file> <yq-expression> -> any yaml under argocd/
 chart_version() {
