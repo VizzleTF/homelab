@@ -95,7 +95,6 @@ argocd/
 │       ├── config.yaml               # chart, repoURL, targetRevision, namespace, wave, flags
 │       ├── values.yaml               # chart values + homelab-common: section
 │       ├── homelab-values.yaml       # optional split (when chart schema is strict)
-│       ├── cnpg-values.yaml          # optional dedicated CNPG cluster (only immich today)
 │       └── manifests/                # optional raw K8s yamls (extraManifests: true)
 ├── infra/                            # Same shape as apps/, per-component
 └── values/
@@ -178,7 +177,7 @@ external-dns writes records both ways: Cloudflare for public hosts, OpenWrt for 
 
 To expose a new public service, add `httpRoutes:` to the app's `values.yaml`. `homelab-common` renders the HTTPRoute, external-dns picks up the host, and the tunnel routes it.
 
-Every namespace except `kube-system` and `netbird` has a default-deny ingress `CiliumNetworkPolicy`; a new cross-namespace client needs an `allow` entry in the target namespace.
+Every namespace except `kube-system`, `netbird` and `longhorn-system` has a default-deny ingress `CiliumNetworkPolicy` (`longhorn-system` relies on the chart's per-component `NetworkPolicy` objects plus `longhorn-ui-gateway-only`); a new cross-namespace client needs an `allow` entry in the target namespace.
 
 ---
 
@@ -186,7 +185,7 @@ Every namespace except `kube-system` and `netbird` has a default-deny ingress `C
 
 OpenBao is the single source of truth for secrets. It runs in HA mode (3-member Raft). A separate `openbao-autounseal` Deployment (a fork of `pyToshka/vault-autounseal`) unseals the pods with Shamir keys kept in a cluster Secret; the unseal material also has an off-cluster copy in Vaultwarden.
 
-External Secrets Operator renders Kubernetes `Secret` objects from OpenBao paths shaped like `home/homelab/k8s/<ns>/<app>`. There is no ClusterSecretStore: `homelab-common` renders one ServiceAccount and one `SecretStore` (`openbao-<release>`) per release, and each OpenBao role can read only its own namespace's path plus explicit grants.
+External Secrets Operator renders Kubernetes `Secret` objects from OpenBao paths shaped like `home/homelab/k8s/<ns>/<purpose>`. There is no ClusterSecretStore: `homelab-common` renders one ServiceAccount and one `SecretStore` (`openbao-<release>`) per release, and each OpenBao role can read only its own namespace's path plus explicit grants.
 
 Garage requires `AWS_DEFAULT_REGION=garage` in the env; without it, `HeadBucket` returns 400. This catches every S3 client (Barman, restic movers, Terraform S3 backend, rclone CronJobs).
 
@@ -218,7 +217,7 @@ Each volume declares a `volsync:` block in its app values; the `homelab-common` 
 
 ### Verifying backups
 
-A weekly drill (`backup-drill`, Sundays 09:00 UTC) restores one repository into a throwaway namespace, rotating through eight repositories, including the ops node's Forgejo. The target switches between Garage and OVH after each full round, so every repository is checked on each target once in 16 weeks. It checks the restored data (non-empty, `PRAGMA integrity_check` for SQLite), pushes `homelab_restore_drill_*` to VictoriaMetrics and fires an alert on failure. Two more rules watch the drill itself: stale for over 16 days, or never seen at all.
+A weekly drill (`backup-drill`, Sundays 09:00 UTC) restores one repository into a throwaway namespace, rotating through every VolSync volume labelled `homelab.dr/drill` plus the ops node's Forgejo dump (14 today). The target switches between Garage and OVH after each full round, so each repository is checked on each target once every two rounds. It checks the restored data (non-empty, `PRAGMA integrity_check` for SQLite), pushes `homelab_restore_drill_*` to VictoriaMetrics and fires an alert on failure. Two more rules watch the drill itself: stale for over 16 days, or never seen at all.
 
 ### Restore
 
@@ -230,7 +229,7 @@ DR_RESTIC_TARGET=garage scripts/dr/restore-app.sh vaultwarden
 scripts/dr/restore.sh all
 ```
 
-`restore-app.sh` creates the repository Secret, the PVC and a `ReplicationDestination`, then waits for the mover. The full playbook runs eleven phases: preflight → network → storage → TLS → DNS → snapshot fetch → OpenBao (Shamir + Raft) → ESO → CNPG → ArgoCD adoption → per-app restore. Forgejo is not part of it: the ops node must already answer.
+`restore-app.sh` creates the repository Secret, the PVC and a `ReplicationDestination`, then waits for the mover. The full playbook runs eleven phases: preflight → network → storage → TLS → DNS → snapshot fetch → OpenBao (Shamir + Raft) → ESO → CNPG → per-app restore → ArgoCD adoption. Forgejo is not part of it: the ops node must already answer.
 
 The circular dependency to know about: restic passwords live in OpenBao, and OpenBao itself is restored from a backup encrypted with them. The DR pack breaks the circle: it carries both, encrypted with a passphrase that lives in Vaultwarden and in OpenBao, never in the pack itself. See [`scripts/dr/README.md`](scripts/dr/README.md).
 
@@ -301,7 +300,7 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 | `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in OpenBao       |
 | `renewing-synology-cert`    | `acme.sh` + Cloudflare DNS-01, then reloads DSM nginx via `synow3tool`                   |
 | `scaffolding-app`           | Boilerplate for a new app: values, HTTPRoute, ExternalSecret, ArgoCD wiring              |
-| `scaffolding-authentik-oidc`| New OIDC client: secret, dual OpenBao paths, blueprint files, ESO wiring                 |
+| `scaffolding-authentik-oidc`| New OIDC client: one OpenBao path `<ns>/oidc` read by the app and Authentik, blueprint files, ESO wiring |
 | `verifying-backups`         | Audits VolSync, CNPG, etcd and OpenBao backups and off-site freshness                    |
 | `managing-monitoring`       | Triages firing alerts, queries metrics, silences, scrape targets                         |
 | `checking-cluster-health`   | One-shot overview: nodes, pods, PVCs, certs, ArgoCD sync                                 |
