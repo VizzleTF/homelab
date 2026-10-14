@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Review gate for the argocd-diff CI job. Exits 1 when a PR would prune a
 # resource or change a CustomResourceDefinition: both render cleanly, so every
-# other check stays green and automerge would ship them unread. A human reads
-# the diff and adds the `diff-reviewed` label to let the PR through.
+# other check stays green and automerge would ship them unread. The reviewer
+# reads the removal list and adds the `diff-reviewed` label to let the PR through.
 #
 # Inputs are argocd-diff-preview --output-branch-manifests files. Both hold the
 # same set of Applications (the ones the PR touches), so a resource missing from
