@@ -8,7 +8,7 @@
 # The exporter is scraped by the cluster's vmagent as a static target, so the
 # history and the alerts live with everything else. When the cluster is down
 # the data stops, which is fine: that case is the watchdog's job, not this one.
-{ ... }:
+{ config, pkgs, ... }:
 
 {
   services.prometheus.exporters.node = {
@@ -52,5 +52,38 @@
       "$ok" "$(date +%s)" > "$d/etcd-snapshot.prom.tmp"
     mv "$d/etcd-snapshot.prom.tmp" "$d/etcd-snapshot.prom"
   '';
+
+  # Forgejo neither retries a failed webhook delivery nor exposes its result
+  # (no API, no metric; non-2xx answers are logged only at Trace), and ArgoCD
+  # silently falls back to polling, so a broken hook goes unnoticed for days.
+  # webhook.last_status is each hook's latest outcome: 0 none yet, 1 succeeded,
+  # 2 failed. The label is the host, never the url: a URL may carry a token.
+  # If this unit fails, OpsNodeUnitFailed fires.
+  systemd.services.forgejo-webhook-status = {
+    description = "Export the last delivery status of Forgejo webhooks";
+    after = [ "postgresql.service" ];
+    serviceConfig.Type = "oneshot";
+    path = [
+      config.services.postgresql.package
+      pkgs.util-linux
+    ];
+    script = ''
+      set -euo pipefail
+      d=/var/lib/node-exporter/textfile
+      runuser -u postgres -- psql -d git -At -F ' ' -c \
+        "select id, coalesce(substring(url from '^https?://(?:[^/?#]*@)?([^/:?#]+)'), 'unknown'), coalesce(last_status, 0) from webhook where is_active" \
+        | while read -r id host status; do
+            printf 'homelab_forgejo_webhook_last_status{hook_id="%s",host="%s"} %s\n' "$id" "$host" "$status"
+          done > "$d/forgejo-webhook.prom.tmp"
+      mv "$d/forgejo-webhook.prom.tmp" "$d/forgejo-webhook.prom"
+    '';
+  };
+  systemd.timers.forgejo-webhook-status = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*:0/15";
+      Persistent = true;
+    };
+  };
 
 }

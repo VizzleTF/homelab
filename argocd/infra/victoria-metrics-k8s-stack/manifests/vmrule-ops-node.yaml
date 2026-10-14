@@ -2,7 +2,8 @@
 #
 # The node holds the GitOps source of truth and runs every backup timer, so the
 # failures worth waking up for are: it stopped reporting at all, a backup went
-# stale, or it is about to run out of disk for the next dump (~675 MB nightly).
+# stale, it is about to run out of disk for the next dump (~675 MB nightly), or
+# a Forgejo webhook stopped delivering.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -62,3 +63,24 @@ spec:
           annotations:
             summary: "Failed unit on the ops node: {{ $labels.name }}"
             description: "Юнит {{ $labels.name }} в состоянии failed."
+
+        - alert: ForgejoWebhookFailing
+          # Forgejo never retries and ArgoCD silently polls instead (10 min),
+          # so nothing else notices. 30m = two runs of the 15-min exporter timer
+          # (forgejo-webhook-status in nodes/ops/metrics.nix).
+          expr: homelab_forgejo_webhook_last_status{job="ops-node"} == 2
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Forgejo webhook {{ $labels.hook_id }} to {{ $labels.host }} is failing"
+            description: >-
+              Последняя доставка вебхука {{ $labels.hook_id }} на {{ $labels.host }} упала,
+              Forgejo её не повторяет, а ArgoCD синкает только по опросу (до 10 минут).
+              Причина (JSON со status, headers и body ответа): ssh root@10.11.11.153 "sudo -u
+              postgres psql -d git -At -c 'select left(response_content, 500) from hook_task
+              where hook_id={{ $labels.hook_id }} order by id desc limit 1'". Status 0 и body
+              'Delivery: …' = allow-list (webhook.ALLOWED_HOST_LIST), DNS, TLS или сеть; 400
+              'Webhook processing failed' = HMAC (webhook.gogs.secret, OpenBao
+              homelab/k8s/argocd/webhook) или битый payload; 503 = очередь ArgoCD полна. После
+              фикса — Test delivery в настройках вебхука, алерт гаснет на следующем прогоне таймера.
