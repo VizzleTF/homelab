@@ -30,6 +30,7 @@ vpolExclude:
     - smartctl-exporter        # raw disk access
     - forgejo                  # privileged dind runner
     - local-path-provisioner   # hostPath helper pods create/delete PV dirs
+    - forgejo-runner           # privileged dind runner
   matchConditions:
     # restore-drill creates drill-* namespaces with privileged VolSync movers.
     - name: skip-restore-drill-namespaces
