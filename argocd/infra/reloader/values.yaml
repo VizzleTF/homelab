@@ -5,7 +5,7 @@
 #   secret.reloader.stakater.com/reload: "authentik-config"
 # - homelab-common `workloads` add it automatically for every Secret/ConfigMap
 #   the pod references (`reload: false` turns it off, e.g. netbird, valkey).
-# - Upstream-chart apps set it in their values: authentik, forgejo, immich,
+# - Upstream-chart apps set it in their values: authentik, immich,
 #   external-dns, external-dns-openwrt, grafana (victoria-metrics-k8s-stack).
 # - These cannot annotate the workload: restart them by hand after a secret
 #   rotation.

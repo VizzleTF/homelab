@@ -14,7 +14,7 @@ homelab-common:
       - namespaces: [victoria-metrics]
         ports: [9187, 9127]
       # database clients
-      - namespaces: [authentik, forgejo, atuin]
+      - namespaces: [authentik, atuin]
         ports: [5432]
 
   externalSecrets:
@@ -31,16 +31,6 @@ homelab-common:
           property: db_password
       templateData:
         username: authentik
-        password: "{{ .password }}"
-
-    - name: forgejo-db-credentials
-      templateType: kubernetes.io/basic-auth
-      data:
-        - secretKey: password
-          vaultPath: forgejo/forgejo
-          property: password
-      templateData:
-        username: forgejo
         password: "{{ .password }}"
 
     - name: atuin-db-credentials
@@ -85,9 +75,6 @@ homelab-common:
     - name: authentik
       owner: authentik
       clusterName: cnpg-cluster
-    - name: forgejo
-      owner: forgejo
-      clusterName: cnpg-cluster
     - name: atuin
       owner: atuin
       clusterName: cnpg-cluster
@@ -129,7 +116,6 @@ homelab-common:
                     -f "/dump/$1-$ts.dump"
                 }
                 dump authentik "$AK_USER" "$AK_PASS"
-                dump forgejo   "$FJ_USER" "$FJ_PASS"
                 dump atuin     "$AT_USER" "$AT_PASS"
                 ls -lh /dump
             env:
@@ -137,10 +123,6 @@ homelab-common:
                 valueFrom: {secretKeyRef: {name: authentik-db-credentials, key: username}}
               - name: AK_PASS
                 valueFrom: {secretKeyRef: {name: authentik-db-credentials, key: password}}
-              - name: FJ_USER
-                valueFrom: {secretKeyRef: {name: forgejo-db-credentials, key: username}}
-              - name: FJ_PASS
-                valueFrom: {secretKeyRef: {name: forgejo-db-credentials, key: password}}
               - name: AT_USER
                 valueFrom: {secretKeyRef: {name: atuin-db-credentials, key: username}}
               - name: AT_PASS

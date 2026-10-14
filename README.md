@@ -131,7 +131,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the de
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, node-feature-discovery, tuppr, victoria-logs, wazuh-operator |
 | **0**   | cloudflared, intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, tfstate-mirror |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, kyverno-policies, backup-drill |
-| **2**   | renovate; apps: atuin, authentik, cleanbot, forgejo, immich, lampac, may, obsidian-livesync, opencloud, rss-to-telegram-bot, spotify-backup, trek, vaultwarden, wazuh |
+| **2**   | renovate; apps: atuin, authentik, cleanbot, immich, lampac, may, obsidian-livesync, opencloud, rss-to-telegram-bot, spotify-backup, trek, vaultwarden, wazuh |
 | **3**   | forgejo-runner, netbird, crowdsec-scraper, openwrt-backup |
 
 ---
@@ -237,7 +237,7 @@ The circular dependency to know about: restic passwords live in OpenBao, and Ope
 
 ## Forgejo-first workflow
 
-Origin is a self-hosted Forgejo instance on the `ops` node, outside the cluster. The in-cluster Forgejo is a read-only mirror, and so is GitHub.
+Origin is a self-hosted Forgejo instance on the `ops` node, outside the cluster. GitHub is a read-only mirror.
 
 ```
 local branch
