@@ -9,7 +9,7 @@ spec:
   groups:
     - name: alert-delivery
       rules:
-        # Routed to telegram-direct (alertmanager-config.yaml), not Robusta:
+        # Routed to telegram-direct (alertmanager-config, externalSecrets in values.yaml), not Robusta:
         # if Robusta is the thing failing, a Robusta notification never lands.
         - alert: AlertmanagerNotificationsFailing
           expr: sum by (integration) (rate(alertmanager_notifications_failed_total[15m])) > 0
