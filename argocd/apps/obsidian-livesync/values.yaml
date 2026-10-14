@@ -18,7 +18,7 @@ extraSecretName: obsidian-livesync-couchdb-creds
 
 image:
   repository: couchdb  # pinned: Renovate needs repository next to tag
-  tag: "3.5.2"
+  tag: "3.5.3"
 
 persistentVolume:
   enabled: true
