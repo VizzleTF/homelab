@@ -120,7 +120,8 @@ jobs:
         run: scripts/kubeconform-validate.sh
       - name: Self-check of the Claude Code hooks
         # validate-yaml calls yamllint and kubeconform-validate.sh; fixtures pin
-        # past false failures of it and helm-repo, plus the bash-guard selftest.
+        # past false failures of it and helm-repo, plus the bash-guard and
+        # program-gate (running-program Stop hook) selftests.
         # node:*-bookworm ships without jq.
         run: |
           set -eu

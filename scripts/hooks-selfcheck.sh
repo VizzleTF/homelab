@@ -4,7 +4,8 @@
 #     files it must reject;
 #   - helm-repo.sh: commands that do not read the local repo index pass, a stale
 #     `<repo>/<chart>` read is flagged;
-#   - bash-guard.py --selftest.
+#   - bash-guard.py --selftest;
+#   - program-gate.sh --selftest (Stop hook of the running-program skill).
 # Runs in the CI kubeconform job and in `task ci:kubeconform`; needs jq,
 # yamllint, kubeconform, python3 and network for the kubeconform schemas.
 set -uo pipefail
@@ -44,6 +45,7 @@ check_helm 0 "helm template x charts/homelab-common -f argocd/values/global.yaml
 check_helm 2 "helm show values cilium/cilium" "repo/chart read with no fresh helm repo update"
 
 python3 .claude/hooks/bash-guard.py --selftest || fail=1
+bash scripts/program-gate.sh --selftest || fail=1
 
 [[ $fail -eq 0 ]] && echo "hooks-selfcheck: clean"
 exit "$fail"
