@@ -8,6 +8,9 @@ metadata:
     # argocd-diff renders this app only when its own inputs change.
     argocd-diff-preview/watch-pattern: "argocd/standalone/argocd-application.yaml, argocd/values/.*"
     argocd.argoproj.io/manifest-generate-paths: "/argocd/standalone/argocd-application.yaml;/argocd/values"
+    # Same as the AppSet template: hand fields still co-owned by the pre-SSA
+    # manager (RBAC annotations, TLSRoute labels/annotations) to argocd-controller on sync.
+    argocd.argoproj.io/client-side-apply-migration-manager: argocd-application-controller
   labels:
     app.kubernetes.io/managed-by: argocd
     app.kubernetes.io/part-of: infrastructure
