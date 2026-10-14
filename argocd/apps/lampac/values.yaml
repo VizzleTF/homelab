@@ -92,25 +92,29 @@ homelab-common:
           env:
             - name: LAMPAC_PORT
               value: "9118"
-          # Cold start compiles modules and binds Kestrel in ~130-150s. Keep
-          # initialDelay short but widen the failure window:
-          # liveness 60+12*15=240s, readiness 60+10*15=210s.
+          # Cold start compiles modules and binds Kestrel in ~130-150s: the
+          # startupProbe allows 24*10=240s, after it liveness restarts a hung
+          # pod within 5*15=75s.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 24
           livenessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 5
-            failureThreshold: 12
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 5
-            failureThreshold: 10
           resources:
             requests:
               cpu: 50m

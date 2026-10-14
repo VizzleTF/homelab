@@ -43,15 +43,11 @@ homelab-common:
         - ReadWriteOnce
       storageClassName: longhorn
       size: 100Mi
-      labels:
-        app: netbird-peer
     - name: netbird-peer-2
       accessModes:
         - ReadWriteOnce
       storageClassName: longhorn
       size: 100Mi
-      labels:
-        app: netbird-peer-2
 
   # No probes: the peer serves no port, and a liveness probe on `netbird status`
   # would restart it on a lost management connection, which the client retries
