@@ -296,10 +296,15 @@ jobs:
             done
             if docker start -a argocd-diff-preview; then
               docker cp argocd-diff-preview:/output .
-              # A PR that touches no Application (scripts, docs) renders nothing and the
-              # tool writes no manifests; empty files let every check below pass cleanly.
-              mkdir -p output && touch output/base-branch.yaml output/target-branch.yaml
               docker rm -f argocd-diff-preview >/dev/null
+              # No Application selected: the tool exits 0 and writes only diff.md with a
+              # "Found no ..." line (pkg/diff/no_apps_found.go). Missing manifests without
+              # that line is a broken run: fail, never check empty files.
+              if [ ! -f output/target-branch.yaml ]; then
+                grep -q '^Found no' output/diff.md 2>/dev/null \
+                  || { echo "::error::argocd-diff-preview wrote no manifests"; exit 1; }
+                touch output/base-branch.yaml output/target-branch.yaml
+              fi
               exit 0
             fi
             echo "::warning::argocd-diff-preview failed (attempt ${attempt})"
