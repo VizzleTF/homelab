@@ -1,4 +1,7 @@
 # TREK — self-hosted collaborative travel planner (NestJS + React, SQLite).
+# Travel-only: kept at replicas 0 and scaled up on demand
+# (`kubectl -n trek scale deploy/trek --replicas=1` before a trip, back to 0
+# after); data and VolSync backups keep running. See config.yaml ignoreDiff.
 # Chart pins fsGroup:1000 and exposes no securityContext override → image runs as
 # UID 1000 (Node). No LimitRange-incompatible knobs; resources are the chart defaults.
 
