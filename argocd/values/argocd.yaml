@@ -59,6 +59,7 @@ configs:
       issuer: https://authentik.example.com/application/o/argocd/
       clientID: argocd
       clientSecret: $oidc.argocd.clientSecret
+      enablePKCEAuthentication: true
     # No defaulting ignores for HTTPRoute/TLSRoute/Gateway: server-side diff
     # (controller.diff.server.side) compares against a dry-run apply, which
     # defaults group/kind/weight on both sides. With RespectIgnoreDifferences
