@@ -31,7 +31,7 @@ server:
           - weight: 100
             preference:
               matchExpressions:
-                - key: node-role.kubernetes.io/ml
+                - key: homelab.example.com/ml
                   operator: In
                   values: ["true"]
   controllers:
@@ -101,18 +101,18 @@ immich:
     library:
       existingClaim: "immich-library-pvc"
 
-# Machine Learning component — OpenVINO image with Intel Iris Xe GPU (N100)
-# i915 Talos extension installed; Intel GPU Device Plugin advertises gpu.intel.com/i915.
+# Machine Learning component: OpenVINO image on the Intel Iris Xe iGPU of the ML
+# worker (i915 extension, gpu.intel.com/i915).
 machine-learning:
   defaultPodOptions:
     securityContext:
       seccompProfile:
         type: RuntimeDefault
-    # Pin to dedicated bare-metal ML worker — CP VMs also carry intel.feature.node.kubernetes.io/gpu
-    # via VFIO iGPU passthrough, so a GPU-label affinity would not actually exclude them.
-    # Add the label with: kubectl label node <name> node-role.kubernetes.io/ml=true
+    # Pinned by the Talos-managed label homelab.example.com/ml
+    # (terraform_talos/configs/nodes.yaml); a GPU-feature selector would also
+    # match the control planes.
     nodeSelector:
-      node-role.kubernetes.io/ml: "true"
+      homelab.example.com/ml: "true"
   controllers:
     main:
       strategy: Recreate
