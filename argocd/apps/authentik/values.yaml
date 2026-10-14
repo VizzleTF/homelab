@@ -205,7 +205,9 @@ homelab-common:
                 name: ArgoCD OIDC
               attrs:
                 name: ArgoCD OIDC
-                client_type: confidential
+                # public + PKCE: `argocd login --sso` exchanges the code itself and
+                # has no secret; a second CLI client would get another issuer.
+                client_type: public
                 client_id: argocd
                 client_secret: !Env ARGOCD_OIDC_CLIENT_SECRET
                 grant_types:
