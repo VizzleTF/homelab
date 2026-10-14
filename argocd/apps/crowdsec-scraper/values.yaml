@@ -56,8 +56,6 @@ homelab-common:
         - ReadWriteOnce
       storageClassName: longhorn
       size: 100Mi
-      labels:
-        app: crowdsec-scraper
 
   configMaps:
     - name: crowdsec-scraper
