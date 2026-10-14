@@ -327,7 +327,8 @@ grafana:
     auth.generic_oauth:
       enabled: true
       name: Authentik
-      client_id: $__file{/etc/secrets/grafana-oidc/client-id}
+      # client_id is the authentik provider slug; only the secret is in OpenBao.
+      client_id: grafana
       client_secret: $__file{/etc/secrets/grafana-oidc/client-secret}
       scopes: openid profile email
       auth_url: https://authentik.example.com/application/o/authorize/
@@ -543,12 +544,9 @@ homelab-common:
     - name: grafana-oidc-secret
       vaultPath: victoria-metrics/oidc
       data:
-        - secretKey: client_id
-          property: client_id
         - secretKey: client_secret
           property: client_secret
       templateData:
-        client-id: "{{ .client_id }}"
         client-secret: "{{ .client_secret }}"
 
     # Alertmanager config. The homelab's Telegram bot (shared/telegram, grant
