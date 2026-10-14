@@ -18,7 +18,8 @@
 #   label   <pr-number> <label-name>     add an existing repo label to a PR
 #   diff-comment <pr-number>             print the latest argocd-diff bot comment
 #   rerun   <pr-number>                  re-trigger CI: empty commit on the checked-out
-#                                        PR branch (Forgejo has no rerun API); not renovate/*
+#                                        PR branch (Forgejo has no rerun API); for renovate/*
+#                                        tick the rebase-check box in the PR body instead
 #
 # Every <pr-number> except in `full` also takes an open PR's branch name.
 #
@@ -71,7 +72,7 @@ Usage:
   $0 full    <branch> -- <title> <body>
   $0 label   <pr-number> <label-name>   (e.g. diff-reviewed)
   $0 diff-comment <pr-number>
-  $0 rerun   <pr-number>                (on the checked-out PR branch; not renovate/*)
+  $0 rerun   <pr-number>                (on the checked-out PR branch; renovate/*: ticks rebase-check)
 
 <pr-number> may also be the branch name of an open PR.
 
@@ -130,11 +131,12 @@ forgejo_api() {
   local tmp; tmp=$(mktemp)
   local code
   if [[ -n "$data" ]]; then
+    # stdin, not argv: a Renovate PR body can exceed the 128 KiB argument limit.
     code=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" \
       -H "Authorization: token $t" \
       -H "Content-Type: application/json" \
-      -d "$data" \
-      "$FORGEJO_URL$path") || code=0
+      --data-binary @- \
+      "$FORGEJO_URL$path" <<<"$data") || code=0
   else
     code=$(curl -sS -o "$tmp" -w '%{http_code}' -X "$method" \
       -H "Authorization: token $t" \
@@ -205,8 +207,6 @@ diff_comment() {
 JQ_TS='def ts: try (sub("\\.[0-9]+"; "") | (.[0:19] + "Z" | fromdateiso8601)
   - (if .[19:] == "Z" then 0 else (.[19:20] + "1" | tonumber) * ((.[20:22] | tonumber) * 3600 + (.[23:25] | tonumber) * 60) end)) catch null;'
 
-RENOVATE_RERUN_HINT="Renovate stops updating modified branches; use Re-run in the web UI or the rebase checkbox"
-
 # resolve_pr <pr-number|branch> — a number passes through; a branch name maps to
 # its single open PR. Forgejo ignores ?head=, so the filter runs client-side.
 resolve_pr() {
@@ -229,7 +229,7 @@ resolve_pr() {
   printf '%s' "$nums"
 }
 
-# failure_hints <pr-number> <head-ref> (reads a status payload on stdin)
+# failure_hints <pr-number> (reads a status payload on stdin)
 # For each failed check, say where the reason is. argocd-diff explains itself
 # in its PR comment (kubeconform, pluto, review gate) — but only when that
 # comment is from this run: one older than the latest `pending` of the
@@ -237,7 +237,7 @@ resolve_pr() {
 # is stale.
 # Job logs are only in the web UI.
 failure_hints() {
-  local pr="$1" head_ref="$2" payload ctx url comment body started stale
+  local pr="$1" payload ctx url comment body started stale
   payload=$(cat)
   jq -r '.statuses[]? | select((.status // .state) | IN("failure", "error")) | "\(.context)\t\(.target_url)"' <<<"$payload" \
     | while IFS=$'\t' read -r ctx url; do
@@ -263,12 +263,8 @@ failure_hints() {
           # Checks part of the comment only; the manifest diff follows the heading.
           awk -v m="$DIFF_MARKER" '/^## Argo CD Diff Preview/ {exit} $0 != m' <<<"$body" >&2
           if grep -q 'Blocked.*diff-reviewed' <<<"$body"; then
-            echo "review gate: read the diff ($0 diff-comment $pr); with the user's consent run" >&2
-            if [[ "$head_ref" == renovate/* ]]; then
-              echo "  $0 label $pr diff-reviewed; then re-run: $RENOVATE_RERUN_HINT" >&2
-            else
-              echo "  $0 label $pr diff-reviewed && $0 rerun $pr" >&2
-            fi
+            echo "review gate: check that $0 diff-comment $pr lists only the removals this PR intends;" >&2
+            echo "  if so, run as separate commands: $0 label $pr diff-reviewed, then $0 rerun $pr" >&2
           else
             echo "no blocked check in the comment — job failed elsewhere; log (web UI only): $FORGEJO_URL$url" >&2
           fi
@@ -398,7 +394,7 @@ cmd_status() {
 
   case "$(jq -r '.state' <<<"$payload")" in
     success)       exit 0 ;;
-    failure|error) failure_hints "$pr" "$(jq -r '.head.ref' <<<"$meta")" <<<"$payload"; exit 1 ;;
+    failure|error) failure_hints "$pr" <<<"$payload"; exit 1 ;;
     *)             exit 2 ;;
   esac
 }
@@ -543,6 +539,8 @@ cmd_diff_comment() {
 
 # Forgejo has no API to re-run a job, so a new head sha is the only re-trigger:
 # an empty commit and a plain push (PRs are squash-merged, the commit vanishes).
+# Renovate stops updating a branch that carries a foreign commit, so for
+# renovate/* tick the rebase-check box instead: Renovate recreates the branch.
 cmd_rerun() {
   local pr; pr=$(resolve_pr "${1:-}") || exit $?
   require curl
@@ -555,8 +553,20 @@ cmd_rerun() {
   head_ref=$(jq -r '.head.ref' <<<"$meta")
   head_sha=$(jq -r '.head.sha' <<<"$meta")
   if [[ "$head_ref" == renovate/* ]]; then
-    echo "refusing: $head_ref is a Renovate branch — $RENOVATE_RERUN_HINT" >&2
-    exit 1
+    local box='- [ ] <!-- rebase-check -->' ticked='- [x] <!-- rebase-check -->'
+    if jq -e --arg b "$box" '.body // "" | contains($b)' <<<"$meta" >/dev/null; then
+      forgejo_api PATCH "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" \
+        "$(jq -c --arg b "$box" --arg x "$ticked" '{body: (.body | split($b) | join($x))}' <<<"$meta")" >/dev/null
+      echo "PR #$pr: rebase-check ticked" >&2
+    elif jq -e --arg x "$ticked" '.body // "" | contains($x)' <<<"$meta" >/dev/null; then
+      echo "PR #$pr: rebase-check already ticked" >&2
+    else
+      echo "PR #$pr has no rebase-check box in its body — nothing to tick" >&2
+      exit 1
+    fi
+    echo "Renovate recreates $head_ref on its next run (CronJob renovate, 06:00 UTC) and CI runs again; off-schedule:" >&2
+    echo "  kubectl -n renovate create job --from=cronjob/renovate manual-$(date +%s)" >&2
+    return 0
   fi
   current=$(git symbolic-ref --short -q HEAD || echo "")
   if [[ "$current" != "$head_ref" ]]; then
