@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Phase 04 — external-dns CF + external-dns-openwrt, before Vault exists.
 # The token and OpenWrt creds come from the DR pack. Their Secrets carry the
-# label homelab.dr/bootstrap=true: in git both are ESO-managed, and ESO will
-# not adopt a Secret it did not create, so phase 10 deletes them and ESO
-# recreates them from OpenBao.
+# label homelab.dr/bootstrap=true: in git both are ESO-managed, so phase 10
+# deletes them and ESO recreates them from OpenBao.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh

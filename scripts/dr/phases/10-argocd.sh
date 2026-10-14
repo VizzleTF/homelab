@@ -51,9 +51,10 @@ wait_for "argocd-repo-creds-forgejo Secret synced" \
   "kubectl -n argocd get secret argocd-repo-creds-forgejo >/dev/null 2>&1" \
   120
 
-# Bootstrap Secrets from phase 04 block their ExternalSecrets (ESO does not
-# adopt foreign Secrets). ESO is up and OpenBao restored, so drop them; ESO
-# recreates them once ArgoCD syncs the apps. Running pods keep their env.
+# Bootstrap Secrets from phases 03/04. ESO would adopt them (it takes over an
+# unowned Secret with the same name), but dropping them leaves no DR-only label
+# behind and makes every value come from OpenBao; ESO recreates them once
+# ArgoCD syncs the apps. Running pods keep their env.
 log_info "deleting DR bootstrap Secrets (ESO takes over)"
 kubectl delete secret -A -l homelab.dr/bootstrap=true --ignore-not-found >/dev/null
 
