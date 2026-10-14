@@ -11,11 +11,9 @@
 #   - an alert to Alertmanager -> Robusta -> Telegram, on success and on failure
 #     (success has severity=info and no endsAt: Alertmanager closes it after resolve_timeout)
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
-    allow:
-      - namespaces: [victoria-metrics]
 
   limitRange:
     enabled: true

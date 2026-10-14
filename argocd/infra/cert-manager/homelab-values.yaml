@@ -1,10 +1,8 @@
 # homelab-common only (second source of the AppSet). Kept apart from values.yaml: the jetstack chart has a strict values schema.
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
-    allow:
-      - namespaces: [victoria-metrics]
 
   externalSecrets:
     # DNS-01 token for ClusterIssuer cloudflare-issuer, the same token as
