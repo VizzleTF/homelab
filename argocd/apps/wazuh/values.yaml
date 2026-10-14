@@ -285,7 +285,6 @@ opensearchAuthConfig:
         key: client_secret
       connectURL: https://authentik.example.com/application/o/wazuh/.well-known/openid-configuration
       logoutUrl: https://authentik.example.com/application/o/wazuh/end-session/
-      scope: openid profile email groups
       subjectKey: preferred_username
       # Authentik's default profile mapping emits group names in this claim;
       # OpenSearch treats each entry as a backend role, which is what

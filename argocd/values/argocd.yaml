@@ -149,7 +149,6 @@ configs:
       issuer: https://authentik.example.com/application/o/argocd/
       clientID: argocd
       clientSecret: $oidc.argocd.clientSecret
-      requestedScopes: ["openid", "profile", "email", "groups"]
     # No defaulting ignores for HTTPRoute/TLSRoute/Gateway: server-side diff
     # (controller.diff.server.side) compares against a dry-run apply, which
     # defaults group/kind/weight on both sides. With RespectIgnoreDifferences
@@ -158,9 +157,6 @@ configs:
     # 1.16.0 never reached the cluster; backendRefs/filters of internal routes
     # were exposed the same way). Ignore only fields a controller writes at
     # runtime.
-    resource.customizations.ignoreDifferences.gateway.networking.k8s.io_Gateway: |
-      jqPathExpressions:
-        - '.spec.addresses'
     resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
       jqPathExpressions:
         - '.webhooks[]?.clientConfig.caBundle'
