@@ -7,11 +7,9 @@
 # The third job is the Remnawave panel metrics on vps-panel via the nginx gateway :9101 (see the
 # comment at job_name: remnawave-panel).
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
-    allow:
-      - namespaces: [victoria-metrics]
 
   # The netbird peer key: 100Mi, but without it the scraper loses mesh access.
   #

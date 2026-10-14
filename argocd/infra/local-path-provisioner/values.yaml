@@ -36,8 +36,6 @@ health:
     timeoutSeconds: 5
 
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
+  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
-    allow:
-      - namespaces: [victoria-metrics]

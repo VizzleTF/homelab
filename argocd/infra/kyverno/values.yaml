@@ -69,8 +69,6 @@ cleanupController:
 
 homelab-common:
   # Default-deny ingress for the whole namespace (also covers the sibling app
-  # sharing it); only vmagent (victoria-metrics) scrapes from outside.
+  # sharing it). No VMServiceScrape reads metrics there, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
-    allow:
-      - namespaces: [victoria-metrics]
