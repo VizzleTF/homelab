@@ -7,7 +7,7 @@ homelab-common:
   externalSecrets: []
   # Example:
   # - name: myapp-app
-  #   vaultPath: myapp/app  # <namespace>/<name> under global.vault.pathPrefix; another namespace only via a grant
+  #   vaultPath: myapp/app  # <namespace>/<purpose> under global.vault.pathPrefix; another namespace only via a grant
   #   data:
   #     - secretKey: password
   #       property: password
