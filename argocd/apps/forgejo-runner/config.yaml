@@ -2,4 +2,3 @@ chart: forgejo-runner
 repoURL: codeberg.org/wrenix/helm-charts
 targetRevision: "0.7.6"
 wave: "3"
-namespace: forgejo

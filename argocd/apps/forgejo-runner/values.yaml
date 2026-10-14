@@ -1,6 +1,6 @@
 # Forgejo Runner (act_runner) — chart values + homelab-common section at the bottom.
 # Registration: ESO secret forgejo-runner-init {CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME}
-# from OpenBao homelab/k8s/forgejo/runner; the chart's pre-install hook job registers
+# from OpenBao homelab/k8s/forgejo-runner/runner; the chart's pre-install hook job registers
 # the runner and stores the .runner JWT in Secret forgejo-runner-config (resource-policy: keep).
 
 # wrenix's chart 0.7.x is the last release on codeberg — guard requires explicit ack.
@@ -93,9 +93,13 @@ dnsConfig:
       value: "2"
 
 homelab-common:
+  # Nothing calls into the runner: it only polls git.example.com and pulls images.
+  networkPolicy:
+    enabled: true
+
   externalSecrets:
     # Init secret for the register job: env CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME
-    # from homelab/k8s/forgejo/runner (keys token, instance, name).
+    # from homelab/k8s/forgejo-runner/runner (keys token, instance, name).
     # PreSync hook + sync-wave -10: synced BEFORE the chart's pre-install Job (wave 0).
     # The ES owns its Secret, so a hook rerun deletes and recreates both; the
     # PreSync wave above rebuilds the Secret before the Job runs.
@@ -103,7 +107,7 @@ homelab-common:
       annotations:
         argocd.argoproj.io/hook: PreSync
         argocd.argoproj.io/sync-wave: "-10"
-      vaultPath: forgejo/runner
+      vaultPath: forgejo-runner/runner
       data:
         - secretKey: token
           property: token
@@ -115,3 +119,6 @@ homelab-common:
         CONFIG_TOKEN: "{{ .token }}"
         CONFIG_INSTANCE: "{{ .instance }}"
         CONFIG_NAME: "{{ .name }}"
+
+  limitRange:
+    enabled: true
