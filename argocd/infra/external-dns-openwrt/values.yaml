@@ -1,27 +1,4 @@
-homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
-  networkPolicy:
-    enabled: true
-
-  externalSecrets:
-    - name: openwrt-credentials
-      vaultPath: external-dns-openwrt/luci
-      data:
-        - secretKey: host
-          property: host
-        - secretKey: username
-          property: username
-        - secretKey: password
-          property: password
-
-  limitRange:
-    enabled: true
-    defaults:
-      cpu: 100m
-      memory: 128Mi
-    defaultRequests:
-      cpu: 25m
-      memory: 64Mi
+# external-dns (OpenWrt webhook): LAN records in the router dnsmasq. Source: https://github.com/kubernetes-sigs/external-dns
 
 provider:
   name: webhook
@@ -184,3 +161,28 @@ serviceAccount:
 
 podSecurityContext:
   runAsUser: 65534
+
+homelab-common:
+  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  networkPolicy:
+    enabled: true
+
+  externalSecrets:
+    - name: openwrt-credentials
+      vaultPath: external-dns-openwrt/luci
+      data:
+        - secretKey: host
+          property: host
+        - secretKey: username
+          property: username
+        - secretKey: password
+          property: password
+
+  limitRange:
+    enabled: true
+    defaults:
+      cpu: 100m
+      memory: 128Mi
+    defaultRequests:
+      cpu: 25m
+      memory: 64Mi

@@ -1,28 +1,4 @@
-homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
-  networkPolicy:
-    enabled: true
-
-  externalSecrets:
-    - name: cloudflare-api-token
-      targetName: external-dns-cloudflare
-      deletionPolicy: Retain
-      templateEngineVersion: v2
-      vaultPath: external-dns/cloudflare
-      data:
-        - secretKey: cloudflare_api_token
-          property: cloudflare_api_token
-      templateData:
-        api-token: "{{ .cloudflare_api_token }}"
-
-  limitRange:
-    enabled: true
-    defaults:
-      cpu: 200m
-      memory: 128Mi
-    defaultRequests:
-      cpu: 10m
-      memory: 32Mi
+# external-dns (Cloudflare): public CNAMEs for proxied HTTPRoutes. Source: https://github.com/kubernetes-sigs/external-dns
 
 provider:
   name: cloudflare
@@ -72,3 +48,27 @@ resources:
   requests:
     cpu: 15m
     memory: 64Mi
+
+homelab-common:
+  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  networkPolicy:
+    enabled: true
+
+  externalSecrets:
+    - name: cloudflare-api-token
+      targetName: external-dns-cloudflare
+      vaultPath: external-dns/cloudflare
+      data:
+        - secretKey: cloudflare_api_token
+          property: cloudflare_api_token
+      templateData:
+        api-token: "{{ .cloudflare_api_token }}"
+
+  limitRange:
+    enabled: true
+    defaults:
+      cpu: 200m
+      memory: 128Mi
+    defaultRequests:
+      cpu: 10m
+      memory: 32Mi

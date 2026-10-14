@@ -3,7 +3,7 @@
 # netbird.example.com as its own peer k8s-crowdsec-scraper) + vmagent in the shared netns: it sees
 # both the cluster (VMSingle via eth0/CoreDNS) and the VPS mesh IPs (100.104.x.x via wt0). vmagent
 # scrapes :6060 and remote_writes to the in-cluster VMSingle. On the VPS the crowdsec prometheus
-# listener binds 0.0.0.0, nft lets :6060 in only from 100.104.0.0/16 (see ../vps/crowdsec.md).
+# listener binds 0.0.0.0, nft lets :6060 in only from 100.104.0.0/16 (see obsidian/112 ArgoCD/Apps/all/crowdsec-scraper.md).
 # The third job is the Remnawave panel metrics on cloudru via the nginx gateway :9101 (see the
 # comment at job_name: remnawave-panel).
 homelab-common:

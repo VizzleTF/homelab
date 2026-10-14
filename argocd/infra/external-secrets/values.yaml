@@ -38,9 +38,6 @@ extraEnv:
 securityContext:
   runAsUser: 65534
 
-serviceMonitor:
-  enabled: true
-
 webhook:
   port: 9443
   resources:

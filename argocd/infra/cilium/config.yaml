@@ -4,6 +4,7 @@ targetRevision: "1.20.2"
 namespace: kube-system
 wave: "-5"
 extraManifests: true
+# tls.auto.method=helm generates a new CA and hubble certs on every render (2026-01).
 ignoreDiff: |
   - group: ""
     kind: Secret

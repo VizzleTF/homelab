@@ -1,151 +1,5 @@
 # VictoriaMetrics K8s Stack configuration for ArgoCD
 
-homelab-common:
-  # Default-deny ingress. Grafana is reached through the gateway; vmagent only
-  # scrapes outbound. Other namespaces that query or push:
-  networkPolicy:
-    enabled: true
-    allow:
-      # PromQL queries (openbao job, restore drill, robusta) and crowdsec-scraper remote write
-      - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper]
-        ports: [8428]
-      # alerts pushed to Alertmanager
-      - namespaces: [backup-drill, wazuh, robusta]
-        ports: [9093]
-
-  httpRoutes:
-    - name: grafana
-      hostname: grafana
-      gateway: internal
-      service:
-        name: victoria-metrics-k8s-stack-grafana
-        port: 80
-
-  externalSecrets:
-    - name: grafana-admin-secret
-      vaultPath: victoria-metrics/grafana
-      data:
-        - secretKey: admin_user
-          property: admin_user
-        - secretKey: admin_password
-          property: admin_password
-      templateData:
-        admin-user: "{{ .admin_user }}"
-        admin-password: "{{ .admin_password }}"
-
-    - name: grafana-oidc-secret
-      vaultPath: victoria-metrics/oidc
-      data:
-        - secretKey: client_id
-          property: client_id
-        - secretKey: client_secret
-          property: client_secret
-      templateData:
-        client-id: "{{ .client_id }}"
-        client-secret: "{{ .client_secret }}"
-
-    # Alertmanager config. The homelab's Telegram bot (shared/telegram, grant
-    # `telegram`) feeds the telegram-direct receiver: alerts about the delivery
-    # path itself (Robusta down, notifications failing) must not go through it.
-    - name: alertmanager-config
-      vaultPath: shared/telegram
-      data:
-        - secretKey: bot_token
-          property: bot_token
-      templateData:
-        alertmanager.yaml: |
-            global:
-              resolve_timeout: 5m
-
-            route:
-              group_by: ['alertname', 'cluster', 'service']
-              group_wait: 10s
-              group_interval: 10s
-              repeat_interval: 12h
-              receiver: 'robusta'
-              routes:
-                - matchers:
-                    - alertname=~"RobustaRunnerDown|AlertmanagerNotificationsFailing"
-                  receiver: 'telegram-direct'
-
-            # ─── Inhibit rules: one event = one alert ───
-            # See obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md
-            inhibit_rules:
-              # K8s node unreachable -> mute everything running on it
-              - source_matchers:
-                  - alertname="KubeNodeUnreachable"
-                target_matchers:
-                  - alertname=~"KubeNodeNotReady|KubeNodeReadinessFlapping|KubeletDown|KubePodNotReady|KubeContainerWaiting|KubePodCrashLooping|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch|TargetDown|NodeMemoryHighUtilization"
-                equal: ['node']
-
-              # apiserver down -> cascade to its clients
-              - source_matchers:
-                  - alertname="KubeAPIDown"
-                target_matchers:
-                  - alertname=~"KubeAggregatedAPIDown|KubeClientErrors|KubeStateMetricsListErrors|KubeStateMetricsWatchErrors|TargetDown|KubeClientCertificateExpiration"
-
-              # vmagent no longer delivers data -> all secondary remote write/queue alerts stay quiet
-              - source_matchers:
-                  - alertname="PersistentQueueIsDroppingData"
-                target_matchers:
-                  - alertname=~"ScrapePoolHasNoTargets|TargetDown"
-
-              # Pod crashlooping -> no extra NotReady/ContainerWaiting for the same pod
-              - source_matchers:
-                  - alertname="KubePodCrashLooping"
-                target_matchers:
-                  - alertname=~"KubePodNotReady|KubeContainerWaiting"
-                equal: ['namespace', 'pod']
-
-              # Rollout stuck -> do not duplicate ReplicasMismatch for the same workload
-              - source_matchers:
-                  - alertname=~"KubeDeploymentRolloutStuck|KubeStatefulSetUpdateNotRolledOut|KubeDaemonSetRolloutStuck"
-                target_matchers:
-                  - alertname=~"KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch"
-                equal: ['namespace']
-
-              # VPN fleet (cluster=vps): the scraper lost the mesh -> every dependent
-              # check stays quiet. One alert instead of eight.
-              - source_matchers:
-                  - alertname="VpsScraperMeshDown"
-                target_matchers:
-                  - alertname=~"VpsHostDown|VpsCrowdsecDown|VpsTextfileScrapeError|RemnawavePanelMetricsAbsent|RemnawaveNodeDown|TargetDown"
-
-              # The chart's TargetDown groups by (cluster,job,namespace,service) and
-              # carries no host label for VPS; our per-host alerts say more.
-              - source_matchers:
-                  - alertname=~"VpsHostDown|RemnawavePanelMetricsAbsent"
-                target_matchers:
-                  - alertname="TargetDown"
-                equal: ['cluster']
-
-              # critical > warning for the same alert (two-level rules)
-              - source_matchers:
-                  - severity="critical"
-                target_matchers:
-                  - severity="warning"
-                equal: ['alertname', 'namespace', 'instance']
-
-            receivers:
-              - name: 'robusta'
-                webhook_configs:
-                  - url: http://robusta-runner.robusta.svc.cluster.local/api/alerts
-                    send_resolved: true
-              - name: 'telegram-direct'
-                telegram_configs:
-                  - bot_token: '{{ .bot_token }}'
-                    chat_id: 0000000000
-                    send_resolved: true
-
-  limitRange:
-    enabled: true
-    defaults:
-      cpu: 200m
-      memory: 256Mi
-    defaultRequests:
-      cpu: 20m
-      memory: 64Mi
-
 # Override release name for ArgoCD compatibility
 argocdReleaseOverride: victoria-metrics-k8s-stack
 
@@ -652,3 +506,149 @@ kubeProxy:
 # See manifests/vmnodescrape-etcd.yaml and obsidian/112 ArgoCD/Infrastructure/Monitoring Stack.md.
 kubeEtcd:
   enabled: false
+
+homelab-common:
+  # Default-deny ingress. Grafana is reached through the gateway; vmagent only
+  # scrapes outbound. Other namespaces that query or push:
+  networkPolicy:
+    enabled: true
+    allow:
+      # PromQL queries (openbao job, restore drill, robusta) and crowdsec-scraper remote write
+      - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper]
+        ports: [8428]
+      # alerts pushed to Alertmanager
+      - namespaces: [backup-drill, wazuh, robusta]
+        ports: [9093]
+
+  httpRoutes:
+    - name: grafana
+      hostname: grafana
+      gateway: internal
+      service:
+        name: victoria-metrics-k8s-stack-grafana
+        port: 80
+
+  externalSecrets:
+    - name: grafana-admin-secret
+      vaultPath: victoria-metrics/grafana
+      data:
+        - secretKey: admin_user
+          property: admin_user
+        - secretKey: admin_password
+          property: admin_password
+      templateData:
+        admin-user: "{{ .admin_user }}"
+        admin-password: "{{ .admin_password }}"
+
+    - name: grafana-oidc-secret
+      vaultPath: victoria-metrics/oidc
+      data:
+        - secretKey: client_id
+          property: client_id
+        - secretKey: client_secret
+          property: client_secret
+      templateData:
+        client-id: "{{ .client_id }}"
+        client-secret: "{{ .client_secret }}"
+
+    # Alertmanager config. The homelab's Telegram bot (shared/telegram, grant
+    # `telegram`) feeds the telegram-direct receiver: alerts about the delivery
+    # path itself (Robusta down, notifications failing) must not go through it.
+    - name: alertmanager-config
+      vaultPath: shared/telegram
+      data:
+        - secretKey: bot_token
+          property: bot_token
+      templateData:
+        alertmanager.yaml: |
+            global:
+              resolve_timeout: 5m
+
+            route:
+              group_by: ['alertname', 'cluster', 'service']
+              group_wait: 10s
+              group_interval: 10s
+              repeat_interval: 12h
+              receiver: 'robusta'
+              routes:
+                - matchers:
+                    - alertname=~"RobustaRunnerDown|AlertmanagerNotificationsFailing"
+                  receiver: 'telegram-direct'
+
+            # ─── Inhibit rules: one event = one alert ───
+            # See obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md
+            inhibit_rules:
+              # K8s node unreachable -> mute everything running on it
+              - source_matchers:
+                  - alertname="KubeNodeUnreachable"
+                target_matchers:
+                  - alertname=~"KubeNodeNotReady|KubeNodeReadinessFlapping|KubeletDown|KubePodNotReady|KubeContainerWaiting|KubePodCrashLooping|KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch|TargetDown|NodeMemoryHighUtilization"
+                equal: ['node']
+
+              # apiserver down -> cascade to its clients
+              - source_matchers:
+                  - alertname="KubeAPIDown"
+                target_matchers:
+                  - alertname=~"KubeAggregatedAPIDown|KubeClientErrors|KubeStateMetricsListErrors|KubeStateMetricsWatchErrors|TargetDown|KubeClientCertificateExpiration"
+
+              # vmagent no longer delivers data -> all secondary remote write/queue alerts stay quiet
+              - source_matchers:
+                  - alertname="PersistentQueueIsDroppingData"
+                target_matchers:
+                  - alertname=~"ScrapePoolHasNoTargets|TargetDown"
+
+              # Pod crashlooping -> no extra NotReady/ContainerWaiting for the same pod
+              - source_matchers:
+                  - alertname="KubePodCrashLooping"
+                target_matchers:
+                  - alertname=~"KubePodNotReady|KubeContainerWaiting"
+                equal: ['namespace', 'pod']
+
+              # Rollout stuck -> do not duplicate ReplicasMismatch for the same workload
+              - source_matchers:
+                  - alertname=~"KubeDeploymentRolloutStuck|KubeStatefulSetUpdateNotRolledOut|KubeDaemonSetRolloutStuck"
+                target_matchers:
+                  - alertname=~"KubeDeploymentReplicasMismatch|KubeStatefulSetReplicasMismatch"
+                equal: ['namespace']
+
+              # VPN fleet (cluster=vps): the scraper lost the mesh -> every dependent
+              # check stays quiet. One alert instead of eight.
+              - source_matchers:
+                  - alertname="VpsScraperMeshDown"
+                target_matchers:
+                  - alertname=~"VpsHostDown|VpsCrowdsecDown|VpsTextfileScrapeError|RemnawavePanelMetricsAbsent|RemnawaveNodeDown|TargetDown"
+
+              # The chart's TargetDown groups by (cluster,job,namespace,service) and
+              # carries no host label for VPS; our per-host alerts say more.
+              - source_matchers:
+                  - alertname=~"VpsHostDown|RemnawavePanelMetricsAbsent"
+                target_matchers:
+                  - alertname="TargetDown"
+                equal: ['cluster']
+
+              # critical > warning for the same alert (two-level rules)
+              - source_matchers:
+                  - severity="critical"
+                target_matchers:
+                  - severity="warning"
+                equal: ['alertname', 'namespace', 'instance']
+
+            receivers:
+              - name: 'robusta'
+                webhook_configs:
+                  - url: http://robusta-runner.robusta.svc.cluster.local/api/alerts
+                    send_resolved: true
+              - name: 'telegram-direct'
+                telegram_configs:
+                  - bot_token: '{{ .bot_token }}'
+                    chat_id: 0000000000
+                    send_resolved: true
+
+  limitRange:
+    enabled: true
+    defaults:
+      cpu: 200m
+      memory: 256Mi
+    defaultRequests:
+      cpu: 20m
+      memory: 64Mi

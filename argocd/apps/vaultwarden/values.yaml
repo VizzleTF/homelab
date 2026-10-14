@@ -79,8 +79,6 @@ homelab-common:
         - ReadWriteOnce
       storageClassName: longhorn
       size: 2Gi
-      labels:
-        app.kubernetes.io/name: vaultwarden
 
   volsync:
     - name: vaultwarden
