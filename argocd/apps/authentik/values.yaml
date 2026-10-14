@@ -88,6 +88,9 @@ homelab-common:
                 redirect_uris:
                   - matching_mode: strict
                     url: https://immich.example.com/auth/login
+                  # LAN-only twin route; the web client sends its own origin.
+                  - matching_mode: strict
+                    url: https://immich-lan.example.com/auth/login
                 signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
@@ -542,6 +545,7 @@ homelab-common:
     # has no OAuth.
     - name: authentik-blueprint-forgejo
       blueprints:
+        # Legacy filename kept: renaming creates a new BlueprintInstance (duplicate key).
         forgejo-oidc.yaml: |
           version: 1
           metadata:
