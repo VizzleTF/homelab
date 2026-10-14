@@ -5,7 +5,7 @@
 # ---------- stage: build terraform-mcp-server from source ----------
 # Distributed only as a Docker image upstream, so we build the Go binary
 # in an ephemeral stage and copy it into the final image.
-# renovate: datasource=docker depName=golang versioning=docker
+# The golang tag is tracked by Renovate's dockerfile manager (ARG used in FROM).
 ARG GO_BUILD_IMAGE=golang:1.27-bookworm
 FROM ${GO_BUILD_IMAGE} AS terraform-mcp-build
 # renovate: datasource=github-releases depName=hashicorp/terraform-mcp-server
@@ -37,7 +37,7 @@ ARG GITLEAKS_VERSION=v8.30.1
 ARG GH_VERSION=2.102.0
 # renovate: datasource=pypi depName=pre-commit
 ARG PRE_COMMIT_VERSION=4.7.0
-# renovate: datasource=npm depName=@anthropic-ai/claude-code
+# Not pinned: every image build installs the latest Claude Code release.
 ARG CLAUDE_CODE_VERSION=latest
 
 USER root

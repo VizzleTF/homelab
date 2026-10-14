@@ -25,7 +25,7 @@
     "addLabels": ["needs-review"]
   },
   "prConcurrentLimit": 10,
-  "prHourlyLimit": 4,
+  "prHourlyLimit": 0,
   "commitMessagePrefix": "chore(deps):",
   "rebaseWhen": "behind-base-branch",
   "packageRules": [
@@ -102,13 +102,19 @@
       "groupName": "wazuh"
     },
     {
-      "description": "Group `talos`: Talos OS / Kubernetes bootstrap versions in nodes.yaml. Separate PR: a node upgrade needs a manual `terraform apply`, tuppr rolls the live cluster. Keep in sync with the tuppr image versions (installer/talosctl/kubelet).",
+      "description": "Group `talos`: Talos OS / Kubernetes bootstrap versions in nodes.yaml. Separate PR: a node upgrade needs a manual `terraform apply`, tuppr rolls the live cluster. The tuppr kubelet version stays in the `infra` batch; keep it in sync with nodes.yaml by hand.",
       "matchFileNames": ["terraform_talos/configs/**"],
       "groupName": "talos"
     },
     {
-      "description": "Lint tools are pinned in .mise.toml (CI reads it), .pre-commit-config.yaml (hook revs) and the devcontainer. One PR bumps all copies so CI and the hooks run the same version.",
-      "matchPackageNames": ["/yamllint/", "/gitleaks/", "/shellcheck/"],
+      "description": "Group `talos` also takes every other copy of the Talos version (tuppr TalosUpgrade and talosctl images, .mise.toml talosctl, devcontainer), so one PR moves them together instead of four. Must come after the `infra` rule (a later matching rule wins). The terraform provider siderolabs/talos has its own version line and stays out.",
+      "matchPackageNames": ["siderolabs/talos", "ghcr.io/siderolabs/talosctl"],
+      "matchDatasources": ["!terraform-provider"],
+      "groupName": "talos"
+    },
+    {
+      "description": "Lint tools and pre-commit itself are pinned in .mise.toml (CI reads it), .pre-commit-config.yaml (hook revs) and the devcontainer. One PR bumps all copies so CI and the hooks run the same version.",
+      "matchPackageNames": ["/yamllint/", "/gitleaks/", "/shellcheck/", "pre-commit"],
       "groupName": "lint-tools"
     },
     {
@@ -170,19 +176,6 @@
       "depNameTemplate": "immich-app/immich",
       "matchStrings": [
         "#\\s*renovate:\\s*immich-ml\\s*\\n\\s*ml_tag:\\s*&ml_tag\\s+[\"'](?<currentValue>v[\\d.]+)-openvino[\"']"
-      ]
-    },
-    {
-      "description": "Images marked with a `# renovate: image=<repo>` comment above a single `image: repo:tag[@sha256:...]` line. Captures the tag and an optional digest.",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/argocd/values/.+\\.ya?ml$/",
-        "/argocd/apps/.+\\.ya?ml$/",
-        "/argocd/infra/.+\\.ya?ml$/"
-      ],
-      "datasourceTemplate": "docker",
-      "matchStrings": [
-        "#\\s*renovate:\\s*image=(?<depName>[^\\s]+)\\s*\\n\\s*image:\\s+[\"']?[^\\s\"':]+:(?<currentValue>[\\w][\\w.+-]*)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
       ]
     },
     {
