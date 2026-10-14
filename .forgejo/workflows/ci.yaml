@@ -36,11 +36,13 @@ jobs:
       - name: Lint
         run: yamllint --strict .
       - name: shellcheck
-        # Same version as .mise.toml and the pre-commit hook (shellcheck-py).
+        # Exact shellcheck-py rev of the pre-commit hook: its PyPI build suffix
+        # varies (0.9.0.2, 0.11.0.1), so it cannot be derived from .mise.toml.
         run: |
           set -eu
-          VERSION=$(sed -n 's/^shellcheck[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .mise.toml)
-          /tmp/yamllint/bin/pip install --quiet "shellcheck-py==${VERSION}.1"
+          VERSION=$(sed -n '/shellcheck-py\/shellcheck-py/{n;s/.*rev: v\([^ ]*\).*/\1/p}' .pre-commit-config.yaml)
+          [ -n "$VERSION" ] || { echo "::error::shellcheck-py rev not found in .pre-commit-config.yaml"; exit 1; }
+          /tmp/yamllint/bin/pip install --quiet "shellcheck-py==${VERSION}"
           git ls-files -z '*.sh' '.git-hooks/*' | xargs -0 /tmp/yamllint/bin/shellcheck -x -S warning
       - name: Lint Claude skills
         # Checkable rules of Anthropic's skill authoring best practices:
@@ -144,12 +146,14 @@ jobs:
       - name: Install gitleaks
         run: |
           set -euo pipefail
-          VERSION=8.30.1
-          SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          # Version from .mise.toml (Renovate lint-tools group, bumped with the pre-commit hook).
+          VERSION=$(sed -n 's/^gitleaks[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .mise.toml)
+          [ -n "$VERSION" ] || { echo "::error::gitleaks version not found in .mise.toml"; exit 1; }
           TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
-          curl -fsSL -o "/tmp/${TARBALL}" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}"
-          echo "${SHA256}  /tmp/${TARBALL}" | sha256sum -c -
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"
+          curl -fsSL -o "/tmp/${TARBALL}" "${BASE}/${TARBALL}"
+          curl -fsSL -o /tmp/gitleaks-checksums.txt "${BASE}/gitleaks_${VERSION}_checksums.txt"
+          ( cd /tmp && grep " ${TARBALL}\$" gitleaks-checksums.txt | sha256sum -c - )
           tar -xzf "/tmp/${TARBALL}" -C /tmp gitleaks
           install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks version
@@ -324,10 +328,12 @@ jobs:
           cat kc.log
 
           # Exit 3 = removed API (fail); deprecations are listed but do not fail.
+          # Target versions from git: the cluster's k8s (tuppr, Renovate-tracked) and the cilium chart.
+          K8S=$(yq '.spec.kubernetes.version' target-branch/argocd/infra/tuppr/manifests/kubernetes-upgrade.yaml)
           CILIUM=$(yq '.targetRevision' target-branch/argocd/infra/cilium/config.yaml)
           echo "### pluto" >> checks.md
           pluto detect output/target-branch.yaml -o markdown --ignore-deprecations \
-            -f target-branch/.pluto-versions.yaml -t "k8s=v1.37.0,cilium=v${CILIUM}" > pluto.md 2>&1
+            -f target-branch/.pluto-versions.yaml -t "k8s=${K8S},cilium=v${CILIUM}" > pluto.md 2>&1
           rc=$?
           [ "$rc" -eq 0 ] || fail=1
           if [ -s pluto.md ]; then cat pluto.md >> checks.md; else echo "clean" >> checks.md; fi
@@ -419,12 +425,14 @@ jobs:
       - name: Install gitleaks (for post-sanitize gate)
         run: |
           set -euo pipefail
-          VERSION=8.30.1
-          SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          # Version from .mise.toml (Renovate lint-tools group, bumped with the pre-commit hook).
+          VERSION=$(sed -n 's/^gitleaks[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .mise.toml)
+          [ -n "$VERSION" ] || { echo "::error::gitleaks version not found in .mise.toml"; exit 1; }
           TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
-          curl -fsSL -o "/tmp/${TARBALL}" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}"
-          echo "${SHA256}  /tmp/${TARBALL}" | sha256sum -c -
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}"
+          curl -fsSL -o "/tmp/${TARBALL}" "${BASE}/${TARBALL}"
+          curl -fsSL -o /tmp/gitleaks-checksums.txt "${BASE}/gitleaks_${VERSION}_checksums.txt"
+          ( cd /tmp && grep " ${TARBALL}\$" gitleaks-checksums.txt | sha256sum -c - )
           tar -xzf "/tmp/${TARBALL}" -C /tmp gitleaks
           install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks version
@@ -480,6 +488,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f post-sanitize-leaks.json ]; then
+            # node:*-bookworm runner images ship without jq.
+            apt-get update -qq && apt-get install -y -qq jq >/dev/null
             SUMMARY=$(jq -r '
               if type=="array" and length>0 then
                 [.[] | "• " + (.RuleID // "unknown") + " @ " + (.File // "?") + ":" + ((.StartLine // 0)|tostring)] | .[0:10] | join("%0A")
@@ -498,6 +508,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Notify Telegram
+        # A failed summary must not swallow the alert; an empty LEAK_COUNT is handled below.
+        if: always()
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
