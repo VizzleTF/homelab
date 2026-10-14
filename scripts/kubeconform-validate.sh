@@ -11,9 +11,11 @@
 # on any deprecated or removed apiVersion, rules from .pluto-versions.yaml, so a
 # stale API (e.g. cilium.io/v2alpha1 BGP kinds) is caught in the PR that adds it.
 #
-# Single source of truth shared by `.forgejo/workflows/ci.yaml` (kubeconform job)
-# and `task ci:kubeconform`. Requires `kubeconform`, `helm` and `pluto` on PATH
-# (provided by .mise.toml locally, or installed in CI).
+# Single source of truth shared by `.forgejo/workflows/ci.yaml` (kubeconform and
+# argocd-diff jobs), `task ci:kubeconform` and the Claude hook
+# .claude/hooks/validate-yaml.sh (file mode). Requires `kubeconform`, `helm` and
+# `pluto` on PATH (file mode: only `kubeconform`), from .mise.toml locally or
+# installed in CI.
 #
 # With file arguments it validates only those files (the argocd-diff CI job
 # passes the fully rendered target branch), using the same flags.
@@ -24,7 +26,6 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
-command -v pluto >/dev/null || { echo "pluto not on PATH" >&2; exit 1; }
 
 # Pinned, not read from the cluster version: yannh/kubernetes-json-schema
 # publishes a new minor late, and -ignore-missing-schemas would turn a missing
@@ -55,6 +56,8 @@ if [[ "$#" -gt 0 ]]; then
   kc "$@"
   exit
 fi
+
+command -v pluto >/dev/null || { echo "pluto not on PATH" >&2; exit 1; }
 
 echo "==> Rendered homelab-common"
 fails=0

@@ -22,17 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Install yamllint
-        # Version from .mise.toml; the Debian package lagged (1.29 vs 1.38).
-        run: |
-          set -eu
-          VERSION=$(sed -n 's/^yamllint[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .mise.toml)
-          [ -n "$VERSION" ] || { echo "::error::yamllint version not found in .mise.toml"; exit 1; }
-          apt-get update -qq
-          apt-get install -y --no-install-recommends python3-venv python3-yaml
-          python3 -m venv /tmp/yamllint
-          /tmp/yamllint/bin/pip install --quiet "yamllint==${VERSION}"
-          ln -sf /tmp/yamllint/bin/yamllint /usr/local/bin/yamllint
-          yamllint --version
+        # Version from .mise.toml (Renovate-tracked).
+        run: scripts/ci-install-yamllint.sh
       - name: Lint
         run: yamllint --strict .
       - name: shellcheck
@@ -127,6 +118,15 @@ jobs:
           pluto version
       - name: Validate manifests
         run: scripts/kubeconform-validate.sh
+      - name: Self-check of the Claude Code hooks
+        # validate-yaml calls yamllint and kubeconform-validate.sh; fixtures pin
+        # past false failures of it and helm-repo, plus the bash-guard selftest.
+        # node:*-bookworm ships without jq.
+        run: |
+          set -eu
+          scripts/ci-install-yamllint.sh >/dev/null
+          apt-get install -y -qq --no-install-recommends jq >/dev/null
+          scripts/hooks-selfcheck.sh
 
   gitleaks:
     # Pre-merge required check (branch protection). Not run on push to main: the
