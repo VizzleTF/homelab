@@ -34,7 +34,8 @@
 # Every <pr-number> except in `full` also takes an open PR's branch name.
 #
 # After a successful merge (and for an already-merged PR), `merge`/`full`
-# delete the merged PR's local branch and fast-forward BASE_BRANCH to its
+# delete the merged PR's local branch (and leftover worktree-wf_* branches of
+# Workflow agents) and fast-forward BASE_BRANCH to its
 # remote — so the next branch is never cut from a stale local main. Opt out
 # with KEEP_BRANCH=1.
 #
@@ -382,6 +383,21 @@ cleanup_local_branch() {
   else
     echo "note: refresh $BASE_BRANCH manually (git checkout $BASE_BRANCH && git pull)" >&2
   fi
+  prune_workflow_branches
+}
+
+# prune_workflow_branches — Workflow isolation leaves a `worktree-wf_*` branch per
+# agent after its worktree is gone. Delete the ones no worktree holds and that
+# carry no commit beyond origin/BASE_BRANCH; anything with own work stays.
+prune_workflow_branches() {
+  local b
+  git worktree prune 2>/dev/null || return 0
+  for b in $(git for-each-ref --format='%(refname:short)' 'refs/heads/worktree-wf_*'); do
+    git worktree list --porcelain | grep -qxF "branch refs/heads/$b" && continue
+    [[ -z "$(git rev-list "origin/$BASE_BRANCH..$b" 2>/dev/null || echo keep)" ]] || continue
+    git branch -D "$b" >/dev/null 2>&1 && echo "deleted workflow branch '$b'" >&2
+  done
+  return 0
 }
 
 # use_branch_worktree <branch> — set WT to a clean worktree with <branch> checked
