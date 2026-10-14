@@ -10,16 +10,26 @@
 # `branch-protection-token` was never created.)
 #
 # Subcommands:
-#   open    <branch> -- <title> <body>   create a PR
+#   open    <branch> -- <title> <body>   create a PR (refused: body with task-list checkboxes)
 #   status  <pr-number>                  one-shot CI snapshot (exit 0/1/2)
 #   monitor <pr-number>                  poll CI until terminal state
-#   merge   <pr-number>                  monitor + squash-merge if green
-#   full    <branch> -- <title> <body>   open + merge in one flow
+#   merge   <pr-number>                  monitor + squash-merge if green, then expect the
+#                                        push webhook to reach ArgoCD
+#   full    <branch> [-- <title> <body>] ship one branch (PR text from the commits unless given)
+#   ship    <branch>...                  per branch: rebase on origin/BASE_BRANCH, push, open
+#                                        (title/body from the commits) or reuse the PR, merge
+#                                        when green, wait-apps; a review gate (5) parks that PR
+#                                        and goes on, any other failure stops
+#   wait-apps <sha>                      wait until the apps <sha> touches track it (or a later
+#                                        BASE_BRANCH commit) and are Synced/Healthy
+#   get     <api-path>                   read-only GET /api/v1/<api-path> with the merge token
+#   comment <pr-number>                  post stdin as a PR comment (post-merge results)
 #   label   <pr-number> <label-name>     add an existing repo label to a PR
 #   diff-comment <pr-number>             print the latest argocd-diff bot comment
-#   rerun   <pr-number>                  re-trigger CI: empty commit on the checked-out
-#                                        PR branch (Forgejo has no rerun API); for renovate/*
-#                                        tick the rebase-check box in the PR body instead
+#   rerun   <pr-number>                  re-trigger CI: empty commit on the PR branch, in the
+#                                        worktree holding it or a temporary one (Forgejo has
+#                                        no rerun API); for renovate/* tick the rebase-check
+#                                        box in the PR body instead
 #
 # Every <pr-number> except in `full` also takes an open PR's branch name.
 #
@@ -28,11 +38,16 @@
 # remote — so the next branch is never cut from a stale local main. Opt out
 # with KEEP_BRANCH=1.
 #
-# Exit codes (monitor/merge/full):
-#   0  success / merged
+# Exit codes (all subcommands):
+#   0  success / merged (ship: merged and the touched apps settled)
 #   1  CI failure
-#   2  timeout (POLL_TIMEOUT exceeded) or usage error
-#   3  merge API call failed
+#   2  timeout (POLL_TIMEOUT) or usage error
+#   3  merge API call failed / no merge sha
+#   4  refused before push or PR: rebase conflict, diverged from origin/<b>,
+#      dirty worktree, nothing to ship, PR body with task-list checkboxes
+#   5  review gate: argocd-diff waits for diff-reviewed, PR left open
+#   6  merged, deploy not confirmed: no push webhook counted in 60s,
+#      or the touched apps did not settle within APPS_TIMEOUT
 #
 # Env overrides:
 #   FORGEJO_URL      (default: https://git.example.com)
@@ -44,7 +59,8 @@
 #                    (legacy alias VAULT_PATH still honoured)
 #   FORGEJO_TOKEN    if set, skips OpenBao and uses this value
 #   POLL_INTERVAL    seconds between status polls (default: 15)
-#   POLL_TIMEOUT     max seconds in monitor/merge (default: 600)
+#   POLL_TIMEOUT     max seconds in monitor/merge (default: 1800)
+#   APPS_TIMEOUT     max seconds in wait-apps (default: 900)
 #   KEEP_BRANCH      if 1, skip post-merge local branch deletion (default: 0)
 #   UPDATE_OUTDATED  if 1, merge BASE_BRANCH into an outdated PR branch before
 #                    merging (block_on_outdated_branch); re-triggers CI (default: 0)
@@ -58,7 +74,8 @@ BAO_PATH="${BAO_PATH:-${VAULT_PATH:-homelab/forgejo/vizzle-merge-token}}"
 # sets BAO_ADDR explicitly either way.
 export BAO_ADDR="${BAO_ADDR:-${VAULT_ADDR:-https://openbao.example.com}}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
-POLL_TIMEOUT="${POLL_TIMEOUT:-600}"
+POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
+APPS_TIMEOUT="${APPS_TIMEOUT:-900}"
 KEEP_BRANCH="${KEEP_BRANCH:-0}"
 UPDATE_OUTDATED="${UPDATE_OUTDATED:-0}"
 
@@ -69,10 +86,14 @@ Usage:
   $0 status  <pr-number>
   $0 monitor <pr-number>
   $0 merge   <pr-number>
-  $0 full    <branch> -- <title> <body>
+  $0 full    <branch> [-- <title> <body>]
+  $0 ship    <branch>...
+  $0 wait-apps <sha>
+  $0 get     '<api-path>'               (read-only, e.g. 'repos/vizzle/homelab/actions/runs?limit=5')
+  $0 comment <pr-number> < results.md   (post-merge outcome; after merge pass the number)
   $0 label   <pr-number> <label-name>   (e.g. diff-reviewed)
   $0 diff-comment <pr-number>
-  $0 rerun   <pr-number>                (on the checked-out PR branch; renovate/*: ticks rebase-check)
+  $0 rerun   <pr-number>                (empty commit on the PR branch; renovate/*: ticks rebase-check)
 
 <pr-number> may also be the branch name of an open PR.
 
@@ -85,6 +106,7 @@ Env:
   FORGEJO_TOKEN  override the OpenBao lookup
   POLL_INTERVAL  seconds between CI polls (default: $POLL_INTERVAL)
   POLL_TIMEOUT   max seconds to wait for CI (default: $POLL_TIMEOUT)
+  APPS_TIMEOUT   max seconds to wait for the ArgoCD apps (default: $APPS_TIMEOUT)
   KEEP_BRANCH    if 1, skip post-merge local branch deletion (default: $KEEP_BRANCH)
   UPDATE_OUTDATED if 1, merge $BASE_BRANCH into an outdated PR branch first (default: $UPDATE_OUTDATED)
 EOF
@@ -209,24 +231,44 @@ JQ_TS='def ts: try (sub("\\.[0-9]+"; "") | (.[0:19] + "Z" | fromdateiso8601)
 
 # resolve_pr <pr-number|branch> — a number passes through; a branch name maps to
 # its single open PR. Forgejo ignores ?head=, so the filter runs client-side.
+open_prs_of() {
+  local page=1 resp
+  while :; do
+    resp=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls?state=open&limit=50&page=$page") \
+      || { echo "could not list open PRs to resolve branch '$1'" >&2; exit 1; }
+    jq -r --arg b "$1" '.[] | select(.head.ref == $b) | .number' <<<"$resp"
+    [[ "$(jq 'length' <<<"$resp")" -ge 50 ]] || break
+    page=$((page + 1))
+  done
+}
+
 resolve_pr() {
   local arg="${1:-}" nums="" n
   [[ -n "$arg" ]] || { echo "pr-number or branch is required" >&2; die_usage; }
   if [[ "$arg" =~ ^[0-9]+$ ]]; then printf '%s' "$arg"; return; fi
   require curl
   require jq
-  local page=1 resp
-  while :; do
-    resp=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls?state=open&limit=50&page=$page") \
-      || { echo "could not list open PRs to resolve branch '$arg'" >&2; exit 1; }
-    nums+=$(jq -r --arg b "$arg" '.[] | select(.head.ref == $b) | "\(.number)\n"' <<<"$resp")
-    [[ "$(jq 'length' <<<"$resp")" -ge 50 ]] || break
-    page=$((page + 1))
-  done
+  nums=$(open_prs_of "$arg")
   n=$(grep -c . <<<"$nums" || true)
   nums=$(grep . <<<"$nums" || true)
   [[ "$n" = 1 ]] || { echo "branch '$arg' has $n open PRs (need exactly 1)" >&2; exit 2; }
   printf '%s' "$nums"
+}
+
+# fresh_diff_body <pr> <sha> <context> — print the argocd-diff comment body when it
+# belongs to this run; return 1 when none was posted, 3 when it predates the run.
+fresh_diff_body() {
+  local comment started stale
+  comment=$(diff_comment "$1")
+  [[ -n "$comment" ]] || return 1
+  # Status history, newest first: the first `pending` is this run's start.
+  started=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/commits/$2/statuses?limit=50" \
+    | jq -r --arg c "$3" '[.[] | select(.context == $c and .status == "pending")][0].created_at // ""') || started=""
+  stale=$(jq -rn --arg c "$(jq -r '.updated_at' <<<"$comment")" --arg s "$started" \
+    "$JQ_TS"' ($c | ts) as $a | ($s | ts) as $b | if $a != null and $b != null then $a < $b else "unknown" end')
+  [[ "$stale" != "true" ]] || return 3
+  [[ "$stale" != "unknown" ]] || echo "warning: could not compare comment time with the job start (comment vs '${started:-none}') — it may be stale" >&2
+  jq -r '.body' <<<"$comment"
 }
 
 # failure_hints <pr-number> (reads a status payload on stdin)
@@ -237,29 +279,20 @@ resolve_pr() {
 # is stale.
 # Job logs are only in the web UI.
 failure_hints() {
-  local pr="$1" payload ctx url comment body started stale
+  local pr="$1" payload ctx url body rc
   payload=$(cat)
   jq -r '.statuses[]? | select((.status // .state) | IN("failure", "error")) | "\(.context)\t\(.target_url)"' <<<"$payload" \
     | while IFS=$'\t' read -r ctx url; do
         echo "--- $ctx failed" >&2
         if [[ "$ctx" == *argocd-diff* ]]; then
-          comment=$(diff_comment "$pr")
-          if [[ -z "$comment" ]]; then
+          rc=0; body=$(fresh_diff_body "$pr" "$(jq -r '.sha' <<<"$payload")" "$ctx") || rc=$?
+          if [[ $rc -eq 1 ]]; then
             echo "no argocd-diff comment: the render itself failed — log: $FORGEJO_URL$url" >&2
             continue
-          fi
-          # Status history, newest first: the first `pending` is this run's start.
-          started=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/commits/$(jq -r '.sha' <<<"$payload")/statuses?limit=50" \
-            | jq -r --arg c "$ctx" '[.[] | select(.context == $c and .status == "pending")][0].created_at // ""') || started=""
-          stale=$(jq -rn --arg c "$(jq -r '.updated_at' <<<"$comment")" --arg s "$started" \
-            "$JQ_TS"' ($c | ts) as $a | ($s | ts) as $b | if $a != null and $b != null then $a < $b else "unknown" end')
-          if [[ "$stale" = "true" ]]; then
+          elif [[ $rc -ne 0 ]]; then
             echo "argocd-diff comment is from a previous run — this run failed before posting; log: $FORGEJO_URL$url" >&2
             continue
-          elif [[ "$stale" = "unknown" ]]; then
-            echo "warning: could not compare comment time with the job start (comment vs '${started:-none}') — it may be stale" >&2
           fi
-          body=$(jq -r '.body' <<<"$comment")
           # Checks part of the comment only; the manifest diff follows the heading.
           awk -v m="$DIFF_MARKER" '/^## Argo CD Diff Preview/ {exit} $0 != m' <<<"$body" >&2
           if grep -q 'Blocked.*diff-reviewed' <<<"$body"; then
@@ -351,6 +384,84 @@ cleanup_local_branch() {
   fi
 }
 
+# use_branch_worktree <branch> — set WT to a clean worktree with <branch> checked
+# out: the worktree that already holds it (a workflow's, or this checkout), else a
+# new temporary one (TEMP_WT, dropped by drop_temp_wt or on exit). Never a detached
+# HEAD, so a plain `git push origin <branch>` works. Returns 4 on a dirty holder.
+WT="" TEMP_WT=""
+use_branch_worktree() {
+  local b="$1"
+  git worktree prune  # a deleted workflow worktree still "holds" its branch until pruned
+  WT=$(git worktree list --porcelain | awk -v b="branch refs/heads/$b" '/^worktree /{w=substr($0,10)} $0==b{print w}')
+  if [[ -z "$WT" ]]; then
+    git show-ref --verify --quiet "refs/heads/$b" || git branch -q "$b" "origin/$b" || return 4
+    TEMP_WT=$(mktemp -d)
+    trap drop_temp_wt EXIT
+    git worktree add -q "$TEMP_WT" "$b" || return 4
+    WT="$TEMP_WT"
+  fi
+  [[ "$WT" = "$TEMP_WT" || "$WT" = "$(git rev-parse --show-toplevel)" ]] || echo "note: working in $WT, the worktree that holds '$b'" >&2
+  if [[ -n "$(git -C "$WT" status --porcelain --untracked-files=no)" ]]; then
+    echo "worktree $WT holding '$b' has uncommitted changes — commit them or remove that worktree" >&2
+    drop_temp_wt
+    return 4
+  fi
+}
+drop_temp_wt() {
+  [[ -z "$TEMP_WT" ]] || git worktree remove --force "$TEMP_WT"
+  TEMP_WT=""
+}
+
+# argocd_webhooks — argocd-server's push-webhook counter for this repo. Nothing
+# scrapes ArgoCD metrics, so the pod is read through the apiserver proxy; raw
+# REST paths skip discovery, so an unreachable cluster costs 5s, not ~150s.
+# Prints 0 when the series is absent, nothing when the cluster is unreachable.
+# shortcut: reads one argocd-server pod; sum over pods if the server is scaled out.
+argocd_webhooks() {
+  command -v kubectl >/dev/null 2>&1 || return 0
+  local pod m
+  pod=$(kubectl --request-timeout=5s get --raw \
+    '/api/v1/namespaces/argocd/pods?labelSelector=app.kubernetes.io/name%3Dargocd-server' 2>/dev/null \
+    | jq -r '.items[0].metadata.name // empty') || return 0
+  [[ -n "$pod" ]] || return 0
+  m=$(kubectl --request-timeout=5s get --raw "/api/v1/namespaces/argocd/pods/$pod:8083/proxy/metrics" 2>/dev/null) || return 0
+  awk -v s="argocd_webhook_requests_total{repo=\"$FORGEJO_URL/$FORGEJO_REPO\"}" \
+    'index($0, s " ") == 1 {n = $2} END {print n + 0}' <<<"$m"
+}
+
+# expect_webhook <count-before-merge> — the merge push must reach ArgoCD within
+# 60s. Without it every app waits for timeout.reconciliation and nothing else
+# says so (2026-10-03..10-14: every delivery failed, found by accident).
+expect_webhook() {
+  local before="$1" now=""
+  [[ -n "$before" ]] || { echo "note: ArgoCD metrics unreadable, webhook check skipped" >&2; return 0; }
+  for _ in $(seq 12); do
+    sleep 5
+    now=$(argocd_webhooks)
+    [[ -n "$now" ]] || continue
+    (( now > before )) && return 0
+    # shortcut: a restart that climbs back to exactly $before reads as a lost webhook; fine with one argocd-server replica.
+    (( now < before )) && { echo "note: argocd-server restarted, webhook check skipped" >&2; return 0; }
+  done
+  echo "WARNING: ArgoCD counted no push webhook for this merge in 60s (argocd_webhook_requests_total $before -> ${now:-?})." >&2
+  echo "  Apps now sync only by polling (up to 10 min). Do NOT refresh all apps to compensate; read the failed delivery:" >&2
+  echo "  ssh root@10.11.11.153 \"sudo -u postgres psql -d git -At -c 'select hook_id, is_succeed, left(response_content,300) from hook_task order by id desc limit 3'\"" >&2
+  return 6
+}
+
+# check_body <body> — the body becomes the squash commit on main: a checkbox
+# there claims a check is open (or done) forever. shortcut: also matches inside
+# fenced code, strip fences if a PR quoting a skill's chat checklist trips it.
+check_body() {
+  local boxes
+  boxes=$(grep -nE '^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]+\[[ xX]\]' <<<"$1" || true)
+  [[ -n "$boxes" ]] || return 0
+  echo "refusing: PR body has task-list checkboxes:" >&2
+  printf '%s\n' "$boxes" >&2
+  echo "state what already ran as plain past-tense bullets; put post-merge steps under '## After merge' as plain bullets; required CI checks need no line" >&2
+  return 4
+}
+
 cmd_open() {
   local branch="${1:-}"
   [[ -n "$branch" ]] || die_usage
@@ -359,6 +470,7 @@ cmd_open() {
   shift
   local title="${1:-}" body="${2:-}"
   [[ -n "$title" ]] || { echo "title is required" >&2; die_usage; }
+  check_body "$body" || exit 4
 
   require curl
   require jq
@@ -432,6 +544,7 @@ cmd_merge() {
     echo "PR #$pr already merged — skipping merge API call" >&2
     printf '%s\n' "$meta" \
       | jq '{number, merged, merged_by: (.merged_by.login // null), merge_commit_sha}'
+    after_merge_hint "$pr" "$meta"
     cleanup_local_branch "$head_ref"
     return 0
   fi
@@ -483,7 +596,8 @@ cmd_merge() {
   # always mean the merge failed: Forgejo has been observed returning 409 with
   # the PR object on a merge that actually went through — so after any failure,
   # re-check the authoritative .merged flag before giving up.
-  local attempt rc=0
+  local attempt rc=0 hooks_before
+  hooks_before=$(argocd_webhooks)
   for attempt in 1 2 3 4 5; do
     # Called directly, not in $(...), so FORGEJO_HTTP_CODE survives. Capturing
     # $? here would read the status of the `if` itself, which is always 0.
@@ -508,7 +622,18 @@ cmd_merge() {
   forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr" \
     | jq '{number, merged, merged_by: (.merged_by.login // null), merge_commit_sha}'
 
+  after_merge_hint "$pr" "$meta"
   cleanup_local_branch "$head_ref"
+  expect_webhook "$hooks_before" || return 6
+}
+
+# after_merge_hint <pr-number> <pr-json> — print the body's "## After merge"
+# section: the squash commit is immutable, so its outcome goes to a PR comment.
+after_merge_hint() {
+  local plan
+  plan=$(jq -r '.body // ""' <<<"$2" | awk '/^## /{p = ($0 ~ /^## After merge/); next} p')
+  [[ -n "${plan//[[:space:]]/}" ]] || return 0
+  printf 'post-merge steps of PR #%s: run each, then post one line per step (verified / not done / pending / owner):\n  %s comment %s <<'"'"'EOF'"'"' ... EOF\n%s\n' "$1" "$0" "$1" "$plan" >&2
 }
 
 cmd_label() {
@@ -547,7 +672,7 @@ cmd_rerun() {
   require jq
   require git
 
-  local meta head_ref head_sha current
+  local meta head_ref head_sha
   meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
   [[ "$(jq -r '.state' <<<"$meta")" = "open" ]] || { echo "PR #$pr is not open — nothing to re-run" >&2; exit 1; }
   head_ref=$(jq -r '.head.ref' <<<"$meta")
@@ -568,41 +693,247 @@ cmd_rerun() {
     echo "  kubectl -n renovate create job --from=cronjob/renovate manual-$(date +%s)" >&2
     return 0
   fi
-  current=$(git symbolic-ref --short -q HEAD || echo "")
-  if [[ "$current" != "$head_ref" ]]; then
-    echo "refusing: PR #$pr head is '$head_ref', checked out is '${current:-detached HEAD}' — git checkout $head_ref first" >&2
-    exit 1
-  fi
-  if [[ "$(git rev-parse HEAD)" != "$head_sha" ]]; then
-    echo "refusing: local $head_ref is at $(git rev-parse --short HEAD), PR head is ${head_sha:0:8} — push or pull first" >&2
-    exit 1
-  fi
-  if ! git diff --cached --quiet; then
-    echo "refusing: staged changes would go into the re-trigger commit — commit or unstage them first" >&2
-    exit 1
+  git fetch -q origin "$head_ref"
+  use_branch_worktree "$head_ref" || exit 1
+  if [[ "$(git -C "$WT" rev-parse HEAD)" != "$head_sha" ]]; then
+    echo "refusing: local $head_ref is at $(git -C "$WT" rev-parse --short HEAD), PR head is ${head_sha:0:8} — push or pull first" >&2
+    drop_temp_wt; exit 1
   fi
 
   # Pre-commit hooks run here as on any commit.
-  git commit --allow-empty --quiet -m 'ci: re-trigger checks'
-  git push --quiet origin "$head_ref"
-  echo "PR #$pr: CI re-triggered ($(git rev-parse --short HEAD)); wait with: $0 monitor $pr" >&2
+  git -C "$WT" commit --allow-empty --quiet -m 'ci: re-trigger checks'
+  git -C "$WT" push --quiet origin "$head_ref"
+  echo "PR #$pr: CI re-triggered ($(git -C "$WT" rev-parse --short HEAD)); wait with: $0 monitor $pr" >&2
+  drop_temp_wt
 }
 
-cmd_full() {
-  local branch="${1:-}"
-  [[ -n "$branch" ]] || die_usage
+cmd_comment() {
+  local pr; pr=$(resolve_pr "${1:-}") || exit $?
+  require curl
+  require jq
+  local body; body=$(cat)
+  [[ -n "${body//[[:space:]]/}" ]] || { echo "comment body (stdin) is empty" >&2; die_usage; }
+  forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/issues/$pr/comments" "$(jq -n --arg b "$body" '{body: $b}')" \
+    | jq -r '.html_url'
+}
 
-  local open_resp pr_number
-  open_resp=$(cmd_open "$@")
-  pr_number=$(jq -r '.number' <<<"$open_resp")
-  [[ "$pr_number" =~ ^[0-9]+$ ]] || {
-    echo "could not parse PR number from open response" >&2
-    printf '%s\n' "$open_resp" >&2
-    return 2
-  }
-  printf '%s\n' "$open_resp" | jq '{number, url: .html_url, title}'
-  echo "opened PR #$pr_number — handing off to merge" >&2
-  cmd_merge "$pr_number"
+# full <branch> [-- <title> <body>] — ship one branch. `ship` runs it as a child
+# per branch: a function called in an `||` list runs with errexit off, a child
+# process keeps `set -e`.
+cmd_full() {
+  [[ -n "${1:-}" ]] || die_usage
+  [[ $# -eq 1 || ( "${2:-}" = "--" && -n "${3:-}" ) ]] || die_usage
+  ship_one "$1" "${3:-}" "${4:-}"
+}
+
+# The apps a merge touches, as ArgoCD's webhook decides it: manifest-generate-paths
+# matching a changed file (every app for argocd/appsets/), plus app folders the
+# commit has (a new one waits for the AppSet, which polls git every 3 min). Prints
+# "<app> <why>" for each one that is missing, runs another chart version than
+# config.yaml pins ($pins), is not yet at $revs, or is not Synced/Healthy.
+# shellcheck disable=SC2016  # $-names are jq variables
+JQ_PENDING='def hit($paths): any($changed[]; . as $f | any($paths[]; . as $p | $f == $p or ($f | startswith($p + "/"))));
+[.items[].metadata.name] as $have
+| ($expected - $have | .[] | "\(.) missing"),
+  (.items[]
+   | ((.metadata.annotations["argocd.argoproj.io/manifest-generate-paths"] // "") | split(";") | map(ltrimstr("/") | select(. != ""))) as $paths
+   | select(hit($paths) or any($changed[]; startswith("argocd/appsets/")) or (.metadata.name | IN($expected[])))
+   | (.spec.sources // [.spec.source]) as $src
+   | (.status.sync.revisions // [.status.sync.revision]) as $rev
+   | ($pins[.metadata.name] // null) as $pin
+   | if $pin != null and (($src[0].targetRevision // "") | IN($pin[]) | not)
+     then "\(.metadata.name) targetRevision \($src[0].targetRevision // "-") (config.yaml: \($pin | join(" or ")))"
+     elif [range($src | length) | select($src[.].repoURL | test("vizzle/homelab")) | $rev[.]] | all(IN($revs[])) | not
+     then "\(.metadata.name) stale"
+     elif .status.sync.status != "Synced" or .status.health.status != "Healthy" or .status.operationState.phase == "Running"
+     then "\(.metadata.name) \(.status.sync.status)/\(.status.health.status)/\(.status.operationState.phase // "-")"
+     else empty end)'
+
+lines_json() { jq -Rsc 'split("\n") | map(select(. != ""))'; }
+
+# app_pins <sha> — {"<app>": [targetRevision...]} for each app whose config.yaml
+# <sha> changes (homelabOnly apps have no chart source): the pin at <sha> and at
+# every later BASE_BRANCH commit that changes it again.
+app_pins() {
+  local sha="$1" layer name f c v
+  git diff-tree --no-commit-id --name-only -r "$sha" | sed -nE 's#^argocd/(apps|infra)/([^/]+)/config\.yaml$#\1 \2#p' \
+    | while read -r layer name; do
+        f="argocd/$layer/$name/config.yaml"
+        git cat-file -e "$sha:$f" 2>/dev/null || continue
+        [[ "$(git show "$sha:$f" | yq '.homelabOnly // false')" != "true" ]] || continue
+        for c in $(git rev-list "$sha^..origin/$BASE_BRANCH" -- "$f"); do
+          v=$(git show "$c:$f" 2>/dev/null | yq '.targetRevision // ""') || v=""
+          [[ -z "$v" ]] || printf '%s\t%s\n' "$name" "$v"
+        done
+      done \
+    | jq -Rsc 'split("\n") | map(select(. != "") | split("\t") | select(.[1] != ""))
+        | group_by(.[0]) | map({key: .[0][0], value: map(.[1]) | unique}) | from_entries'
+}
+
+# wait_apps <sha> — read-only, no refresh: the Forgejo push webhook refreshes
+# exactly these apps (cmd_merge checks it arrived); without it the periodic
+# reconcile (timeout.reconciliation 600s + jitter) still lands inside APPS_TIMEOUT.
+wait_apps() {
+  local sha changed expected revs pins apps pending layer name t start=$SECONDS
+  for t in kubectl yq; do
+    command -v "$t" >/dev/null 2>&1 || { echo "$t not on PATH: apps of ${1:-?} not checked" >&2; return 6; }
+  done
+  git fetch -q origin "$BASE_BRANCH" || echo "warning: git fetch origin $BASE_BRANCH failed" >&2
+  sha=$(git rev-parse -q --verify "${1:-}^{commit}") || { echo "unknown commit '${1:-}'" >&2; return 2; }
+  changed=$(git diff-tree --no-commit-id --name-only -r "$sha" | lines_json)
+  # A folder the commit deletes has no config.yaml at <sha>: nothing to wait for.
+  expected=$(git diff-tree --no-commit-id --name-only -r "$sha" | sed -nE 's#^argocd/(apps|infra)/([^/]+)/.*#\1 \2#p' | sort -u \
+    | while read -r layer name; do
+        if git cat-file -e "$sha:argocd/$layer/$name/config.yaml" 2>/dev/null; then echo "$name"; fi
+      done | lines_json)
+  while :; do
+    revs=$(git rev-list "$sha^..origin/$BASE_BRANCH" | lines_json)
+    pins=$(app_pins "$sha")
+    # A failed read must never look like "nothing pending".
+    if apps=$(kubectl -n argocd get applications.argoproj.io -o json --request-timeout=10s); then
+      pending=$(jq -r --argjson changed "$changed" --argjson expected "$expected" --argjson revs "$revs" \
+        --argjson pins "$pins" "$JQ_PENDING" <<<"$apps") || pending="(jq failed on the applications list)"
+    else
+      pending="(kubectl get applications failed)"
+    fi
+    if [[ -z "$pending" ]]; then
+      echo "apps settled at ${sha:0:8}" >&2
+      return 0
+    fi
+    if [[ $((SECONDS - start)) -ge "$APPS_TIMEOUT" ]]; then
+      printf 'apps not settled at %s after %ss:\n%s\n' "${sha:0:8}" "$APPS_TIMEOUT" "$pending" >&2
+      return 6
+    fi
+    sleep "$POLL_INTERVAL"
+    git fetch -q origin "$BASE_BRANCH" || true
+  done
+}
+
+# ship_one <branch> [<title> <body>]
+ship_one() {
+  local b="$1" title="${2:-}" body="${3:-}" pr rc=0 sha payload failed out cherry
+  if [[ "$b" = "$BASE_BRANCH" || "$b" == renovate/* ]]; then
+    echo "refusing to ship '$b' (base branch or Renovate-owned)" >&2; return 2
+  fi
+  require curl
+  require jq
+  git fetch -q --prune origin || { echo "git fetch origin failed" >&2; return 4; }
+
+  use_branch_worktree "$b" || return 4
+  # Never force-push over commits pushed from elsewhere: catch up, or refuse when
+  # origin/$b has a commit with no equivalent patch here. Older copies of local
+  # commits (a local rebase, a refusal or failed push after the rebase below)
+  # are replaced by the force-with-lease push.
+  if git rev-parse -q --verify "origin/$b" >/dev/null && ! git merge-base --is-ancestor "origin/$b" "$b"; then
+    if git merge-base --is-ancestor "$b" "origin/$b"; then
+      git -C "$WT" merge -q --ff-only "origin/$b" || { drop_temp_wt; return 4; }
+    else
+      cherry=$(git cherry "$b" "origin/$b") || { drop_temp_wt; return 4; }
+      if grep -q '^+' <<<"$cherry"; then
+        echo "'$b' and origin/$b diverged: origin has commits '$b' lacks — merge them in, then ship again" >&2
+        drop_temp_wt; return 4
+      fi
+    fi
+  fi
+
+  # The PR text before the rebase, so a refusal leaves the branch as it was:
+  # these are the commits the rebase replays.
+  pr=$(open_prs_of "$b") || return 3
+  pr="${pr%%$'\n'*}"
+  if [[ -z "$pr" ]]; then
+    local range=(--no-merges --cherry-pick --right-only "origin/$BASE_BRANCH...$b")
+    [[ -n "$title" ]] || title=$(git log --reverse --format=%s "${range[@]}" | head -1)
+    [[ -n "$body" ]] || body=$(git log --reverse --format='## %s%n%n%b' "${range[@]}")
+    check_body "$body" || { echo "pass the PR text explicitly: $0 full $b -- <title> <body>" >&2; drop_temp_wt; return 4; }
+  elif [[ -n "$title" ]]; then
+    echo "note: reusing PR #$pr; its title and body stay as they are" >&2
+  fi
+
+  # Rebase: argocd-diff compares the PR head with the current main, so a stale
+  # branch shows other PRs' resources as removed (a false review gate).
+  if ! git merge-base --is-ancestor "origin/$BASE_BRANCH" "$b"; then
+    if ! git -C "$WT" rebase -q "origin/$BASE_BRANCH"; then
+      git -C "$WT" diff --name-only --diff-filter=U >&2
+      git -C "$WT" rebase --abort
+      drop_temp_wt
+      echo "rebase conflict: $b onto origin/$BASE_BRANCH — resolve it, then ship again" >&2
+      return 4
+    fi
+  fi
+  if [[ -z "$(git rev-list "origin/$BASE_BRANCH..$b")" ]]; then
+    echo "'$b' has no commits ahead of $BASE_BRANCH — nothing to ship" >&2; drop_temp_wt; return 4
+  fi
+  if [[ "$(git rev-parse "$b")" != "$(git rev-parse -q --verify "origin/$b" || true)" ]]; then
+    git -C "$WT" push -q --force-with-lease -u origin "$b" || { drop_temp_wt; return 4; }
+  fi
+  drop_temp_wt
+  if [[ -z "$pr" ]]; then
+    pr=$(cmd_open "$b" -- "$title" "$body" | jq -r '.number') || true
+    [[ "$pr" =~ ^[0-9]+$ ]] || { echo "could not open a PR for '$b'" >&2; return 3; }
+  else
+    # Forgejo moves the PR head after a push asynchronously; merge must not poll
+    # the CI of the commit this push replaced.
+    sha=$(git rev-parse "$b")
+    for _ in $(seq 24); do
+      [[ "$(get_pr_sha "$pr")" != "$sha" ]] || break
+      sleep 5
+    done
+  fi
+  echo "PR #$pr ($b): $FORGEJO_URL/$FORGEJO_REPO/pulls/$pr" >&2
+
+  out=$("$0" merge "$pr") || rc=$?
+  [[ -z "$out" ]] || printf '%s\n' "$out"
+  if [[ $rc -eq 1 ]]; then
+    sha=$(get_pr_sha "$pr")
+    payload=$(fetch_status "$sha")
+    failure_hints "$pr" <<<"$payload"
+    # Contexts carry spaces ("CI / argocd-diff (pull_request)"): count them in jq.
+    failed=$(jq -r '[.statuses[]? | select((.status // .state) | IN("failure", "error")) | .context] | if length == 1 then .[0] else "" end' <<<"$payload")
+    # A variable, not `| grep -q`: an early grep exit SIGPIPEs the writer, and
+    # pipefail then reads a found gate as "no gate".
+    if [[ "$failed" == *argocd-diff* ]] && out=$(fresh_diff_body "$pr" "$sha" "$failed" 2>/dev/null) \
+      && grep -q 'Blocked.*diff-reviewed' <<<"$out"; then
+      return 5
+    fi
+  fi
+  # 6 from merge = no webhook seen: the apps are still waited for, the 6 stays.
+  [[ $rc -eq 0 || $rc -eq 6 ]] || return "$rc"
+
+  sha=$(jq -r '.merge_commit_sha // empty' <<<"$out")
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "PR #$pr merged, but no merge_commit_sha — run: $0 wait-apps <sha>" >&2; return 3; }
+  wait_apps "$sha" || return $?
+  return "$rc"
+}
+
+# ship <branch>... — every branch in its own child (`set -e` stays on). A review
+# gate (5) leaves that PR open and goes on with the next branch; any other
+# failure stops. Exit: the code that stopped it, else 5 if a PR was parked, else 0.
+cmd_ship() {
+  [[ $# -gt 0 ]] || die_usage
+  local b rc parked=""
+  while [[ $# -gt 0 ]]; do
+    b="$1"; shift; rc=0
+    "$0" full "$b" || rc=$?
+    case $rc in
+      0) echo "SHIPPED $b" >&2 ;;
+      5) echo "PARKED $b (exit 5): its PR waits for the diff-reviewed label" >&2; parked+=" $b" ;;
+      *) echo "SHIP STOPPED at $b (exit $rc); not shipped: ${*:-none}${parked:+; parked:$parked}" >&2
+         return "$rc" ;;
+    esac
+  done
+  [[ -z "$parked" ]] || { echo "parked at the review gate:$parked" >&2; return 5; }
+}
+
+cmd_wait_apps() {
+  [[ -n "${1:-}" ]] || die_usage
+  require jq
+  wait_apps "$1"
+}
+
+cmd_get() {
+  [[ -n "${1:-}" ]] || die_usage
+  require curl
+  forgejo_api GET "/api/v1/${1#/}"
 }
 
 case "${1:-}" in
@@ -614,6 +945,10 @@ case "${1:-}" in
   label)          shift; cmd_label   "$@" ;;
   diff-comment)   shift; cmd_diff_comment "$@" ;;
   rerun)          shift; cmd_rerun   "$@" ;;
+  ship)           shift; cmd_ship    "$@" ;;
+  wait-apps)      shift; cmd_wait_apps "$@" ;;
+  get)            shift; cmd_get     "$@" ;;
+  comment)        shift; cmd_comment "$@" ;;
   help|-h|--help) usage; exit 0 ;;
   *)              die_usage ;;
 esac
