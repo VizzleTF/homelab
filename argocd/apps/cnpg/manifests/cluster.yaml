@@ -74,10 +74,6 @@ spec:
         login: true
         passwordSecret:
           name: authentik-db-credentials
-      # In-cluster Forgejo mirror decommissioned 2026-10: CNPG drops the role
-      # once its database is gone. Delete this entry after `\du` shows no forgejo.
-      - name: forgejo
-        ensure: absent
       - name: atuin
         ensure: present
         login: true
