@@ -146,7 +146,7 @@
     "VaultPath": {
       "type": "string",
       "pattern": "^[a-z0-9-]+/[a-z0-9-]+$",
-      "description": "OpenBao path under global.vault.pathPrefix: <namespace>/<name>, or a grant from global.openbao.access (checked at render time)."
+      "description": "OpenBao path under global.vault.pathPrefix: <namespace>/<purpose>, or a grant from global.openbao.access (checked at render time)."
     },
     "ExternalSecretSpec": {
       "type": "object",
@@ -159,7 +159,7 @@
         "creationPolicy": { "type": "string", "enum": ["Owner", "Merge", "Orphan", "None"] },
         "deletionPolicy": { "type": "string", "enum": ["Delete", "Merge", "Retain"] },
         "templateType": { "type": "string" },
-        "templateEngineVersion": { "type": "string", "enum": ["v1", "v2"] },
+        "templateEngineVersion": { "type": "string", "enum": ["v2"], "description": "Accepted but not rendered: v2 is the only engine the ExternalSecret v1 CRD allows, and its default." },
         "templateMetadata": { "type": "object" },
         "templateData": { "type": "object", "additionalProperties": { "type": "string" } },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } },

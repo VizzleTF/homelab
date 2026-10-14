@@ -52,6 +52,9 @@ Y
 must_fail "three-segment vaultPath" <<'Y'
 homelab-common: {externalSecrets: [{name: a, vaultPath: t/a/b, data: [{secretKey: k, property: p}]}]}
 Y
+must_fail "templateEngineVersion v1 (the ExternalSecret v1 CRD allows only v2)" <<'Y'
+homelab-common: {externalSecrets: [{name: a, vaultPath: t/a, templateEngineVersion: v1, data: [{secretKey: k, property: p}]}]}
+Y
 must_fail "volsync repo paths without the backup grant" <<'Y'
 homelab-common: {volsync: [{name: d, targets: [{repo: garage, schedule: "0 1 * * *"}]}]}
 Y
