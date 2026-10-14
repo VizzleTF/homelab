@@ -164,6 +164,11 @@ domainFilters:
   - example.com
   - local
 
+# The webhook reads the LuCI credentials from env only at start: reloader rolls
+# the pod on rotation.
+deploymentAnnotations:
+  secret.reloader.stakater.com/reload: openwrt-credentials
+
 env:
   - name: GOMEMLIMIT
     value: "68MiB"

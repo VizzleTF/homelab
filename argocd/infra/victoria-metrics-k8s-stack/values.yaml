@@ -495,6 +495,12 @@ grafana:
       mountPath: /etc/secrets/grafana-oidc
       readOnly: true
 
+  # Admin env and OIDC files are read only at start: reloader rolls Grafana on
+  # rotation. The chart copies `annotations` onto every Grafana object
+  # (ConfigMaps, Secret, RBAC); only the Deployment acts on it.
+  annotations:
+    secret.reloader.stakater.com/reload: grafana-admin-secret,grafana-oidc-secret
+
   # Resources — 7d max 468Mi of 512Mi and p95 CPU 162m (throttled 12%).
   resources:
     requests:

@@ -5,9 +5,15 @@
 #   secret.reloader.stakater.com/reload: "authentik-config"
 # - homelab-common `workloads` add it automatically for every Secret/ConfigMap
 #   the pod references (`reload: false` turns it off, e.g. netbird, valkey).
-# - Upstream-chart apps set it in their values: authentik, forgejo, immich.
-# - The couchdb (obsidian-livesync) and trek charts cannot annotate the
-#   workload: restart them by hand after a secret rotation.
+# - Upstream-chart apps set it in their values: authentik, forgejo, immich,
+#   external-dns, external-dns-openwrt, grafana (victoria-metrics-k8s-stack).
+# - These cannot annotate the workload: restart them by hand after a secret
+#   rotation.
+#   - couchdb (obsidian-livesync), trek
+#   - robusta-runner (robusta-telegram): runner.annotations reach only the pod
+#   - cloudflared DaemonSet (cloudflared-secrets): only podAnnotations
+#   - wazuh-manager-master/worker StatefulSets (wazuh-authd-pass): created by
+#     the wazuh operator from the WazuhCluster CR
 
 reloader:
   # Bootstrap + cold-start safety:
