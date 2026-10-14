@@ -321,4 +321,4 @@ Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/
 
 ## License
 
-The repository ships as-is for reference. No formal LICENSE file: treat it as "all rights reserved" until one is added.
+MIT, see [LICENSE](LICENSE).
