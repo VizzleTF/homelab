@@ -29,6 +29,10 @@ homelab-common:
 provider:
   name: cloudflare
 
+# CF_API_TOKEN is read only at start: reloader rolls the pod on token rotation.
+deploymentAnnotations:
+  secret.reloader.stakater.com/reload: external-dns-cloudflare
+
 env:
   - name: CF_API_TOKEN
     valueFrom:
