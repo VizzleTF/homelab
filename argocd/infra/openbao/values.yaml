@@ -390,7 +390,7 @@ homelab-common:
         - name: metrics
           image:
             repository: curlimages/curl
-            tag: "8.22.0"
+            tag: "8.23.0"
           command: ["/bin/sh", "-c"]
           env:
             - name: VM_URL
