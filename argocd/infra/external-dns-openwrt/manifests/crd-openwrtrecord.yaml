@@ -1,0 +1,74 @@
+# OpenWrtRecord CRD for the webhook's record status mirror (PROVIDER_STATUS_ENABLED).
+# Copied from external-dns-openwrt-next example/record-status.yaml (v0.10.0).
+# Objects are written by the webhook (server-side apply), not by ArgoCD:
+#   kubectl -n external-dns-openwrt get owr
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: openwrtrecords.external-dns-openwrt.vizzletf.github.io
+spec:
+  group: external-dns-openwrt.vizzletf.github.io
+  scope: Namespaced
+  names:
+    kind: OpenWrtRecord
+    listKind: OpenWrtRecordList
+    plural: openwrtrecords
+    singular: openwrtrecord
+    shortNames: [owr]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      # No status subresource: the webhook is the only writer and sets spec
+      # and status in one apply.
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            A record ExternalDNS asked the OpenWrt webhook for, or one of its
+            records still on the router, and what became of it. Written by the
+            webhook; edits are overwritten on its next run.
+          properties:
+            spec:
+              type: object
+              properties:
+                dnsName:
+                  type: string
+                recordType:
+                  type: string
+                targets:
+                  type: array
+                  items:
+                    type: string
+            status:
+              type: object
+              properties:
+                state:
+                  type: string
+                  enum: [Ready, Pending, Conflict, Error, Rejected, Orphan]
+                reason:
+                  type: string
+                lastTransitionTime:
+                  type: string
+                  format: date-time
+      additionalPrinterColumns:
+        - name: DNS Name
+          type: string
+          jsonPath: .spec.dnsName
+        - name: Type
+          type: string
+          jsonPath: .spec.recordType
+        - name: Targets
+          type: string
+          jsonPath: .spec.targets
+        - name: State
+          type: string
+          jsonPath: .status.state
+        - name: Reason
+          type: string
+          jsonPath: .status.reason
+        # How long the record has been in its state, not the object's age.
+        - name: Since
+          type: date
+          jsonPath: .status.lastTransitionTime
