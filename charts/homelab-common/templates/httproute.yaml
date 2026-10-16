@@ -32,7 +32,6 @@ metadata:
     {{- if eq $kind "external" }}
     external-dns.kubernetes.io/cloudflare-proxied: "true"
     {{- else }}
-    external-dns.kubernetes.io/target: {{ $gw.ip | quote }}
     external-dns.kubernetes.io/internal-dns: "true"
     {{- end }}
     {{- with $r.annotations }}
