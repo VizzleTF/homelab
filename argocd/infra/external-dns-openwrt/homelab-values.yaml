@@ -1,0 +1,23 @@
+# homelab-common only (second source of the AppSet). Kept apart from values.yaml: the external-dns-openwrt chart has a strict values schema.
+homelab-common:
+  # Default-deny ingress; only vmagent scrapes from outside (manifests/vmservicescrape.yaml).
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+
+  externalSecrets:
+    - name: openwrt-credentials
+      vaultPath: external-dns-openwrt/luci
+      data:
+        - secretKey: password
+          property: password
+
+  limitRange:
+    enabled: true
+    defaults:
+      cpu: 100m
+      memory: 128Mi
+    defaultRequests:
+      cpu: 25m
+      memory: 64Mi

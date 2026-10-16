@@ -12,7 +12,7 @@ spec:
       - external-dns-openwrt
   selector:
     matchLabels:
-      app.kubernetes.io/name: external-dns
+      app.kubernetes.io/name: external-dns-openwrt
       app.kubernetes.io/instance: external-dns-openwrt
   endpoints:
     - port: http
