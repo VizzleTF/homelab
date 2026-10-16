@@ -1,0 +1,23 @@
+# The chart Service "external-dns-openwrt" exposes both containers:
+# `http` (7979) = external-dns controller metrics,
+# `http-webhook` (8080) = webhook metrics (external_dns_openwrt_*).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: external-dns-openwrt
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - external-dns-openwrt
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns
+      app.kubernetes.io/instance: external-dns-openwrt
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
+    - port: http-webhook
+      path: /metrics
+      interval: 60s

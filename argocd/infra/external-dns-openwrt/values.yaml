@@ -113,6 +113,11 @@ policy: sync
 
 interval: 5m
 
+# Reconcile on HTTPRoute/TLSRoute/Service events (rate-limited to one run per
+# 5 s), so a new hostname reaches the router in seconds; `interval` stays as
+# the safety net.
+triggerLoopOnEvent: true
+
 # OpenWrt dnsmasq cannot store TXT records, so the default `txt` registry
 # would create A records but never update/delete them: ED can't find its
 # own owner-TXT marker, treats every existing record as "not mine" and
@@ -150,9 +155,11 @@ podSecurityContext:
   runAsUser: 65534
 
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # Default-deny ingress; only vmagent scrapes from outside (manifests/vmservicescrape.yaml).
   networkPolicy:
     enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
 
   externalSecrets:
     - name: openwrt-credentials
