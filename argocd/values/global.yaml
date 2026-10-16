@@ -67,11 +67,9 @@ global:
     internal:
       name: cilium-gateway-internal
       namespace: kube-system
-      ip: 10.11.10.138
     tls:
       name: cilium-gateway-tls
       namespace: kube-system
-      ip: 10.11.10.139
 
   # VolSync (backup v2, see obsidian/113 Backups/Backup Overview.md). Two independent
   # restic targets: garage = on-prem (Synology), ovh = off-site. DIFFERENT repository
