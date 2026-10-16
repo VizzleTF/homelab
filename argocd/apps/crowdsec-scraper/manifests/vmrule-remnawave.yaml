@@ -93,3 +93,108 @@ spec:
             description: |
               Backend панели throttled. Смотреть remnawave_process_rss_bytes и
               remnawave_process_heap_used_bytes рядом — обычно это утечка heap.
+
+    # Textfile-метрики скриптов на самих хостах (job=node, приезжают через node_exporter).
+    # vpn-healthcheck на vps-panel — раз в сутки 07:15 MSK; xhttp-health.sh на vps-fi/ape/dp — */5.
+    # Исходники: vpn-репо node-configs/bin/{vpn-healthcheck,xhttp-health.sh}.
+    - name: remnawave-host-scripts
+      rules:
+        # 0 = секция дала WARN или FAIL; подробности только в логе на хосте.
+        - alert: VpnHealthcheckFailed
+          expr: vpn_health_check{job="node"} == 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "vpn-healthcheck: секция {{ $labels.check }} не прошла"
+            description: |
+              ssh vps-panel 'sudo cat /var/log/vpn-health.last'
+              Ручной перезапуск: ssh vps-panel 'sudo vpn-healthcheck'
+
+        # Суточный прогон не отработал (26h = сутки + запас). Без этого правила
+        # залипшая единица из вчерашнего файла выглядит как здоровье.
+        - alert: VpnHealthcheckStale
+          expr: |
+            time() - vpn_health_last_run_timestamp_seconds{job="node"} > 93600
+              or absent(vpn_health_last_run_timestamp_seconds{job="node"})
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "vpn-healthcheck не запускался >26h"
+            description: |
+              ssh vps-panel 'cat /etc/cron.d/vpn-health; sudo tail /var/log/vpn-health.log'
+
+        - alert: XhttpHealthStale
+          expr: time() - xhttp_health_last_run_timestamp_seconds{job="node"} > 1200
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: xhttp-health.sh не отрабатывал >20m"
+            description: |
+              ssh {{ $labels.host }} 'cat /etc/cron.d/xhttp-health; tail /var/log/xhttp-health.log'
+
+        # Контейнер или rw-core (в нём xray) не живы — нода не обслуживает клиентов,
+        # даже если nginx на 443 отвечает. Дублирует RemnawaveNodeDown со стороны хоста:
+        # срабатывает и когда панель сама лежит.
+        - alert: XhttpNodeProcessDown
+          expr: xhttp_remnanode_up{job="node"} == 0 or xhttp_rwcore_up{job="node"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.host }}: remnanode/rw-core не запущен"
+            description: |
+              ssh {{ $labels.host }} 'docker ps -a --filter name=remnanode; pgrep -c rw-core'
+              Поднимать только compose: cd /opt/remnanode && docker compose up -d
+
+        # nginx упёрся в лимит fd — XHTTP отдаёт 5xx всем. Любое значение > 0 = авария.
+        - alert: XhttpNginxEmfile
+          expr: xhttp_emfile_window{job="node"} > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.host }}: nginx 'Too many open files' ({{ $value }} за 5m)"
+            description: |
+              Проверить worker_rlimit_nofile 65535 и worker_connections 16384 в nginx.conf.
+              ssh {{ $labels.host }} 'grep -E "rlimit|worker_conn" /etc/nginx/nginx.conf'
+
+        # Фон ~150 5xx/сутки на ape (≈0.5 за окно) и всплеск при перезагрузке профиля xray.
+        # 30 за окно 15 минут подряд — уже не фон и не reload.
+        - alert: XhttpErrorsHigh
+          expr: xhttp_5xx_window{job="node"} > 30
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: {{ $value }} XHTTP 5xx за 5m"
+            description: |
+              ssh {{ $labels.host }} "awk '\$5 ~ /^\/xhttppath\// && \$7 ~ /^5/' /var/log/nginx/access.log | tail"
+              ssh {{ $labels.host }} 'tail -50 /var/log/nginx/error.log'
+
+        # Обратный SSH-туннель к роутеру (tun2 = родители, tun3 = дом, tun4 = сестра).
+        # Пишут tun{2,3,4}-reaper.sh на vps-panel каждые 3 минуты. 15m = reaper уже дважды
+        # снял зомби-сессию, а роутер так и не переподключился — без этого правила
+        # туннель родителей однажды лежал 57 часов незамеченным.
+        - alert: ReverseTunnelDown
+          expr: vpn_reverse_tunnel_up{job="node"} == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Обратный туннель {{ $labels.tunnel }} (:{{ $labels.port }}) не отвечает >15m"
+            description: |
+              Роутер без удалённого доступа; VPN у людей при этом может работать.
+              ssh vps-panel 'ss -tlnp | grep {{ $labels.port }}; sudo journalctl -t {{ $labels.tunnel }}-reaper --since -1h'
+
+        - alert: ReverseTunnelMetricStale
+          expr: time() - node_textfile_mtime_seconds{job="node",file=~".*/reverse_tunnel_tun.*"} > 900
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: reaper не обновлял {{ $labels.file }} >15m"
+            description: |
+              ssh vps-panel 'sudo crontab -l | grep reaper; sudo bash -n /usr/local/bin/tun2-reaper.sh'
