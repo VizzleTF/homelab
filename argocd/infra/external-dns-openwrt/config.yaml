@@ -1,5 +1,7 @@
-chart: external-dns
-repoURL: https://kubernetes-sigs.github.io/external-dns/
-targetRevision: "1.23.0"
+chart: external-dns-openwrt
+repoURL: ghcr.io/vizzletf/charts
+targetRevision: "0.11.0"
 wave: "-2"
 extraManifests: true
+# external-dns + OpenWrt webhook sidecar in one chart, published by our fork. Source: https://github.com/VizzleTF/external-dns-openwrt-next
+homelabValuesFile: homelab-values.yaml

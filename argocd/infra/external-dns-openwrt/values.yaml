@@ -1,189 +1,72 @@
-# external-dns (OpenWrt webhook): LAN records in the router dnsmasq. Source: https://github.com/kubernetes-sigs/external-dns
-
-provider:
-  name: webhook
-  webhook:
-    image:
-      # Fork of renanqts/external-dns-openwrt-webhook (upstream is frozen: a single
-      # v0.1.0 release from 2025-02-27, documented by upstream as upsert-only).
-      # The fork fixes delete/update, multi-target and the dnsmasq reload.
-      # Source: https://github.com/VizzleTF/external-dns-openwrt-next
-      repository: ghcr.io/vizzletf/external-dns-openwrt-next
-      tag: "v0.10.0"
-
-    # Probes are not overridden: since v0.7.0 the webhook serves its API on
-    # 127.0.0.1:8888 only and /healthz plus metrics on :8080, exactly what the
-    # chart's default probes expect (/healthz on http-webhook). The old probes
-    # on podIP:8888/ping got connection refused, liveness killed the webhook
-    # and external-dns crashed after it (CrashLoopBackOff 2026-09-13).
-
-    env:
-      # No reload strategy: since v0.9.0 the webhook applies each change set with
-      # ubus `uci apply` (dhcp only), and procd reloads dnsmasq as the init script
-      # asks: a changed CNAME restarts it, a changed A record only re-reads the
-      # hostfile. The PROVIDER_OPENWRT_LUCIRPC_* names stay, but the transport is
-      # ubus (POST /ubus), so luci-mod-rpc is no longer needed on the router.
-      #
-      # Record ownership. The provider adds `external_dns=homelab` to every uci
-      # section it creates and returns ONLY marked sections to external-dns.
-      # Manual records (s3.example.com) stay invisible: they can be
-      # neither updated nor deleted. This is the precondition for policy: sync,
-      # which would otherwise remove them: registry=noop owns whatever the
-      # provider returns, and a TXT registry is impossible (uci has no TXT).
-      #
-      # The marker is inert: dhcp_domain_add reads only name/ip, dhcp_cname_add
-      # only cname/target; the option never reaches the generated dnsmasq config.
-      - name: PROVIDER_OPENWRT_OWNERSHIPID
-        value: "homelab"
-      # Adoption: if a requested record already exists on the router without the
-      # marker, the provider marks that section instead of creating a duplicate.
-      # This is how the 10 pre-existing k8s records migrated, with no router edits.
-      - name: PROVIDER_OPENWRT_ADOPTEXISTING
-        value: "true"
-      # Mirror each record's state into OpenWrtRecord objects in this
-      # namespace (`kubectl -n external-dns-openwrt get owr`: Ready, Pending,
-      # Conflict, Error, Rejected, Orphan + reason). Needs the CRD and Role in
-      # manifests/. A refused write only warns and bumps
-      # external_dns_openwrt_status_errors_total; change sets are unaffected.
-      - name: PROVIDER_STATUS_ENABLED
-        value: "true"
-      - name: PROVIDER_OPENWRT_LUCIRPC_HOSTNAME
-        valueFrom:
-          secretKeyRef:
-            name: openwrt-credentials
-            key: host
-      - name: PROVIDER_OPENWRT_LUCIRPC_AUTH_USERNAME
-        valueFrom:
-          secretKeyRef:
-            name: openwrt-credentials
-            key: username
-      - name: PROVIDER_OPENWRT_LUCIRPC_AUTH_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: openwrt-credentials
-            key: password
-      - name: PROVIDER_OPENWRT_LUCIRPC_SSL
-        value: "false"
-      - name: PROVIDER_OPENWRT_LUCIRPC_PORT
-        value: "80"
-      - name: LOG_LEVEL
-        value: info
-      - name: PROVIDER_OPENWRT_LUCIRPC_INSECURE_SKIP_VERIFY
-        value: "true"
-
-    resources:
-      limits:
-        cpu: 50m
-        memory: 80Mi
-      requests:
-        cpu: 12m
-        memory: 32Mi
-
-    # The chart applies the top-level `securityContext` to the external-dns
-    # container only, so the webhook sidecar tripped the namespace's
-    # restricted PodSecurity warning on every rollout. Same settings here.
-    securityContext:
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      capabilities:
-        drop:
-          - ALL
-
-# The prefix is explicit although it equals the v0.22 default: it sits next to
-# annotationFilter, which spells the full annotation name, and the two must
-# match. Change them together: on a mismatch external-dns stops seeing the
-# target and falls back to the Gateway address, and policy: sync removes live
-# CNAMEs (how DNS went down on 2026-09-12).
-annotationPrefix: external-dns.kubernetes.io/
-
-annotationFilter: "external-dns.kubernetes.io/internal-dns in (true)"
-
-sources:
-  - gateway-httproute
-  - gateway-tlsroute
-  - service
-
-# `sync`: a hostname removed from k8s also removes its record on the router.
+# Fork of renanqts/external-dns-openwrt-webhook (upstream is frozen: a single
+# v0.1.0 release from 2025-02-27, documented by upstream as upsert-only).
+# Since v0.11.0 the fork ships its own chart: external-dns + the webhook as a
+# native sidecar, --registry=noop and --managed-record-types=A,CNAME built in,
+# CRD OpenWrtRecord + its Role included (`kubectl -n external-dns-openwrt get owr`).
+# Source: https://github.com/VizzleTF/external-dns-openwrt-next
 #
-# With registry=noop ED owns EVERY record the provider returns, so plain sync
-# would delete the manual `config domain` entries (Garage S3 on the NAS). The provider marks its own sections `external_dns=homelab`
-# (PROVIDER_OPENWRT_OWNERSHIPID) and returns only those, so manual records are
-# invisible to ED and cannot be deleted.
+# Record ownership. The provider adds `external_dns=homelab` to every uci
+# section it creates and returns ONLY marked sections to external-dns.
+# Manual records (s3.example.com, git.example.com) stay invisible: they can be
+# neither updated nor deleted. This is the precondition for policy: sync,
+# which would otherwise remove them: registry=noop owns whatever the
+# provider returns, and a TXT registry is impossible (uci has no TXT).
 #
-# Checked before enabling: 17 sections on the router, the marker on exactly the
-# 10 k8s records, none on the manual ones (s3.example.com; pve1..pve4 removed
-# 2026-10-14 with Proxmox).
-#
-# IMPORTANT: sync is safe ONLY together with OWNERSHIPID. Before removing the
-# marker, switch policy back to upsert-only.
-policy: sync
+# The marker is inert: dhcp_domain_add reads only name/ip, dhcp_cname_add
+# only cname/target; the option never reaches the generated dnsmasq config.
+ownershipID: homelab
 
-interval: 5m
+# ubus over plain HTTP on the LAN (uhttpd :80). rpcd login `external-dns` with
+# an ACL on `dhcp` only (the chart default username); the password comes from
+# OpenBao via ExternalSecret below.
+router:
+  hostname: 10.11.12.1
+  port: 80
+  tls: false
+  existingSecret: openwrt-credentials
 
-# Reconcile on HTTPRoute/TLSRoute/Service events (rate-limited to one run per
-# 5 s), so a new hostname reaches the router in seconds; `interval` stays as
-# the safety net.
-triggerLoopOnEvent: true
+externalDNS:
+  sources:
+    - gateway-httproute
+    - gateway-tlsroute
+    - service
+  domainFilters:
+    - example.com
+    - local
+  # `sync`: a hostname removed from k8s also removes its record on the router.
+  # IMPORTANT: sync is safe ONLY together with ownershipID. Before removing the
+  # marker, switch policy back to upsert-only.
+  interval: 5m  # pinned: --events covers new records, the loop is the safety net
+  logFormat: text  # pinned: matches the rest of the cluster's external-dns logs
+  extraArgs:
+    # Reconcile on HTTPRoute/TLSRoute/Service events (rate-limited to one run
+    # per 5 s), so a new hostname reaches the router in seconds.
+    - --events
+    # The prefix is explicit although it equals the v0.22 default: it sits next
+    # to the filter, which spells the full annotation name, and the two must
+    # match. Change them together: on a mismatch external-dns stops seeing the
+    # target and falls back to the Gateway address, and policy: sync removes
+    # live CNAMEs (how DNS went down on 2026-09-12).
+    - --annotation-prefix=external-dns.kubernetes.io/
+    - --annotation-filter=external-dns.kubernetes.io/internal-dns in (true)
+  resources:
+    limits:
+      cpu: 50m
+      memory: 80Mi
+    requests:
+      cpu: 12m
+      memory: 32Mi
 
-# OpenWrt dnsmasq cannot store TXT records, so the default `txt` registry
-# would create A records but never update/delete them: ED can't find its
-# own owner-TXT marker, treats every existing record as "not mine" and
-# silently skips reconciliation (logs say "All records are already up to
-# date" while dnsmasq holds stale IPs). `noop` registry disables owner
-# tracking — safe here because this ED instance is the sole writer to
-# /etc/config/dhcp domain entries on the home router.
-registry: noop
-
-domainFilters:
-  - example.com
-  - local
-
-# The webhook reads the LuCI credentials from env only at start: reloader rolls
-# the pod on rotation.
-deploymentAnnotations:
-  secret.reloader.stakater.com/reload: openwrt-credentials
-
-env:
-  - name: GOMEMLIMIT
-    value: "68MiB"
-
-resources:
-  limits:
-    cpu: 50m
-    memory: 80Mi
-  requests:
-    cpu: 12m
-    memory: 32Mi
-
-serviceAccount:
-  name: external-dns-openwrt
-
-podSecurityContext:
-  runAsUser: 65534
-
-homelab-common:
-  # Default-deny ingress; only vmagent scrapes from outside (manifests/vmservicescrape.yaml).
-  networkPolicy:
-    enabled: true
-    allow:
-      - namespaces: [victoria-metrics]
-
-  externalSecrets:
-    - name: openwrt-credentials
-      vaultPath: external-dns-openwrt/luci
-      data:
-        - secretKey: host
-          property: host
-        - secretKey: username
-          property: username
-        - secretKey: password
-          property: password
-
-  limitRange:
-    enabled: true
-    defaults:
-      cpu: 100m
-      memory: 128Mi
-    defaultRequests:
-      cpu: 25m
-      memory: 64Mi
+webhook:
+  extraEnv:
+    # Adoption: if a requested record already exists on the router without the
+    # marker, the provider marks that section instead of creating a duplicate.
+    - name: PROVIDER_OPENWRT_ADOPTEXISTING
+      value: "true"
+  resources:
+    limits:
+      cpu: 50m
+      memory: 80Mi
+    requests:
+      cpu: 12m
+      memory: 32Mi
