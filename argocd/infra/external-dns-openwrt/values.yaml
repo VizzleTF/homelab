@@ -9,7 +9,7 @@ provider:
       # The fork fixes delete/update, multi-target and the dnsmasq reload.
       # Source: https://github.com/VizzleTF/external-dns-openwrt-next
       repository: ghcr.io/vizzletf/external-dns-openwrt-next
-      tag: "v0.8.0"
+      tag: "v0.9.0"
 
     # Probes are not overridden: since v0.7.0 the webhook serves its API on
     # 127.0.0.1:8888 only and /healthz plus metrics on :8080, exactly what the
@@ -18,25 +18,12 @@ provider:
     # and external-dns crashed after it (CrashLoopBackOff 2026-09-13).
 
     env:
-      # `restart` = `/etc/init.d/dnsmasq restart` via rpc/sys.
+      # No reload strategy: since v0.9.0 the webhook applies each change set with
+      # ubus `uci apply` (dhcp only), and procd reloads dnsmasq as the init script
+      # asks: a changed CNAME restarts it, a changed A record only re-reads the
+      # hostfile. The PROVIDER_OPENWRT_LUCIRPC_* names stay, but the transport is
+      # ubus (POST /ubus), so luci-mod-rpc is no longer needed on the router.
       #
-      # Why not `reload`: dnsmasq runs under ujail and reload_service() is
-      # `rc_procd start_service; procd_send_signal dnsmasq`, so the signal goes
-      # to the jail wrapper, not the daemon. End-to-end test 2026-07-29: the
-      # record was committed and present in /tmp/hosts/dhcp.*, yet dnsmasq
-      # (started a week earlier) answered NXDOMAIN for it while a neighbour from
-      # the SAME file resolved. A bare SIGHUP is not enough either: A records
-      # live in a hostfile, but a CNAME is `--cname=` in /var/etc/dnsmasq.conf.*,
-      # read once at start. Only restart applies both.
-      #
-      # Cost: ~1 s without DNS/DHCP, only when records actually changed; leases
-      # survive in /tmp/dhcp.leases.
-      #
-      # Do NOT switch to `uci-apply` without need: that path applies ALL pending
-      # uci configs, not only dhcp.
-      - name: PROVIDER_OPENWRT_RELOADSTRATEGY
-        value: "restart"
-
       # Record ownership. The provider adds `external_dns=homelab` to every uci
       # section it creates and returns ONLY marked sections to external-dns.
       # Manual records (s3.example.com) stay invisible: they can be
