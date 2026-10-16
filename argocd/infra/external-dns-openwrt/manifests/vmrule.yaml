@@ -1,0 +1,26 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: external-dns-openwrt
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: external-dns-openwrt
+      rules:
+        # last_sync moves only after a full successful loop (records read,
+        # changes applied), so it catches a rejected login, a missing rpcd ACL
+        # or an unreachable router, which /healthz does not see. interval is
+        # 5m: 20m is three missed loops. A dead pod is TargetDown's job.
+        - alert: ExternalDNSOpenWrtSyncStale
+          expr: |
+            time() - external_dns_controller_last_sync_timestamp_seconds{namespace="external-dns-openwrt"} > 1200
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: external-dns-openwrt has not synced LAN DNS for over 20 minutes
+            description: |
+              LAN records on the OpenWrt router are no longer updated.
+              Check: kubectl -n external-dns-openwrt logs deploy/external-dns-openwrt -c webhook
+              Likely causes: router unreachable, rpcd login/ACL changed, password rotated
+              without a pod restart. Runbook: obsidian "External DNS OpenWrt".

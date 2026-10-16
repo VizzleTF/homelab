@@ -2,3 +2,4 @@ chart: external-dns
 repoURL: https://kubernetes-sigs.github.io/external-dns/
 targetRevision: "1.23.0"
 wave: "-2"
+extraManifests: true
