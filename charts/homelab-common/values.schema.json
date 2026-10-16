@@ -120,7 +120,7 @@
       "properties": {
         "name": { "type": "string" },
         "namespace": { "type": "string" },
-        "ip": { "type": "string" }
+        "ip": { "type": "string", "description": "Ignored since 2.2.2: external-dns reads the target from the Gateway annotation, not the route." }
       }
     },
     "HomelabCommon": {

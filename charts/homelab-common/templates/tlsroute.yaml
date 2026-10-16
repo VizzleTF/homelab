@@ -16,7 +16,6 @@ metadata:
     {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   annotations:
     external-dns.kubernetes.io/hostname: {{ $hostname }}
-    external-dns.kubernetes.io/target: {{ $gw.ip | quote }}
     external-dns.kubernetes.io/internal-dns: "true"
 spec:
   parentRefs:
