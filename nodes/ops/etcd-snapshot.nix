@@ -5,9 +5,11 @@
 # exactly when a fresh snapshot is wanted and exactly when an in-cluster job
 # will not run. The node has no such dependency.
 #
-# The talosconfig here is the same one the CronJob used, carried over from
-# OpenBao (k8s/kube-system/talos-etcd-backup). Destinations are unchanged, so
-# old and new snapshots land side by side and the retention keeps applying.
+# /var/lib/secrets/talosconfig carries only the os:etcd:backup role
+# (`talosctl config new --roles os:etcd:backup`, 1-year cert, next expiry
+# 2027-10-17), copy in OpenBao k8s/kube-system/talos-etcd-backup. An admin
+# config here would let this node wipe the cluster. Destinations are unchanged
+# from the old CronJob, so the retention keeps applying.
 { pkgs, ... }:
 
 {
