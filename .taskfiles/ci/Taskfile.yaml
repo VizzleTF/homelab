@@ -31,7 +31,7 @@ tasks:
     desc: Validate the Talos machine config terraform_talos/ would apply (matches CI talos-validate job)
     dir: '{{.ROOT_DIR}}'
     cmds:
-      - scripts/talos-validate.sh
+      - scripts/talos-validate.sh --strict
 
   values-drift:
     desc: Report values equal to chart defaults or unknown to the chart (not a gate)

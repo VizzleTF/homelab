@@ -16,6 +16,10 @@ persistence:
 defaultSettings:
   storageMinimalAvailablePercentage: "5"
   defaultReplicaCount: "2"
+  # Talos UserVolumeConfig `longhorn` (terraform_talos/modules/talos/patches/
+  # common.yaml.tftpl). Since the v1.14 config contract the kubelet no longer
+  # sees /var/lib/longhorn (no extraMounts). Only used for a node's first disk.
+  defaultDataPath: /var/mnt/longhorn
   # Volumes are thin: at 100% the nodes hit the scheduling limit (421 of 474Gi
   # reserved) long before the disks filled (144Gi used), and a 50Gi VolSync
   # clone no longer fit. storageMinimalAvailablePercentage still guards

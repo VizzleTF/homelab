@@ -93,10 +93,13 @@ schematic_id_from_file() {
   printf '%s' "$_schematic_id_cache"
 }
 
+# Config contract: vX.Y of talos_release, as in terraform_talos/main.tf.
+tf_contract() { tf_pin talos_release | sed -E 's/^(v[0-9]+\.[0-9]+).*/\1/'; }
+
 current_terraform_pins() {
   printf 'kubernetes_version=%s\ntalos_version=%s\ntalos_release=%s\nschematic_id=%s\n' \
     "$(tf_pin kubernetes_version)" \
-    "$(tf_pin talos_version)" \
+    "$(tf_contract)" \
     "$(tf_pin talos_release)" \
     "$(schematic_id_from_file)"
 }
@@ -197,13 +200,13 @@ cmd_check() {
 
   local k8s_pin talos_pin release_pin schematic_id
   k8s_pin=$(tf_pin kubernetes_version)
-  talos_pin=$(tf_pin talos_version)
+  talos_pin=$(tf_contract)
   release_pin=$(tf_pin talos_release)
   schematic_id=$(schematic_id_from_file)
 
   echo "=== Terraform pins ($TF_DIR/configs/nodes.yaml) ==="
   printf '  kubernetes_version    = %s\n' "$k8s_pin"
-  printf '  talos_version (schema)= %s\n' "$talos_pin"
+  printf '  config contract       = %s\n' "$talos_pin"
   printf '  talos_release         = %s\n' "$release_pin"
   printf '  schematic_id (factory)= %s\n' "$schematic_id"
 

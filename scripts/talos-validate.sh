@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Validate the Talos machine config that terraform_talos/ would apply, for every
 # enabled node in terraform_talos/configs/nodes.yaml: base config generated for
-# the configured contract (cluster.talos_version) and Kubernetes version, plus
+# the contract (vX.Y of cluster.talos_release) and Kubernetes version, plus
 # the patches rendered by the same module terraform uses
 # (terraform_talos/modules/talos/patches), then `talosctl validate -m metal`.
 #
@@ -12,7 +12,8 @@
 #
 # Shared by the CI talos-validate job and `task ci:talos-validate`. Requires
 # `terraform`, `talosctl` and `jq` on PATH (.mise.toml). Pass --strict to fail
-# on warnings too (deprecated v1alpha1 fields).
+# on warnings too (deprecated v1alpha1 fields). TALOS_VALIDATE_OUT=<dir> keeps
+# the merged config per node there.
 set -euo pipefail
 
 STRICT=()
@@ -33,7 +34,7 @@ locals {
       address_cidr = n.address
       role         = n.role
       install_disk = n.install_disk
-      mac          = try(n.mac, "")
+      mac          = n.mac
       labels       = try(n.labels, {})
     } if try(n.enabled, false)
   }
@@ -52,7 +53,8 @@ output "patches" {
   value = module.patches
 }
 output "cluster" {
-  value = local.c.cluster
+  # Contract as in terraform_talos/main.tf.
+  value = merge(local.c.cluster, { talos_version = regex("^v[0-9]+\\\\.[0-9]+", local.c.cluster.talos_release) })
 }
 output "roles" {
   value = { for name, n in local.nodes : name => n.role }
@@ -97,4 +99,5 @@ while read -r name role; do
     rc=1
   fi
 done < <(jq -r '.roles.value | to_entries[] | "\(.key) \(.value)"' "$WORK/out.json")
+[ -n "${TALOS_VALIDATE_OUT:-}" ] && mkdir -p "$TALOS_VALIDATE_OUT" && cp "$WORK"/talos-*.yaml "$TALOS_VALIDATE_OUT"/
 exit "$rc"

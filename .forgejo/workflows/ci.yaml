@@ -158,7 +158,7 @@ jobs:
           install -m 755 talosctl-linux-amd64 /usr/local/bin/talosctl
           terraform version && talosctl version --client --short
       - name: Validate machine config
-        run: scripts/talos-validate.sh
+        run: scripts/talos-validate.sh --strict
 
   gitleaks:
     # Pre-merge required check (branch protection). Not run on push to main: the

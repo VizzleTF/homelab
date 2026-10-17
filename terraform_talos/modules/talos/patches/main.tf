@@ -23,9 +23,16 @@ variable "nodes" {
     address_cidr = string
     role         = string
     install_disk = string
-    mac          = optional(string, "")
+    mac          = string
     labels       = optional(map(string), {})
   }))
+
+  # LinkAliasConfig must match exactly one link; physical:true put the address
+  # on every NIC of a multi-NIC box.
+  validation {
+    condition     = alltrue([for n in var.nodes : can(regex("^([0-9a-f]{2}:){5}[0-9a-f]{2}$", n.mac))])
+    error_message = "Every node needs mac (lowercase, of the cabled NIC) in configs/nodes.yaml."
+  }
 }
 
 locals {
@@ -39,16 +46,11 @@ locals {
   cp_node_ips = sort([
     for _, n in var.nodes : n.address if n.role == "controlplane"
   ])
-
-  # Use the install_disk from the first node as the common patch default.
-  # Per-node install_disk override is layered via the node patch (see apply.tf).
-  default_install_disk = try(values(var.nodes)[0].install_disk, "/dev/sda")
 }
 
 output "common" {
   value = templatefile("${path.module}/common.yaml.tftpl", {
     install_image = var.install_image
-    install_disk  = local.default_install_disk
     host_entries  = local.host_entries
     gateway       = var.gateway
   })

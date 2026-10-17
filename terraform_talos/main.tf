@@ -7,7 +7,7 @@ locals {
       address_cidr = n.address
       role         = n.role
       install_disk = n.install_disk
-      mac          = try(n.mac, "")
+      mac          = n.mac
       labels       = try(n.labels, {})
     } if try(n.enabled, false)
   }
@@ -16,9 +16,10 @@ locals {
 module "talos" {
   source = "./modules/talos"
 
-  cluster_name        = local.nodes_config.cluster.name
-  kubernetes_version  = local.nodes_config.cluster.kubernetes_version
-  talos_version       = local.nodes_config.cluster.talos_version
+  cluster_name       = local.nodes_config.cluster.name
+  kubernetes_version = local.nodes_config.cluster.kubernetes_version
+  # Config contract follows the OS minor, so a Renovate talos_release bump moves both.
+  talos_version       = regex("^v[0-9]+\\.[0-9]+", local.nodes_config.cluster.talos_release)
   talos_release       = local.nodes_config.cluster.talos_release
   vip                 = local.nodes_config.cluster.vip
   gateway             = local.nodes_config.cluster.gateway
