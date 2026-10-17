@@ -23,7 +23,7 @@ resource "talos_machine_configuration_apply" "controlplane" {
   apply_mode = "auto"
 
   config_patches = [
-    local.node_patch[each.key],
+    module.patches.node[each.key],
   ]
 
   on_destroy = {
@@ -53,7 +53,7 @@ resource "talos_machine_configuration_apply" "worker" {
   apply_mode                  = "auto"
 
   config_patches = [
-    local.node_patch[each.key],
+    module.patches.node[each.key],
   ]
 
   on_destroy = {

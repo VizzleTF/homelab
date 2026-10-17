@@ -27,6 +27,12 @@ tasks:
       - scripts/kubeconform-validate.sh
       - scripts/hooks-selfcheck.sh
 
+  talos-validate:
+    desc: Validate the Talos machine config terraform_talos/ would apply (matches CI talos-validate job)
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - scripts/talos-validate.sh
+
   values-drift:
     desc: Report values equal to chart defaults or unknown to the chart (not a gate)
     dir: '{{.ROOT_DIR}}'
@@ -34,8 +40,9 @@ tasks:
       - scripts/values-drift.py {{.CLI_ARGS}}
 
   all:
-    desc: Run the full pre-merge gate locally (lint + helm-lint + kubeconform)
+    desc: Run the full pre-merge gate locally (lint + helm-lint + kubeconform + talos-validate)
     cmds:
       - task: lint
       - task: helm-lint
       - task: kubeconform
+      - task: talos-validate
