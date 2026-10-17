@@ -56,10 +56,10 @@ variable "nodes" {
   description = "Map of enabled Talos nodes."
   type = map(object({
     address      = string # IP without CIDR (used for talosctl endpoint)
-    address_cidr = string # IP/prefix (written into machine.network.interfaces[].addresses)
+    address_cidr = string # IP/prefix (written into LinkConfig addresses)
     role         = string # "controlplane" or "worker"
     install_disk = string
-    mac          = optional(string, "")      # Optional NIC MAC for hardwareAddr deviceSelector (bare-metal multi-NIC). Empty → physical:true.
-    labels       = optional(map(string), {}) # machine.nodeLabels; Talos applies them live and keeps them in sync.
+    mac          = string                    # MAC of the cabled NIC (LinkAliasConfig selector).
+    labels       = optional(map(string), {}) # KubeNodeConfig labels; Talos applies them live and keeps them in sync.
   }))
 }

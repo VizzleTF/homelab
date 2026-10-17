@@ -30,3 +30,8 @@ output "worker_machine_configuration" {
   value       = module.talos.worker_machine_configuration
   sensitive   = true
 }
+
+output "node_patches" {
+  description = "Per-node machineconfig patch — rescue for manual `talosctl apply-config --insecure` with the *_machine_configuration output"
+  value       = module.talos.node_patches
+}

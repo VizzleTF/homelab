@@ -1,27 +1,37 @@
-machine:
-  install:
-    disk: ${install_disk}
-  features:
-    stableHostname: false
+apiVersion: v1alpha1
+kind: UnattendedInstallConfig
+provisioning:
+  diskSelector:
+    match: disk.dev_path == "${install_disk}"
+  wipe: false
 %{ if length(labels) > 0 ~}
-  nodeLabels: ${jsonencode(labels)}
+---
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+labels: ${jsonencode(labels)}
 %{ endif ~}
-  network:
-    interfaces:
-      - deviceSelector:
-%{ if mac != "" ~}
-          hardwareAddr: ${mac}
-%{ else ~}
-          physical: true
-%{ endif ~}
-        addresses:
-          - ${address_cidr}
-        routes:
-          - network: 0.0.0.0/0
-            gateway: ${gateway}
+---
+# The cabled NIC by MAC: a node may have more physical NICs than cables.
+apiVersion: v1alpha1
+kind: LinkAliasConfig
+name: lan0
+selector:
+  match: mac(link.permanent_addr) == "${mac}"
+---
+apiVersion: v1alpha1
+kind: LinkConfig
+name: lan0
+up: true
+addresses:
+  - address: ${address_cidr}
+routes:
+  - gateway: ${gateway}
 %{ if is_controlplane ~}
-        vip:
-          ip: ${vip}
+---
+apiVersion: v1alpha1
+kind: Layer2VIPConfig
+name: ${vip}
+link: lan0
 %{ endif ~}
 ---
 apiVersion: v1alpha1

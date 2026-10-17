@@ -30,3 +30,8 @@ output "cluster_endpoint" {
   description = "Kubernetes API endpoint derived from VIP"
   value       = local.cluster_endpoint
 }
+
+output "node_patches" {
+  description = "Per-node machineconfig patch (rendered node.yaml.tftpl)"
+  value       = module.patches.node
+}
