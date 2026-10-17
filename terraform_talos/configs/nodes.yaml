@@ -6,6 +6,10 @@ cluster:
     - api.k8s.example.com
   # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
   kubernetes_version: v1.37.1
+  # pinned: config contract, not the OS version. The v1.14 contract emits
+  # multi-doc configs that conflict with the v1alpha1 keys in
+  # modules/talos/patches (cluster.network, proxy, apiServer...), and
+  # talosctl validate fails. Bump only after porting the patches.
   talos_version: v1.13
   # renovate: datasource=github-releases depName=siderolabs/talos
   talos_release: v1.14.2
