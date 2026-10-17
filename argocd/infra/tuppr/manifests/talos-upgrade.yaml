@@ -47,7 +47,7 @@ spec:
     # `factory.talos.dev/metal-installer/<schematic>:<version>` off the node
     # schematic annotation, so it never used the ghcr image anyway.
     # renovate: datasource=github-releases depName=siderolabs/talos
-    version: v1.14.2
+    version: v1.14.4
 
   parallelism: 1
 
@@ -164,4 +164,4 @@ spec:
     image:
       repository: ghcr.io/siderolabs/talosctl
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.14.2
+      tag: v1.14.4
