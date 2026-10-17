@@ -80,6 +80,12 @@ defaultSettings:
   # (default 600s). 1800s covers a Talos power cycle, kubelet cold start and
   # cilium readiness.
   replicaReplenishmentWaitInterval: "1800"
+  # A dead node leaves its StatefulSet/Deployment pods Terminating forever and
+  # their RWO volumes attached to it, so the app never comes back elsewhere
+  # without a manual force-delete. Longhorn force-deletes them once the node is
+  # NotReady (kubelet heartbeat gone) and the volume reattaches on a live node.
+  # Planned reboots are unaffected: tuppr drains first.
+  nodeDownPodDeletionPolicy: "delete-both-statefulset-and-deployment-pod"
   # CSI sidecar resources sized to real use (1-2m CPU each): requests 10m
   # instead of the 250m default for csi-attacher, csi-provisioner, csi-resizer,
   # csi-snapshotter, longhorn-csi-plugin, node-driver-registrar,
