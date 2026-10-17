@@ -57,6 +57,9 @@ renovate:
       # argocd/infra/local-path-provisioner.
       storageClass: local-path
       storageSize: 2Gi
+  # exitCodeForErrors: a repository run that ends in an error (e.g.
+  # external-host-error, 2026-10-16) fails the Job instead of exiting 0, so
+  # RenovateScanMissing sees it through last_successful_time.
   config: |
     {
       "$schema": "https://docs.renovatebot.com/renovate-schema.json",
@@ -68,7 +71,8 @@ renovate:
       "repositories": [
         "vizzle/homelab"
       ],
-      "gitAuthor": "Renovate Bot <renovate@example.com>"
+      "gitAuthor": "Renovate Bot <renovate@example.com>",
+      "exitCodeForErrors": true
     }
 
 homelab-common:
