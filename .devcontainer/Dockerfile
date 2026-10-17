@@ -24,7 +24,7 @@ ARG KUBECTL_VERSION=v1.37.1
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=v4.3.1
 # renovate: datasource=github-releases depName=siderolabs/talos
-ARG TALOSCTL_VERSION=v1.14.2
+ARG TALOSCTL_VERSION=v1.14.4
 # renovate: datasource=github-releases depName=hashicorp/terraform
 ARG TERRAFORM_VERSION=1.16.6
 # renovate: datasource=github-releases depName=openbao/openbao
