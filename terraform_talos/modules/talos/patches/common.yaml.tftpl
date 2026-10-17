@@ -80,10 +80,9 @@ apiVersion: v1alpha1
 kind: KernelModuleConfig
 name: nvme_tcp
 ---
-# The v1.14 default runs CRI, kubelet and pods in a sandbox PID+mount
-# namespace. Off until it is tested on talos-worker-01 against Longhorn
-# (iscsiadm via nsenter), Spegel, NetBird and Wazuh
-# (docs/talos-config-contract-v1.14.md). Takes effect on reboot.
+# Runs CRI, kubelet and pods in a sandbox PID+mount namespace (the v1.14
+# default). Tested on talos-worker-01 on 2026-10-17: Longhorn iSCSI attach and
+# rebuild, Cilium, Spegel, the Intel GPU plugin. Takes effect on reboot.
 apiVersion: v1alpha1
 kind: SecurityProfileConfig
-workloadIsolation: false
+workloadIsolation: true
