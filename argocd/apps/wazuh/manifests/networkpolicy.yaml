@@ -9,6 +9,13 @@
 #   victoria-logs  Vector ships the kube audit stream as syslog (514/udp)
 # 55000 (API) and 1516 (cluster) stay in-namespace. The indexer is never
 # reachable from outside the namespace.
+#
+# The LB uses externalTrafficPolicy: Cluster (Local was reverted, see
+# values.yaml). A LAN connection that ECMP lands on a node without the manager
+# pod is SNATed and arrives as remote-node, which default-ingress allows — so
+# without the deny below 55000 and 1516 answered from the LAN about half the
+# time (2026-10-17). In-namespace callers (the dashboard) are pod identities
+# and are not affected.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -47,3 +54,12 @@ spec:
         - ports:
             - port: "514"
               protocol: UDP
+  ingressDeny:
+    - fromEntities:
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "55000"
+              protocol: TCP
+            - port: "1516"
+              protocol: TCP
