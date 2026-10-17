@@ -3,7 +3,7 @@
 #   - direct push is disabled
 #   - PRs are required
 #   - every pre-merge CI check must be green: gitleaks, yamllint, helm-lint,
-#     kubeconform, argocd-diff (Renovate automerges, so these are the only gate)
+#     kubeconform, talos-validate, argocd-diff (Renovate automerges, so these are the only gate)
 #   - force-push and deletion are blocked
 #
 # Idempotent: PATCHes if the rule already exists, POSTs otherwise.
@@ -23,7 +23,7 @@ set -euo pipefail
 FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
 BRANCH="${BRANCH:-main}"
 # Comma-separated. Names are "<workflow> / <job> (<event>)" as Forgejo reports them.
-STATUS_CHECKS="${STATUS_CHECKS:-CI / gitleaks (pull_request),CI / yamllint (pull_request),CI / helm-lint (pull_request),CI / kubeconform (pull_request),CI / argocd-diff (pull_request)}"
+STATUS_CHECKS="${STATUS_CHECKS:-CI / gitleaks (pull_request),CI / yamllint (pull_request),CI / helm-lint (pull_request),CI / kubeconform (pull_request),CI / talos-validate (pull_request),CI / argocd-diff (pull_request)}"
 
 if [ "$#" -eq 0 ]; then
   echo "Usage: $0 <owner>/<repo> [<owner>/<repo> ...]" >&2

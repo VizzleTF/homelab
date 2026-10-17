@@ -129,6 +129,37 @@ jobs:
           apt-get install -y -qq --no-install-recommends jq >/dev/null
           scripts/hooks-selfcheck.sh
 
+  talos-validate:
+    # Validates the Talos machine config terraform_talos/ would apply (contract
+    # from nodes.yaml + rendered patches) with talosctl, so a Talos or contract
+    # bump whose patches conflict with the generated documents fails here, not
+    # on `terraform apply`. terraform and talosctl versions from .mise.toml.
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install terraform, talosctl, jq
+        run: |
+          set -euo pipefail
+          # node:*-bookworm ships without jq and unzip.
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends jq unzip >/dev/null
+          pin() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" .mise.toml; }
+          TF=$(pin terraform); TC=$(pin talosctl)
+          [ -n "$TF" ] && [ -n "$TC" ] || { echo "::error::terraform/talosctl version not found in .mise.toml"; exit 1; }
+          cd /tmp
+          Z="terraform_${TF}_linux_amd64.zip"
+          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF}/${Z}"
+          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF}/terraform_${TF}_SHA256SUMS"
+          grep " ${Z}\$" "terraform_${TF}_SHA256SUMS" | sha256sum -c -
+          unzip -q "$Z" terraform && install -m 755 terraform /usr/local/bin/terraform
+          curl -fsSLO "https://github.com/siderolabs/talos/releases/download/v${TC}/talosctl-linux-amd64"
+          curl -fsSLO "https://github.com/siderolabs/talos/releases/download/v${TC}/sha256sum.txt"
+          grep ' talosctl-linux-amd64$' sha256sum.txt | sha256sum -c -
+          install -m 755 talosctl-linux-amd64 /usr/local/bin/talosctl
+          terraform version && talosctl version --client --short
+      - name: Validate machine config
+        run: scripts/talos-validate.sh
+
   gitleaks:
     # Pre-merge required check (branch protection). Not run on push to main: the
     # same diff was checked in the PR; the post-sanitize gitleaks inside
