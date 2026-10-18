@@ -39,6 +39,11 @@
     };
   };
 
+  # The Toshiba KXG50 root disk hung under APST power-state transitions: write
+  # timeouts on 2026-10-14, then the controller went "dead" on 2026-10-18 and
+  # took Forgejo down until a power cycle. Keep it in the highest power state.
+  boot.kernelParams = [ "nvme_core.default_ps_max_latency_us=0" ];
+
   # 8 GB of DDR3 — compressed swap is worth more than a swap partition here.
   zramSwap.enable = true;
 

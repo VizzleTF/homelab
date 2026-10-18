@@ -64,6 +64,17 @@ spec:
             summary: "Failed unit on the ops node: {{ $labels.name }}"
             description: "Юнит {{ $labels.name }} в состоянии failed."
 
+        - alert: OpsNodeNvmeDead
+          # A dead controller leaves node_exporter running from page cache, so
+          # OpsNodeDown never fires; only a burst of failed units hints at it.
+          expr: node_nvme_info{job="ops-node",state!="live"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ops node NVMe {{ $labels.device }} is {{ $labels.state }}"
+            description: "Контроллер NVMe {{ $labels.device }} ({{ $labels.model }}) в состоянии {{ $labels.state }}: диск не читается, Forgejo и Postgres падают, SSH обрывает соединение. Лечится перезагрузкой по питанию; затем smartctl -a /dev/{{ $labels.device }}. Повторяется — менять диск."
+
         - alert: ForgejoWebhookFailing
           # Forgejo never retries and ArgoCD silently polls instead (10 min),
           # so nothing else notices. 30m = two runs of the 15-min exporter timer
