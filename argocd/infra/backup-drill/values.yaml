@@ -134,7 +134,7 @@ homelab-common:
               value: "3.24.2"
             - name: SQLITE_TAG
               # renovate: datasource=docker depName=keinos/sqlite3
-              value: "3.53.4"
+              value: "3.54.1"
           envFrom:
             - secretRef:
                 name: drill-restic
