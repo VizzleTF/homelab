@@ -30,7 +30,7 @@ ARG TERRAFORM_VERSION=1.16.6
 # renovate: datasource=github-releases depName=openbao/openbao
 ARG OPENBAO_VERSION=2.7.1
 # renovate: datasource=github-releases depName=argoproj/argo-cd
-ARG ARGOCD_VERSION=v3.5.5
+ARG ARGOCD_VERSION=v3.5.6
 # renovate: datasource=github-releases depName=gitleaks/gitleaks
 ARG GITLEAKS_VERSION=v8.30.1
 # renovate: datasource=github-releases depName=cli/cli
