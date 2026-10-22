@@ -103,7 +103,7 @@ homelab-common:
         - name: backup
           image:
             repository: python
-            tag: "3.15.0-alpine"
+            tag: "3.15.1-alpine"
           command: [sh, -c]
           args:
             - |
