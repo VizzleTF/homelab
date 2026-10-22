@@ -1,6 +1,6 @@
 chart: trek
 repoURL: https://chart.liketrek.com
-targetRevision: "4.3.3"
+targetRevision: "4.3.4"
 wave: "2"
 # Travel-only app: kept at replicas 0 and scaled up on demand
 # (`kubectl -n trek scale deploy/trek --replicas=1` before a trip, back to 0

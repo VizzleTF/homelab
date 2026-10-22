@@ -65,7 +65,7 @@ dind:
   image:
     registry: docker.io  # pinned: Renovate needs registry+repository next to tag
     repository: library/docker  # pinned: Renovate needs registry+repository next to tag
-    tag: "29.9.1-dind"  # pinned: chart is EOL, its default never moves; Renovate bumps it here
+    tag: "29.9.2-dind"  # pinned: chart is EOL, its default never moves; Renovate bumps it here
   resources:
     requests:
       cpu: 100m
