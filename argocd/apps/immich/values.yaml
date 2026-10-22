@@ -10,9 +10,9 @@ _shared_config:
   # the ML -openvino suffix stays outside currentValue (customManager in
   # renovate.json). One PR bumps both, so server and ML never drift.
   # renovate: datasource=github-releases depName=immich-app/immich
-  version: &version "v3.3.4"
+  version: &version "v3.3.5"
   # renovate: immich-ml
-  ml_tag: &ml_tag "v3.3.4-openvino"
+  ml_tag: &ml_tag "v3.3.5-openvino"
 
 # Server-only settings. Top-level controllers/defaultPodOptions/persistence in
 # the immich chart are shared by every component, so they also landed in the
