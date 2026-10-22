@@ -131,7 +131,7 @@ homelab-common:
             # which in "keinos/sqlite3:<tag>" would be the 3 of the name.
             - name: ALPINE_TAG
               # renovate: datasource=docker depName=alpine
-              value: "3.24.2"
+              value: "3.24.3"
             - name: SQLITE_TAG
               # renovate: datasource=docker depName=keinos/sqlite3
               value: "3.54.1"
