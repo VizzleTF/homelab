@@ -1,5 +1,5 @@
 chart: wazuh-cluster
 repoURL: ghcr.io/maximewewer/charts
-targetRevision: "2026.10.2"
+targetRevision: "2026.10.3"
 wave: "2"
 extraManifests: true
