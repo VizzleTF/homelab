@@ -52,14 +52,16 @@ cluster:
                 matchExpressions:
                   - key: node-role.kubernetes.io/control-plane
                     operator: DoesNotExist
-      javaOpts: "-Xms1500m -Xmx1500m -Dlog4j2.formatMsgNoLookups=true"
+      # 670 MB of the 1500 MB heap in use, young gen included (jcmd
+      # GC.heap_info); container peak 2.1 Gi, ~0.65 Gi of it off-heap (2026-10).
+      javaOpts: "-Xms1g -Xmx1g -Dlog4j2.formatMsgNoLookups=true"
       resources:
         requests:
           cpu: 500m
-          memory: 2Gi
+          memory: 1536Mi
         limits:
           cpu: "2"
-          memory: 3Gi
+          memory: 2560Mi
 
     manager:
       master:
