@@ -128,8 +128,11 @@ machine-learning:
             # immich-config.json templateData below for the authoritative setting.
             # immich v3 split the flat PRELOAD__CLIP into __TEXTUAL/__VISUAL — the old
             # flat form crashes ML on boot (pydantic SettingsError parsing "preload").
+            # Textual only: smart search stays warm. Preloading the visual model
+            # too pinned both in memory (~2.7 Gi idle): after MODEL_TTL the worker
+            # restarts and PRELOAD loads everything again (2026-10). The visual
+            # model now loads for upload jobs and unloads after the TTL.
             MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: nllb-clip-large-siglip__mrl
-            MACHINE_LEARNING_PRELOAD__CLIP__VISUAL: nllb-clip-large-siglip__mrl
             MACHINE_LEARNING_WORKERS: "1"
             MACHINE_LEARNING_WORKER_TIMEOUT: "0"
           # First boot with NLLB-Large on OpenVINO compiles the visual encoder ONNX graph

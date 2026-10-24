@@ -379,6 +379,14 @@ grafana:
       # there hides /var/lib/grafana/dashboards/grafana-com, where the
       # download-dashboards init container puts the gnetId dashboards below.
       folder: /tmp/dashboards
+    datasources:
+      # Init container instead of a watching sidecar: one k8s-sidecar fewer
+      # (~77 MiB, 2026-10). A changed datasource ConfigMap is picked up on
+      # the next Grafana pod restart.
+      initDatasources: true
+      # The init container takes METHOD from watchMethod; with the default
+      # WATCH it never exits and the pod hangs in Init. LIST = one pass.
+      watchMethod: LIST
 
   # Community dashboards straight from grafana.com (the download-dashboards
   # init container fetches them on pod start, so Grafana needs egress there).
