@@ -595,8 +595,11 @@ homelab-common:
                 SERVER=$(echo "$CL" | jq -er --arg d "$SRC" '.spec.plugins[] | select(.isWALArchiver) | .parameters.serverName // $d')
                 q() { curl -sf "$VM_URL/api/v1/query" --data-urlencode "query=$1"; }
                 # Start LSN of the last segment the primary archived before the drill;
-                # the restored timeline must begin past it.
-                WAL_LSN=$(q "max(cnpg_pg_stat_archiver_last_archived_wal_start_lsn{namespace=\"$SRC_NS\"})" | jq -er '.data.result[0].value[1] | tonumber | floor')
+                # the restored timeline must begin past it. The CNPG metric holds
+                # hi<<32 + segment number, not the segment's offset: rebuild it for
+                # 16 MiB segments (B8/E2 comes as 790273982690, not 794065633280).
+                WAL_LSN=$(q "max(cnpg_pg_stat_archiver_last_archived_wal_start_lsn{namespace=\"$SRC_NS\"})" \
+                  | jq -er '.data.result[0].value[1] | tonumber | floor | (. / 4294967296 | floor) as $hi | $hi * 4294967296 + (. - $hi * 4294967296) * 16777216')
                 DBS=$(q "count by (datname) (cnpg_pg_database_size_bytes{namespace=\"$SRC_NS\"})" | jq -r '.data.result[].metric.datname' | grep -vxE 'template[01]|postgres' | sort | tr '\n' ' ')
                 [ -n "$DBS" ]
                 echo "store=$STORE server=$SERVER wal_lsn=$WAL_LSN dbs=$DBS"
