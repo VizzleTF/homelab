@@ -5,15 +5,14 @@ Covers what a script can verify without judgement: the config.yaml contract
 of every argocd/{apps,infra}/* folder, the homelab-common legacySelector guard, Obsidian registries and
 cheatsheets vs argocd/{apps,infra,standalone}, wave/namespace in the registry
 tables and cheatsheet headers vs config.yaml, pinned chart versions in
-cheatsheets, broken wikilinks, the skills index vs skill folders, repo
-paths in backticks that do not exist, apps-appset vs infra-appset parity,
+cheatsheets, broken wikilinks, repo paths in backticks that do not exist, apps-appset vs infra-appset parity,
 and Authentik blueprints (grant_types set, no launch_url, no ambiguous profile
 !Find, every blueprint ConfigMap mounted by blueprints.configMaps and back).
 Facts in prose (commands, runbook steps) need a reviewer: see the
 auditing-docs skill.
 
 Usage: scripts/audit-docs.py [--vault obsidian]   (run from the repo root)
-Without the vault (CI) only the config.yaml, legacySelector, skills index,
+Without the vault (CI) only the config.yaml, legacySelector,
 repo-path, AppSet parity and blueprint checks run.
 Output: `path: level: message`. Exit 1 on any error.
 """
@@ -148,9 +147,8 @@ for cs_dir, configs in ((APPS_CS, apps), (INFRA_CS, infra)) if HAVE_VAULT else (
             if re.search(r"(?<![\w.])v?\d+\.\d+\.\d+(?![\w.])", m.group(0)):
                 report(path, "warning", f"pinned version in **{m.group(1)}** row; use config.yaml targetRevision")
 
-# 4. Wikilinks. Targets: vault notes; template placeholders are not links.
-PLACEHOLDER_LINKS = {"Memory page"}  # .claude/skills/README.md "adding a skill" template
-notes = {p.stem for p in VAULT.rglob("*.md")} | PLACEHOLDER_LINKS
+# 4. Wikilinks. Targets: vault notes.
+notes = {p.stem for p in VAULT.rglob("*.md")}
 docs = list(VAULT.rglob("*.md")) + [REPO / "CLAUDE.md"] + list((REPO / ".claude").rglob("*.md"))
 code_span = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 for doc in docs if HAVE_VAULT else ():
@@ -159,15 +157,6 @@ for doc in docs if HAVE_VAULT else ():
         t = target.strip()
         if t and t not in notes:
             report(doc, "error", f"broken wikilink [[{t}]]")
-
-# 5. Skills index (.claude/skills/README.md) vs skill folders.
-index = (REPO / ".claude/skills/README.md").read_text()
-listed = set(re.findall(r"^\| \[`([a-z0-9-]+)`\]", index, re.M))
-dirs = {p.name for p in (REPO / ".claude/skills").iterdir() if (p / "SKILL.md").exists()}
-for s in sorted(dirs - listed):
-    report(".claude/skills/README.md", "error", f"skill '{s}' missing from the index table")
-for s in sorted(listed - dirs):
-    report(".claude/skills/README.md", "error", f"index lists '{s}', no such skill")
 
 # 6. Repo paths in backticks that do not exist.
 # The path is the first word; arguments may follow inside the same backticks.
