@@ -387,6 +387,10 @@ grafana:
       # The init container takes METHOD from watchMethod; with the default
       # WATCH it never exits and the pod hangs in Init. LIST = one pass.
       watchMethod: LIST
+      # Grafana is not running yet when the init container ends; without this
+      # it retries POST /api/admin/provisioning/datasources/reload for ~30 s
+      # and logs an ERROR. Grafana reads the files on start anyway.
+      skipReload: true
 
   # Community dashboards straight from grafana.com (the download-dashboards
   # init container fetches them on pod start, so Grafana needs egress there).
