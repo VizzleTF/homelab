@@ -51,6 +51,11 @@ taints:
 ---
 apiVersion: v1alpha1
 kind: KubeAPIServerConfig
+# Live heap ~1.3 GiB, RSS 2.0-2.6 GiB, 7-day peak 3.1 GiB: with GOGC=100 and
+# no limit the heap goal doubled the live set (2026-10). Soft limit: Go
+# collects more often near it, nothing gets OOM-killed.
+env:
+  GOMEMLIMIT: 2GiB
 certExtraSANs:
 %{ for s in apiserver_cert_sans ~}
   - ${s}
