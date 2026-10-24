@@ -29,6 +29,8 @@ global:
         valkey: [valkey/valkey]
         telegram: [shared/telegram]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
+        # Snapshot bucket alone, without the DR pack: backup-drill reads etcd and raft snapshots.
+        snapshots: [shared/s3-snapshots]
         # Each app's OIDC client secret, read by Authentik for its blueprints' !Env.
         oidc-clients: [argocd/oidc, victoria-metrics/oidc, immich/oidc, wazuh/oidc, trek/oidc, forgejo/oidc]
         # Cloudflare DNS token: external-dns owns it, cert-manager DNS-01 reads it.
@@ -36,7 +38,7 @@ global:
       namespaces:
         argocd: [valkey, telegram]
         authentik: [oidc-clients]
-        backup-drill: [backup]
+        backup-drill: [backup, cnpg-backup, snapshots]
         cert-manager: [cloudflare]
         cleanbot: [backup]
         cnpg: [s3-ovh, cnpg-backup, db-roles]
