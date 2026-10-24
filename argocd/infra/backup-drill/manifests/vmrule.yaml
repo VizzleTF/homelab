@@ -38,7 +38,9 @@ spec:
           # One volume of the rotation per weekly run, so a given volume is
           # checked only once per full round: look at the freshest run of any
           # volume, not at each one separately.
-          expr: time() - max(max_over_time(homelab_restore_drill_timestamp[30d])) > 16 * 24 * 3600
+          # drill="core" (restore-drill-core) is left out: it runs every week
+          # and would hide a stopped volume drill. It has its own rule below.
+          expr: time() - max(max_over_time(homelab_restore_drill_timestamp{drill!="core"}[30d])) > 16 * 24 * 3600
           labels:
             severity: critical
           annotations:
@@ -49,6 +51,19 @@ spec:
               Бэкапы снова стали предположением.
               kubectl -n backup-drill get cronjob,job
               kubectl -n backup-drill logs job/<последний>
+
+        # Per app: openbao and etcd run weekly, each CNPG cluster every other week.
+        - alert: RestoreDrillCoreStale
+          expr: time() - max by (app) (max_over_time(homelab_restore_drill_timestamp{drill="core"}[30d])) > 16 * 24 * 3600
+          labels:
+            severity: critical
+          annotations:
+            summary: "Проверка восстановления {{ $labels.app }} не запускалась больше двух недель"
+            description: |
+              restore-drill-core не дошёл до отчёта по {{ $labels.app }}: CronJob
+              suspend'нут, падает до проверки или не может опубликовать метрику.
+              kubectl -n backup-drill get cronjob,job
+              kubectl -n backup-drill logs job/<последний restore-drill-core>
 
         - alert: RestoreDrillNeverRan
           expr: absent(max_over_time(homelab_restore_drill_timestamp[30d])) == 1

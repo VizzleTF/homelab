@@ -59,6 +59,47 @@ homelab-common:
       templateData:
         OVH_AK: "{{ .ak }}"
         OVH_SK: "{{ .sk }}"
+    # restore-drill-core: the CNPG barman bucket and the snapshots bucket
+    # (OpenBao raft, etcd) on both targets, rclone remotes as in openbao.
+    - name: drill-s3-cnpg
+      vaultPath: shared/s3-cnpg-backup
+      data:
+        - secretKey: ak
+          property: ACCESS_KEY_ID
+        - secretKey: sk
+          property: ACCESS_SECRET_KEY
+      templateData:
+        CNPG_AK: "{{ .ak }}"
+        CNPG_SK: "{{ .sk }}"
+    - name: drill-snapshots-rclone
+      data:
+        - secretKey: garage_ak
+          vaultPath: shared/s3-snapshots
+          property: ACCESS_KEY_ID
+        - secretKey: garage_sk
+          vaultPath: shared/s3-snapshots
+          property: ACCESS_SECRET_KEY
+        - secretKey: ovh_ak
+          vaultPath: shared/s3-ovh
+          property: ACCESS_KEY_ID
+        - secretKey: ovh_sk
+          vaultPath: shared/s3-ovh
+          property: ACCESS_SECRET_KEY
+      templateData:
+        RCLONE_CONFIG_GARAGE_TYPE: "s3"
+        RCLONE_CONFIG_GARAGE_PROVIDER: "Other"
+        RCLONE_CONFIG_GARAGE_ENDPOINT: "https://s3.example.com"
+        RCLONE_CONFIG_GARAGE_REGION: "garage"
+        RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: "{{ .garage_ak }}"
+        RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: "{{ .garage_sk }}"
+        RCLONE_CONFIG_OVH_TYPE: "s3"
+        RCLONE_CONFIG_OVH_PROVIDER: "Other"
+        RCLONE_CONFIG_OVH_ENDPOINT: "https://s3.de.io.cloud.ovh.net"
+        RCLONE_CONFIG_OVH_REGION: "de"
+        RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
+        RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
+        RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
 
   rbac:
     - serviceAccount:
@@ -86,6 +127,18 @@ homelab-common:
           - apiGroups: ["volsync.backube"]
             resources: ["replicationsources"]
             verbs: ["list"]
+          # restore-drill-core: scripts for its pods, the throwaway CNPG
+          # cluster and its ObjectStore; get on the production ones to copy
+          # their spec.
+          - apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["create"]
+          - apiGroups: ["postgresql.cnpg.io"]
+            resources: ["clusters"]
+            verbs: ["get", "create"]
+          - apiGroups: ["barmancloud.cnpg.io"]
+            resources: ["objectstores"]
+            verbs: ["get", "create"]
 
   workloads:
     - name: restore-drill           # -> CronJob backup-drill-restore-drill
@@ -320,3 +373,398 @@ homelab-common:
               SUMMARY=$(kubectl -n "$NS" logs verify 2>&1 | tr '\n' ' ')
               echo "$SUMMARY"
               report 1 "$SUMMARY"
+
+    # Weekly drill of the backups VolSync does not hold: CNPG (barman base
+    # backup + WAL), the OpenBao raft snapshot and the etcd snapshot. Plan and
+    # reasons: obsidian/112 ArgoCD/Infrastructure/all/backup-drill.md.
+    - name: restore-drill-core      # -> CronJob backup-drill-restore-drill-core
+      type: cronjob
+      # Sundays 10:00 UTC: after restore-drill (09:00), so the two never share a node's IO.
+      schedule: "0 10 * * 0"
+      spec:
+        startingDeadlineSeconds: 3600
+        successfulJobsHistoryLimit: 3
+      job:
+        backoffLimit: 0
+        activeDeadlineSeconds: 3600
+      pod:
+        restartPolicy: Never
+        serviceAccountName: backup-drill
+        automountServiceAccountToken: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: drill
+          image:
+            repository: alpine/k8s
+            tag: "1.37.1"
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: VM_URL
+              value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+            - name: AM_URL
+              value: http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093
+            - name: ALPINE_TAG
+              # renovate: datasource=docker depName=alpine
+              value: "3.24.3"
+            - name: RCLONE_TAG
+              # renovate: datasource=docker depName=rclone/rclone
+              value: "1.75.2"
+            - name: BAO_TAG
+              # renovate: datasource=docker depName=quay.io/openbao/openbao
+              value: "2.7.1"
+            - name: ETCD_TAG
+              # Same minor as the cluster etcd (talosctl etcd status: 3.7).
+              # renovate: datasource=docker depName=gcr.io/etcd-development/etcd
+              value: "v3.7.2"
+          envFrom:
+            - secretRef:
+                name: drill-s3-cnpg
+            - secretRef:
+                name: drill-snapshots-rclone
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          args:
+            - |
+              set -eu
+
+              START=$(date -u +%s)
+              WEEK=$(( START / 604800 ))
+              # Snapshots alternate the target, CNPG alternates the cluster (barman
+              # has one target, garage).
+              if [ $(( WEEK % 2 )) -eq 0 ]; then
+                SNAP_TARGET=garage; SNAP_ROOT=garage:snapshots; PG=cnpg/cnpg-cluster
+              else
+                SNAP_TARGET=ovh; SNAP_ROOT=ovh:offsite-homelab/snapshots; PG=immich/immich-cluster
+              fi
+              SRC_NS=${PG%/*}; SRC=${PG#*/}
+              NS=drill-core
+              FAILED=""
+              echo "=== core drill: snapshots from $SNAP_TARGET, cnpg $PG ==="
+
+              report() {   # app target ok detail duration
+                now=$(date -u +%s)
+                detail=$(printf '%s' "$4" | tr -d '"\\' | tr '\n' ' ' | cut -c1-400)
+                printf 'homelab_restore_drill_success{app="%s",target="%s",drill="core"} %s\nhomelab_restore_drill_timestamp{app="%s",target="%s",drill="core"} %s\nhomelab_restore_drill_duration_seconds{app="%s",target="%s",drill="core"} %s\n' \
+                  "$1" "$2" "$3" "$1" "$2" "$now" "$1" "$2" "$5" \
+                  | curl -sf -X POST --data-binary @- "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
+                # endsAt left out for the reason given in restore-drill.
+                if [ "$3" = "1" ]; then name=RestoreDrillSucceeded; sev=info; else name=RestoreDrillFailed; sev=critical; fi
+                cat <<JSON | curl -sf -X POST -H 'Content-Type: application/json' --data-binary @- "$AM_URL/api/v2/alerts" >/dev/null || echo "WARN: alert push failed"
+              [{
+                "labels": {"alertname":"$name","severity":"$sev","app":"$1","target":"$2","source":"backup-drill"},
+                "annotations": {"summary":"Restore drill $1 from $2: $detail","description":"Проверка $1 из $2 заняла ${5}s. $detail"}
+              }]
+              JSON
+                echo "reported: app=$1 ok=$3 $detail"
+              }
+
+              wait_pod() {   # pod timeout-seconds; 0 when Succeeded
+                end=$(( $(date -u +%s) + $2 ))
+                while :; do
+                  phase=$(kubectl -n "$NS" get pod "$1" -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                  [ "$phase" = Succeeded ] && return 0
+                  [ "$phase" = Failed ] && break
+                  [ "$(date -u +%s)" -gt "$end" ] && { echo "pod $1: timeout (phase ${phase:-none})"; break; }
+                  sleep 10
+                done
+                kubectl -n "$NS" logs "$1" --all-containers --tail=10 2>&1 | tail -8
+                return 1
+              }
+
+              # Each check runs in a background subshell: errexit works there
+              # (it is off inside an `if`), and one failed check does not stop the others.
+              run() {   # app target function
+                t0=$(date -u +%s); rc=0
+                ( trap - EXIT; "$3" ) >"/tmp/$1.log" 2>&1 &
+                wait $! || rc=$?
+                sed "s/^/[$1] /" "/tmp/$1.log"
+                dur=$(( $(date -u +%s) - t0 ))
+                if [ "$rc" -eq 0 ]; then
+                  report "$1" "$2" 1 "$(grep -h '^SUMMARY: ' "/tmp/$1.log" | tail -1 | cut -c10-)" "$dur"
+                else
+                  report "$1" "$2" 0 "$(tail -4 "/tmp/$1.log")" "$dur"
+                  FAILED="$FAILED $1"
+                fi
+              }
+
+              # --- etcd: hash-checked restore, then read it back through a real etcd.
+              drill_etcd() {
+                cat <<YAML | kubectl apply -f - >/dev/null
+              apiVersion: v1
+              kind: Pod
+              metadata: {name: etcd, namespace: $NS}
+              spec:
+                restartPolicy: Never
+                securityContext: {runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532, seccompProfile: {type: RuntimeDefault}}
+                volumes:
+                  - {name: work, emptyDir: {sizeLimit: 2Gi}}
+                  - {name: scripts, configMap: {name: drill-scripts}}
+                initContainers:
+                  - name: fetch
+                    image: rclone/rclone:$RCLONE_TAG
+                    command: [sh, /scripts/fetch.sh]
+                    env:
+                      - {name: SRC, value: "$SNAP_ROOT/etcd"}
+                      - {name: OUT, value: /work/etcd.snap}
+                      - {name: HOME, value: /tmp}
+                    envFrom: [{secretRef: {name: drill-rclone}}]
+                    volumeMounts: [{name: work, mountPath: /work}, {name: scripts, mountPath: /scripts}]
+                  # etcdutl verifies the snapshot hash before it writes the data dir.
+                  - name: restore
+                    image: gcr.io/etcd-development/etcd:$ETCD_TAG
+                    command: [etcdutl, snapshot, restore, /work/etcd.snap, --data-dir, /work/data, --name, drill, --initial-cluster, "drill=http://127.0.0.1:2380", --initial-advertise-peer-urls, "http://127.0.0.1:2380"]
+                    volumeMounts: [{name: work, mountPath: /work}]
+                  - name: etcd
+                    image: gcr.io/etcd-development/etcd:$ETCD_TAG
+                    restartPolicy: Always
+                    command: [etcd, --name, drill, --data-dir, /work/data, --listen-client-urls, "http://127.0.0.1:2379", --advertise-client-urls, "http://127.0.0.1:2379", --listen-peer-urls, "http://127.0.0.1:2380", --initial-advertise-peer-urls, "http://127.0.0.1:2380", --initial-cluster, "drill=http://127.0.0.1:2380"]
+                    volumeMounts: [{name: work, mountPath: /work}]
+                containers:
+                  - name: verify
+                    image: alpine:$ALPINE_TAG
+                    command: [sh, /scripts/etcd-verify.sh]
+                    volumeMounts: [{name: scripts, mountPath: /scripts}]
+              YAML
+                wait_pod etcd 900
+                logs=$(kubectl -n "$NS" logs etcd --all-containers 2>&1)
+                echo "$logs" | grep -E 'SNAP=|NAMESPACES=|VERIFY_OK'
+                echo "$logs" | grep -q VERIFY_OK
+                echo "SUMMARY: $(echo "$logs" | grep -oE 'SNAP=[^ ]+|AGE_H=[0-9]+|NAMESPACES=[0-9]+' | tr '\n' ' ')"
+              }
+
+              # --- OpenBao: load the snapshot into a throwaway raft node. No
+              # production unseal keys here: the restore itself proves the
+              # snapshot is complete, and the node then seals with the
+              # snapshot's own seal config (n > 1, the throwaway had 1 share).
+              drill_openbao() {
+                cat <<YAML | kubectl apply -f - >/dev/null
+              apiVersion: v1
+              kind: Pod
+              metadata: {name: openbao, namespace: $NS}
+              spec:
+                restartPolicy: Never
+                securityContext: {runAsNonRoot: true, runAsUser: 100, runAsGroup: 1000, fsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+                volumes:
+                  - {name: work, emptyDir: {sizeLimit: 1Gi}}
+                  - {name: scripts, configMap: {name: drill-scripts}}
+                initContainers:
+                  - name: fetch
+                    image: rclone/rclone:$RCLONE_TAG
+                    command: [sh, /scripts/fetch.sh]
+                    env:
+                      - {name: SRC, value: "$SNAP_ROOT/openbao"}
+                      - {name: OUT, value: /work/raft.snap}
+                      - {name: HOME, value: /tmp}
+                    envFrom: [{secretRef: {name: drill-rclone}}]
+                    volumeMounts: [{name: work, mountPath: /work}, {name: scripts, mountPath: /scripts}]
+                containers:
+                  - name: verify
+                    image: quay.io/openbao/openbao:$BAO_TAG
+                    command: [sh, /scripts/bao-verify.sh]
+                    volumeMounts: [{name: work, mountPath: /work}, {name: scripts, mountPath: /scripts}]
+              YAML
+                wait_pod openbao 600
+                logs=$(kubectl -n "$NS" logs openbao --all-containers 2>&1)
+                echo "$logs" | grep -E 'SNAP=|RAFT_INDEX=|SEAL_SHARES=|VERIFY_OK'
+                echo "$logs" | grep -q VERIFY_OK
+                echo "SUMMARY: $(echo "$logs" | grep -oE 'SNAP=[^ ]+|AGE_H=[0-9]+|RAFT_INDEX=[0-9]+|SEAL_SHARES=[0-9]+' | tr '\n' ' ')"
+              }
+
+              # --- CNPG: recover a throwaway cluster from the production barman
+              # archive to its end, then check it replayed every archived WAL.
+              # Not a time target: immich has 5 h windows without a single WAL
+              # (measured 2026-10-24), and a target past the last commit fails
+              # with "recovery ended before configured recovery target was reached".
+              drill_cnpg() {
+                CL=$(kubectl -n "$SRC_NS" get cluster "$SRC" -o json)
+                STORE=$(echo "$CL" | jq -er '.spec.plugins[] | select(.isWALArchiver) | .parameters.barmanObjectName')
+                SERVER=$(echo "$CL" | jq -er --arg d "$SRC" '.spec.plugins[] | select(.isWALArchiver) | .parameters.serverName // $d')
+                q() { curl -sf "$VM_URL/api/v1/query" --data-urlencode "query=$1"; }
+                # Start LSN of the last segment the primary archived before the drill;
+                # the restored timeline must begin past it.
+                WAL_LSN=$(q "max(cnpg_pg_stat_archiver_last_archived_wal_start_lsn{namespace=\"$SRC_NS\"})" | jq -er '.data.result[0].value[1] | tonumber | floor')
+                DBS=$(q "count by (datname) (cnpg_pg_database_size_bytes{namespace=\"$SRC_NS\"})" | jq -r '.data.result[].metric.datname' | grep -vxE 'template[01]|postgres' | sort | tr '\n' ' ')
+                [ -n "$DBS" ]
+                echo "store=$STORE server=$SERVER wal_lsn=$WAL_LSN dbs=$DBS"
+
+                OS=$(kubectl -n "$SRC_NS" get objectstore "$STORE" -o json)
+                AKK=$(echo "$OS" | jq -er '.spec.configuration.s3Credentials.accessKeyId.key')
+                SKK=$(echo "$OS" | jq -er '.spec.configuration.s3Credentials.secretAccessKey.key')
+                kubectl -n "$NS" create secret generic drill-s3-cnpg --from-literal="$AKK=$CNPG_AK" --from-literal="$SKK=$CNPG_SK" >/dev/null
+                # retentionPolicy dropped: nothing in the drill may prune the production archive.
+                echo "$OS" | jq --arg ns "$NS" '{apiVersion, kind, metadata: {name: "drill-store", namespace: $ns},
+                  spec: (.spec | del(.retentionPolicy)
+                    | .configuration.s3Credentials.accessKeyId.name = "drill-s3-cnpg"
+                    | .configuration.s3Credentials.secretAccessKey.name = "drill-s3-cnpg")}' | kubectl apply -f - >/dev/null
+                # A whitelist, not a copy of the spec: .spec.plugins (WAL archiver)
+                # must never reach the drill cluster, it would write into the
+                # production archive.
+                echo "$CL" | jq --arg ns "$NS" --arg srv "$SERVER" '{apiVersion, kind, metadata: {name: "drill-pg", namespace: $ns},
+                  spec: {imageName: .spec.imageName, postgresql: (.spec.postgresql | del(.synchronous)), resources: .spec.resources,
+                    instances: 1, enableSuperuserAccess: true,
+                    storage: {size: .spec.storage.size, storageClass: "local-path"},
+                    bootstrap: {recovery: {source: "origin"}},
+                    externalClusters: [{name: "origin", plugin: {name: "barman-cloud.cloudnative-pg.io",
+                      parameters: {barmanObjectName: "drill-store", serverName: $srv}}}]}}' > /tmp/drill-pg.json
+                jq -e '(.spec | has("plugins") | not) and .spec.externalClusters[0].plugin.parameters.barmanObjectName == "drill-store"' /tmp/drill-pg.json >/dev/null
+                kubectl apply -f /tmp/drill-pg.json >/dev/null
+
+                end=$(( $(date -u +%s) + 1800 ))
+                while :; do
+                  phase=$(kubectl -n "$NS" get cluster drill-pg -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                  [ "$phase" = "Cluster in healthy state" ] && break
+                  if [ "$(date -u +%s)" -gt "$end" ]; then
+                    echo "timeout: cluster phase '${phase:-none}'"
+                    kubectl -n "$NS" logs -l cnpg.io/cluster=drill-pg --all-containers --tail=5 2>&1 | grep -iE 'error|fatal|panic' | tail -3 || true
+                    return 1
+                  fi
+                  sleep 15
+                done
+
+                IMG=$(echo "$CL" | jq -r .spec.imageName)
+                cat <<YAML | kubectl apply -f - >/dev/null
+              apiVersion: v1
+              kind: Pod
+              metadata: {name: pg-verify, namespace: $NS}
+              spec:
+                restartPolicy: Never
+                securityContext: {runAsNonRoot: true, runAsUser: 26, runAsGroup: 26, seccompProfile: {type: RuntimeDefault}}
+                volumes: [{name: scripts, configMap: {name: drill-scripts}}]
+                containers:
+                  - name: verify
+                    image: $IMG
+                    command: [sh, /scripts/pg-verify.sh]
+                    env:
+                      - {name: PGHOST, value: drill-pg-rw}
+                      - {name: PGUSER, value: postgres}
+                      - name: PGPASSWORD
+                        valueFrom: {secretKeyRef: {name: drill-pg-superuser, key: password}}
+                      - {name: DBS, value: "$DBS"}
+                      - {name: WAL_LSN, value: "$WAL_LSN"}
+                    volumeMounts: [{name: scripts, mountPath: /scripts}]
+              YAML
+                wait_pod pg-verify 600
+                logs=$(kubectl -n "$NS" logs pg-verify 2>&1)
+                echo "$logs"
+                echo "$logs" | grep -q VERIFY_OK
+                echo "SUMMARY: $(echo "$logs" | grep -oE 'TABLES_[a-z0-9_]+=[0-9]+|REPLAYED_PAST_ARCHIVE_BY=[0-9]+' | tr '\n' ' ')"
+              }
+
+              trap 'kubectl delete ns "$NS" --wait=false >/dev/null 2>&1 || true' EXIT
+              # The previous run's namespace may still be terminating.
+              kubectl delete ns "$NS" --ignore-not-found --timeout=600s >/dev/null
+              kubectl create ns "$NS" >/dev/null
+
+              env | grep '^RCLONE_CONFIG_' > /tmp/rclone.env
+              kubectl -n "$NS" create secret generic drill-rclone --from-env-file=/tmp/rclone.env >/dev/null
+              rm -f /tmp/rclone.env
+
+              mkdir -p /tmp/scripts
+              # Newest object under $SRC, refused when older than 36 h.
+              cat > /tmp/scripts/fetch.sh <<'SH'
+              set -eu
+              line=$(rclone lsf --files-only --format tp --separator ';' "$SRC" | sort | tail -1)
+              [ -n "$line" ] || { echo "NO_SNAPSHOT in $SRC"; exit 1; }
+              mt=${line%%;*}; name=${line#*;}
+              age=$(( $(date -u +%s) - $(date -u -d "$mt" +%s) ))
+              echo "SNAP=$name AGE_H=$(( age / 3600 ))"
+              [ "$age" -le 129600 ] || { echo "STALE: $name is $(( age / 3600 )) h old"; exit 1; }
+              rclone copyto "$SRC/$name" "$OUT"
+              test -s "$OUT"
+              SH
+              # etcd v3 JSON gateway: keys are base64, a prefix is [key, key with its last byte + 1).
+              cat > /tmp/scripts/etcd-verify.sh <<'SH'
+              set -eu
+              b64() { printf '%s' "$1" | base64 | tr -d '\n'; }
+              count() { wget -qO- --header 'Content-Type: application/json' --post-data "$1" http://127.0.0.1:2379/v3/kv/range | sed -n 's/.*"count":"\([0-9]*\)".*/\1/p'; }
+              i=0
+              until wget -qO- http://127.0.0.1:2379/health 2>/dev/null | grep -q '"health":"true"'; do
+                i=$((i + 1)); [ "$i" -le 90 ] || { echo ETCD_NOT_HEALTHY; exit 1; }; sleep 2
+              done
+              n=$(count "{\"key\":\"$(b64 /registry/namespaces/)\",\"range_end\":\"$(b64 /registry/namespaces0)\",\"count_only\":true}")
+              echo "NAMESPACES=${n:-0}"
+              [ "${n:-0}" -ge 30 ] || { echo TOO_FEW_NAMESPACES; exit 1; }
+              for ns in kube-system argocd openbao cnpg; do
+                [ "$(count "{\"key\":\"$(b64 "/registry/namespaces/$ns")\",\"count_only\":true}")" = 1 ] || { echo "MISSING_NAMESPACE=$ns"; exit 1; }
+              done
+              echo VERIFY_OK
+              SH
+              cat > /tmp/scripts/bao-verify.sh <<'SH'
+              set -eu
+              mkdir -p /tmp/x /work/raft
+              tar xzf /work/raft.snap -C /tmp/x
+              (cd /tmp/x && sha256sum -c SHA256SUMS >/dev/null) || { echo BAD_CHECKSUM; exit 1; }
+              echo "RAFT_INDEX=$(grep -o '"Index":[0-9]*' /tmp/x/meta.json | head -1 | cut -d: -f2)"
+              cat > /tmp/cfg.hcl <<'HCL'
+              storage "raft" {
+                path    = "/work/raft"
+                node_id = "drill"
+              }
+              listener "tcp" {
+                address     = "127.0.0.1:8200"
+                tls_disable = true
+              }
+              api_addr      = "http://127.0.0.1:8200"
+              cluster_addr  = "http://127.0.0.1:8201"
+              disable_mlock = true
+              HCL
+              bao server -config=/tmp/cfg.hcl >/tmp/server.log 2>&1 &
+              export BAO_ADDR=http://127.0.0.1:8200
+              st() { rc=0; bao status -format=json >/tmp/st.json 2>/dev/null || rc=$?; echo "$rc"; }   # 0 unsealed, 2 sealed, 1 error
+              i=0
+              while [ "$(st)" = 1 ]; do
+                i=$((i + 1)); [ "$i" -le 60 ] || { echo SERVER_NOT_UP; tail -5 /tmp/server.log; exit 1; }; sleep 1
+              done
+              bao operator init -key-shares=1 -key-threshold=1 -format=json >/tmp/init.json
+              key=$(sed -n '/"unseal_keys_b64"/{n;s/[^"]*"\([^"]*\)".*/\1/p;}' /tmp/init.json)
+              BAO_TOKEN=$(sed -n 's/.*"root_token": *"\([^"]*\)".*/\1/p' /tmp/init.json); export BAO_TOKEN
+              bao operator unseal "$key" >/dev/null
+              i=0
+              until bao read -field=is_self sys/leader 2>/dev/null | grep -qx true; do
+                i=$((i + 1)); [ "$i" -le 60 ] || { echo NOT_LEADER; tail -5 /tmp/server.log; exit 1; }; sleep 1
+              done
+              bao operator raft snapshot restore -force /work/raft.snap || { echo RESTORE_FAILED; tail -5 /tmp/server.log; exit 1; }
+              i=0
+              until [ "$(st)" = 2 ]; do
+                i=$((i + 1)); [ "$i" -le 60 ] || { echo NOT_SEALED_AFTER_RESTORE; tail -5 /tmp/server.log; exit 1; }; sleep 1
+              done
+              n=$(sed -n 's/.*"n": *\([0-9]*\).*/\1/p' /tmp/st.json)
+              echo "SEAL_SHARES=${n:-0}"
+              [ "${n:-0}" -gt 1 ] || { echo SEAL_CONFIG_NOT_FROM_SNAPSHOT; exit 1; }
+              echo VERIFY_OK
+              SH
+              cat > /tmp/scripts/pg-verify.sh <<'SH'
+              set -eu
+              total=0
+              for db in $DBS; do
+                n=$(psql -d "$db" -tAc "select count(*) from pg_stat_user_tables") || { echo "MISSING_DB=$db"; exit 1; }
+                echo "TABLES_$db=$n"; total=$((total + n))
+              done
+              [ "$total" -gt 0 ] || { echo NO_TABLES; exit 1; }
+              past=$(psql -d postgres -tAc "select (pg_current_wal_lsn() - '0/0'::pg_lsn - $WAL_LSN)::bigint")
+              echo "REPLAYED_PAST_ARCHIVE_BY=$past"
+              [ "$past" -ge 0 ] || { echo "WAL_NOT_FULLY_REPLAYED"; exit 1; }
+              echo VERIFY_OK
+              SH
+              kubectl -n "$NS" create configmap drill-scripts --from-file=/tmp/scripts >/dev/null
+
+              run etcd "$SNAP_TARGET" drill_etcd
+              run openbao "$SNAP_TARGET" drill_openbao
+              run "$SRC" garage drill_cnpg
+
+              [ -z "$FAILED" ] || { echo "FAILED:$FAILED"; exit 1; }
+              echo "all core drills passed"
