@@ -211,7 +211,7 @@ Two targets, and neither is a copy of the other: **Garage** on the Synology (`s3
 Each volume declares a `volsync:` block in its app values; the `homelab-common` chart renders one `ReplicationSource` per target plus the `ExternalSecret` holding that repository's credentials.
 
 - **`copyMethod: Snapshot`** for everything except immich: VolSync takes a Longhorn CSI snapshot, clones it, and the restic mover reads the clone, so the application never pauses. Clones live in `longhorn-volsync-clone` (one replica, `reclaimPolicy: Delete`): the default class retains, and a retained clone per volume per night leaves an orphaned PV behind each time.
-- **`copyMethod: Direct`** for the immich library: a full-size clone would not fit the disks. The mover reads the live RWX volume in place, so files written mid-run land in the next snapshot instead.
+- **`copyMethod: Direct`** for the immich library: a full-size clone would not fit the disks. The mover reads the live volume in place on immich-server's node, so files written mid-run land in the next snapshot instead.
 - Longhorn freezes the filesystem for the snapshot, so a restored SQLite database opens cleanly instead of replaying a WAL as if the power had been cut.
 - Repository names are cluster-unique: the name *is* the path under `restic-apps/`, and two volumes sharing one would interleave their snapshots and prune each other's history.
 
