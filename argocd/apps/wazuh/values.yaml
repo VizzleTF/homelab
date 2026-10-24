@@ -647,6 +647,10 @@ homelab-common:
   # syslog ports are opened separately in manifests/networkpolicy.yaml.
   networkPolicy:
     enabled: true
+    allow:
+      # wazuh-operator -> indexer security/ISM API and manager API
+      - namespaces: [wazuh-operator]
+        ports: [9200, 55000]
 
   # Manager state: agent registrations (client.keys), sslmanager.key, API
   # config. Losing it means re-enrolling every agent. The indexer (events) and
