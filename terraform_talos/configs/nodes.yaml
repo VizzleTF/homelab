@@ -22,18 +22,27 @@ nodes:
     # New box since 2026-10-01: 4 NICs (enp1s0..enp4s0), only enp1s0 is cabled.
     # Without the MAC pin, `physical: true` would put .101 + VIP on all four.
     mac: 00:f1:f7:a0:44:af
+    # Intel iGPU on every box; the GPU device plugin DaemonSet selects on it.
+    labels:
+      homelab.example.com/gpu: "true"
   talos-cp-02:
     enabled: true
     address: 10.11.11.102/24
     role: controlplane
     install_disk: /dev/sda
     mac: 68:1d:ef:3f:00:1b  # enp1s0; enp3s0 is not cabled
+    # Intel iGPU on every box; the GPU device plugin DaemonSet selects on it.
+    labels:
+      homelab.example.com/gpu: "true"
   talos-cp-03:
     enabled: true
     address: 10.11.11.103/24
     role: controlplane
     install_disk: /dev/sda
     mac: 68:1d:ef:3f:0e:ab  # enp1s0; enp3s0 is not cabled
+    # Intel iGPU on every box; the GPU device plugin DaemonSet selects on it.
+    labels:
+      homelab.example.com/gpu: "true"
   talos-worker-01:
     enabled: true
     address: 10.11.11.111/24
@@ -44,3 +53,4 @@ nodes:
     # immich-machine-learning selects on it (Iris Xe iGPU).
     labels:
       homelab.example.com/ml: "true"
+      homelab.example.com/gpu: "true"
