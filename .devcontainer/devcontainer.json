@@ -21,8 +21,7 @@
     "VAULT_ADDR": "${localEnv:VAULT_ADDR}",
     "VAULT_TOKEN": "${localEnv:VAULT_TOKEN}",
     "KUBECONFIG": "/home/vscode/.kube/config",
-    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
-    "TFE_ADDRESS": "https://app.terraform.io"
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
   },
   "containerEnv": {
     "TZ": "UTC"

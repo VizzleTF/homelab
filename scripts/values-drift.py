@@ -4,7 +4,7 @@
 For every argocd/{apps,infra}/<app> with an upstream chart, compares values.yaml
 (without the homelab-common section) with `helm show values` of the pinned
 version and prints three lists per app:
-  default  - leaf keys whose value equals the chart default (CLAUDE.md: write
+  default  - leaf keys whose value equals the chart default (.claude/reference/conventions.md: write
              only non-defaults; a deliberate pin carries a `# pinned:` comment
              on the same line and is skipped)
   unknown  - keys the chart's default values do not have. Often a typo or a
