@@ -26,7 +26,6 @@ vpolExclude:
     - victoria-metrics         # node-exporter (hostPID/hostNetwork)
     - victoria-logs            # vector reads /var/log on the host
     - spegel                   # containerd socket
-    - node-feature-discovery   # host /sys, /proc
     - smartctl-exporter        # raw disk access
     - local-path-provisioner   # hostPath helper pods create/delete PV dirs
     - forgejo-runner           # privileged dind runner

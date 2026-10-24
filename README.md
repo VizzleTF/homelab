@@ -128,7 +128,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the de
 | **-4**  | longhorn, openbao, snapshot-controller, local-path-provisioner |
 | **-3**  | kubelet-csr-approver, metrics-server, spegel, volsync |
 | **-2**  | external-secrets, cnpg-operator, keda, external-dns, external-dns-openwrt, victoria-metrics-k8s-stack |
-| **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, node-feature-discovery, tuppr, victoria-logs, wazuh-operator |
+| **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, tuppr, victoria-logs, wazuh-operator |
 | **0**   | cloudflared, intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, tfstate-mirror |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, kyverno-policies, backup-drill |
 | **2**   | renovate; apps: atuin, authentik, cleanbot, immich, lampac, may, obsidian-livesync, opencloud, rss-to-telegram-bot, spotify-backup, trek, vaultwarden, wazuh |
@@ -270,7 +270,7 @@ Bare-metal Talos install:
 1. Boot the host from a Talos factory ISO (image schematic from `terraform_talos/modules/talos/schematic.yaml`).
 2. Add an entry to `terraform_talos/configs/nodes.yaml` (address, role, install disk, optional NIC MAC).
 3. `terraform -chdir=terraform_talos apply` applies the machine config, joins the cluster, and waits for `talos_cluster_health`.
-4. `kubectl get nodes` to verify. Cilium, Longhorn and NFD onboard the new node automatically.
+4. `kubectl get nodes` to verify. Cilium and Longhorn onboard the new node automatically; the GPU plugin needs the `homelab.example.com/gpu` label in `nodes.yaml`.
 
 Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `managing-talos-node` Claude Code skill (private Forgejo origin only, see below).
 
