@@ -71,14 +71,14 @@ content: |
   [plugins."io.containerd.cri.v1.images"]
     discard_unpacked_layers = false
 ---
+# Hugepages and nvme_tcp serve only the Longhorn v2 data engine, which is off
+# (v2-data-engine=false). 1024 x 2 MiB sat free on every node, 8 GiB in total
+# (2026-10). "0" rather than dropping the document: Talos leaves a removed
+# sysctl at its live value until reboot. Bring both back together with v2.
 apiVersion: v1alpha1
 kind: SysctlConfig
 params:
-  vm.nr_hugepages: "1024"
----
-apiVersion: v1alpha1
-kind: KernelModuleConfig
-name: nvme_tcp
+  vm.nr_hugepages: "0"
 ---
 # Runs CRI, kubelet and pods in a sandbox PID+mount namespace (the v1.14
 # default). Tested on talos-worker-01 on 2026-10-17: Longhorn iSCSI attach and
