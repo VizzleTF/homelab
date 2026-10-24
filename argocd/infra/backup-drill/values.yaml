@@ -616,11 +616,16 @@ homelab-common:
                 # A whitelist, not a copy of the spec: .spec.plugins (WAL archiver)
                 # must never reach the drill cluster, it would write into the
                 # production archive.
+                # targetTLI = the production timeline: "latest" follows any newer
+                # .history in the archive, and immich's holds a stray 00000002.history
+                # (left by an earlier restore) while the cluster runs on timeline 1
+                # ("requested timeline 2 is not a child of this server's history").
+                echo "$CL" | jq -e '.status.timelineID > 0' >/dev/null
                 echo "$CL" | jq --arg ns "$NS" --arg srv "$SERVER" '{apiVersion, kind, metadata: {name: "drill-pg", namespace: $ns},
                   spec: {imageName: .spec.imageName, postgresql: (.spec.postgresql | del(.synchronous)), resources: .spec.resources,
                     instances: 1, enableSuperuserAccess: true,
                     storage: {size: .spec.storage.size, storageClass: "local-path"},
-                    bootstrap: {recovery: {source: "origin"}},
+                    bootstrap: {recovery: {source: "origin", recoveryTarget: {targetTLI: (.status.timelineID | tostring)}}},
                     externalClusters: [{name: "origin", plugin: {name: "barman-cloud.cloudnative-pg.io",
                       parameters: {barmanObjectName: "drill-store", serverName: $srv}}}]}}' > /tmp/drill-pg.json
                 jq -e '(.spec | has("plugins") | not) and .spec.externalClusters[0].plugin.parameters.barmanObjectName == "drill-store"' /tmp/drill-pg.json >/dev/null
