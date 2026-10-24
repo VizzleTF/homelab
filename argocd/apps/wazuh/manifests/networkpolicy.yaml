@@ -22,9 +22,13 @@ metadata:
   name: wazuh-manager-agents
   namespace: wazuh
 spec:
+  # The operator renamed app.kubernetes.io/component wazuh-manager -> manager
+  # (applied 2026-10-24); the stale selector matched nothing, so syslog 514/udp
+  # was dropped and the remote-node deny on 55000/1516 was gone. The name
+  # label covers master and workers.
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/component: wazuh-manager
+      app.kubernetes.io/name: wazuh-manager
   ingress:
     - fromEntities:
         - world
