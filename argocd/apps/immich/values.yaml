@@ -187,22 +187,25 @@ homelab-common:
         ports: [9187]
 
   # The library is 250Gi
-  # (~184Gi used), RWX through the Longhorn share-manager, so the mover's
-  # accessMode must be ReadWriteMany or it cannot mount. The restic index cache
+  # (~184Gi used), RWO since 2026-10: RWX cost a
+  # Longhorn NFS share-manager (0.7-2.5 GiB) only so the Direct mover could
+  # mount it. For a Direct mover on an in-use RWO PVC VolSync copies the app
+  # pod's nodeName into the Job. The restic index cache
   # is 10Gi: the default 2Gi is too small for this many files. Off-site runs
   # weekly: a full upload takes hours. CNPG pgdata is a separate PVC covered by
   # barman/pg_dump.
   volsync:
     - name: immich-library
       claim: immich-library-pvc
-      accessMode: ReadWriteMany
+      accessMode: ReadWriteOnce
       cacheCapacity: 10Gi
       # Direct, not Snapshot: a 250Gi snapshot materialises as a clone PVC, and
       # two targets meant two clones of 250Gi x 2 replicas = 1 TiB that Longhorn
       # could not place (cp-02/cp-03 have ~160Gi free); the volumes went faulted.
-      # The RWX volume mounts in parallel, so the mover reads the live PVC in
-      # place. Cost: the read is not atomic; files uploaded during a run go into
-      # the next snapshot. Acceptable for a photo archive.
+      # The mover reads the live PVC in place. Cost: the read is not atomic; files uploaded during a run go into
+      # the next snapshot. Acceptable for a photo archive. The mover runs on
+      # immich-server's node; if the server moves mid-run, VolSync recreates
+      # the Job and leaves a stale restic lock (volsync cheatsheet).
       copyMethod: Direct
       drill: false  # 250Gi (~190Gi used) does not fit the drill's 20Gi DRILL_SIZE
       targets:
@@ -221,7 +224,7 @@ homelab-common:
   persistentVolumeClaims:
     - name: immich-library-pvc
       accessModes:
-        - ReadWriteMany
+        - ReadWriteOnce
       storageClassName: longhorn
       size: 250Gi
       # volumeName intentionally unpinned — the PV changes on every Velero restore,
