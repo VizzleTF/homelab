@@ -40,8 +40,8 @@ jobs:
         # frontmatter limits, third-person description, body size, one-level references.
         run: python3 scripts/lint-skills.py
       - name: Audit docs (repo side)
-        # The Obsidian vault is not in git, so only the skills index and the
-        # repo paths cited in CLAUDE.md (error) / .claude (warning) are checked here.
+        # The Obsidian vault is not in git, so only the repo-side checks run here:
+        # config.yaml contract, repo paths cited in CLAUDE.md (error) / .claude (warning), etc.
         run: python3 scripts/audit-docs.py
 
   helm-lint:
