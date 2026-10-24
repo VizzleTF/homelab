@@ -2,21 +2,7 @@
 # Devcontainer for homelab — pinned toolchain + Claude Code.
 # Renovate updates ARG pins via inline `# renovate:` annotations.
 
-# ---------- stage: build terraform-mcp-server from source ----------
-# Distributed only as a Docker image upstream, so we build the Go binary
-# in an ephemeral stage and copy it into the final image.
-# The golang tag is tracked by Renovate's dockerfile manager (ARG used in FROM).
-ARG GO_BUILD_IMAGE=golang:1.27-bookworm
-FROM ${GO_BUILD_IMAGE} AS terraform-mcp-build
-# renovate: datasource=github-releases depName=hashicorp/terraform-mcp-server
-ARG TERRAFORM_MCP_VERSION=v1.4.1
-RUN git clone --depth 1 --branch ${TERRAFORM_MCP_VERSION} \
-      https://github.com/hashicorp/terraform-mcp-server.git /src \
- && cd /src \
- && CGO_ENABLED=0 go build -ldflags="-s -w" \
-      -o /out/terraform-mcp-server ./cmd/terraform-mcp-server
-
-# ---------- final image ----------
+# ---------- image ----------
 FROM mcr.microsoft.com/devcontainers/base:bookworm
 
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
@@ -56,7 +42,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && chsh -s /usr/bin/zsh vscode
 
-# Node.js 22 (Nodesource) — required by npx-based MCP servers and claude-code
+# Node.js 22 (Nodesource) — required by claude-code
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && rm -rf /var/lib/apt/lists/* \
@@ -127,9 +113,6 @@ RUN arch="$(dpkg --print-architecture)" \
  && tar -xzf /tmp/gh.tgz -C /tmp \
  && install -m 0755 "/tmp/gh_${GH_VERSION}_linux_${arch}/bin/gh" /usr/local/bin/gh \
  && rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${arch}"
-
-# terraform-mcp-server (from build stage above)
-COPY --from=terraform-mcp-build /out/terraform-mcp-server /usr/local/bin/terraform-mcp-server
 
 # pre-commit (pip; --break-system-packages because Debian PEP-668)
 RUN pip install --no-cache-dir --break-system-packages \

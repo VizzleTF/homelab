@@ -19,15 +19,6 @@ done
 helm repo update >/dev/null
 echo "[post-create] $(helm repo list | tail -n +2 | wc -l) helm repos configured."
 
-echo "[post-create] Caching MCP server npm packages..."
-# Pre-install globally so the first `claude` invocation (which uses `npx -y ...`
-# under the hood) finds them in the global prefix and doesn't fetch on demand.
-# `npx --help` doesn't work as a warm-up — stdio MCP servers block on stdin.
-npm install -g --silent \
-  @modelcontextprotocol/server-github \
-  kubernetes-mcp-server \
-  2>&1 | tail -3 || true
-
 echo "[post-create] Installing pre-commit hooks..."
 if [ -f /workspaces/homelab/.pre-commit-config.yaml ]; then
   (cd /workspaces/homelab && pre-commit install --install-hooks >/dev/null)
