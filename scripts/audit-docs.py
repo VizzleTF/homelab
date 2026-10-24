@@ -148,18 +148,16 @@ for cs_dir, configs in ((APPS_CS, apps), (INFRA_CS, infra)) if HAVE_VAULT else (
             if re.search(r"(?<![\w.])v?\d+\.\d+\.\d+(?![\w.])", m.group(0)):
                 report(path, "warning", f"pinned version in **{m.group(1)}** row; use config.yaml targetRevision")
 
-# 4. Wikilinks. Targets: vault notes, plus Claude memory notes (machine-local,
-# linked from .claude/ docs); template placeholders are not links.
-MEMORY = Path.home() / ".claude/projects/-home-ivan-Documents-home-homelab/memory"
+# 4. Wikilinks. Targets: vault notes; template placeholders are not links.
 PLACEHOLDER_LINKS = {"Memory page"}  # .claude/skills/README.md "adding a skill" template
-notes = {p.stem for p in VAULT.rglob("*.md")} | {p.stem for p in MEMORY.glob("*.md")} | PLACEHOLDER_LINKS
+notes = {p.stem for p in VAULT.rglob("*.md")} | PLACEHOLDER_LINKS
 docs = list(VAULT.rglob("*.md")) + [REPO / "CLAUDE.md"] + list((REPO / ".claude").rglob("*.md"))
 code_span = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 for doc in docs if HAVE_VAULT else ():
     text = code_span.sub("", doc.read_text())
     for target in re.findall(r"\[\[([^\]|#]+)", text):
         t = target.strip()
-        if t and t not in notes and not (t.startswith(("feedback_", "reference_", "project_")) and not MEMORY.exists()):
+        if t and t not in notes:
             report(doc, "error", f"broken wikilink [[{t}]]")
 
 # 5. Skills index (.claude/skills/README.md) vs skill folders.
