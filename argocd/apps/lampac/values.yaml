@@ -85,7 +85,7 @@ homelab-common:
           # tracking to it so the prefix never flips.
           image:
             repository: ghcr.io/lampac-nextgen/lampac
-            tag: "1.84.2"
+            tag: "1.84.3"
           ports:
             - name: http
               containerPort: 9118
