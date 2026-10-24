@@ -92,7 +92,7 @@
         "argocd/values/**"
       ],
       "matchPackageNames": [
-        "!/^(?:.+/)?(argo-cd|cert-manager|cilium|cloudnative-pg|external-secrets|intel-device-plugins-operator|keda|keda-add-ons-http|kyverno|longhorn|node-feature-discovery|plugin-barman-cloud|snapshot-controller|tuppr|victoria-metrics-k8s-stack|volsync|wazuh-operator|kubernetes-sigs/gateway-api)$/"
+        "!/^(?:.+/)?(argo-cd|cert-manager|cilium|cloudnative-pg|external-secrets|intel-device-plugins-operator|keda|keda-add-ons-http|kyverno|longhorn|plugin-barman-cloud|snapshot-controller|tuppr|victoria-metrics-k8s-stack|volsync|wazuh-operator|kubernetes-sigs/gateway-api)$/"
       ],
       "groupName": "infra"
     },

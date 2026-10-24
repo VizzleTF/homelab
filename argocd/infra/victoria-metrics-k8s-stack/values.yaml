@@ -54,7 +54,8 @@ defaultRules:
     KubeQuotaAlmostFull: {enabled: false}
     KubeQuotaExceeded: {enabled: false}
     KubeQuotaFullyUsed: {enabled: false}
-    # CPU throttling — node-feature-discovery worker constantly triggers, not actionable
+    # CPU throttling — disabled for the node-feature-discovery worker, which
+    # constantly triggered it; NFD is gone (2026-10), re-enabling is a separate call
     CPUThrottlingHigh: {enabled: false}
     # Kubelet info-level — noisy, not actionable
     KubeNodeEviction: {enabled: false}
