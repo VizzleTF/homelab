@@ -420,7 +420,7 @@ homelab-common:
             - name: ETCD_TAG
               # Same minor as the cluster etcd (talosctl etcd status: 3.7).
               # renovate: datasource=docker depName=gcr.io/etcd-development/etcd
-              value: "v3.7.2"
+              value: "v3.7.3"
           envFrom:
             - secretRef:
                 name: drill-s3-cnpg
