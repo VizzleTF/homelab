@@ -20,7 +20,7 @@ ARG ARGOCD_VERSION=v3.5.6
 # renovate: datasource=github-releases depName=gitleaks/gitleaks
 ARG GITLEAKS_VERSION=v8.30.1
 # renovate: datasource=github-releases depName=cli/cli
-ARG GH_VERSION=2.103.2
+ARG GH_VERSION=2.103.3
 # renovate: datasource=pypi depName=pre-commit
 ARG PRE_COMMIT_VERSION=4.7.0
 # Not pinned: every image build installs the latest Claude Code release.
