@@ -127,7 +127,7 @@ homelab-common:
             type: RuntimeDefault
         initContainers:
           - name: snapshot
-            image: quay.io/openbao/openbao:2.7.1
+            image: quay.io/openbao/openbao:2.7.2
             command: ["/bin/sh", "-c"]
             args:
               - |

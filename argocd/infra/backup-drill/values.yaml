@@ -416,7 +416,7 @@ homelab-common:
               value: "1.75.2"
             - name: BAO_TAG
               # renovate: datasource=docker depName=quay.io/openbao/openbao
-              value: "2.7.1"
+              value: "2.7.2"
             - name: ETCD_TAG
               # Same minor as the cluster etcd (talosctl etcd status: 3.7).
               # renovate: datasource=docker depName=gcr.io/etcd-development/etcd
