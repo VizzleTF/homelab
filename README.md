@@ -44,32 +44,6 @@ A single-tenant home cluster: four bare-metal Talos nodes managed by ArgoCD, wit
 
 ---
 
-## CNCF maturity
-
-Where the stack sits on the [CNCF Landscape](https://landscape.cncf.io/), and who owns the parts that are not on it:
-
-| Layer             | Project                | Governance                          |
-|-------------------|------------------------|-------------------------------------|
-| Cluster OS        | Talos Linux            | Sidero Labs (not CNCF)               |
-| CNI               | Cilium                 | Graduated                            |
-| Container runtime | containerd (via Talos) | Graduated                            |
-| Ingress           | Gateway API            | Kubernetes SIG (under K8s Graduated) |
-| GitOps            | Argo CD                | Graduated                            |
-| TLS               | cert-manager           | Graduated                            |
-| Autoscaling       | KEDA                   | Graduated                            |
-| Storage           | Longhorn               | Incubating                           |
-| Secrets sync      | External Secrets       | Sandbox                              |
-| Database operator | CloudNativePG          | Sandbox                              |
-| DNS sync          | ExternalDNS            | Kubernetes SIG (under K8s Graduated) |
-| Secrets backend   | OpenBao                | OpenSSF sandbox (MPL 2.0, fork of Vault 1.14.x) |
-| Backup            | VolSync                | Red Hat / backube (not CNCF)         |
-| CSI snapshotter   | kubernetes-csi/external-snapshotter | Kubernetes SIG (under K8s Graduated) |
-| Metrics API       | Metrics Server         | Kubernetes SIG (under K8s Graduated) |
-| Observability     | VictoriaMetrics / Logs | Not CNCF                             |
-| Log shipper       | Vector                 | Datadog (not CNCF)                   |
-
----
-
 ## Architecture
 
 ![Architecture: Forgejo on the ops node, ArgoCD App-of-Apps, two independent backup chains](assets/architecture.svg)
@@ -272,7 +246,7 @@ Bare-metal Talos install:
 3. `terraform -chdir=terraform_talos apply` applies the machine config, joins the cluster, and waits for `talos_cluster_health`.
 4. `kubectl get nodes` to verify. Cilium and Longhorn onboard the new node automatically; the GPU plugin needs the `homelab.example.com/gpu` label in `nodes.yaml`.
 
-Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `managing-talos-node` Claude Code skill (private Forgejo origin only, see below).
+Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `managing-talos-node` Claude Code skill (private Forgejo origin only).
 
 ---
 
@@ -286,36 +260,6 @@ Full procedure (including the Talos secrets cascade: any `talos_machine_secrets`
 - Forgejo Actions runner only emulates the GHES artifact protocol up to v3. Pin `actions/upload-artifact` v3.1.3 and `download-artifact` v3.1.0. v3.2.0 and later use the v4 protocol and fail with `GHESNotSupportedError`.
 - kswapd starves the Wi-Fi driver before it pages. Keep ≥3 GiB of headroom per host.
 - `homelab-common` publishes on git tag `homelab-common-v<version>`. Bump `Chart.yaml`, merge to main, push the tag: `.forgejo/workflows/publish-helm.yml` packages the chart and POSTs it to the Forgejo Helm chart museum (`/api/packages/vizzle/helm/api/charts`). Without the tag the new version never lands in the registry. Then bump the pin in both appsets and `argocd/standalone/argocd-application.yaml` in a separate PR.
-
----
-
-## Claude Code skills
-
-Routine operations are wrapped as [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) skills under `.claude/skills/`. Each skill is a Markdown runbook the agent loads on demand.
-
-| Skill                       | What it does                                                                            |
-|-----------------------------|------------------------------------------------------------------------------------------|
-| `managing-talos-node`       | Add, replace or remove a node: PXE, terraform, rescue, BGP peer, Longhorn cleanup        |
-| `upgrading-talos`           | Talos / Kubernetes upgrades through tuppr; `talosctl` script as break-glass             |
-| `creating-garage-bucket`    | Provisions a Garage S3 bucket + key on the Synology, stores credentials in OpenBao       |
-| `renewing-synology-cert`    | `acme.sh` + Cloudflare DNS-01, then reloads DSM nginx via `synow3tool`                   |
-| `scaffolding-app`           | Boilerplate for a new app: values, HTTPRoute, ExternalSecret, ArgoCD wiring              |
-| `scaffolding-authentik-oidc`| New OIDC client: one OpenBao path `<ns>/oidc` read by the app and Authentik, blueprint files, ESO wiring |
-| `verifying-backups`         | Audits VolSync, CNPG, etcd and OpenBao backups and off-site freshness                    |
-| `managing-monitoring`       | Triages firing alerts, queries metrics, silences, scrape targets                         |
-| `checking-cluster-health`   | One-shot overview: nodes, pods, PVCs, certs, ArgoCD sync                                 |
-| `restoring-app-volume`      | Restores one app volume: old PV rebind or VolSync restic, trial restore first            |
-| `triaging-renovate-prs`     | Reviews open Renovate PRs against the argocd-diff comment and release notes              |
-| `deploying-ops-node`        | Rolls a merged `nodes/ops` change onto the NixOS ops node, with rollback                 |
-
-`.claude/` and `CLAUDE.md` live in the private Forgejo origin only; the public GitHub mirror strips them.
-
----
-
-## Work in progress
-
-- [ ] Local LLM behind KEDA scale-to-zero
-- [ ] Disaster-recovery drill: drain a worker mid-day, observe recovery
 
 ---
 

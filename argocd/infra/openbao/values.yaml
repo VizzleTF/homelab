@@ -32,7 +32,7 @@ server:
   # meant six copies of every write on the SATA SSDs etcd shares. A lost node
   # now means a lost member: remove-peer, delete the PVC, let it rejoin.
   # volumeClaimTemplates are immutable — the STS is deleted with
-  # --cascade=orphan before sync (docs/reduce-disk-writes.md).
+  # --cascade=orphan before sync.
   dataStorage:
     size: 2Gi
     storageClass: local-path
