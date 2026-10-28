@@ -1,12 +1,8 @@
-# Authentik: identity provider, SSO/OIDC for the homelab apps. Source: https://github.com/goauthentik/authentik
-
-# Use our ExternalSecret instead of chart-generated config secret
 authentik:
   existingSecret:
     secretName: "authentik-config"
 
 server:
-  # Live usage ~32m/442Mi; memory sits close to the chart's suggested 512Mi.
   resources:
     requests:
       cpu: 100m
@@ -14,8 +10,7 @@ server:
     limits:
       cpu: "1"
       memory: 1Gi
-  # Chart defaults (timeout 3s, threshold 3) kill the pod after 30s of GC/load
-  # stalls — source of the recurring restarts + gateway 502s.
+  # Chart defaults kill the pod after 30s of GC stalls: restarts + gateway 502s.
   livenessProbe:
     timeoutSeconds: 5
     failureThreshold: 5
@@ -24,7 +19,6 @@ server:
     failureThreshold: 5
 
 worker:
-  # Live usage ~97m/370Mi.
   resources:
     requests:
       cpu: 100m
@@ -32,9 +26,7 @@ worker:
     limits:
       cpu: "1"
       memory: 1Gi
-  # `ak healthcheck` forks a Python process; under load it needs more than the
-  # chart's 3s, and the liveness kills (exit 137, not OOM) restarted the worker
-  # every ~20min. Same treatment as server above.
+  # `ak healthcheck` needs >3s under load; liveness killed the worker every ~20min.
   livenessProbe:
     timeoutSeconds: 5
     failureThreshold: 5
@@ -44,7 +36,7 @@ worker:
   startupProbe:
     timeoutSeconds: 5
 
-# Mount blueprints ConfigMaps (top-level chart setting, not under authentik:)
+# Top-level key, not under authentik:
 blueprints:
   configMaps:
     - authentik-blueprint-grafana
@@ -60,10 +52,7 @@ global:
   securityContext:
     seccompProfile:
       type: RuntimeDefault
-  # Rollout server+worker when ESO patches `authentik-config` (new
-  # *_OIDC_CLIENT_SECRET entry from an app's <ns>/oidc, scaffolding-authentik-oidc skill).
-  # Without this, freshly-added blueprints fail !Env resolution silently.
-  # Watched by stakater/reloader (argocd/infra/reloader).
+  # Without the rollout, new blueprints fail !Env resolution silently.
   deploymentAnnotations:
     secret.reloader.stakater.com/reload: "authentik-config"
 
@@ -74,8 +63,7 @@ homelab-common:
   authentikBlueprints:
     - name: authentik-blueprint-grafana
       blueprints:
-        # Blueprint 0: admin group, matched by role_attribute_path in
-        # argocd/infra/victoria-metrics-k8s-stack/values.yaml; everyone else is Viewer.
+        # Matched by role_attribute_path in argocd/infra/victoria-metrics-k8s-stack/values.yaml.
         00-grafana-groups.yaml: |
           version: 1
           metadata:
@@ -89,14 +77,12 @@ homelab-common:
                 users:
                   - !Find [authentik_core.user, [username, vizzle]]
 
-        # Blueprint 2: provider + app. The `groups` claim comes from the default
-        # profile mapping.
+        # The `groups` claim comes from the default profile mapping.
         02-grafana-oidc.yaml: |
           version: 1
           metadata:
             name: Grafana OIDC Integration
           entries:
-            # OAuth2/OIDC Provider for Grafana
             - model: authentik_providers_oauth2.oauth2provider
               identifiers:
                 name: Grafana OIDC
@@ -119,7 +105,6 @@ homelab-common:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
 
-            # Application for Grafana
             - model: authentik_core.application
               identifiers:
                 slug: grafana
@@ -134,8 +119,6 @@ homelab-common:
 
     - name: authentik-blueprint-immich
       blueprints:
-        # Blueprint 2: provider + app. The `groups` claim comes from the default
-        # profile mapping.
         02-immich-oidc.yaml: |
           version: 1
           metadata:
@@ -179,7 +162,6 @@ homelab-common:
 
     - name: authentik-blueprint-argocd
       blueprints:
-        # Blueprint 0: create groups and assign members (no dependencies)
         00-argocd-groups.yaml: |
           version: 1
           metadata:
@@ -193,8 +175,6 @@ homelab-common:
                 users:
                   - !Find [authentik_core.user, [username, vizzle]]
 
-        # Blueprint 2: provider + app. The `groups` claim comes from the default
-        # profile mapping.
         02-argocd-oidc.yaml: |
           version: 1
           metadata:
@@ -205,8 +185,7 @@ homelab-common:
                 name: ArgoCD OIDC
               attrs:
                 name: ArgoCD OIDC
-                # public + PKCE: `argocd login --sso` exchanges the code itself and
-                # has no secret; a second CLI client would get another issuer.
+                # public + PKCE for `argocd login --sso`; a second client would get another issuer.
                 client_type: public
                 client_id: argocd
                 client_secret: !Env ARGOCD_OIDC_CLIENT_SECRET
@@ -218,7 +197,6 @@ homelab-common:
                 redirect_uris:
                   - matching_mode: strict
                     url: https://argocd.example.com/auth/callback
-                  # argocd login --sso (CLI) listens here
                   - matching_mode: strict
                     url: http://localhost:8085/auth/callback
                 signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
@@ -278,11 +256,7 @@ homelab-common:
                 meta_description: Collaborative travel planner
                 policy_engine_mode: any
 
-    # Self-service enrollment via single-use invitation links.
-    # Built as a blueprint because the admin "create enrollment flow" wizard is
-    # broken on authentik 2026.5.3 (dramatiq get_result() times out — task runs
-    # and result lands in the Task table, but the synchronous get_result the
-    # wizard uses never resolves). The blueprint discovery+apply path is fine.
+    # Blueprint: the admin enrollment-flow wizard hangs on 2026.5.3.
     - name: authentik-blueprint-enrollment-invitation
       blueprints:
         enrollment-invitation.yaml: |
@@ -290,7 +264,6 @@ homelab-common:
           metadata:
             name: Enrollment via Invitation
           entries:
-            # --- Prompt fields ---
             - model: authentik_stages_prompt.prompt
               id: prompt-username
               identifiers:
@@ -347,7 +320,6 @@ homelab-common:
                 placeholder: Password (repeat)
                 order: 400
 
-            # --- Password-equality validation policy ---
             - model: authentik_policies_expression.expressionpolicy
               id: policy-password-equal
               identifiers:
@@ -359,7 +331,6 @@ homelab-common:
                       return False
                   return True
 
-            # --- Stages ---
             - model: authentik_stages_invitation.invitationstage
               id: stage-invitation
               identifiers:
@@ -393,7 +364,6 @@ homelab-common:
               attrs:
                 session_duration: seconds=0
 
-            # --- Flow ---
             - model: authentik_flows.flow
               id: flow
               identifiers:
@@ -404,7 +374,6 @@ homelab-common:
                 designation: enrollment
                 authentication: require_unauthenticated
 
-            # --- Stage bindings (order = sequence) ---
             - model: authentik_flows.flowstagebinding
               identifiers:
                 target: !KeyOf flow
@@ -427,16 +396,8 @@ homelab-common:
                 order: 40
     - name: authentik-blueprint-wazuh
       blueprints:
-        # Blueprint 0: the admin group. OpenSearch matches this group name as a
-        # backend role (see opensearchRoleMappings in argocd/apps/wazuh), so the
-        # name here and the backendRoles entry there must stay in step.
-        #
-        # There is deliberately no viewer group yet. An OpenSearch role only
-        # limits which indices a user can read; the Wazuh app reaches the
-        # manager API through one shared service account with run_as disabled,
-        # so a "viewer" could still restart agents and fire active response
-        # from the UI. A read-only group would have to come with runAs plus
-        # Wazuh API RBAC rules, and this operator exposes no CRD for those.
+        # Name must match backendRoles in argocd/apps/wazuh opensearchRoleMappings.
+        # No viewer group: see the role-mapping comment there.
         00-wazuh-groups.yaml: |
           version: 1
           metadata:
@@ -450,8 +411,6 @@ homelab-common:
                 users:
                   - !Find [authentik_core.user, [username, vizzle]]
 
-        # Blueprint 2: provider + application. The `groups` claim comes from the
-        # default profile mapping.
         02-wazuh-oidc.yaml: |
           version: 1
           metadata:
@@ -471,8 +430,6 @@ homelab-common:
                 authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
                 invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
                 redirect_uris:
-                  # OpenSearch Dashboards' security plugin serves the OIDC
-                  # callback at this fixed path.
                   - matching_mode: strict
                     url: https://wazuh.example.com/auth/openid/login
                 signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
@@ -495,10 +452,7 @@ homelab-common:
 
     - name: authentik-blueprint-opencloud
       blueprints:
-        # Blueprint 0: role groups. OpenCloud runs with
-        # PROXY_ROLE_ASSIGNMENT_DRIVER=oidc, so a user whose `roles` claim matches
-        # none of the default role mappings is refused at login — everyone who
-        # should reach OpenCloud must sit in one of these groups.
+        # Users outside these groups are refused at OpenCloud login (role driver oidc).
         00-opencloud-groups.yaml: |
           version: 1
           metadata:
@@ -517,9 +471,7 @@ homelab-common:
               attrs:
                 name: opencloudUser
 
-        # Blueprint 1: roles scope mapping (no dependencies).
-        # Must return a dict — authentik drops non-dict scope mapping results
-        # ("Scope returned a non-dict value, ignoring").
+        # Must return a dict, else "Scope returned a non-dict value, ignoring".
         01-opencloud-scope.yaml: |
           version: 1
           metadata:
@@ -535,11 +487,7 @@ homelab-common:
                 expression: |
                   return {"roles": [group.name for group in request.user.groups.all()]}
 
-            # The mobile apps (iOS/Android) hardcode their scope list to
-            # `openid profile email offline_access` — they ignore config.json's
-            # `scope` and never ask for `roles`. Emitting the same claim from a
-            # second mapping bound to `profile` makes the claim unconditional for
-            # this provider without touching the shared authentik default mapping.
+            # Mobile apps never request `roles`; bound to `profile` they still get it.
             - model: authentik_providers_oauth2.scopemapping
               identifiers:
                 name: "OAuth Mapping: OpenCloud 'roles' (profile)"
@@ -550,11 +498,7 @@ homelab-common:
                 expression: |
                   return {"roles": [group.name for group in request.user.groups.all()]}
 
-        # Blueprint 2: provider + app (references the scope via !Find, runs after 01-).
-        # Public client, no secret: every OpenCloud client (web, desktop, mobile) is a
-        # public PKCE client per upstream docs. One provider only — authentik scopes the
-        # issuer to a single application, and OpenCloud takes a single OC_OIDC_ISSUER,
-        # so the desktop loopback URIs live on this same provider.
+        # One public provider for all clients: OpenCloud takes a single OC_OIDC_ISSUER.
         02-opencloud-oidc.yaml: |
           version: 1
           metadata:
@@ -579,27 +523,22 @@ homelab-common:
                     url: https://opencloud.example.com/oidc-callback.html
                   - matching_mode: strict
                     url: https://opencloud.example.com/oidc-silent-redirect.html
-                  # OpenCloud Desktop uses a loopback redirect.
                   - matching_mode: strict
                     url: http://127.0.0.1
                   - matching_mode: strict
                     url: http://localhost
-                  # OpenCloud iOS/Android use a hardcoded custom-scheme redirect.
-                  # These strings live in the app binaries; the server never
-                  # advertises them (webfinger only returns the issuer relation).
+                  # Hardcoded in the mobile apps; not discoverable from the server.
                   - matching_mode: strict
                     url: oc://ios.opencloud.eu
                   - matching_mode: strict
                     url: oc://android.opencloud.eu
-                # Required: OpenCloud verifies the access token as a JWT
-                # (PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD=jwt).
+                # Required: OpenCloud verifies the access token as a JWT.
                 signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "authentik default OAuth Mapping: OpenID 'profile'"]]
-                  # Desktop and mobile request offline_access; without the mapping
-                  # authentik issues no refresh token and the clients re-login daily.
+                  # Without it, no refresh token: clients re-login daily.
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, offline_access]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenCloud 'roles'"]]
                   - !Find [authentik_providers_oauth2.scopemapping, [name, "OAuth Mapping: OpenCloud 'roles' (profile)"]]
@@ -615,7 +554,6 @@ homelab-common:
                 meta_description: File sync, share and collaboration
                 policy_engine_mode: any
 
-    # Serves the Forgejo on the ops node (git.example.com).
     - name: authentik-blueprint-forgejo
       blueprints:
         # Legacy filename kept: renaming creates a new BlueprintInstance (duplicate key).
@@ -658,9 +596,7 @@ homelab-common:
                 group: Homelab
 
   externalSecrets:
-    # Config secret for authentik (referenced via existingSecret.secretName).
-    # OIDC client secrets are read from each app's own <ns>/oidc (grant
-    # oidc-clients), the single copy the app's ExternalSecret reads too.
+    # OIDC client secrets come from each app's <ns>/oidc, shared with the app.
     - name: authentik-config
       vaultPath: authentik/authentik
       data:
@@ -688,8 +624,7 @@ homelab-common:
           property: client_secret
       templateData:
         AUTHENTIK_SECRET_KEY: "{{ .secret_key }}"
-        # Via PgBouncer (transaction pooling) — see argocd/apps/cnpg/manifests/pooler.yaml.
-        # USE_PGBOUNCER disables server-side cursors (incompatible with transaction mode).
+        # Transaction-mode PgBouncer: USE_PGBOUNCER disables server-side cursors.
         AUTHENTIK_POSTGRESQL__HOST: "cnpg-cluster-pooler-rw.cnpg.svc.cluster.local"
         AUTHENTIK_POSTGRESQL__USE_PGBOUNCER: "true"
         AUTHENTIK_POSTGRESQL__USER: "authentik"

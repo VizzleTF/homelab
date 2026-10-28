@@ -1,22 +1,11 @@
 #!/usr/bin/env bash
-# Apply (or update) Forgejo branch protection rule for `main` so that:
-#   - direct push is disabled
-#   - PRs are required
-#   - every pre-merge CI check must be green: gitleaks, yamllint, helm-lint,
-#     kubeconform, talos-validate, argocd-diff (Renovate automerges, so these are the only gate)
-#   - force-push and deletion are blocked
-#
-# Idempotent: PATCHes if the rule already exists, POSTs otherwise.
-# Forgejo API: https://docs.codeberg.org/api/  (Gitea-compatible)
+# Apply Forgejo branch protection for `main`: no direct or force push, no
+# deletion, PRs required, every pre-merge CI check green (Renovate automerges,
+# so these are the only gate). Idempotent: PATCH if the rule exists, else POST.
 #
 # Usage:
 #   FORGEJO_TOKEN=<token> ./scripts/forgejo-branch-protection.sh <owner>/<repo> [<owner>/<repo> ...]
-#
-# Token must have `write:repository` scope on the listed repos.
-# Get one from Forgejo: User Settings → Applications → Generate New Token.
-# In practice: home/homelab/forgejo/vizzle-merge-token (KV v2, key `token`) —
-# it carries the needed rights. A dedicated branch-protection-token was once
-# planned but that Vault path was never populated.
+# Token needs `write:repository`; use home/homelab/forgejo/vizzle-merge-token (key `token`).
 set -euo pipefail
 
 : "${FORGEJO_TOKEN:?FORGEJO_TOKEN must be set}"
@@ -49,13 +38,9 @@ protection_payload() {
       unprotected_file_patterns: "",
       block_on_rejected_reviews: false,
       block_on_official_review_requests: false,
-      # Disabled 2026-08-02. With `true`, only ONE PR could merge per Renovate
-      # run: automerging the first PR moved `main`, instantly marking every
-      # other rebased branch outdated, and Forgejo answered 405 on their
-      # automerge. Renovate opens updates faster than 1/day, so the queue never
-      # drained (#396/#399/#400 sat green+mergeable for days). Safety is not
-      # lost: the `gitleaks` status check still gates every PR, and it re-runs
-      # on `main` post-merge before the GitHub mirror push.
+      # Off since 2026-08-02: with `true` each automerge outdated every other
+      # Renovate branch (405), one PR merged per run and the queue never drained.
+      # gitleaks still gates every PR and re-runs on `main` before the mirror push.
       block_on_outdated_branch: false,
       dismiss_stale_approvals: true,
       ignore_stale_approvals: false,

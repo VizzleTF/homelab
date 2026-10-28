@@ -1,24 +1,14 @@
 ---
-# Cilium BGP — eBGP peering with OpenWrt to announce LoadBalancer IPs.
-#
-# Topology
-#   Cluster ASN : 65010
-#   Peer        : OpenWrt 10.11.11.1, ASN 65000
-#   Advertise   : LoadBalancer IPs from homelab-pool (10.11.10.0/24)
-#   MD5         : disabled (OpenWrt 25.12 kernel lacks CONFIG_TCP_MD5SIG)
+# eBGP to OpenWrt announcing LoadBalancer IPs from homelab-pool (10.11.10.0/24).
 apiVersion: cilium.io/v2
 kind: CiliumBGPClusterConfig
 metadata:
   name: homelab-bgp
   annotations:
-    # BGP CRDs are installed by cilium-operator at runtime after it sees
-    # bgpControlPlane.enabled=true in the ConfigMap (wave 0). Push CR apply
-    # to a later wave so the chart resources land first and the operator
-    # has time to register the CRDs; the AppSet-wide
-    # SkipDryRunOnMissingResource lets the first attempt pass the dry-run.
+    # cilium-operator registers the BGP CRDs at runtime, after the chart syncs.
     argocd.argoproj.io/sync-wave: "5"
 spec:
-  # Apply to every node — all 4 bare-metal nodes (3 CP + worker) peer with OpenWrt for ECMP.
+  # Every node peers with OpenWrt (ECMP).
   nodeSelector: {}
   bgpInstances:
     - name: openwrt
@@ -37,17 +27,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "5"
 spec:
-  # TCP MD5 auth deliberately omitted — the OpenWrt 25.12 kernel ships without
-  # CONFIG_TCP_MD5SIG, and BIRD logs "Kernel does not support TCP MD5 signatures"
-  # if a password is configured. Cluster subnet 10.11.11.0/24 is a trusted L2
-  # segment.
-  # GR covers a cilium-agent restart: the eBPF datapath keeps forwarding, so
-  # BIRD must not withdraw the route. But the helper keeps routes stale exactly
-  # as long as declared here, and on a node kernel panic a stale route is a
-  # black hole for 1/4 of the flows (BIRD puts all four nodes into ECMP).
-  # 120 s (the default) was two orders of magnitude longer than an agent
-  # restart takes. BFD, which would settle this, is Enterprise-only, not in
-  # OSS Cilium.
+  # No MD5 password: OpenWrt 25.12 kernel lacks CONFIG_TCP_MD5SIG (BIRD: "Kernel
+  # does not support TCP MD5 signatures").
+  # GR keeps routes through an agent restart; on a node panic a stale route
+  # black-holes 1/4 of ECMP flows for restartTimeSeconds (default 120 s too long).
   gracefulRestart:
     enabled: true
     restartTimeSeconds: 30

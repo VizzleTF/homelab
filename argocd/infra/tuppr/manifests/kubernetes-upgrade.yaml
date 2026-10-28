@@ -1,15 +1,6 @@
-# KubernetesUpgrade — declarative cluster-wide kubelet/control-plane upgrade.
-# One per cluster (enforced by the admission webhook).
-#
-# Runs an hour after the Talos OS window (Talos OS 09:00, K8s 10:00 Europe/Moscow).
-# tuppr does NOT enforce a safe upgrade path: Renovate with separateMinorPatch
-# MUST split minor and patch into separate PRs (otherwise a jump N -> N+2 can
-# slip through).
-#
-# tuppr does NOT gate on image lag either (ghcr.io/siderolabs/kubelet is
-# published with the Talos patch release, not upstream). Before a K8s minor
-# bump, make sure Talos is already on a patch that ships this kubelet (see
-# memory: reference_talos_kubelet_image_lag).
+# tuppr does not enforce a safe path: Renovate separateMinorPatch must keep
+# minor and patch apart, or N -> N+2 slips through. Before a minor bump, Talos
+# must already ship this kubelet (siderolabs/kubelet lags upstream).
 apiVersion: tuppr.home-operations.com/v1alpha1
 kind: KubernetesUpgrade
 metadata:
@@ -21,9 +12,7 @@ spec:
 
   maintenance:
     windows:
-      # Daily 10:00 MSK for 4h, an hour after the Talos OS window. An actual
-      # upgrade starts only when spec.kubernetes.version differs.
-      # Moved off the night because of the backups (see talos-upgrade.yaml).
+      # An hour after the Talos window; not at night (see talos-upgrade.yaml)
       - start: "0 10 * * *"
         duration: "4h"
         timezone: "Europe/Moscow"
@@ -35,18 +24,8 @@ spec:
       expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
       timeout: 15m
 
-    # The Longhorn Volume healthy check was removed on 2026-09-06. It was copied
-    # from talos-upgrade.yaml, where it is really needed: there nodes are drained
-    # and powercycled, so replicas must catch up before the next node is touched.
-    # KubernetesUpgrade does none of that: its CRD has neither drain nor policy
-    # (spec: healthChecks/kubernetes/maintenance/talosctl), and
-    # `talosctl upgrade-k8s` rolls the control-plane static pods and kubelet in
-    # place, with no pod eviction and no reboot. A replica rebuild in progress
-    # gets in the way of nothing here, yet the gate held the upgrade for hours
-    # (2026-09-06: the window opened at 10:00, the upgrade waited on immich's
-    # 250Gi volume, rebuilding after the overnight cp-03 incident).
-    #
-    # Node readiness (the check above) stays: here it is the meaningful gate.
+    # No Longhorn volume gate: upgrade-k8s neither drains nor reboots, and the gate
+    # held upgrades for hours behind replica rebuilds (2026-09-06).
 
   talosctl:
     image:

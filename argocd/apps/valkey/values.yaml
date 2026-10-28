@@ -1,26 +1,7 @@
-# Valkey: shared in-cluster cache (homelab-common workload).
-#
-# It used to be the bitnami/valkey chart. Bitnami dropped versioned tags from
-# its public catalog (only a floating `latest` is left), so the image had to be
-# pinned by digest by hand and Renovate could not see it. Valkey is a single
-# process without extras, so instead of swapping one third-party catalog for
-# another it is described by homelab-common: the official `valkey/valkey`
-# image with a versioned tag, tracked by Renovate's helm-values manager.
-#
-# Clients use `valkey-primary.valkey.svc.cluster.local:6379`:
-#   DB 0 — ArgoCD cache
-#   DB 1 — immich
-# The Service name is kept from the bitnami chart (fullnameOverride) so the
-# migration did not need edits in four client values files and an ArgoCD
-# restart.
-#
-# Persistence: none — /data is an emptyDir, the cache is lost on every pod
-# restart. That is fine: the data is recoverable (ArgoCD re-cache, immich
-# queues). It used to be a local-path PVC, which pinned the pod to one node —
-# draining that node (Talos upgrade 2026-09-30) left ArgoCD without its cache
-# and every app went `Unknown`. Without a PVC the pod reschedules anywhere.
+# Clients: valkey-primary.valkey.svc.cluster.local:6379, DB 0 ArgoCD, DB 1 immich.
+# No PVC: a node-pinned volume left ArgoCD cacheless on drain, all apps `Unknown` (2026-09-30).
 homelab-common:
-  # Password of the ACL user `app` (OpenBao homelab/k8s/valkey/valkey).
+  # ACL user `app`.
   externalSecrets:
     - name: valkey-auth
       vaultPath: valkey/valkey
@@ -28,7 +9,6 @@ homelab-common:
         - secretKey: password
           property: password
 
-  # Only the Valkey clients (ArgoCD, immich) may reach 6379.
   networkPolicy:
     enabled: true
     allow:
@@ -37,20 +17,18 @@ homelab-common:
 
   workloads:
     - name: valkey
-      # Deployment/Service stay `valkey-primary`, see the header.
+      # Clients use this Service name.
       fullnameOverride: valkey-primary
-      # Immutable selector of the Deployment created before homelab-common 1.19.
+      # Immutable selector of the existing Deployment.
       legacySelector:
         app: valkey
-      # The password is shared with ArgoCD and immich, which read it only at
-      # start: a Reloader roll of valkey alone would lock them out. Rotation
-      # order is in the valkey cheatsheet.
+      # Clients read the password only at start: rolling valkey alone locks them out.
+      # Rotation order: valkey cheatsheet.
       reload: false
       pod:
         securityContext:
           runAsNonRoot: true
-          # The valkey/valkey image creates user valkey as uid 999 / gid 1000
-          # (not 999 — a quirk of the valkey-container Dockerfile).
+          # The image's valkey user is 999:1000, not 999:999.
           runAsUser: 999
           runAsGroup: 1000
           fsGroup: 1000
@@ -61,15 +39,8 @@ homelab-common:
           image:
             repository: valkey/valkey
             tag: 9.1.2-alpine
-          # ACL: clients (ArgoCD, immich) log in as `app`. The ACL file is
-          # rendered at start from env into an emptyDir (rootfs is read-only).
-          # VALKEY_DEFAULT_USER=off disables the passwordless `default` user.
-          # No maxmemory on purpose.
-          # Persistence off (2026-10): /data is an emptyDir, so RDB snapshots
-          # (~4 GB/day of writes) survived nothing but a container restart.
-          # ArgoCD refills its cache; immich's BullMQ queue loses pending jobs
-          # on a restart — rerun "missing" jobs from the immich admin UI if
-          # that happens.
+          # No maxmemory on purpose. Persistence off: RDB wrote ~4 GB/day into an emptyDir.
+          # After a restart rerun "missing" jobs in the immich admin UI (BullMQ loses them).
           command:
             - sh
             - -ec

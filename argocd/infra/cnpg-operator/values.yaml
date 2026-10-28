@@ -1,5 +1,3 @@
-# CloudNativePG operator. Only non-default values.
-
 resources:
   limits:
     cpu: 100m
@@ -13,16 +11,14 @@ additionalEnv:
     value: "135MiB"
 
 config:
-  # Default 10; two shared clusters do not need more.
+  # Two shared clusters do not need the default 10.
   maxConcurrentReconciles: 5
 
 serviceAccount:
   name: cnpg-manager
 
-# Two replicas for the webhooks (failurePolicy Fail blocks every Cluster
-# change while the operator is down), on different nodes: without the
-# anti-affinity both could land on one node and the second replica bought
-# nothing.
+# Webhooks use failurePolicy Fail: an operator outage blocks every Cluster change,
+# so two replicas on different nodes.
 replicaCount: 2
 affinity:
   podAntiAffinity:
@@ -34,7 +30,6 @@ affinity:
             app.kubernetes.io/instance: cnpg-operator
 
 homelab-common:
-  # Default-deny ingress for the whole namespace (also covers the sibling app
-  # sharing it). No VMServiceScrape reads metrics there, so victoria-metrics gets no allow.
+  # Covers cnpg-barman-plugin too (shared namespace). No VMServiceScrape here, so no victoria-metrics allow.
   networkPolicy:
     enabled: true

@@ -1,24 +1,8 @@
-# Fork of renanqts/external-dns-openwrt-webhook (upstream is frozen: a single
-# v0.1.0 release from 2025-02-27, documented by upstream as upsert-only).
-# Since v0.11.0 the fork ships its own chart: external-dns + the webhook as a
-# native sidecar, --registry=noop and --managed-record-types=A,CNAME built in,
-# CRD OpenWrtRecord + its Role included (`kubectl -n external-dns-openwrt get owr`).
-# Source: https://github.com/VizzleTF/external-dns-openwrt-next
-#
-# Record ownership. The provider adds `external_dns=homelab` to every uci
-# section it creates and returns ONLY marked sections to external-dns.
-# Manual records (s3.example.com, git.example.com) stay invisible: they can be
-# neither updated nor deleted. This is the precondition for policy: sync,
-# which would otherwise remove them: registry=noop owns whatever the
-# provider returns, and a TXT registry is impossible (uci has no TXT).
-#
-# The marker is inert: dhcp_domain_add reads only name/ip, dhcp_cname_add
-# only cname/target; the option never reaches the generated dnsmasq config.
+# Marks created uci sections `external_dns=homelab`; only marked ones are returned,
+# so manual records (s3/git.example.com) survive policy: sync under registry=noop.
 ownershipID: homelab
 
-# ubus over plain HTTP on the LAN (uhttpd :80). rpcd login `external-dns` with
-# an ACL on `dhcp` only (the chart default username); the password comes from
-# OpenBao via ExternalSecret below.
+# rpcd login `external-dns` (ACL on `dhcp` only); password from homelab-values.yaml ExternalSecret.
 router:
   hostname: 10.11.12.1
   port: 80
@@ -33,20 +17,13 @@ externalDNS:
   domainFilters:
     - example.com
     - local
-  # `sync`: a hostname removed from k8s also removes its record on the router.
-  # IMPORTANT: sync is safe ONLY together with ownershipID. Before removing the
-  # marker, switch policy back to upsert-only.
+  # Chart policy is sync: safe ONLY with ownershipID; drop the marker -> switch to upsert-only.
   interval: 5m  # pinned: --events covers new records, the loop is the safety net
   logFormat: text  # pinned: matches the rest of the cluster's external-dns logs
   extraArgs:
-    # Reconcile on HTTPRoute/TLSRoute/Service events (rate-limited to one run
-    # per 5 s), so a new hostname reaches the router in seconds.
     - --events
-    # The prefix is explicit although it equals the v0.22 default: it sits next
-    # to the filter, which spells the full annotation name, and the two must
-    # match. Change them together: on a mismatch external-dns stops seeing the
-    # target and falls back to the Gateway address, and policy: sync removes
-    # live CNAMEs (how DNS went down on 2026-09-12).
+    # Prefix must match the filter's annotation name: on a mismatch policy: sync
+    # deletes live CNAMEs (DNS outage 2026-09-12). Change both together.
     - --annotation-prefix=external-dns.kubernetes.io/
     - --annotation-filter=external-dns.kubernetes.io/internal-dns in (true)
   resources:
@@ -59,8 +36,7 @@ externalDNS:
 
 webhook:
   extraEnv:
-    # Adoption: if a requested record already exists on the router without the
-    # marker, the provider marks that section instead of creating a duplicate.
+    # Marks an existing unmarked record instead of creating a duplicate.
     - name: PROVIDER_OPENWRT_ADOPTEXISTING
       value: "true"
   resources:

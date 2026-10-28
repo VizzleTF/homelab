@@ -1,6 +1,5 @@
-# homelab-common only (second source of the AppSet). Kept apart from values.yaml: the external-dns-openwrt chart has a strict values schema.
+# Kept apart from values.yaml: the chart has a strict values schema.
 homelab-common:
-  # Default-deny ingress; only vmagent scrapes from outside (manifests/vmservicescrape.yaml).
   networkPolicy:
     enabled: true
     allow:

@@ -1,17 +1,6 @@
-# Weekly restore drill.
-#
-# A backup nobody has ever restored from is an assumption, not a backup. Once a
-# week the CronJob takes one app from the rotation, restores its volume from the
-# restic repository into a separate namespace, checks the content for real and
-# cleans up after itself. The target switches after every full round, so the
-# off-site repository is checked as often as the on-prem one.
-#
-# The result goes out two ways:
-#   - metrics in VictoriaMetrics (history + the RestoreDrillStale alert)
-#   - an alert to Alertmanager -> Robusta -> Telegram, on success and on failure
-#     (success has severity=info and no endsAt: Alertmanager closes it after resolve_timeout)
+# Weekly restore drills; design: obsidian/112 ArgoCD/Infrastructure/all/backup-drill.md.
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # Metrics are pushed, not scraped: no allow for victoria-metrics
   networkPolicy:
     enabled: true
 
@@ -22,9 +11,7 @@ homelab-common:
       memory: 64Mi
 
   externalSecrets:
-    # Repository passwords and keys of both targets are the ones VolSync uses.
-    # No secrets are copied from other namespaces: the drill builds
-    # RESTIC_REPOSITORY itself from the app name.
+    # The VolSync repo credentials; the drill builds RESTIC_REPOSITORY from the app name.
     - name: drill-restic
       vaultPath: shared/restic-garage
       data:
@@ -59,8 +46,7 @@ homelab-common:
       templateData:
         OVH_AK: "{{ .ak }}"
         OVH_SK: "{{ .sk }}"
-    # restore-drill-core: the CNPG barman bucket and the snapshots bucket
-    # (OpenBao raft, etcd) on both targets, rclone remotes as in openbao.
+    # restore-drill-core: CNPG barman bucket and the OpenBao/etcd snapshots bucket
     - name: drill-s3-cnpg
       vaultPath: shared/s3-cnpg-backup
       data:
@@ -107,15 +93,12 @@ homelab-common:
         create: true
       clusterRole:
         name: backup-drill
-        # Broad rights by necessity: the drill creates and deletes its own
-        # drill-* namespaces, and RBAC cannot be limited by a name prefix.
-        # The trade-off: no rights to modify other workloads, so
-        # deployments/statefulsets/daemonsets are not in the list.
+        # Cluster-wide: RBAC cannot scope to a drill-* name prefix. Keep it free of
+        # rights to modify other workloads (deployments/statefulsets/daemonsets).
         rules:
           - apiGroups: [""]
             resources: ["namespaces"]
-            # patch: to set volsync.backube/privileged-movers on its own
-            # drill namespace.
+            # patch: volsync.backube/privileged-movers on its drill namespace
             verbs: ["get", "list", "create", "delete", "patch"]
           - apiGroups: [""]
             resources: ["persistentvolumeclaims", "secrets", "pods", "pods/log"]
@@ -123,13 +106,11 @@ homelab-common:
           - apiGroups: ["volsync.backube"]
             resources: ["replicationdestinations"]
             verbs: ["get", "list", "create", "delete"]
-          # rotation = ReplicationSources labelled homelab.dr/drill
+          # Rotation reads ReplicationSources labelled homelab.dr/drill
           - apiGroups: ["volsync.backube"]
             resources: ["replicationsources"]
             verbs: ["list"]
-          # restore-drill-core: scripts for its pods, the throwaway CNPG
-          # cluster and its ObjectStore; get on the production ones to copy
-          # their spec.
+          # restore-drill-core: throwaway CNPG cluster/ObjectStore; get copies prod specs
           - apiGroups: [""]
             resources: ["configmaps"]
             verbs: ["create"]
@@ -143,11 +124,9 @@ homelab-common:
   workloads:
     - name: restore-drill           # -> CronJob backup-drill-restore-drill
       type: cronjob
-      # Sundays 09:00 UTC: after the nightly backup window and the weekly off-site run.
+      # After the nightly backups and the weekly off-site run
       schedule: "0 9 * * 0"
-      # Deliberate departures from the chart CronJob defaults: one attempt per
-      # week (a failure is reported, not retried), up to an hour per run, and
-      # three successful runs kept for their logs.
+      # One attempt per week: a failure is reported, not retried
       spec:
         startingDeadlineSeconds: 3600
         successfulJobsHistoryLimit: 3
@@ -179,8 +158,7 @@ homelab-common:
               value: 20Gi
             - name: DRILL_TIMEOUT
               value: "2400"
-            # Images of the helper pods the script starts with `kubectl run`.
-            # Tag only: the marker regex takes the first digit on the next line,
+            # Tag only: the renovate regex takes the first digit on the next line,
             # which in "keinos/sqlite3:<tag>" would be the 3 of the name.
             - name: ALPINE_TAG
               # renovate: datasource=docker depName=alpine
@@ -212,13 +190,9 @@ homelab-common:
             - |
               set -eu
 
-              # Rotation: one app per week; the target switches after every full round.
-              # Week parity alone does not work: with an even COUNT it pins every app to
-              # one target forever. Result: each volume is checked every COUNT weeks, on
-              # each target every 2*COUNT weeks.
-              # Weeks count from epoch, not ISO: the ISO week number resets in January.
-              # The list is every VolSync volume with homelab-common `drill` on (label
-              # homelab.dr/drill=<name>), so adding or removing a volsync entry updates it.
+              # One app per week; target flips per full round (plain week parity pins every
+              # app to one target when COUNT is even). Epoch weeks: ISO weeks reset in January.
+              # Apps = volsync entries with homelab-common `drill` on (label homelab.dr/drill).
               VOLS=$(kubectl get replicationsources -A -l homelab.dr/drill -o jsonpath='{range .items[*]}{.metadata.labels.homelab\.dr/drill}{"\n"}{end}' | sort -u)
               [ -n "$VOLS" ] || { echo "no ReplicationSource labelled homelab.dr/drill"; exit 1; }
               APPS="$VOLS forgejo-ops"   # forgejo-ops is the ops-node dump, not VolSync
@@ -244,18 +218,12 @@ homelab-common:
               report() {
                 ok="$1"; detail="$2"
                 now=$(date -u +%s); dur=$((now - START))
-                # History in VictoriaMetrics; RestoreDrillStale alerts on it as well.
                 printf 'homelab_restore_drill_success{app="%s",target="%s"} %s\nhomelab_restore_drill_timestamp{app="%s",target="%s"} %s\nhomelab_restore_drill_duration_seconds{app="%s",target="%s"} %s\n' \
                   "$APP" "$TARGET" "$ok" "$APP" "$TARGET" "$now" "$APP" "$TARGET" "$dur" \
                   | curl -sf -X POST --data-binary @- "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
 
-                # Notify along the same route as regular alerts: Alertmanager -> Robusta
-                # -> Telegram. Success goes out with severity=info.
-                # endsAt is left out on purpose: BusyBox date cannot do relative values
-                # ("-d '+10 minutes'" silently falls back to "now" and the alert arrives
-                # already resolved; caught on the very first run). Without endsAt
-                # Alertmanager closes the alert after resolve_timeout, and a failure is
-                # also held by the RestoreDrillFailed rule on the metric.
+                # No endsAt: BusyBox date silently turns "-d '+10 minutes'" into "now" and
+                # the alert arrives resolved. Alertmanager closes it after resolve_timeout.
                 if [ "$ok" = "1" ]; then
                   name=RestoreDrillSucceeded; sev=info
                 else
@@ -274,11 +242,8 @@ homelab-common:
 
               kubectl create ns "$NS" >/dev/null 2>&1 || true
 
-              # forgejo-ops is not a PVC snapshot: the ops node ships a tar.zst made by
-              # `forgejo dump`, so there is nothing for VolSync to restore. Verify the
-              # archive itself — it must exist, be plausibly large, and actually contain
-              # the database and the repositories. A dump that restic accepted but that
-              # unpacks to nothing would otherwise pass unnoticed.
+              # forgejo-ops is a `forgejo dump` tar.zst, not a volume: check its size and
+              # that it contains the database and the repositories.
               if [ "$APP" = "forgejo-ops" ]; then
                 kubectl -n "$NS" create secret generic drill-restic                             --from-literal=RESTIC_REPOSITORY="$REPO_URL"                             --from-literal=RESTIC_PASSWORD="$PW"                             --from-literal=AWS_ACCESS_KEY_ID="$AK"                             --from-literal=AWS_SECRET_ACCESS_KEY="$SK" >/dev/null
 
@@ -298,10 +263,7 @@ homelab-common:
                 report 1 "$SUMMARY"
                 exit 0
               fi
-              # A restore gives files back their original owners, and chown to a foreign
-              # uid needs CAP_CHOWN, which a regular mover lacks (VolSync sets
-              # drop: [ALL]). Privileged movers are enabled by a namespace annotation:
-              # the official VolSync mechanism, confined to our throwaway drill namespace.
+              # Restoring original owners needs CAP_CHOWN, which regular movers lack
               kubectl annotate ns "$NS" volsync.backube/privileged-movers=true --overwrite >/dev/null
               kubectl -n "$NS" create secret generic drill-restic \
                 --from-literal=RESTIC_REPOSITORY="$REPO_URL" \
@@ -315,10 +277,8 @@ homelab-common:
               metadata: {name: drill-data, namespace: $NS}
               spec:
                 accessModes: [ReadWriteOnce]
-                # Class with reclaimPolicy Delete and one replica: the volume lives for
-                # minutes and goes away with the namespace. With plain longhorn (Retain)
-                # every run would leave an orphaned PV: three days of that piled up 100
-                # of them holding 993Gi of reserved scheduling.
+                # reclaimPolicy Delete: plain longhorn (Retain) leaves an orphaned PV
+                # per run (100 PVs / 993Gi reserved in three days).
                 storageClassName: longhorn-volsync-clone
                 resources: {requests: {storage: ${DRILL_SIZE:-20Gi}}}
               ---
@@ -334,10 +294,8 @@ homelab-common:
                   cacheStorageClassName: local-path
                   cacheCapacity: 4Gi
                   cacheAccessModes: [ReadWriteOnce]
-                  # The mover must restore the original file owners, and only root can
-                  # lchown to a foreign uid. An unprivileged mover fails with "operation
-                  # not permitted" on any volume whose owner differs from its own uid
-                  # (caught on opencloud-data).
+                  # Only root can lchown to a foreign uid; otherwise "operation not
+                  # permitted" on volumes owned by another uid (opencloud-data).
                   moverSecurityContext:
                     runAsUser: 0
                     runAsGroup: 0
@@ -352,12 +310,8 @@ homelab-common:
               done
               echo "restore finished at $(kubectl -n "$NS" get replicationdestination drill -o jsonpath='{.status.lastSyncTime}')"
 
-              # The verify pod runs as root: app volumes often have drwxrwx--- directories
-              # owned by someone else, and an unprivileged find does not descend into them;
-              # it would count FILES=0 on a fully restored volume (it did on opencloud-data).
-              # Real check: the files are there, and if it is SQLite, the database opens
-              # and passes integrity_check. An empty volume is a failure: that is exactly
-              # how the netbird backup silently looked until 2026-09-10.
+              # Root: an unprivileged find skips foreign drwxrwx--- dirs and counts FILES=0.
+              # An empty volume fails (netbird's backup was silently empty until 2026-09-10).
               kubectl -n "$NS" run verify --restart=Never --image="keinos/sqlite3:$SQLITE_TAG" \
                 --overrides='{"spec":{"securityContext":{"runAsUser":0,"runAsGroup":0},"containers":[{"name":"verify","image":"keinos/sqlite3:'"$SQLITE_TAG"'","command":["sh","-c","set -e; files=$(find /data -type f -not -path \"*/lost+found/*\" | wc -l); bytes=$(du -sb /data | cut -f1); echo FILES=$files; echo BYTES=$bytes; [ \"$files\" -gt 0 ] || { echo EMPTY; exit 1; }; db=$(find /data -maxdepth 2 -name \"*.sqlite3\" -o -maxdepth 2 -name \"*.db\" | head -1); if [ -n \"$db\" ]; then echo DB=$db; res=$(sqlite3 \"file:$db?mode=ro\" \"PRAGMA integrity_check;\"); echo INTEGRITY=$res; [ \"$res\" = ok ] || exit 1; fi; echo VERIFY_OK"],"volumeMounts":[{"name":"d","mountPath":"/data"}]}],"volumes":[{"name":"d","persistentVolumeClaim":{"claimName":"drill-data"}}],"restartPolicy":"Never"}}' >/dev/null
 
@@ -374,12 +328,10 @@ homelab-common:
               echo "$SUMMARY"
               report 1 "$SUMMARY"
 
-    # Weekly drill of the backups VolSync does not hold: CNPG (barman base
-    # backup + WAL), the OpenBao raft snapshot and the etcd snapshot. Plan and
-    # reasons: obsidian/112 ArgoCD/Infrastructure/all/backup-drill.md.
+    # Backups VolSync does not hold: CNPG (barman), OpenBao raft, etcd snapshot
     - name: restore-drill-core      # -> CronJob backup-drill-restore-drill-core
       type: cronjob
-      # Sundays 10:00 UTC: after restore-drill (09:00), so the two never share a node's IO.
+      # After restore-drill, so the two never share a node's IO
       schedule: "0 10 * * 0"
       spec:
         startingDeadlineSeconds: 3600
@@ -418,7 +370,7 @@ homelab-common:
               # renovate: datasource=docker depName=quay.io/openbao/openbao
               value: "2.7.2"
             - name: ETCD_TAG
-              # Same minor as the cluster etcd (talosctl etcd status: 3.7).
+              # Same minor as the cluster etcd (talosctl etcd status)
               # renovate: datasource=docker depName=gcr.io/etcd-development/etcd
               value: "v3.7.3"
           envFrom:
@@ -443,8 +395,7 @@ homelab-common:
 
               START=$(date -u +%s)
               WEEK=$(( START / 604800 ))
-              # Snapshots alternate the target, CNPG alternates the cluster (barman
-              # has one target, garage).
+              # Snapshots alternate the target; CNPG alternates the cluster (barman is garage-only)
               if [ $(( WEEK % 2 )) -eq 0 ]; then
                 SNAP_TARGET=garage; SNAP_ROOT=garage:snapshots; PG=cnpg/cnpg-cluster
               else
@@ -461,7 +412,7 @@ homelab-common:
                 printf 'homelab_restore_drill_success{app="%s",target="%s",drill="core"} %s\nhomelab_restore_drill_timestamp{app="%s",target="%s",drill="core"} %s\nhomelab_restore_drill_duration_seconds{app="%s",target="%s",drill="core"} %s\n' \
                   "$1" "$2" "$3" "$1" "$2" "$now" "$1" "$2" "$5" \
                   | curl -sf -X POST --data-binary @- "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
-                # endsAt left out for the reason given in restore-drill.
+                # No endsAt: see restore-drill.
                 if [ "$3" = "1" ]; then name=RestoreDrillSucceeded; sev=info; else name=RestoreDrillFailed; sev=critical; fi
                 cat <<JSON | curl -sf -X POST -H 'Content-Type: application/json' --data-binary @- "$AM_URL/api/v2/alerts" >/dev/null || echo "WARN: alert push failed"
               [{
@@ -485,8 +436,7 @@ homelab-common:
                 return 1
               }
 
-              # Each check runs in a background subshell: errexit works there
-              # (it is off inside an `if`), and one failed check does not stop the others.
+              # Background subshell: errexit works (off inside `if`); a failure does not stop the rest.
               run() {   # app target function
                 t0=$(date -u +%s); rc=0
                 ( trap - EXIT; "$3" ) >"/tmp/$1.log" 2>&1 &
@@ -501,7 +451,6 @@ homelab-common:
                 fi
               }
 
-              # --- etcd: hash-checked restore, then read it back through a real etcd.
               drill_etcd() {
                 cat <<YAML | kubectl apply -f - >/dev/null
               apiVersion: v1
@@ -523,7 +472,6 @@ homelab-common:
                       - {name: HOME, value: /tmp}
                     envFrom: [{secretRef: {name: drill-rclone}}]
                     volumeMounts: [{name: work, mountPath: /work}, {name: scripts, mountPath: /scripts}]
-                  # etcdutl verifies the snapshot hash before it writes the data dir.
                   - name: restore
                     image: gcr.io/etcd-development/etcd:$ETCD_TAG
                     command: [etcdutl, snapshot, restore, /work/etcd.snap, --data-dir, /work/data, --name, drill, --initial-cluster, "drill=http://127.0.0.1:2380", --initial-advertise-peer-urls, "http://127.0.0.1:2380"]
@@ -546,10 +494,8 @@ homelab-common:
                 echo "SUMMARY: $(echo "$logs" | grep -oE 'SNAP=[^ ]+|AGE_H=[0-9]+|NAMESPACES=[0-9]+' | tr '\n' ' ')"
               }
 
-              # --- OpenBao: load the snapshot into a throwaway raft node. No
-              # production unseal keys here: the restore itself proves the
-              # snapshot is complete, and the node then seals with the
-              # snapshot's own seal config (n > 1, the throwaway had 1 share).
+              # OpenBao: no production unseal keys; after restore the node seals with the
+              # snapshot's seal config (n > 1, the throwaway had 1 share).
               drill_openbao() {
                 cat <<YAML | kubectl apply -f - >/dev/null
               apiVersion: v1
@@ -584,20 +530,16 @@ homelab-common:
                 echo "SUMMARY: $(echo "$logs" | grep -oE 'SNAP=[^ ]+|AGE_H=[0-9]+|RAFT_INDEX=[0-9]+|SEAL_SHARES=[0-9]+' | tr '\n' ' ')"
               }
 
-              # --- CNPG: recover a throwaway cluster from the production barman
-              # archive to its end, then check it replayed every archived WAL.
-              # Not a time target: immich has 5 h windows without a single WAL
-              # (measured 2026-10-24), and a target past the last commit fails
-              # with "recovery ended before configured recovery target was reached".
+              # CNPG: recover to the archive end. No time target: immich has 5 h without WAL,
+              # so it fails with "recovery ended before configured recovery target was reached".
               drill_cnpg() {
                 CL=$(kubectl -n "$SRC_NS" get cluster "$SRC" -o json)
                 STORE=$(echo "$CL" | jq -er '.spec.plugins[] | select(.isWALArchiver) | .parameters.barmanObjectName')
                 SERVER=$(echo "$CL" | jq -er --arg d "$SRC" '.spec.plugins[] | select(.isWALArchiver) | .parameters.serverName // $d')
                 q() { curl -sf "$VM_URL/api/v1/query" --data-urlencode "query=$1"; }
-                # Start LSN of the last segment the primary archived before the drill;
-                # the restored timeline must begin past it. The CNPG metric holds
-                # hi<<32 + segment number, not the segment's offset: rebuild it for
-                # 16 MiB segments (B8/E2 comes as 790273982690, not 794065633280).
+                # Restore must replay past the last archived segment. The metric holds
+                # hi<<32 + segment number, not the offset: rebuilt for 16 MiB segments
+                # (B8/E2 comes as 790273982690, not 794065633280).
                 WAL_LSN=$(q "max(cnpg_pg_stat_archiver_last_archived_wal_start_lsn{namespace=\"$SRC_NS\"})" \
                   | jq -er '.data.result[0].value[1] | tonumber | floor | (. / 4294967296 | floor) as $hi | $hi * 4294967296 + (. - $hi * 4294967296) * 16777216')
                 DBS=$(q "count by (datname) (cnpg_pg_database_size_bytes{namespace=\"$SRC_NS\"})" | jq -r '.data.result[].metric.datname' | grep -vxE 'template[01]|postgres' | sort | tr '\n' ' ')
@@ -608,17 +550,13 @@ homelab-common:
                 AKK=$(echo "$OS" | jq -er '.spec.configuration.s3Credentials.accessKeyId.key')
                 SKK=$(echo "$OS" | jq -er '.spec.configuration.s3Credentials.secretAccessKey.key')
                 kubectl -n "$NS" create secret generic drill-s3-cnpg --from-literal="$AKK=$CNPG_AK" --from-literal="$SKK=$CNPG_SK" >/dev/null
-                # retentionPolicy dropped: nothing in the drill may prune the production archive.
+                # Nothing in the drill may prune the production archive
                 echo "$OS" | jq --arg ns "$NS" '{apiVersion, kind, metadata: {name: "drill-store", namespace: $ns},
                   spec: (.spec | del(.retentionPolicy)
                     | .configuration.s3Credentials.accessKeyId.name = "drill-s3-cnpg"
                     | .configuration.s3Credentials.secretAccessKey.name = "drill-s3-cnpg")}' | kubectl apply -f - >/dev/null
-                # A whitelist, not a copy of the spec: .spec.plugins (WAL archiver)
-                # must never reach the drill cluster, it would write into the
-                # production archive.
-                # targetTLI = the production timeline: "latest" follows any newer
-                # .history in the archive, and immich's holds a stray 00000002.history
-                # (left by an earlier restore) while the cluster runs on timeline 1
+                # Whitelist: .spec.plugins (WAL archiver) would write into the prod archive.
+                # targetTLI pinned: "latest" follows immich's stray 00000002.history
                 # ("requested timeline 2 is not a child of this server's history").
                 echo "$CL" | jq -e '.status.timelineID > 0' >/dev/null
                 echo "$CL" | jq --arg ns "$NS" --arg srv "$SERVER" '{apiVersion, kind, metadata: {name: "drill-pg", namespace: $ns},
@@ -682,7 +620,6 @@ homelab-common:
               rm -f /tmp/rclone.env
 
               mkdir -p /tmp/scripts
-              # Newest object under $SRC, refused when older than 36 h.
               cat > /tmp/scripts/fetch.sh <<'SH'
               set -eu
               line=$(rclone lsf --files-only --format tp --separator ';' "$SRC" | sort | tail -1)
@@ -694,7 +631,7 @@ homelab-common:
               rclone copyto "$SRC/$name" "$OUT"
               test -s "$OUT"
               SH
-              # etcd v3 JSON gateway: keys are base64, a prefix is [key, key with its last byte + 1).
+              # etcd v3 JSON gateway: keys are base64; a prefix is [key, key with last byte + 1)
               cat > /tmp/scripts/etcd-verify.sh <<'SH'
               set -eu
               b64() { printf '%s' "$1" | base64 | tr -d '\n'; }

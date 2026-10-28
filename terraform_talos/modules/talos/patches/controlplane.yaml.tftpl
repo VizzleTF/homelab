@@ -5,25 +5,12 @@ machine:
 %{ endfor ~}
 cluster:
   etcd:
-    # Dedicated unauthenticated metrics/health listener so VictoriaMetrics can
-    # scrape etcd (kubeEtcd). Plain HTTP on 2381 — reachable only on the
-    # servers VLAN behind the host firewall.
-    #
-    # Compaction: kube-apiserver already compacts etcd every 5 min
-    # (--etcd-compaction-interval default), so etcd's own periodic compaction
-    # was a duplicate and is gone (2026-10). Quota raised to 8 GiB headroom.
-    # Talos does NOT auto-defrag; defrag stays manual: `talosctl etcd defrag`
-    # (leader last, only when dbSize vs dbSizeInUse diverge >40%).
-    #
-    # heartbeat 250 ms / election 2.5 s instead of 100 ms / 1 s: fsync on the
-    # shared DRAM-less SATA SSDs spikes past 1 s, and every false election adds
-    # churn. Must be identical on all members.
-    #
-    # backend-batch-interval 1s instead of 100 ms: bbolt rewrites the touched
-    # B-tree pages on every backend commit; ~5.6 commits/s of lease renewals
-    # made etcd the largest writer on the CP disks while the WAL itself is
-    # <1 GB/day (2026-10). Durability comes from the WAL fsync per request, so
-    # a longer batch only lengthens WAL replay after a crash.
+    # 2381: plain-HTTP metrics for VictoriaMetrics (kubeEtcd), servers VLAN only.
+    # No etcd auto-compaction: kube-apiserver compacts every 5 min. Talos does not
+    # defrag: `talosctl etcd defrag` by hand, leader last, when dbSize vs dbSizeInUse >40%.
+    # heartbeat/election 250 ms/2.5 s: SSD fsync spikes past 1 s cause false
+    # elections; must match on all members. batch 1s: cuts bbolt page rewrites
+    # (lease renewals); durability stays with the per-request WAL fsync.
     extraArgs:
       listen-metrics-urls: http://0.0.0.0:2381
       quota-backend-bytes: "8589934592"
@@ -31,10 +18,8 @@ cluster:
       election-timeout: "2500"
       backend-batch-interval: 1s
 ---
-# Required by tuppr (home-operations/tuppr) — controller runs inside the
-# cluster and uses the Talos API to drive node upgrades. Without this
-# the controller cannot reach the Talos API and TalosUpgrade CRs fail with
-# auth errors. Scope limited to ns system-upgrade + os:admin role.
+# tuppr drives upgrades via the Talos API; without this TalosUpgrade CRs fail
+# with auth errors.
 apiVersion: v1alpha1
 kind: KubeTalosAPIAccessConfig
 allowedRoles:
@@ -51,9 +36,8 @@ taints:
 ---
 apiVersion: v1alpha1
 kind: KubeAPIServerConfig
-# Live heap ~1.3 GiB, RSS 2.0-2.6 GiB, 7-day peak 3.1 GiB: with GOGC=100 and
-# no limit the heap goal doubled the live set (2026-10). Soft limit: Go
-# collects more often near it, nothing gets OOM-killed.
+# Live heap ~1.3 GiB; without a limit GOGC=100 doubles it. Soft limit: Go
+# collects more near it, nothing is OOM-killed.
 env:
   GOMEMLIMIT: 2GiB
 certExtraSANs:
@@ -77,16 +61,12 @@ configuration:
     enforce-version: latest
     warn: restricted
     warn-version: latest
-  # exemptions omitted — Talos already defaults to namespaces:[kube-system];
-  # listing it here causes strategic-merge list-append → duplicate entry →
+  # No exemptions: Talos already sets [kube-system]; the merge appends a copy and
   # kube-apiserver fails with "exemptions.namespaces[1]: Duplicate value".
 ---
-# Only what someone reads: Vector forwards secret/RBAC/serviceaccount
-# mutations and pod exec/attach/portforward to Wazuh (argocd/infra/
-# victoria-logs). Metadata for every request, reads included, was
-# 1-4 GB/day per CP node on the disks shared with etcd (2026-10).
-# exec/attach/portforward come first: over websockets they arrive as verb
-# "get" and the read rule below would drop them.
+# Only what Vector forwards to Wazuh (argocd/infra/victoria-logs); logging all
+# reads cost 1-4 GB/day per CP disk shared with etcd. exec/attach/portforward
+# go first: over websockets they arrive as "get" and the read rule drops them.
 apiVersion: v1alpha1
 kind: KubeAuditPolicyConfig
 configuration:
@@ -113,9 +93,8 @@ configuration:
         - group: authorization.k8s.io
     - level: Metadata
 ---
-# Leader-election renewals are writes to etcd (a lease PUT every retry
-# period on all three members). 15 s instead of 2 s cuts them ~7x; a dead
-# leader is replaced within 60 s instead of 15 s.
+# Lease renewals are etcd writes: 15 s retry cuts them ~7x; a dead leader is
+# replaced within 60 s.
 apiVersion: v1alpha1
 kind: KubeControllerManagerConfig
 extraArgs:

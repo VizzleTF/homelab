@@ -1,11 +1,5 @@
-# Алерты на архивацию WAL. До появления VMPodScrape метрик cnpg_* не было
-# вовсе — отказ архивации был невидим, а PITR-окно существовало только на бумаге.
-#
-# NB: `cnpg_collector_last_available_backup_timestamp` для shared-кластера
-# застыл на июне 2026 — это метрика in-tree barman, а кластер с тех пор
-# бэкапится плагином barman-cloud. Для cnpg свежесть base backup берётся из
-# `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp` (плагин);
-# для immich тоже (плагин с 2026-09-24). См. CnpgBaseBackupStale.
+# Не `cnpg_collector_last_available_backup_timestamp`: метрика in-tree barman застыла.
+# Свежесть backup — из barman_cloud_cloudnative_pg_io_* (плагин).
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -50,9 +44,7 @@ spec:
               cnpg_* не скрейпятся >30 минут — состояние архивации WAL снова
               вслепую. Проверить VMPodScrape cnpg и поды инстансов.
 
-        # Base backups: both clusters back up through the barman-cloud plugin
-        # (cnpg_collector_last_available_backup_timestamp froze when each moved
-        # off in-tree barman). Daily schedule + slack = 30h.
+        # Daily schedule + slack = 30h.
         - alert: CnpgBaseBackupStale
           expr: (time() - max by (namespace) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)) > 30 * 3600
           for: 1h

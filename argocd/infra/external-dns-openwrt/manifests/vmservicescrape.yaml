@@ -1,6 +1,4 @@
-# The chart Service "external-dns-openwrt" exposes both containers:
-# `http` (7979) = external-dns controller metrics,
-# `http-webhook` (8080) = webhook metrics (external_dns_openwrt_*).
+# `http` = external-dns controller, `http-webhook` = webhook (external_dns_openwrt_*).
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:

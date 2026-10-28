@@ -9,18 +9,15 @@ cluster:
   # renovate: datasource=github-releases depName=siderolabs/talos
   talos_release: v1.14.4
 
-# Bare-metal Talos nodes. To add a node: power it on with a Talos factory
-# ISO, confirm `talosctl --insecure -e <ip> -n <ip> version` answers, then
-# add an entry here and run `terraform apply`. See skill managing-talos-node (add)
-# skill for the full flow.
+# New node: boot the factory ISO, check `talosctl --insecure -e <ip> -n <ip> version`,
+# add an entry, `terraform apply` (skill managing-talos-node).
 nodes:
   talos-cp-01:
     enabled: true
     address: 10.11.11.101/24
     role: controlplane
     install_disk: /dev/sda
-    # New box since 2026-10-01: 4 NICs (enp1s0..enp4s0), only enp1s0 is cabled.
-    # Without the MAC pin, `physical: true` would put .101 + VIP on all four.
+    # 4 NICs, only enp1s0 cabled: without the MAC pin .101 + VIP land on all four.
     mac: 00:f1:f7:a0:44:af
     # Intel iGPU on every box; the GPU device plugin DaemonSet selects on it.
     labels:
@@ -31,7 +28,6 @@ nodes:
     role: controlplane
     install_disk: /dev/sda
     mac: 68:1d:ef:3f:00:1b  # enp1s0; enp3s0 is not cabled
-    # Intel iGPU on every box; the GPU device plugin DaemonSet selects on it.
     labels:
       homelab.example.com/gpu: "true"
   talos-cp-03:
@@ -40,7 +36,6 @@ nodes:
     role: controlplane
     install_disk: /dev/sda
     mac: 68:1d:ef:3f:0e:ab  # enp1s0; enp3s0 is not cabled
-    # Intel iGPU on every box; the GPU device plugin DaemonSet selects on it.
     labels:
       homelab.example.com/gpu: "true"
   talos-worker-01:

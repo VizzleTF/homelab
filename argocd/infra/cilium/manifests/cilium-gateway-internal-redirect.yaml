@@ -1,7 +1,5 @@
-# Plain HTTP on the internal gateway only redirects to HTTPS. homelab-common
-# (>= 1.16.0) attaches internal routes to the `https` listener alone, so
-# without this route http://openbao.example.com & co would answer in clear text
-# (tokens included). No hostnames: catches every host on this listener.
+# Internal routes attach to `https` only; without this redirect plain HTTP would
+# serve internal hosts (tokens included) in clear text. No hostnames: catch-all.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

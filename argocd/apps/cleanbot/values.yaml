@@ -1,7 +1,3 @@
-# Cleanbot — Telegram bot that deletes old messages in forum topics.
-# Source: https://git.example.com/vizzle/cleanbot
-# Vault:  homelab/k8s/cleanbot/app-secrets  (bot_token, webhook_header_secret, webhook_path_secret)
-
 homelab-common:
   networkPolicy:
     enabled: true
@@ -44,19 +40,17 @@ homelab-common:
         name: cleanbot
         port: 8080
 
-  # Only non-defaults: every other setting keeps its default from
-  # src/cleanjob/config.py, so an image bump brings its own defaults.
+  # Non-defaults only, so an image bump brings its own defaults.
   configMaps:
     - name: cleanbot
       data:
         WEBHOOK_BASE_URL: "https://cleanbot.example.com"
 
   workloads:
-    - name: cleanbot                # -> Deployment + Service "cleanbot"
+    - name: cleanbot
       pod:
-        # Explicit on purpose: only dropping serviceAccountName (SSA) keeps the
-        # deprecated serviceAccount field, so pods would still ask for the pruned
-        # SA "cleanbot" from the old chart (checked by a server-side dry-run).
+        # Keep: without it SSA keeps the deprecated serviceAccount field and pods ask
+        # for the pruned SA "cleanbot".
         serviceAccountName: default
         securityContext:
           runAsNonRoot: true
@@ -105,8 +99,8 @@ homelab-common:
               memory: 192Mi
       persistence:
         data:
-          claim: cleanbot           # SQLite on a RWO claim: one replica, strategy Recreate
+          claim: cleanbot           # SQLite on RWO: one replica only
           mountPath: /data
         tmp:
-          emptyDir: {}              # writable /tmp under readOnlyRootFilesystem
+          emptyDir: {}
           mountPath: /tmp

@@ -1,9 +1,4 @@
-# Vaultwarden (guerzon chart): chart keys, then the homelab-common section.
-
-# Deployment on an RWO volume. It was a StatefulSet on an RWX volume, i.e.
-# SQLite over NFS (Longhorn share-manager). volumeClaimTemplates cannot be
-# changed in place, so the switch goes through a new Deployment; the data was
-# copied once by a PreSync job (sqlite3 .backup, removed after use).
+# RWO Deployment: SQLite over RWX (NFS) locking is unreliable.
 resourceType: Deployment
 strategy:
   type: Recreate
@@ -14,14 +9,10 @@ storage:
 
 domain: "https://pass.example.com"
 
-# pass.example.com is public: no open registration. New people join through an
-# organization invitation (invitationsAllowed stays at the chart default).
+# Public host: join only by organization invitation.
 signupsAllowed: false
 
-# cloudflared sets CF-Connecting-IP; nobody sends X-Real-IP (the chart default),
-# so vaultwarden logged the cloudflared pod IP and "failed login from
-# 10.244.2.121" said nothing. Cilium's Envoy leaves the header alone
-# (gatewayAPI.useRemoteAddress=false).
+# Chart default X-Real-IP is never sent: failed logins showed the cloudflared pod IP.
 ipHeader: "CF-Connecting-IP"
 
 podSecurityContext:
@@ -38,13 +29,7 @@ securityContext:
     drop:
       - ALL
 
-# 2026-09-05: limit raised 128Mi -> 256Mi after the first OOMKill. The process
-# sat at a flat 51-59Mi for the six days before it, then the pod recreated during
-# the Talos v1.13.10 rollout (04.09 10:16 UTC) came back running at 72-126Mi on
-# the same node and the same image (chart untouched since 23.08), and touched the
-# ceiling 31h later. Mechanism unproven — icon cache plus accumulating WebSocket
-# sessions is the likeliest; vaultwarden exports no metrics of its own to tell.
-# Request bumped to 64Mi to match the real steady state (was 32Mi).
+# 128Mi was OOMKilled (2026-09-05; cause unproven, likely icon cache + WebSockets).
 resources:
   requests:
     memory: 64Mi
@@ -66,13 +51,9 @@ initContainers:
         mountPath: /data
 
 homelab-common:
-  # Default-deny ingress: only the gateway (pass.example.com), kubelet probes and
-  # the VolSync movers in this namespace reach vaultwarden.
   networkPolicy:
     enabled: true
 
-  # Data volume (RWO). Replaces the StatefulSet's RWX
-  # vaultwarden-data-vaultwarden-0: SQLite locking over NFS is unreliable.
   persistentVolumeClaims:
     - name: vaultwarden-data-rwo
       accessModes:

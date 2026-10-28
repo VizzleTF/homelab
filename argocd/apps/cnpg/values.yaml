@@ -1,28 +1,16 @@
-# CloudNativePG CNPG Configuration
-# For HomeLab environment with minimal resources
-
 homelab-common:
-  # Default-deny ingress to the shared Postgres (instances + pooler). Own
-  # namespace covers replication, pooler -> instances and the pglogical job.
   # A new app that needs Postgres: add its namespace to the 5432 entry.
   networkPolicy:
     enabled: true
     allow:
-      # CNPG operator and the barman-cloud plugin -> instance manager
       - namespaces: [cnpg-system]
-      # postgres exporter :9187, pgbouncer exporter :9127
       - namespaces: [victoria-metrics]
         ports: [9187, 9127]
-      # database clients
       - namespaces: [authentik, atuin]
         ports: [5432]
 
   externalSecrets:
-    # CNPG-side credentials for shared cluster roles. Apps continue to read their
-    # own secrets from their namespaces; these copies live in ns cnpg so the
-    # Cluster CR can reference them via roles[].passwordSecret. CNPG expects a
-    # `kubernetes.io/basic-auth` secret with `username` and `password` keys
-    # matching the role name.
+    # Copies for roles[].passwordSecret: basic-auth, `username` must equal the role name.
     - name: authentik-db-credentials
       templateType: kubernetes.io/basic-auth
       data:
@@ -51,8 +39,6 @@ homelab-common:
         - secretKey: ACCESS_SECRET_KEY
           property: ACCESS_SECRET_KEY
 
-    # rclone OVH creds for the pg_dump -> pg-logical CronJob (an independent off-site
-    # logical dump, not a barman mirror). Vault: home/homelab/k8s/shared/s3-ovh.
     - name: ovh-pglogical-rclone
       vaultPath: shared/s3-ovh
       data:
@@ -69,8 +55,7 @@ homelab-common:
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
 
-  # Every application database is declared here (adoption of an existing DB is
-  # a no-op; reclaim policy retain). `app` is the initdb placeholder, unused.
+  # `app` is the unused initdb placeholder.
   cnpgDatabases:
     - name: authentik
       owner: authentik
@@ -82,14 +67,10 @@ homelab-common:
   limitRange:
     enabled: true
 
-  # Independent logical backup (pg_dump -Fc) -> OVH pg-logical/cnpg-cluster/.
-  # Runs alongside barman -> Garage (on-site PITR). pg_dump is self-contained,
-  # restorable into any PG and independent of Garage (survives a wipe). Per DB as
-  # its owner (no superuser dependency). The initContainer dumps into an emptyDir,
-  # the main container runs rclone copy (append, not sync) + prunes >90d.
-  # Tier: secrets, daily 03:50, 90d retention.
+  # Off-site pg_dump to OVH, independent of barman/Garage. Per DB as its owner.
+  # Direct to cnpg-cluster-rw: dumps must not go through the transaction pooler.
   workloads:
-    - name: pglogical-offsite       # -> CronJob cnpg-pglogical-offsite
+    - name: pglogical-offsite
       type: cronjob
       schedule: "50 3 * * *"
       job:

@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# Copy one OpenBao KV v2 secret to a new path without printing values: the
-# first step of moving a legacy path to <namespace>/<purpose> (rule: obsidian
-# `111 Memory/Vault Paths Reference.md`; procedure: /managing-vault-secrets move).
-# An optional jq filter reshapes the data, e.g. '{client_secret: .oidc_client_secret}'.
-# Never writes over an existing destination (-cas=0); verifies the copy.
-# The old path is deleted by hand after the PR that switches readers is synced.
+# Copy one OpenBao KV v2 secret to a new path without printing values: step one
+# of moving a legacy path to <namespace>/<purpose> (rule: obsidian `111
+# Memory/Vault Paths Reference.md`; procedure: /managing-vault-secrets move).
+# Optional jq filter reshapes the data, e.g. '{client_secret: .oidc_client_secret}'.
+# Never overwrites a destination (-cas=0); verifies the copy. Delete the old path
+# by hand after the PR switching readers is synced.
 # Test the write path against `bao server -dev`, never the prod mount.
 #
-# Usage: scripts/openbao-kv-copy.sh <src> <dst> [jq-filter]
-#   paths relative to home/homelab/k8s/ (the prefix, with or without home/, is
-#   optional); <dst> must be <namespace>/<purpose>; BAO_ADDR and the token come
-#   from the environment as for any `bao` call
+# Paths relative to home/homelab/k8s/ (prefix optional); BAO_ADDR and token from env.
 # Exit 0 copied or already identical, 1 refused or failed, 2 usage or a bad <dst>.
 set -euo pipefail
 

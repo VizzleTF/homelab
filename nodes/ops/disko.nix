@@ -1,6 +1,5 @@
-# Disk layout for ops. The board boots in legacy BIOS mode (no /sys/firmware/efi),
-# so GRUB needs a bios_grub partition. The ESP is created anyway: if the machine
-# is ever switched to UEFI, only the bootloader setting has to change.
+# Legacy BIOS board: GRUB needs bios_grub. The ESP holds the removable GRUB
+# (configuration.nix) and makes a UEFI switch a bootloader-only change.
 {
   disko.devices.disk.main = {
     type = "disk";

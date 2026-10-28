@@ -1,13 +1,5 @@
-# Metrics for the node itself.
-#
-# The node runs the GitOps source of truth and every backup timer, and until
-# now nothing collected a single number about it: not disk, not memory, and —
-# worse — not whether those timers still do their job. A backup that quietly
-# stops is indistinguishable from one that works until the day you need it.
-#
-# The exporter is scraped by the cluster's vmagent as a static target, so the
-# history and the alerts live with everything else. When the cluster is down
-# the data stops, which is fine: that case is the watchdog's job, not this one.
+# Scraped by the cluster vmagent as a static target; cluster down = no data,
+# which is the watchdog's job.
 { config, pkgs, ... }:
 
 {
@@ -19,7 +11,6 @@
       "textfile"
     ];
     extraFlags = [ "--collector.textfile.directory=/var/lib/node-exporter/textfile" ];
-    # LAN only; the firewall rule below is what actually opens it.
     listenAddress = "0.0.0.0";
     openFirewall = true;
   };
@@ -28,13 +19,9 @@
     "d /var/lib/node-exporter/textfile 0755 root root -"
   ];
 
-  # The backup units write their outcome here, so "the dump stopped happening"
-  # becomes a metric that can go stale and fire an alert, instead of silence.
-  #
-  # The label is `backup`, not `job`: the scrape sets job="ops-node" itself, and
-  # a textfile metric carrying its own `job` gets renamed to `exported_job` on
-  # ingest — alerts would then report the scrape name instead of the task that
-  # actually failed.
+  # Backup outcome as a metric that can go stale and alert. Label `backup`, not
+  # `job`: the scrape sets job="ops-node" and a textfile `job` becomes
+  # `exported_job`, so alerts would name the scrape, not the failed task.
   systemd.services.forgejo-dump-offsite.postStop = ''
     d=/var/lib/node-exporter/textfile
     ok=0
@@ -53,12 +40,9 @@
     mv "$d/etcd-snapshot.prom.tmp" "$d/etcd-snapshot.prom"
   '';
 
-  # Forgejo neither retries a failed webhook delivery nor exposes its result
-  # (no API, no metric; non-2xx answers are logged only at Trace), and ArgoCD
-  # silently falls back to polling, so a broken hook goes unnoticed for days.
-  # webhook.last_status is each hook's latest outcome: 0 none yet, 1 succeeded,
-  # 2 failed. The label is the host, never the url: a URL may carry a token.
-  # If this unit fails, OpsNodeUnitFailed fires.
+  # Forgejo never retries or exposes webhook failures and ArgoCD silently polls.
+  # last_status: 0 none yet, 1 succeeded, 2 failed. Label the host, never the
+  # url: a URL may carry a token.
   systemd.services.forgejo-webhook-status = {
     description = "Export the last delivery status of Forgejo webhooks";
     after = [ "postgresql.service" ];

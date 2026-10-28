@@ -1,16 +1,4 @@
-# prometheus-smartctl-exporter — per-node DaemonSet exposing disk SMART metrics
-# (smartctl_device_*) for drive-failure prediction on bare-metal nodes. node-
-# exporter does NOT collect SMART; this fills that gap for the Longhorn-on-
-# physical-disk setup.
-#
-# Chart defaults already run the pod privileged (runAsUser:0) with a hostPath
-# /dev mount so smartctl can read the physical disks — no extra securityContext
-# needed. Default tolerations (NoSchedule/Exists) place it on every node incl.
-# control-planes (which also run workloads here).
-#
-# serviceMonitor/prometheusRules stay disabled (chart default) — the cluster has
-# no Prometheus-operator CRDs; scrape + alerts are wired via native VMServiceScrape
-# and VMRule under manifests/.
+# No prometheus-operator CRDs: scrape and alerts live in manifests/ as VM objects.
 
 resources:
   requests:
@@ -22,13 +10,11 @@ resources:
     memory: 64Mi
 
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
     enabled: true
     allow:
       - namespaces: [victoria-metrics]
 
-# The chart's only RBAC object is a RoleBinding to the PodSecurityPolicy role
-# unrestricted-psp, which no longer exists (PSP removed in k8s 1.25).
+# Chart RBAC only binds the removed PSP role unrestricted-psp.
 rbac:
   create: false

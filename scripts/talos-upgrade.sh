@@ -1,50 +1,19 @@
 #!/usr/bin/env bash
-# DEPRECATED (2026-05-26): tuppr controller now drives upgrades declaratively
-# via TalosUpgrade + KubernetesUpgrade CRDs (argocd/infra/tuppr/). Use this
-# script only as break-glass: when the tuppr controller itself is broken,
-# during DR-restore before tuppr is up, or for ad-hoc single-node maintenance
-# outside the configured maintenance window.
+# Break-glass Talos OS / Kubernetes upgrade; routine upgrades go through tuppr CRs
+# (argocd/infra/tuppr/manifests/, skill upgrading-talos). Use only when tuppr is
+# broken, during DR before tuppr is up, or outside the maintenance window.
 #
-# Wrapper for routine Talos OS and Kubernetes version upgrades on the
-# bare-metal homelab cluster (nodes are read from
-# terraform_talos/configs/nodes.yaml).
-#
-# Scope of this script — operational upgrades only:
-#   * talosctl upgrade --image <factory.talos.dev URL>      (per node)
-#   * talosctl upgrade-k8s --to <version>                   (cluster-wide)
-#
-# Out of scope — handled elsewhere:
-#   * Changing schematic_id (image extensions) — requires node REPLACEMENT,
-#     not in-place upgrade. See skill managing-talos-node (replace).
-#   * Adding nodes — see skill managing-talos-node (add).
-#   * Terraform pins (terraform_talos/configs/nodes.yaml) — the script READS
-#     them for the `check` subcommand, but does NOT modify them. After an
-#     operational upgrade, update terraform_talos/configs/nodes.yaml via a
-#     separate PR so Terraform state matches the live cluster.
-#
-# Subcommands:
-#   check                            current cluster + terraform pins +
-#                                    upstream latest releases; warn on drift
-#   plan   --talos <v> --k8s <v>     dry-run: show what `upgrade-os all` and
-#                                    `upgrade-k8s` would do, no mutation
-#   upgrade-os <node|all> [--release vX.Y.Z]
-#                                    Talos OS upgrade. `all` walks nodes
-#                                    sequentially, waiting for Ready=True
-#                                    between each. CP nodes first, then
-#                                    workers (etcd quorum protection).
-#   upgrade-k8s --to <vX.Y.Z>        cluster-wide k8s upgrade; Talos does
-#                                    the rolling internally.
-#
-# Break-glass only: routine upgrades go through tuppr CRs
-# (argocd/infra/tuppr/manifests/); skill upgrading-talos covers both.
+# Nodes come from terraform_talos/configs/nodes.yaml, which `check` reads but
+# nothing here writes: after an upgrade, update its pins in a separate PR.
+# A schematic_id change needs node replacement (skill managing-talos-node).
+# upgrade-os all: CP nodes first, then workers, one at a time, waiting for
+# Ready (etcd quorum). plan is a dry run.
 set -euo pipefail
 
 TF_DIR="${TF_DIR:-terraform_talos}"
-# Talos v1.14 renamed the bare-metal installer to metal-installer; nodes and
-# tuppr already use it, so a plain `installer/` image would drift from them.
+# Talos v1.14 renamed the bare-metal installer; nodes and tuppr use metal-installer.
 INSTALLER_REGISTRY="${INSTALLER_REGISTRY:-factory.talos.dev/metal-installer}"
 
-# How long to wait for a node to come back Ready after upgrade.
 NODE_READY_TIMEOUT="${NODE_READY_TIMEOUT:-600}"   # seconds
 NODE_POLL_INTERVAL="${NODE_POLL_INTERVAL:-15}"
 
@@ -67,9 +36,7 @@ EOF
 die_usage() { usage; exit 2; }
 require()   { command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1" >&2; exit 1; }; }
 
-# Read a scalar pin from terraform_talos/configs/nodes.yaml. Values live
-# under `cluster.<key>: v1.x.y` (no quotes, single-line). Robust against
-# horizontal-whitespace variation; assumes one definition per file.
+# Values are `cluster.<key>: v1.x.y` (unquoted, one line); assumes one definition per file.
 tf_pin() {
   local key="$1"
   awk -F': *' -v k="$key" '
@@ -77,9 +44,8 @@ tf_pin() {
   ' "$TF_DIR/configs/nodes.yaml"
 }
 
-# Schematic ID is not pinned anywhere — it's the content hash of
-# modules/talos/schematic.yaml computed by factory.talos.dev. Cached for the
-# duration of the script run to avoid duplicate POSTs.
+# Schematic ID is not pinned: it is factory.talos.dev's hash of
+# modules/talos/schematic.yaml. Cached per run to avoid duplicate POSTs.
 SCHEMATIC_FILE_DEFAULT="$TF_DIR/modules/talos/schematic.yaml"
 _schematic_id_cache=""
 schematic_id_from_file() {
@@ -104,19 +70,17 @@ current_terraform_pins() {
     "$(schematic_id_from_file)"
 }
 
-# Map node-name → InternalIP via kubectl.
 node_ip() {
   kubectl get node "$1" \
     -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null
 }
 
-# List node names; CP nodes first, then workers, each sorted alphabetically.
+# CP nodes first, then workers, each sorted by name.
 ordered_nodes() {
   ordered_nodes_with_meta | cut -f1
 }
 
-# Emit one line per node, TAB-separated: name role ip kubeletVersion.
-# Sorted: CP nodes first (alphabetically), then workers (alphabetically).
+# name role ip kubeletVersion, TAB-separated, same order.
 ordered_nodes_with_meta() {
   kubectl get nodes -o json 2>/dev/null | python3 -c '
 import sys, json
@@ -143,12 +107,9 @@ node_kubelet_version() {
   kubectl get node "$1" -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null
 }
 
-# Check whether ghcr.io/siderolabs/kubelet:<tag> exists. Talos builds its
-# own kubelet image and publishes it alongside Talos patch releases — so
-# upstream k8s v1.36.1 can exist days/weeks before the matching kubelet
-# image. talosctl upgrade-k8s pre-pulls this image and aborts on NotFound,
-# so we gate on it before suggesting/running an upgrade.
-# Returns: 0=exists, 1=not found, 2=unknown (couldn't reach registry).
+# Is ghcr.io/siderolabs/kubelet:<tag> published? It ships with Talos patch
+# releases, often days after the upstream k8s release, and upgrade-k8s aborts
+# on NotFound. Returns 0=exists, 1=not found, 2=registry unreachable.
 kubelet_image_exists() {
   local tag="$1" token code
   command -v curl >/dev/null 2>&1 || return 2
@@ -175,7 +136,7 @@ node_talos_version() {
     | awk '/Tag:/{print $2; exit}'
 }
 
-# Wait for a node to reach Ready=True. Returns 0 on success, 1 on timeout.
+# Returns 1 on timeout.
 wait_node_ready() {
   local node="$1" start=$SECONDS
   while :; do
@@ -333,7 +294,6 @@ cmd_upgrade_os() {
       *) echo "unknown flag: $1" >&2; die_usage ;;
     esac
   done
-  # Default release = whatever is pinned in terraform.
   [ -n "$release" ] || release=$(tf_pin talos_release)
   [ -n "$release" ] || { echo "could not resolve release (no --release, no tf pin)" >&2; exit 1; }
 

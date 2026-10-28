@@ -1,30 +1,10 @@
-# stakater/reloader — watches mounted Secrets/ConfigMaps and rolls out the
-# consuming Deployments when their content changes.
-#
-# Targeting: Deployments opt in via annotation on the workload metadata, e.g.
-#   secret.reloader.stakater.com/reload: "authentik-config"
-# - homelab-common `workloads` add it automatically for every Secret/ConfigMap
-#   the pod references (`reload: false` turns it off, e.g. netbird, valkey).
-# - Upstream-chart apps set it in their values: authentik, immich,
-#   external-dns, external-dns-openwrt, grafana (victoria-metrics-k8s-stack).
-# - These cannot annotate the workload: restart them by hand after a secret
-#   rotation.
-#   - couchdb (obsidian-livesync), trek
-#   - robusta-runner (robusta-telegram): runner.annotations reach only the pod
-#   - cloudflared DaemonSet (cloudflared-secrets): only podAnnotations
-#   - wazuh-manager-master/worker StatefulSets (wazuh-authd-pass): created by
-#     the wazuh operator from the WazuhCluster CR
+# Opt-in via workload annotation (homelab-common `workloads` add it; upstream charts set it).
+# Not annotatable — restart by hand after secret rotation: couchdb (obsidian-livesync),
+# trek, robusta-runner, cloudflared DaemonSet, wazuh-manager-master/worker StatefulSets.
 
 reloader:
-  # Bootstrap + cold-start safety:
-  # - syncAfterRestart: when reloader (re)starts, reconcile annotated
-  #   Deployments whose mounted Secret/CM hash drifted while reloader was
-  #   down. Covers the first-install case where the Secret already exists.
-  # - reloadOnCreate: trigger reload when reloader sees a Secret/CM with
-  #   the reload annotation for the first time (e.g. fresh OIDC integration
-  #   added by scaffolding-authentik-oidc skill).
-  # Without these, event-driven model misses any Secret change that
-  # happened before the reloader process was watching.
+  # Without both, Secret changes made while reloader was down or before it
+  # first saw the Secret (e.g. a new OIDC secret) never roll the workload.
   syncAfterRestart: true
   reloadOnCreate: true
   deployment:
@@ -37,6 +17,6 @@ reloader:
         memory: 256Mi
 
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true

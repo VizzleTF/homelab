@@ -8,8 +8,8 @@ ignore:
   - .claude/worktrees/
   - terraform_talos/.terraform/
   - .mise.toml
-  # Hashed by the Talos Image Factory into the schematic ID (installer image):
-  # reformatting it is not worth a possible new image for every node.
+  # Image Factory hashes it into the schematic ID: reformatting means a new
+  # installer image for every node.
   - terraform_talos/modules/talos/schematic.yaml
 
 rules:

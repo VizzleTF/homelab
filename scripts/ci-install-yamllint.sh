@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Install the yamllint version pinned in .mise.toml (Renovate-tracked) into a
-# venv at /tmp/yamllint, linked into /usr/local/bin. Used by the CI yamllint job
-# (whose shellcheck step reuses the venv's pip) and the kubeconform job (hook
-# self-check). The Debian package lagged (1.29 vs 1.38).
+# Install the yamllint pinned in .mise.toml into a venv at /tmp/yamllint, linked
+# into /usr/local/bin, for the CI yamllint job (its shellcheck step reuses the
+# venv's pip) and the kubeconform job. The Debian package lags.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"

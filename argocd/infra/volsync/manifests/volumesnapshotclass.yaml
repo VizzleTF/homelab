@@ -1,8 +1,4 @@
-# VolumeSnapshotClass for VolSync (`copyMethod: Snapshot`).
-#
-# deletionPolicy Delete: VolSync deletes its VolumeSnapshot after every run and
-# expects the Longhorn snapshot to go with it; Retain would leave one snapshot
-# per PVC per run.
+# Retain would leave a Longhorn snapshot per PVC per VolSync run.
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:

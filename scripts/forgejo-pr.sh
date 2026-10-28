@@ -1,43 +1,14 @@
 #!/usr/bin/env bash
-# Wrapper for the full Forgejo PR lifecycle in the homelab monorepo, under
-# the `vizzle` user (NOT `forgejo-admin`).
+# Forgejo PR lifecycle for the homelab monorepo; subcommands and env in usage().
 #
-# Reads the Forgejo PAT from Vault: home/homelab/forgejo/vizzle-merge-token
-# (KV v2, key `token`). Using this token — and ONLY this token — for both PR
-# creation and merge ensures the squash-commit author = `vizzle`. An admin
-# token stamps every squash as `forgejo-admin <gitea@local.domain>`
-# regardless of who merges; never use one here. (A dedicated
-# `branch-protection-token` was never created.)
-#
-# Subcommands:
-#   open    <branch> -- <title> <body>   create a PR (refused: body with task-list checkboxes)
-#   status  <pr-number>                  one-shot CI snapshot (exit 0/1/2)
-#   monitor <pr-number>                  poll CI until terminal state
-#   merge   <pr-number>                  monitor + squash-merge if green, then expect the
-#                                        push webhook to reach ArgoCD
-#   full    <branch> [-- <title> <body>] ship one branch (PR text from the commits unless given)
-#   ship    <branch>...                  per branch: rebase on origin/BASE_BRANCH, push, open
-#                                        (title/body from the commits) or reuse the PR, merge
-#                                        when green, wait-apps; a review gate (5) parks that PR
-#                                        and goes on, any other failure stops
-#   wait-apps <sha>                      wait until the apps <sha> touches track it (or a later
-#                                        BASE_BRANCH commit) and are Synced/Healthy
-#   get     <api-path>                   read-only GET /api/v1/<api-path> with the merge token
-#   comment <pr-number>                  post stdin as a PR comment (post-merge results)
-#   label   <pr-number> <label-name>     add an existing repo label to a PR
-#   diff-comment <pr-number>             print the latest argocd-diff bot comment
-#   rerun   <pr-number>                  re-trigger CI: empty commit on the PR branch, in the
-#                                        worktree holding it or a temporary one (Forgejo has
-#                                        no rerun API); for renovate/* tick the rebase-check
-#                                        box in the PR body instead
-#
-# Every <pr-number> except in `full` also takes an open PR's branch name.
-#
-# After a successful merge (and for an already-merged PR), `merge`/`full`
-# delete the merged PR's local branch (and leftover worktree-wf_* branches of
-# Workflow agents) and fast-forward BASE_BRANCH to its
-# remote — so the next branch is never cut from a stale local main. Opt out
-# with KEEP_BRANCH=1.
+# Token: ONLY the `vizzle` PAT at home/homelab/forgejo/vizzle-merge-token (key
+# `token`); an admin token stamps every squash as `forgejo-admin`.
+# `open` refuses a body with task-list checkboxes. `merge`/`full` then wait for
+# the push webhook to reach ArgoCD, delete the local branch (and stale
+# worktree-wf_* branches) and fast-forward BASE_BRANCH; KEEP_BRANCH=1 opts out.
+# `ship` per branch: rebase, push, open or reuse the PR, merge, wait-apps; a
+# review gate (5) parks that PR and goes on, any other failure stops.
+# VAULT_PATH is a legacy alias of BAO_PATH.
 #
 # Exit codes (all subcommands):
 #   0  success / merged (ship: merged and the touched apps settled)
@@ -49,30 +20,13 @@
 #   5  review gate: argocd-diff waits for diff-reviewed, PR left open
 #   6  merged, deploy not confirmed: no push webhook counted in 60s,
 #      or the touched apps did not settle within APPS_TIMEOUT
-#
-# Env overrides:
-#   FORGEJO_URL      (default: https://git.example.com)
-#   FORGEJO_REPO     (default: vizzle/homelab)
-#   BASE_BRANCH      (default: main)
-#   BAO_ADDR         OpenBao endpoint (default: https://openbao.example.com) — a
-#                    non-interactive shell does not inherit it from the profile
-#   BAO_PATH         (default: homelab/forgejo/vizzle-merge-token) — mount `home`
-#                    (legacy alias VAULT_PATH still honoured)
-#   FORGEJO_TOKEN    if set, skips OpenBao and uses this value
-#   POLL_INTERVAL    seconds between status polls (default: 15)
-#   POLL_TIMEOUT     max seconds in monitor/merge (default: 1800)
-#   APPS_TIMEOUT     max seconds in wait-apps (default: 900)
-#   KEEP_BRANCH      if 1, skip post-merge local branch deletion (default: 0)
-#   UPDATE_OUTDATED  if 1, merge BASE_BRANCH into an outdated PR branch before
-#                    merging (block_on_outdated_branch); re-triggers CI (default: 0)
 set -euo pipefail
 
 FORGEJO_URL="${FORGEJO_URL:-https://git.example.com}"
 FORGEJO_REPO="${FORGEJO_REPO:-vizzle/homelab}"
 BASE_BRANCH="${BASE_BRANCH:-main}"
 BAO_PATH="${BAO_PATH:-${VAULT_PATH:-homelab/forgejo/vizzle-merge-token}}"
-# `bao` reads BAO_ADDR (and the legacy VAULT_ADDR); the fallback chain below
-# sets BAO_ADDR explicitly either way.
+# A non-interactive shell does not inherit BAO_ADDR from the profile.
 export BAO_ADDR="${BAO_ADDR:-${VAULT_ADDR:-https://openbao.example.com}}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
@@ -140,13 +94,9 @@ token() {
   printf '%s' "$__TOKEN"
 }
 
-# forgejo_api <method> <path> [json-body]
-# stdout: response body on 2xx. stderr: HTTP code + body on non-2xx.
-# Returns 0 on 2xx and 1 otherwise; the HTTP status of the call is left in
-# FORGEJO_HTTP_CODE (0 if curl itself failed). The status is deliberately not
-# the return value: exit statuses are taken modulo 256, which turns 405 into
-# 149 and a curl failure (0) into success. FORGEJO_HTTP_CODE is only visible to
-# a caller that invokes forgejo_api directly, not through $(...).
+# forgejo_api <method> <path> [json-body] — body on stdout for 2xx, else code+body
+# on stderr and return 1. HTTP status goes to FORGEJO_HTTP_CODE (0 = curl failed),
+# not $?, which is mod 256 (405 → 149); visible only to a direct call, not $(...).
 FORGEJO_HTTP_CODE=0
 forgejo_api() {
   local method="$1" path="$2" data="${3:-}"
@@ -182,21 +132,17 @@ get_pr_sha() {
   forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$1" | jq -r '.head.sha'
 }
 
-# pr_freshness  (reads a PR meta JSON on stdin)
-# Forgejo's `mergeable:true` only means "no merge conflicts"; with
-# block_on_outdated_branch enabled, the merge API still returns HTTP 405 when
-# the PR branch sits behind the base-branch tip. Detect that here: the branch
-# is outdated whenever its merge base differs from the current base tip.
-# Emits "behind" or "uptodate" on stdout.
+# pr_freshness (PR meta JSON on stdin) → "behind"|"uptodate". `mergeable:true`
+# only means no conflicts; with block_on_outdated_branch the merge still 405s
+# when the merge base differs from the base tip.
 pr_freshness() {
   jq -r '
     if (.merge_base != null and .base.sha != null and .merge_base != .base.sha)
     then "behind" else "uptodate" end'
 }
 
-# update_pr_branch <pr-number>
-# Server-side merge of the base branch into the PR branch so an outdated branch
-# satisfies block_on_outdated_branch. Produces a new head sha → CI re-runs.
+# update_pr_branch <pr-number> — server-side merge of base into the PR branch;
+# new head sha, so CI re-runs.
 update_pr_branch() {
   forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$1/update?style=merge" >/dev/null
 }
@@ -205,9 +151,8 @@ fetch_status() {
   forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/commits/$1/status"
 }
 
-# Reads a status payload on stdin, emits sorted "context: state" lines.
-# Forgejo puts the per-context result in `.status`; `.state` stays null. The
-# combined `.state` at the top of the payload is the fallback.
+# status payload on stdin → sorted "context: state". Per-context result is in
+# `.status` (`.state` stays null); top-level `.state` is the fallback.
 format_statuses() {
   jq -r '
     (.state // "queued") as $combined |
@@ -215,8 +160,7 @@ format_statuses() {
   ' | sort -u
 }
 
-# The argocd-diff CI job posts (and later edits) one PR comment starting with
-# this marker; see the "Comment on PR" step in .forgejo/workflows/ci.yaml.
+# Marker of the argocd-diff PR comment ("Comment on PR" step, .forgejo/workflows/ci.yaml).
 DIFF_MARKER='<!-- argocd-diff -->'
 
 # diff_comment <pr-number> — latest argocd-diff comment as {updated_at, body}, or nothing.
@@ -225,13 +169,12 @@ diff_comment() {
     | jq -c --arg m "$DIFF_MARKER" '[.[] | select(.body | contains($m))] | last | select(.) | {updated_at, body}'
 }
 
-# jq: Forgejo timestamp ("2026-10-07T09:03:40+03:00", "...Z", optional fraction)
-# -> epoch seconds, or null when empty/unparseable.
+# jq: Forgejo timestamp (offset or Z, optional fraction) → epoch, null if unparseable.
 JQ_TS='def ts: try (sub("\\.[0-9]+"; "") | (.[0:19] + "Z" | fromdateiso8601)
   - (if .[19:] == "Z" then 0 else (.[19:20] + "1" | tonumber) * ((.[20:22] | tonumber) * 3600 + (.[23:25] | tonumber) * 60) end)) catch null;'
 
-# resolve_pr <pr-number|branch> — a number passes through; a branch name maps to
-# its single open PR. Forgejo ignores ?head=, so the filter runs client-side.
+# resolve_pr <pr-number|branch> — branch → its single open PR, filtered
+# client-side: Forgejo ignores ?head=.
 open_prs_of() {
   local page=1 resp
   while :; do
@@ -256,13 +199,13 @@ resolve_pr() {
   printf '%s' "$nums"
 }
 
-# fresh_diff_body <pr> <sha> <context> — print the argocd-diff comment body when it
-# belongs to this run; return 1 when none was posted, 3 when it predates the run.
+# fresh_diff_body <pr> <sha> <context> — the argocd-diff comment body of this
+# run; return 1 if none, 3 if it predates the run.
 fresh_diff_body() {
   local comment started stale
   comment=$(diff_comment "$1")
   [[ -n "$comment" ]] || return 1
-  # Status history, newest first: the first `pending` is this run's start.
+  # Newest first: the first `pending` is this run's start.
   started=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/commits/$2/statuses?limit=50" \
     | jq -r --arg c "$3" '[.[] | select(.context == $c and .status == "pending")][0].created_at // ""') || started=""
   stale=$(jq -rn --arg c "$(jq -r '.updated_at' <<<"$comment")" --arg s "$started" \
@@ -272,13 +215,9 @@ fresh_diff_body() {
   jq -r '.body' <<<"$comment"
 }
 
-# failure_hints <pr-number> (reads a status payload on stdin)
-# For each failed check, say where the reason is. argocd-diff explains itself
-# in its PR comment (kubeconform, pluto, review gate) — but only when that
-# comment is from this run: one older than the latest `pending` of the
-# argocd-diff context (its start, also after a web-UI re-run of just that job)
-# is stale.
-# Job logs are only in the web UI.
+# failure_hints <pr-number> (status payload on stdin) — where each failure is
+# explained: the argocd-diff PR comment if newer than that context's latest
+# `pending` (also a web-UI re-run), else stale; job logs are web-UI only.
 failure_hints() {
   local pr="$1" payload ctx url body rc
   payload=$(cat)
@@ -294,7 +233,7 @@ failure_hints() {
             echo "argocd-diff comment is from a previous run — this run failed before posting; log: $FORGEJO_URL$url" >&2
             continue
           fi
-          # Checks part of the comment only; the manifest diff follows the heading.
+          # Checks part only; the manifest diff follows the heading.
           awk -v m="$DIFF_MARKER" '/^## Argo CD Diff Preview/ {exit} $0 != m' <<<"$body" >&2
           if grep -q 'Blocked.*diff-reviewed' <<<"$body"; then
             echo "review gate: check that $0 diff-comment $pr lists only the removals this PR intends;" >&2
@@ -308,9 +247,7 @@ failure_hints() {
       done
 }
 
-# poll_loop <sha> <verbose:0|1>
-# Returns 0 on success, 1 on failure/error, 2 on timeout.
-# In verbose=1, prints incremental status changes to stderr.
+# poll_loop <sha> <verbose:0|1> — 0 success, 1 failure, 2 timeout.
 poll_loop() {
   local sha="$1" verbose="${2:-0}"
   local start=$SECONDS
@@ -342,11 +279,9 @@ poll_loop() {
   done
 }
 
-# cleanup_local_branch <branch>
-# Post-merge housekeeping: delete the merged PR's local branch and fast-forward
-# BASE_BRANCH to its remote. A stale local main is a known footgun — branching
-# off it silently re-does already-merged work. Best-effort: every step is
-# non-fatal so a cleanup hiccup never masks a successful merge.
+# cleanup_local_branch <branch> — delete the merged local branch and fast-forward
+# BASE_BRANCH: a branch cut from a stale main silently re-does merged work.
+# Every step is non-fatal so cleanup never masks a successful merge.
 cleanup_local_branch() {
   local branch="${1:-}"
   [[ "$KEEP_BRANCH" = "1" ]] && return 0
@@ -359,7 +294,6 @@ cleanup_local_branch() {
     return 0
   fi
 
-  # If the merged branch is checked out, move to BASE_BRANCH first.
   local current
   current=$(git symbolic-ref --short -q HEAD || echo "")
   if [[ "$current" = "$branch" ]]; then
@@ -369,14 +303,13 @@ cleanup_local_branch() {
     fi
   fi
 
-  # -D (force): a squash-merged branch never looks "merged" to `git branch -d`.
+  # -D: a squash-merged branch never looks merged to `git branch -d`.
   if git branch -D "$branch" >/dev/null 2>&1; then
     echo "deleted local branch '$branch'" >&2
   else
     echo "could not delete local branch '$branch'" >&2
   fi
 
-  # Fast-forward BASE_BRANCH so the next branch is cut from up-to-date main.
   if git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null \
     && git merge --ff-only "origin/$BASE_BRANCH" >/dev/null 2>&1; then
     echo "fast-forwarded $BASE_BRANCH to origin/$BASE_BRANCH" >&2
@@ -386,9 +319,8 @@ cleanup_local_branch() {
   prune_workflow_branches
 }
 
-# prune_workflow_branches — Workflow isolation leaves a `worktree-wf_*` branch per
-# agent after its worktree is gone. Delete the ones no worktree holds and that
-# carry no commit beyond origin/BASE_BRANCH; anything with own work stays.
+# prune_workflow_branches — delete `worktree-wf_*` branches no worktree holds and
+# with no commit beyond origin/BASE_BRANCH.
 prune_workflow_branches() {
   local b
   git worktree prune 2>/dev/null || return 0
@@ -400,10 +332,9 @@ prune_workflow_branches() {
   return 0
 }
 
-# use_branch_worktree <branch> — set WT to a clean worktree with <branch> checked
-# out: the worktree that already holds it (a workflow's, or this checkout), else a
-# new temporary one (TEMP_WT, dropped by drop_temp_wt or on exit). Never a detached
-# HEAD, so a plain `git push origin <branch>` works. Returns 4 on a dirty holder.
+# use_branch_worktree <branch> — set WT to a clean worktree on <branch>: its
+# current holder, else a temporary one (TEMP_WT). Never detached, so a plain
+# push to origin works. Returns 4 on a dirty holder.
 WT="" TEMP_WT=""
 use_branch_worktree() {
   local b="$1"
@@ -428,10 +359,9 @@ drop_temp_wt() {
   TEMP_WT=""
 }
 
-# argocd_webhooks — argocd-server's push-webhook counter for this repo. Nothing
-# scrapes ArgoCD metrics, so the pod is read through the apiserver proxy; raw
-# REST paths skip discovery, so an unreachable cluster costs 5s, not ~150s.
-# Prints 0 when the series is absent, nothing when the cluster is unreachable.
+# argocd_webhooks — argocd-server push-webhook counter for this repo, via the
+# apiserver proxy (nothing scrapes it); raw REST paths skip discovery, so an
+# unreachable cluster costs 5s, not ~150s. 0 if absent, empty if unreachable.
 # shortcut: reads one argocd-server pod; sum over pods if the server is scaled out.
 argocd_webhooks() {
   command -v kubectl >/dev/null 2>&1 || return 0
@@ -445,9 +375,8 @@ argocd_webhooks() {
     'index($0, s " ") == 1 {n = $2} END {print n + 0}' <<<"$m"
 }
 
-# expect_webhook <count-before-merge> — the merge push must reach ArgoCD within
-# 60s. Without it every app waits for timeout.reconciliation and nothing else
-# says so (2026-10-03..10-14: every delivery failed, found by accident).
+# expect_webhook <count-before-merge> — the merge push must reach ArgoCD in 60s,
+# else apps silently wait for timeout.reconciliation (2026-10: every delivery failed unnoticed).
 expect_webhook() {
   local before="$1" now=""
   [[ -n "$before" ]] || { echo "note: ArgoCD metrics unreadable, webhook check skipped" >&2; return 0; }
@@ -465,9 +394,9 @@ expect_webhook() {
   return 6
 }
 
-# check_body <body> — the body becomes the squash commit on main: a checkbox
-# there claims a check is open (or done) forever. shortcut: also matches inside
-# fenced code, strip fences if a PR quoting a skill's chat checklist trips it.
+# check_body <body> — the body becomes the squash commit: a checkbox there claims
+# a check open (or done) forever. shortcut: also matches inside fenced code;
+# strip fences if a PR quoting a checklist trips it.
 check_body() {
   local boxes
   boxes=$(grep -nE '^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]+\[[ xX]\]' <<<"$1" || true)
@@ -513,7 +442,6 @@ cmd_status() {
     echo "note: PR #$pr branch is behind $BASE_BRANCH — this only blocks the merge if block_on_outdated_branch is on (then use UPDATE_OUTDATED=1)" >&2
   fi
   local payload; payload=$(fetch_status "$sha")
-  # Per-context result lives in .status (.state stays null); combined .state is the fallback.
   printf '%s\n' "$payload" \
     | jq '
         (.state // "queued") as $combined |
@@ -553,8 +481,7 @@ cmd_merge() {
   local meta merged head_ref
   meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
   merged=$(jq -r '.merged' <<<"$meta")
-  # Once the head branch is deleted after merge, Forgejo reports .head.ref as
-  # refs/pull/<n>/head; .head.label keeps the branch name (no forks here).
+  # After the head branch is deleted .head.ref becomes refs/pull/<n>/head; .head.label keeps the name.
   head_ref=$(jq -r 'if (.head.ref | startswith("refs/pull/")) then .head.label else .head.ref end' <<<"$meta")
   if [[ "$merged" = "true" ]]; then
     echo "PR #$pr already merged — skipping merge API call" >&2
@@ -565,9 +492,7 @@ cmd_merge() {
     return 0
   fi
 
-  # block_on_outdated_branch: an outdated branch passes CI yet 405s on merge.
-  # Surface it up front (and optionally update the branch) so the failure isn't
-  # an opaque "HTTP 405" after the CI wait.
+  # An outdated branch passes CI yet 405s on merge: catch it before the CI wait.
   if [[ "$(printf '%s' "$meta" | pr_freshness)" = "behind" ]]; then
     if [[ "$UPDATE_OUTDATED" = "1" ]]; then
       echo "PR #$pr branch is behind $BASE_BRANCH — merging $BASE_BRANCH in (UPDATE_OUTDATED=1)..." >&2
@@ -575,7 +500,7 @@ cmd_merge() {
         echo "branch update failed — merge would be rejected as outdated" >&2
         return 3
       fi
-      # New head sha after the update merge → re-fetch so CI polls the right commit.
+      # New head sha → re-fetch so CI polls the right commit.
       meta=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/pulls/$pr")
       echo "branch updated; CI re-runs on new head $(jq -r '.head.sha' <<<"$meta")" >&2
     else
@@ -597,27 +522,21 @@ cmd_merge() {
   local title body payload
   title=$(jq -r '.title' <<<"$meta")
   body=$(jq -r '.body // ""' <<<"$meta")
-  # Forgejo/Gitea merge API uses CamelCase fields. The repo keeps
-  # default_delete_branch_after_merge off, so the head branch is deleted here;
-  # otherwise every merged PR leaves a branch on Forgejo and on the NAS mirror.
+  # Merge API fields are CamelCase. default_delete_branch_after_merge is off, so
+  # the head branch is deleted here (else it lingers on Forgejo and the NAS mirror).
   payload=$(jq -n \
     --arg title "$title" \
     --arg msg   "$body" \
     '{Do: "squash", MergeTitleField: $title, MergeMessageField: $msg, delete_branch_after_merge: true}')
 
-  # Forgejo BP readiness lags ~30s behind poll_loop success state — the merge
-  # API may still return 405 ("Merge cannot succeed") or 409 (mergeability being
-  # recomputed, e.g. right after a branch update) just after CI goes green.
-  # Retry those up to 5x with 30s backoff. Crucially, a non-2xx response does NOT
-  # always mean the merge failed: Forgejo has been observed returning 409 with
-  # the PR object on a merge that actually went through — so after any failure,
-  # re-check the authoritative .merged flag before giving up.
+  # Just after CI goes green the merge API may 405 (BP readiness lags ~30s) or
+  # 409 (mergeability recomputing): retry 5x with 30s backoff. A 409 has come
+  # back on a merge that went through, so re-check .merged before giving up.
   local attempt rc=0 hooks_before
   hooks_before=$(argocd_webhooks)
   for attempt in 1 2 3 4 5; do
-    # Called directly, not in $(...), so FORGEJO_HTTP_CODE survives. Capturing
-    # $? here would read the status of the `if` itself, which is always 0.
-    # stderr stays visible: the response body says why a merge was refused.
+    # Direct call, not $(...), so FORGEJO_HTTP_CODE survives ($? would be the
+    # `if`'s, always 0). stderr stays visible: it says why a merge was refused.
     if forgejo_api POST "/api/v1/repos/$FORGEJO_REPO/pulls/$pr/merge" "$payload" >/dev/null; then
       rc=0; break
     fi
@@ -644,7 +563,7 @@ cmd_merge() {
 }
 
 # after_merge_hint <pr-number> <pr-json> — print the body's "## After merge"
-# section: the squash commit is immutable, so its outcome goes to a PR comment.
+# section: the squash commit is immutable, so the outcome goes to a PR comment.
 after_merge_hint() {
   local plan
   plan=$(jq -r '.body // ""' <<<"$2" | awk '/^## /{p = ($0 ~ /^## After merge/); next} p')
@@ -678,10 +597,9 @@ cmd_diff_comment() {
   jq -r '"updated_at: \(.updated_at)\n\(.body)"' <<<"$comment"
 }
 
-# Forgejo has no API to re-run a job, so a new head sha is the only re-trigger:
-# an empty commit and a plain push (PRs are squash-merged, the commit vanishes).
-# Renovate stops updating a branch that carries a foreign commit, so for
-# renovate/* tick the rebase-check box instead: Renovate recreates the branch.
+# No re-run API: an empty commit makes a new head sha (squash-merge drops it).
+# Renovate abandons a branch with a foreign commit, so renovate/* ticks the
+# rebase-check box instead.
 cmd_rerun() {
   local pr; pr=$(resolve_pr "${1:-}") || exit $?
   require curl
@@ -733,20 +651,18 @@ cmd_comment() {
     | jq -r '.html_url'
 }
 
-# full <branch> [-- <title> <body>] — ship one branch. `ship` runs it as a child
-# per branch: a function called in an `||` list runs with errexit off, a child
-# process keeps `set -e`.
+# full <branch> [-- <title> <body>] — `ship` runs it as a child process: a
+# function in an `||` list runs with errexit off.
 cmd_full() {
   [[ -n "${1:-}" ]] || die_usage
   [[ $# -eq 1 || ( "${2:-}" = "--" && -n "${3:-}" ) ]] || die_usage
   ship_one "$1" "${3:-}" "${4:-}"
 }
 
-# The apps a merge touches, as ArgoCD's webhook decides it: manifest-generate-paths
-# matching a changed file (every app for argocd/appsets/), plus app folders the
-# commit has (a new one waits for the AppSet, which polls git every 3 min). Prints
-# "<app> <why>" for each one that is missing, runs another chart version than
-# config.yaml pins ($pins), is not yet at $revs, or is not Synced/Healthy.
+# The apps a merge touches, as ArgoCD's webhook decides: manifest-generate-paths
+# matching a changed file (all for argocd/appsets/), plus app folders in the commit
+# (a new one waits for the AppSet's 3-min git poll). Prints "<app> <why>" for each
+# missing, on a chart version other than $pins, not at $revs, or not Synced/Healthy.
 # shellcheck disable=SC2016  # $-names are jq variables
 JQ_PENDING='def hit($paths): any($changed[]; . as $f | any($paths[]; . as $p | $f == $p or ($f | startswith($p + "/"))));
 [.items[].metadata.name] as $have
@@ -767,9 +683,9 @@ JQ_PENDING='def hit($paths): any($changed[]; . as $f | any($paths[]; . as $p | $
 
 lines_json() { jq -Rsc 'split("\n") | map(select(. != ""))'; }
 
-# app_pins <sha> — {"<app>": [targetRevision...]} for each app whose config.yaml
-# <sha> changes (homelabOnly apps have no chart source): the pin at <sha> and at
-# every later BASE_BRANCH commit that changes it again.
+# app_pins <sha> — {"<app>": [targetRevision...]} for apps whose config.yaml <sha>
+# changes (homelabOnly apps have no chart): the pin at <sha> and at every later
+# BASE_BRANCH commit that changes it.
 app_pins() {
   local sha="$1" layer name f c v
   git diff-tree --no-commit-id --name-only -r "$sha" | sed -nE 's#^argocd/(apps|infra)/([^/]+)/config\.yaml$#\1 \2#p' \
@@ -786,9 +702,8 @@ app_pins() {
         | group_by(.[0]) | map({key: .[0][0], value: map(.[1]) | unique}) | from_entries'
 }
 
-# wait_apps <sha> — read-only, no refresh: the Forgejo push webhook refreshes
-# exactly these apps (cmd_merge checks it arrived); without it the periodic
-# reconcile (timeout.reconciliation 600s + jitter) still lands inside APPS_TIMEOUT.
+# wait_apps <sha> — read-only, no refresh: the push webhook refreshes these apps;
+# without it the periodic reconcile (600s + jitter) still lands inside APPS_TIMEOUT.
 wait_apps() {
   local sha changed expected revs pins apps pending layer name t start=$SECONDS
   for t in kubectl yq; do
@@ -797,7 +712,7 @@ wait_apps() {
   git fetch -q origin "$BASE_BRANCH" || echo "warning: git fetch origin $BASE_BRANCH failed" >&2
   sha=$(git rev-parse -q --verify "${1:-}^{commit}") || { echo "unknown commit '${1:-}'" >&2; return 2; }
   changed=$(git diff-tree --no-commit-id --name-only -r "$sha" | lines_json)
-  # A folder the commit deletes has no config.yaml at <sha>: nothing to wait for.
+  # A deleted folder has no config.yaml at <sha>: nothing to wait for.
   expected=$(git diff-tree --no-commit-id --name-only -r "$sha" | sed -nE 's#^argocd/(apps|infra)/([^/]+)/.*#\1 \2#p' | sort -u \
     | while read -r layer name; do
         if git cat-file -e "$sha:argocd/$layer/$name/config.yaml" 2>/dev/null; then echo "$name"; fi
@@ -825,7 +740,6 @@ wait_apps() {
   done
 }
 
-# ship_one <branch> [<title> <body>]
 ship_one() {
   local b="$1" title="${2:-}" body="${3:-}" pr rc=0 sha payload failed out cherry
   if [[ "$b" = "$BASE_BRANCH" || "$b" == renovate/* ]]; then
@@ -836,10 +750,9 @@ ship_one() {
   git fetch -q --prune origin || { echo "git fetch origin failed" >&2; return 4; }
 
   use_branch_worktree "$b" || return 4
-  # Never force-push over commits pushed from elsewhere: catch up, or refuse when
+  # Never force-push over commits pushed elsewhere: catch up, or refuse when
   # origin/$b has a commit with no equivalent patch here. Older copies of local
-  # commits (a local rebase, a refusal or failed push after the rebase below)
-  # are replaced by the force-with-lease push.
+  # commits are replaced by the force-with-lease push.
   if git rev-parse -q --verify "origin/$b" >/dev/null && ! git merge-base --is-ancestor "origin/$b" "$b"; then
     if git merge-base --is-ancestor "$b" "origin/$b"; then
       git -C "$WT" merge -q --ff-only "origin/$b" || { drop_temp_wt; return 4; }
@@ -852,8 +765,7 @@ ship_one() {
     fi
   fi
 
-  # The PR text before the rebase, so a refusal leaves the branch as it was:
-  # these are the commits the rebase replays.
+  # PR text from the pre-rebase commits, so a refusal leaves the branch as it was.
   pr=$(open_prs_of "$b") || return 3
   pr="${pr%%$'\n'*}"
   if [[ -z "$pr" ]]; then
@@ -865,8 +777,8 @@ ship_one() {
     echo "note: reusing PR #$pr; its title and body stay as they are" >&2
   fi
 
-  # Rebase: argocd-diff compares the PR head with the current main, so a stale
-  # branch shows other PRs' resources as removed (a false review gate).
+  # argocd-diff compares with the current main: a stale branch shows other PRs'
+  # resources as removed (a false review gate).
   if ! git merge-base --is-ancestor "origin/$BASE_BRANCH" "$b"; then
     if ! git -C "$WT" rebase -q "origin/$BASE_BRANCH"; then
       git -C "$WT" diff --name-only --diff-filter=U >&2
@@ -887,8 +799,7 @@ ship_one() {
     pr=$(cmd_open "$b" -- "$title" "$body" | jq -r '.number') || true
     [[ "$pr" =~ ^[0-9]+$ ]] || { echo "could not open a PR for '$b'" >&2; return 3; }
   else
-    # Forgejo moves the PR head after a push asynchronously; merge must not poll
-    # the CI of the commit this push replaced.
+    # The PR head moves asynchronously after a push: don't poll the replaced commit's CI.
     sha=$(git rev-parse "$b")
     for _ in $(seq 24); do
       [[ "$(get_pr_sha "$pr")" != "$sha" ]] || break
@@ -903,16 +814,15 @@ ship_one() {
     sha=$(get_pr_sha "$pr")
     payload=$(fetch_status "$sha")
     failure_hints "$pr" <<<"$payload"
-    # Contexts carry spaces ("CI / argocd-diff (pull_request)"): count them in jq.
+    # Contexts contain spaces ("CI / argocd-diff (pull_request)"): count in jq.
     failed=$(jq -r '[.statuses[]? | select((.status // .state) | IN("failure", "error")) | .context] | if length == 1 then .[0] else "" end' <<<"$payload")
-    # A variable, not `| grep -q`: an early grep exit SIGPIPEs the writer, and
-    # pipefail then reads a found gate as "no gate".
+    # Not `| grep -q`: an early grep exit SIGPIPEs the writer and pipefail reads a found gate as none.
     if [[ "$failed" == *argocd-diff* ]] && out=$(fresh_diff_body "$pr" "$sha" "$failed" 2>/dev/null) \
       && grep -q 'Blocked.*diff-reviewed' <<<"$out"; then
       return 5
     fi
   fi
-  # 6 from merge = no webhook seen: the apps are still waited for, the 6 stays.
+  # merge exit 6 = no webhook seen: still wait for the apps, keep the 6.
   [[ $rc -eq 0 || $rc -eq 6 ]] || return "$rc"
 
   sha=$(jq -r '.merge_commit_sha // empty' <<<"$out")
@@ -921,9 +831,8 @@ ship_one() {
   return "$rc"
 }
 
-# ship <branch>... — every branch in its own child (`set -e` stays on). A review
-# gate (5) leaves that PR open and goes on with the next branch; any other
-# failure stops. Exit: the code that stopped it, else 5 if a PR was parked, else 0.
+# ship <branch>... — each branch in a child (`set -e` stays on). Exit: the code
+# that stopped it, else 5 if a PR was parked, else 0.
 cmd_ship() {
   [[ $# -gt 0 ]] || die_usage
   local b rc parked=""

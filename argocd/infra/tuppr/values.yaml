@@ -1,14 +1,6 @@
-# tuppr — Talos & Kubernetes Upgrade Controller (home-operations/tuppr).
-# Drives upgrades declaratively through the TalosUpgrade and KubernetesUpgrade
-# CRs (manifests/): maintenance windows, CEL health checks, Renovate-driven bumps.
-#
-# The Talos machine config must have:
-#   machine.features.kubernetesTalosAPIAccess.enabled=true
-#   allowedKubernetesNamespaces=[system-upgrade]
-#   allowedRoles=[os:admin]
-# Patch: terraform_talos/modules/talos/patches/controlplane.yaml.tftpl
-#
-# scripts/talos-upgrade.sh stays as the break-glass path.
+# Needs Talos kubernetesTalosAPIAccess for ns system-upgrade, role os:admin
+# (terraform_talos/modules/talos/patches/controlplane.yaml.tftpl).
+# Break-glass: scripts/talos-upgrade.sh.
 
 resources:
   requests:
@@ -22,20 +14,9 @@ controller:
   metrics:
     port: 8080
 
-# The chart default also tolerates node.kubernetes.io/unschedulable, so the
-# controller can live on a cordoned node and "uncordon it after the reboot".
-# Here that did the opposite: the controller stayed on the node it was draining.
-#
-#   2026-09-04 — tuppr cordoned worker-01, ArgoCD rolled its Deployment, the
-#     new pod landed on the cordoned worker-01 again, lost its in-flight state
-#     and hung in HealthChecking forever (see healthCheck fix #3).
-#   2026-09-05 — upgrading to v1.14.0, tuppr was the only non-DaemonSet pod on
-#     the draining worker-01. The drain cannot finish while the pod lives, and
-#     every recreated pod landed on the same node: `Draining` forever.
-#
-# Dropping the toleration is safe: parallelism=1, so exactly one node of four
-# is cordoned and the controller always has somewhere to go. Uncordoning a node
-# does not require running on it.
+# No node.kubernetes.io/unschedulable toleration (chart default): the controller
+# kept landing on the node it was draining, and the drain hung forever (2026-09-05).
+# Safe with parallelism=1: three nodes stay schedulable.
 tolerations:
   - key: CriticalAddonsOnly
     operator: Exists
@@ -44,7 +25,6 @@ tolerations:
     effect: NoSchedule
 
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
     enabled: true
     allow:

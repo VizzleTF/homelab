@@ -1,20 +1,14 @@
-# P2P OCI registry mirror — nodes serve image layers to each other, cutting
-# external pulls (Docker Hub rate limits, internal-DNS pull failures).
-# Talos: registry hosts dir is /etc/cri/conf.d/hosts (chart default is
-# /etc/containerd/certs.d). containerd socket default already matches.
-# Requires discard_unpacked_layers=false on nodes — see
-# terraform_talos/modules/talos/patches/common.yaml.tftpl.
+# Talos registry hosts dir. Needs discard_unpacked_layers=false on nodes
+# (terraform_talos/modules/talos/patches/common.yaml.tftpl).
 spegel:
   containerdRegistryConfigPath: /etc/cri/conf.d/hosts
 
-# Single-zone bare-metal cluster (no topology.kubernetes.io/zone labels) — the
-# EndpointSlice controller can't honor topology hints and emits a recurring
-# TopologyAwareHintsDisabled warning. Drop the annotation; hints are pointless here.
+# No zone labels: hints only emit recurring TopologyAwareHintsDisabled warnings.
 service:
   registry:
     topologyAwareHintsEnabled: false
 
-# Chart default sets only a memory limit; pin CPU too (no LimitRange in ns spegel).
+# No LimitRange in ns spegel; the chart sets only a memory limit.
 resources:
   requests:
     cpu: 25m
@@ -23,6 +17,6 @@ resources:
     memory: 256Mi
 
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true

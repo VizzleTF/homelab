@@ -1,21 +1,6 @@
-# Spotify "Liked Songs" backup — homelab-common workloads.
-#
-# One CronJob `spotify-backup-saved-tracks` dumps /me/tracks (Liked Songs)
-# in full to /backup/saved_tracks.json once a day. The script is inline on
-# spotipy, no upstream tool is used.
-#
-# Vault layout (create by hand before the first sync):
-#   home/data/homelab/k8s/spotify-backup/spotify-backup
-#     client_id     = <Spotify Developer App Client ID>
-#     client_secret = <Spotify Developer App Client Secret>
-#     token_cache   = <contents of $XDG_CONFIG_HOME/spotify-backup, obtained
-#                      once with a local OAuth flow>
-#
-# Spotify Developer App:
-#   Redirect URI = http://127.0.0.1:8080/callback
-#   (plain http://localhost is rejected since 2025-04-09, a loopback IP is required)
-#
-# Local bootstrap (get token_cache; scope = user-library-read):
+# Bootstrap: OpenBao spotify-backup/spotify-backup needs client_id, client_secret,
+# token_cache. App redirect URI http://127.0.0.1:8080/callback (localhost is rejected).
+# Get token_cache once:
 #   docker run --rm -it -v "$PWD/cache:/config" \
 #     -e SPOTIPY_CLIENT_ID=... -e SPOTIPY_CLIENT_SECRET=... \
 #     -e SPOTIPY_REDIRECT_URI=http://127.0.0.1:8080/callback \
@@ -30,10 +15,8 @@
 #                    open_browser=False).get_access_token(as_dict=False)
 #       "
 #     '
-#   # Spotipy prints a URL -> open it in a browser -> log in -> copy the URL from
-#   # the address bar (it does not load, connection refused is expected) -> paste
-#   # it into the container's stdin. Then:
-#   cat cache/spotify-backup  # -> this JSON goes to Vault as the token_cache field
+#   # Open the printed URL, log in, paste the (refused) callback URL into stdin.
+#   cat cache/spotify-backup  # -> token_cache
 
 homelab-common:
   networkPolicy:
@@ -51,14 +34,12 @@ homelab-common:
     - name: spotify-backup-token
       vaultPath: spotify-backup/spotify-backup
       data:
-        # Spotipy CacheFileHandler reads the file at
-        # Path(XDG_CONFIG_HOME, "spotify-backup"). The key must be named
-        # "spotify-backup" so the initContainer copy lands under that name.
+        # Key must be "spotify-backup": spotipy reads $XDG_CONFIG_HOME/spotify-backup.
         - secretKey: spotify-backup
           property: token_cache
 
   workloads:
-    - name: saved-tracks            # -> CronJob spotify-backup-saved-tracks
+    - name: saved-tracks
       type: cronjob
       schedule: "0 4 * * *"
       spec:
@@ -66,10 +47,7 @@ homelab-common:
       job:
         activeDeadlineSeconds: 600
       pod:
-        # The NFS export 10.11.12.237:/volume5/k8s_svc does not allow writes
-        # for non-root uids, so the pod runs as root (squashing is the NFS
-        # server's job). Caps are dropped; a writable root FS is needed for
-        # pip install and for writing the script to /work.
+        # Root: the NFS export rejects non-root writes. Writable rootfs for pip install.
         securityContext:
           seccompProfile:
             type: RuntimeDefault
@@ -94,7 +72,7 @@ homelab-common:
               requests: {cpu: 10m, memory: 16Mi}
               limits: {cpu: 100m, memory: 32Mi}
         volumes:
-          - name: token             # initContainer only
+          - name: token
             secret:
               secretName: spotify-backup-token
               items:
@@ -166,7 +144,7 @@ homelab-common:
             limits: {cpu: 500m, memory: 256Mi}
       persistence:
         cache:
-          emptyDir: {}              # token cache, seeded by prep-cache at /cache
+          emptyDir: {}
           mountPath: /config
         work:
           emptyDir: {}

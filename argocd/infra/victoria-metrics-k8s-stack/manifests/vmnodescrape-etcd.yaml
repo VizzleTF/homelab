@@ -1,8 +1,5 @@
-# Scrape etcd metrics from the Talos control-plane nodes.
-# etcd exposes /metrics on plain HTTP port 2381 (controlplane machine-config
-# patch — see obsidian/112 ArgoCD/Infrastructure/Monitoring Stack.md). VMNodeScrape discovers the CP nodes
-# dynamically by label, so node IP changes or node replacement need no edit
-# here — unlike a static Endpoints list.
+# Port 2381 comes from a Talos controlplane patch (obsidian/112 ArgoCD/Infrastructure/Monitoring Stack.md).
+# Label discovery, not static IPs: node replacement needs no edit here.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMNodeScrape
 metadata:
@@ -13,15 +10,13 @@ spec:
   scheme: http
   path: /metrics
   interval: 30s
-  # Only control-plane nodes run etcd / listen on 2381.
   selector:
     matchExpressions:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
   relabelConfigs:
-    # Fixed job label so dashboards/alerts match `job="etcd"`.
+    # Dashboards and alerts match job="etcd"
     - targetLabel: job
       replacement: etcd
-    # instance = node name (readable) instead of the default <ip>:2381.
     - sourceLabels: [__meta_kubernetes_node_name]
       targetLabel: instance

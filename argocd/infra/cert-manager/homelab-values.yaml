@@ -1,13 +1,11 @@
-# homelab-common only (second source of the AppSet). Kept apart from values.yaml: the jetstack chart has a strict values schema.
+# Kept apart from values.yaml: the chart has a strict values schema.
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
 
   externalSecrets:
-    # DNS-01 token for ClusterIssuer cloudflare-issuer, the same token as
-    # external-dns (grant `cloudflare`). Name and key are fixed: the
-    # ClusterIssuer, DR phase 03 and the dr-pack read cloudflare-api-token/api-token.
+    # Name/key fixed: ClusterIssuer, DR phase 03 and the dr-pack read cloudflare-api-token/api-token.
     - name: cloudflare-api-token
       vaultPath: external-dns/cloudflare
       data:
@@ -21,11 +19,8 @@ homelab-common:
       issuerRef:
         name: cloudflare-issuer
         kind: ClusterIssuer
-      # example.com is the only domain. internal.example was decommissioned 2026-07-26:
-      # it died on a registrar verification hold (NS =
-      # ns1.verification-hold.suspended-domain.com), its DNS-01 challenge could
-      # not resolve authoritative nameservers, and because all SANs share one
-      # Certificate it stalled renewal of *.example.com too. Do not add it back.
+      # Do not add internal.example back: its dead DNS-01 stalled renewal of every SAN
+      # in this shared Certificate (decommissioned 2026-07-26).
       dnsNames:
         - "*.example.com"
         - "example.com"

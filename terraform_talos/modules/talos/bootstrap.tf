@@ -5,9 +5,7 @@ locals {
   )
 }
 
-# Bootstraps etcd on the first control-plane node. Idempotent — provider no-ops
-# if the cluster is already bootstrapped.
-# Do NOT taint or destroy — re-bootstrap on an existing etcd is destructive.
+# Do NOT taint or destroy: re-bootstrap on an existing etcd is destructive.
 resource "talos_machine_bootstrap" "this" {
   count = local.bootstrap_node_ip == null ? 0 : 1
 

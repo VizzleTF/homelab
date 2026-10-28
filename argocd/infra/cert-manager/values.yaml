@@ -1,4 +1,4 @@
-# Cert-Manager (jetstack): chart keys only; homelab-common lives in homelab-values.yaml because of values.schema.json
+# Chart keys only: homelab-common is in homelab-values.yaml (strict values.schema.json).
 crds:
   enabled: true
 
@@ -34,9 +34,7 @@ cainjector:
   extraEnv:
     - name: GOMEMLIMIT
       value: "110MiB"
-  # No CRD or APIService in cluster uses cert-manager injection annotations
-  # (only ValidatingWebhook/MutatingWebhook). Disabling those caches drops
-  # cainjector RSS by ~200 MiB. Webhook injection stays enabled.
+  # Nothing injects into CRDs/APIServices here; dropping those caches saves ~200 MiB RSS.
   extraArgs:
     - --enable-customresourcedefinitions-injectable=false
     - --enable-apiservices-injectable=false

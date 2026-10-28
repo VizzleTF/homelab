@@ -1,7 +1,5 @@
 ---
-# Lets HTTPRoutes in the lampac namespace use keda-loading-proxy (the nginx
-# front door that shows a "service is starting" page during cold start) as a
-# backendRef across namespaces.
+# Lets lampac HTTPRoutes use keda-loading-proxy (cold-start page) as a cross-namespace backendRef.
 apiVersion: gateway.networking.k8s.io/v1
 kind: ReferenceGrant
 metadata:

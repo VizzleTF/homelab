@@ -26,8 +26,7 @@ jobs:
         run: helm lint --strict charts/homelab-common
       - name: Package
         run: helm package charts/homelab-common -d /tmp/
-      # Use Forgejo's Helm Chart Museum API endpoint (POST /api/packages/{owner}/helm/api/charts)
-      # so the package appears under "Helm" type in the UI rather than "Container".
+      # Chart Museum API, not OCI push: the package must list as type Helm.
       - name: Push to Forgejo Helm registry
         run: |
           set -eu

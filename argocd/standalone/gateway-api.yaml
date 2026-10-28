@@ -5,9 +5,8 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
-    # The CRDs were applied with Replace=true (client-side apply could not
-    # store the ~300 KB httproutes CRD in last-applied-configuration). Hand
-    # the fields that manager still co-owns over to ServerSideApply.
+    # CRDs were applied with Replace=true (the ~300 KB httproutes CRD overflows
+    # last-applied-configuration); hand that manager's fields to SSA.
     argocd.argoproj.io/client-side-apply-migration-manager: argocd-application-controller
     argocd-diff-preview/watch-pattern: "argocd/standalone/gateway-api.yaml"
   labels:
@@ -36,9 +35,7 @@ spec:
         factor: 2
         maxDuration: 3m
     syncOptions:
-      # Server-side apply keeps no last-applied-configuration, so the large
-      # httproutes CRD fits without Replace=true. The safe-upgrades
-      # ValidatingAdmissionPolicy (gateway-api >= v1.6.1) needs the
-      # gateway.networking.k8s.io/bundle-version annotation, which the
-      # manifests carry.
+      # SSA keeps no last-applied-configuration, so the httproutes CRD fits without
+      # Replace=true. The safe-upgrades VAP (>= v1.6.1) needs the manifests'
+      # gateway.networking.k8s.io/bundle-version annotation.
       - ServerSideApply=true

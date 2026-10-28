@@ -1,22 +1,15 @@
-# VictoriaLogs single — cluster log storage + Vector (DaemonSet) as the collector.
-# Vector is a sub-chart, a DaemonSet on every node: kubernetes_logs source → Elasticsearch bulk → VL.
-# Viewing: Grafana plugin victoriametrics-logs-datasource, dashboard 22759 (Vector schema).
+# Grafana dashboard 22759 expects the Vector schema.
 
 fullnameOverride: victoria-logs
 
 server:
   retentionPeriod: "7d"
-  # Guard against a full PVC during a log storm — hit this before VolumeAlmostFull.
+  # Must trip before VolumeAlmostFull during a log storm.
   retentionDiskSpaceUsage: "9GiB"
 
-  # Write amplification (2026-10): VL itself wrote ~1.8 GB/day, but each
-  # 5 s in-memory flush became a burst of small fsyncs that Longhorn turned
-  # into ~28 GB/day on the two replica disks — both on control-plane SATA
-  # SSDs next to etcd. Fewer, larger flushes (up to 1 min of logs lost on a
-  # crash, Vector re-reads from its checkpoints) and the pod on the NVMe
-  # worker, whose Longhorn volume keeps one replica local (dataLocality
-  # best-effort, set on the volume) and one elsewhere: no data loss when a
-  # node dies.
+  # 5s flushes became ~28 GB/day of small fsyncs on the control-plane SSDs
+  # etcd shares (2026-10). 1m flush (Vector re-sends after a crash) and the pod
+  # kept off control-plane nodes.
   extraArgs:
     inmemoryDataFlushInterval: 1m
   affinity:
@@ -42,16 +35,11 @@ server:
     - name: GOMEMLIMIT
       value: "860MiB"
 
-# Vector collector (sub-chart). Collects /var/log/pods on every node, CP included.
-# Vector pods exclude themselves via the vector.dev/exclude=true label — no log loop.
 vector:
   enabled: true
 
-  # kubernetes_logs rewrites checkpoints.json every second, with no knob for
-  # the interval: ~1.4 GB/day per node on the shared control-plane SSDs
-  # (2026-10). /run is tmpfs on Talos. Checkpoints survive pod restarts and
-  # chart upgrades and are lost only on node reboot, when every pod starts
-  # fresh log files anyway.
+  # Checkpoints rewrite every second (~1.4 GB/day per node, no knob): /run is
+  # tmpfs on Talos, lost only on reboot when log files start fresh anyway.
   persistence:
     hostPath:
       path: /run/vector
@@ -66,19 +54,15 @@ vector:
       cpu: 50m
       memory: 128Mi
     limits:
-      # 512Mi → OOM at startup (burst of reading existing /var/log/pods/* from the start
-      # plus 70+ NFD labels per event before the node_labels drop filter).
-      # 1Gi → the startup burst on the worker reached 1018Mi (2026-09), raised.
+      # Startup burst re-reads /var/log/pods: OOM at 512Mi, 1018Mi seen at 1Gi (2026-09).
       memory: 1536Mi
 
-  # Drop CP component noise in the collector — cheaper than filtering in VL.
-  # The VM chart adds sinks.vlogs itself with a generated endpoint and VL-* headers;
-  # only the diff is here: a new filter_noise transform + parser switched to its output.
+  # The VM chart generates sinks.vlogs; only the diff lives here, and
+  # customConfig never replaces the chart's sink.
   customConfig:
     sources:
       k8s:
-        # Drop the heavy node NFD labels (feature.node.kubernetes.io/*) and annotations —
-        # 70+ fields per event. An empty string disables the field entirely.
+        # Drops 70+ NFD labels per event; "" disables the field.
         node_annotation_fields:
           node_labels: ""
         pod_annotation_fields:
@@ -86,11 +70,8 @@ vector:
         namespace_annotation_fields:
           namespace_labels: ""
 
-      # kube-apiserver audit log. Talos writes it on CP nodes to /var/log/audit/kube,
-      # and Vector already mounts /var/log from the host — no extra volume needed.
-      # Workers have no such files, the source just idles there.
-      # read_from: end is required: files rotate at 100MB, reading them from the start
-      # would flood the SIEM with a day of history on every pod restart.
+      # kube-apiserver audit (CP nodes only). read_from: end is required, else every
+      # pod restart floods the SIEM with a day of history.
       kube_audit:
         type: file
         include:
@@ -111,9 +92,7 @@ vector:
       parser:
         inputs: [filter_noise]
 
-      # Only what is worth keeping in the SIEM: secret and RBAC changes plus
-      # exec/attach/port-forward into pods. The full audit is ~100MB per couple
-      # of hours on each CP node; Wazuh neither needs nor benefits from that stream.
+      # Full audit is ~100MB per couple of hours per CP node; the SIEM gets only these.
       kube_audit_security:
         type: filter
         inputs: [kube_audit]
@@ -129,21 +108,15 @@ vector:
           stage == "ResponseComplete" && ((sensitive && mutating) || escalation)
 
     sinks:
-      # Diff to the chart's sinks.vlogs (2026-10, fewer writes to VL):
-      # VL-Ignore-Fields — service fields nobody searches by, yet they are
-      # ~half of every record (pod_labels stay: the Explorer dashboard filters
-      # by app.kubernetes.io/name); batch.timeout_secs — fewer, larger bulk
-      # requests.
+      # Fewer writes: ignored fields are ~half of every record. Keep other
+      # pod_labels: the Explorer dashboard filters by app.kubernetes.io/name.
       vlogs:
         batch:
           timeout_secs: 10
         request:
           headers:
             VL-Ignore-Fields: kubernetes.pod_labels.pod-template-hash,kubernetes.pod_labels.controller-revision-hash,kubernetes.container_id,kubernetes.container_image_id,kubernetes.pod_ips,kubernetes.pod_uid,file,source_type
-      # Talos cannot send an audit webhook to Falco/Wazuh, so the events reach
-      # the manager over plain syslog (LoadBalancer 10.11.10.140:514/udp, see [[wazuh]]).
-      # Logs to VictoriaLogs take their own path — the VM chart adds
-      # sinks.vlogs itself, this section does not replace it.
+      # Talos can't send an audit webhook, so Wazuh gets syslog (LB IP, see [[wazuh]]).
       wazuh_syslog:
         type: socket
         inputs: [kube_audit_security]
@@ -153,9 +126,8 @@ vector:
           codec: text
 
 homelab-common:
-  # Default-deny ingress: VictoriaLogs has no auth (read + delete API) and holds
-  # the kube audit stream. Only Grafana (datasource) and vmagent (scrape) from
-  # victoria-metrics may connect; Vector ships from inside the namespace.
+  # VictoriaLogs has no auth (read + delete API) and holds the audit stream:
+  # only Grafana and vmagent may connect.
   networkPolicy:
     enabled: true
     allow:

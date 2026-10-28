@@ -1,17 +1,8 @@
-# NetBird routing peers — join self-hosted mesh at netbird.example.com,
-# advertise home LAN subnets (10.11.11.0/24, 10.11.12.0/24) into NetBird.
-# Routes themselves are configured in NetBird dashboard → Network Routes (bound
-# to the `router` group; the reusable `k8s` setup key auto-joins both peers to it).
-#
-# Two INDEPENDENT peers (peer / peer-2), each its own identity PVC — a single
-# routing peer is a SPOF: draining its node severs the mesh route into the LAN
-# (see incident 2026-08-05). Hard pod anti-affinity keeps them on different nodes,
-# so no single node drain/failure can take out both. HA is two separate peers,
-# NOT replicas=2 — the RWO identity PVC + one-identity-per-peer model forbids it.
+# LAN routes live in the NetBird dashboard, bound to the `router` group.
+# HA = two separate peers on different nodes, NOT replicas=2 (one identity per
+# RWO PVC); one peer is a SPOF on drain (2026-08-05).
 homelab-common:
-  # Each identity PVC holds /var/lib/netbird of one peer; losing it means re-enrolling
-  # the peer (routes come back via the `router` group auto-join). No exec hook: the
-  # identity files are static, a crash-consistent CSI snapshot is enough.
+  # Losing an identity PVC means re-enrolling the peer.
   volsync:
     - name: netbird-peer
       targets:
@@ -27,8 +18,7 @@ homelab-common:
           schedule: "25 7 * * 0"
 
   externalSecrets:
-    # Single reusable setup key (Vault netbird/peer) — both peers enroll with it;
-    # the key's auto_groups puts each new peer into the `router` group automatically.
+    # Reusable key; its auto_groups puts peers into `router`.
     - name: netbird-peer
       vaultPath: netbird/peer
       data:
@@ -49,23 +39,18 @@ homelab-common:
       storageClassName: longhorn
       size: 100Mi
 
-  # No probes: the peer serves no port, and a liveness probe on `netbird status`
-  # would restart it on a lost management connection, which the client retries
-  # by itself while the established tunnels stay up.
+  # No probes: a `netbird status` liveness would restart on a lost management
+  # connection while tunnels stay up.
   workloads:
-    # ── peer 1 ──────────────────────────────────────────────────────────────
-    # sync-wave 1: re-applied AFTER peer-2 (wave 0) is healthy, so the brief
-    # Recreate gap here is covered by the already-running peer-2 — no self-lockout.
-    - name: peer                    # -> Deployment netbird-peer
+    # Wave 1, after peer-2: its Recreate gap is covered, no self-lockout.
+    - name: peer
       legacySelector:
-        app: netbird-peer           # immutable selector of the Deployment created before 1.19
-      # The setup key only matters at enrollment; a reload would restart both
-      # peers at once and drop the LAN route.
+        app: netbird-peer           # immutable selector of the existing Deployment
+      # A reload would restart both peers at once and drop the LAN route.
       reload: false
       annotations:
         argocd.argoproj.io/sync-wave: "1"
       pod:
-        # Never co-locate with peer-2.
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -74,7 +59,6 @@ homelab-common:
                     app: netbird-peer-2
                 topologyKey: kubernetes.io/hostname
       containers:
-        # peer-2 reuses this container (YAML merge) and only swaps NB_HOSTNAME.
         - &netbird-container
           name: netbird
           image:
@@ -115,22 +99,17 @@ homelab-common:
             path: /dev/net/tun
             type: CharDevice
           mountPath: /dev/net/tun
-        # /var/lib/netbird, not /etc/netbird: the client keeps active_profile.json,
-        # default.json and state.json (peer identity and keys) there.
+        # Not /etc/netbird: the identity lives here.
         state:
           claim: netbird-peer
           mountPath: /var/lib/netbird
-    # ── peer 2 ──────────────────────────────────────────────────────────────
-    # sync-wave 0: comes up first, provides route redundancy before peer-1 is
-    # recreated. Separate identity PVC, distinct NB_HOSTNAME.
-    - name: peer-2                  # -> Deployment netbird-peer-2
+    - name: peer-2
       legacySelector:
-        app: netbird-peer-2         # immutable selector of the Deployment created before 1.19
-      reload: false                 # same as peer: the setup key only matters at enrollment
+        app: netbird-peer-2         # immutable selector of the existing Deployment
+      reload: false
       annotations:
         argocd.argoproj.io/sync-wave: "0"
       pod:
-        # Never co-locate with peer-1.
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:

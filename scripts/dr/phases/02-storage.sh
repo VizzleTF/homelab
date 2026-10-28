@@ -13,9 +13,8 @@ helm repo add piraeus https://piraeus.io/helm-charts/ >/dev/null 2>&1 || true
 helm repo add containeroo https://charts.containeroo.ch >/dev/null 2>&1 || true
 helm repo update longhorn piraeus containeroo >/dev/null
 
-# local-path first: OpenBao (phase 06) and the restic caches of every VolSync
-# restore (phase 09) bind to StorageClass local-path; without it their PVCs
-# stay Pending.
+# local-path first: OpenBao (phase 06) and every VolSync restic cache (phase 09)
+# bind to StorageClass local-path; without it their PVCs stay Pending.
 log_info "installing local-path-provisioner"
 helm_apply local-path-provisioner containeroo/local-path-provisioner local-path-provisioner \
   --version "$(chart_version local-path-provisioner)" \
@@ -31,8 +30,8 @@ helm_apply longhorn longhorn/longhorn longhorn-system \
 wait_for "longhorn-manager DS Ready" \
   "kubectl -n longhorn-system rollout status ds/longhorn-manager --timeout=300s"
 
-# Release name = ArgoCD Application name, so ArgoCD adopts the same objects
-# (snapshot-controller) instead of running a second controller.
+# Release name = ArgoCD Application name, so ArgoCD adopts these objects
+# instead of running a second snapshot-controller.
 log_info "installing snapshot-controller"
 helm_apply snapshot-controller piraeus/snapshot-controller snapshot-controller \
   --version "$(chart_version snapshot-controller)" \
@@ -52,10 +51,8 @@ kubectl apply \
 log_info "applying VolumeSnapshotClass for VolSync (driver.longhorn.io)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/volsync/manifests/volumesnapshotclass.yaml"
 
-# VolSync is installed here instead of waiting for ArgoCD (phase 10): phase 09
-# needs the operator and its CRDs, otherwise volsync_restore fails with
-# "no matches for kind ReplicationDestination". The install is idempotent;
-# ArgoCD adopts the release later as usual.
+# VolSync now, not via ArgoCD (phase 10): phase 09 needs its CRDs, else
+# "no matches for kind ReplicationDestination". ArgoCD adopts the release later.
 log_info "installing VolSync (needed by phase 09)"
 helm repo add backube https://backube.github.io/helm-charts/ >/dev/null 2>&1 || true
 helm repo update backube >/dev/null

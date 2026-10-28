@@ -1,6 +1,5 @@
-# longhorn-ui proxies the whole manager API (it can delete volumes, no auth).
-# The chart's policies lock port 9500 but leave the UI open to every pod, so
-# only the Cilium gateway (the internal HTTPRoute) may reach it.
+# longhorn-ui proxies the unauthenticated manager API and the chart leaves it
+# open to every pod; only the Cilium gateway may reach it.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

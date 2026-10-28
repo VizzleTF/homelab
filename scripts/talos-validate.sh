@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
-# Validate the Talos machine config that terraform_talos/ would apply, for every
-# enabled node in terraform_talos/configs/nodes.yaml: base config generated for
-# the contract (vX.Y of cluster.talos_release) and Kubernetes version, plus
-# the patches rendered by the same module terraform uses
-# (terraform_talos/modules/talos/patches), then `talosctl validate -m metal`.
-#
-# Offline apart from `terraform init` of a local module: no state, no provider,
-# throwaway secrets. Catches a contract or Talos bump whose patches conflict
-# with the generated documents ("... is already set in v1alpha1 config") before
-# `terraform apply` hits it on a node.
-#
-# Shared by the CI talos-validate job and `task ci:talos-validate`. Requires
-# `terraform`, `talosctl` and `jq` on PATH (.mise.toml). Pass --strict to fail
-# on warnings too (deprecated v1alpha1 fields). TALOS_VALIDATE_OUT=<dir> keeps
-# the merged config per node there.
+# Validate the Talos machine config terraform_talos/ would apply to every enabled
+# node: config generated for the contract and k8s version plus the module's
+# patches, then `talosctl validate -m metal`. Offline (local module init,
+# throwaway secrets). Catches patches that conflict with generated documents
+# ("... is already set in v1alpha1 config") before `terraform apply` does.
+# Shared by CI talos-validate and `task ci:talos-validate`; needs terraform,
+# talosctl, jq (.mise.toml). --strict fails on warnings too; TALOS_VALIDATE_OUT=<dir>
+# keeps the merged config per node.
 set -euo pipefail
 
 STRICT=()

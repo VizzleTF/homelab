@@ -1,10 +1,5 @@
-# Scrape the ops node, which lives outside the cluster and therefore outside
-# every form of discovery the operator has. A static target is the whole point:
-# the node is deliberately not a cluster member (see obsidian 111 Memory/Ops Node).
-#
-# Besides the usual node_* series this brings in homelab_ops_backup_* from the
-# textfile collector — the Forgejo dump and the etcd snapshot write their
-# outcome there, which is what makes "backups quietly stopped" alertable.
+# The ops node is deliberately outside the cluster (obsidian 111 Memory/Ops Node).
+# Also brings homelab_ops_backup_* (textfile collector) for vmrule-ops-node.yaml.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMStaticScrape
 metadata:

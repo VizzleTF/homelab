@@ -1,16 +1,5 @@
-# Backups for the Forgejo instance on this node.
-#
-# The node holds the GitOps source of truth, so losing it must never mean
-# losing history. Three independent copies exist, in increasing cost to use:
-#
-#   1. push mirror to NAS Gitea       — plain git, another machine, minutes old
-#   2. restic in Garage on the NAS    — full dump: db, repos, lfs, packages meta
-#   3. restic in OVH                  — the same dump, off-site
-#
-# What restic stores is Forgejo's own dump, which is consistent by construction:
-# it drains queues and snapshots the database itself. Package blobs are not in
-# it — they live in Garage and are backed up as part of that bucket.
-#
+# Forgejo dump (db, repos, lfs, package metadata) -> restic in Garage and OVH;
+# plus a push mirror to NAS Gitea. Package blobs are in Garage, not the dump.
 # Recovery runbook: obsidian/113 Backups/Forgejo Recovery.md
 { pkgs, ... }:
 
@@ -44,8 +33,7 @@
       fi
       echo "shipping $dump"
 
-      # Same repository layout the cluster uses for its own restic backups, so
-      # a human looking for this data finds it where everything else lives.
+      # Same repo layout as the cluster's restic backups.
       ship() {
         export AWS_ACCESS_KEY_ID="$1"
         export AWS_SECRET_ACCESS_KEY="$2"
@@ -63,10 +51,8 @@
       ship "$OVH_KEY" "$OVH_SECRET" "$OVH_RESTIC_PASSWORD" \
            "s3:https://s3.de.io.cloud.ovh.net/offsite-homelab/restic-apps/forgejo-ops"
 
-      # Only now that both copies exist, drop the local ones. A dump is ~675 MB
-      # and Forgejo writes a new one daily, so without this the disk fills
-      # quietly over a year. Two days are kept as a hedge against a dump that
-      # shipped but turns out to be unreadable.
+      # Prune only after both copies exist (~675 MB/day fills the disk); 2 days
+      # kept in case a shipped dump is unreadable.
       find /var/lib/forgejo/dump -name '*.tar.zst' -mtime +2 -delete
       echo "local dumps kept: $(ls -1 /var/lib/forgejo/dump/*.tar.zst 2>/dev/null | wc -l)"
     '';

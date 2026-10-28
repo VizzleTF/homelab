@@ -1,28 +1,14 @@
-# WazuhCluster (manager + indexer + dashboard) rendered by the wazuh-cluster
-# chart into a single CR; the wazuh-operator (argocd/infra/wazuh-operator)
-# reconciles it. See obsidian/112 ArgoCD/Apps/all/wazuh.md for the whole stack design.
+# One WazuhCluster CR, reconciled by argocd/infra/wazuh-operator.
 namespace: wazuh  # pinned: the chart puts .Values.namespace, not the release namespace, on every CR
-# ArgoCD creates the namespace (CreateNamespace=true).
 createNamespace: false
 
-# No sizing profile: homelab sizing is set explicitly below (profile XS is close
-# but pins indexer storage at 10Gi and master at 5Gi, too small for 30d of alerts).
-# The storage class is set once, in cluster.spec.
+# Sizing is explicit below: profile XS pins indexer 10Gi / master 5Gi, too small.
 sizing:
   profile: ""
 
-# The chart's externalSecrets block is deliberately NOT used (operator 2026.9.1).
-# It only puts an externalSecretRef into the CR, and that path is half-wired:
-# ensureAPICredentialsSecret() returns early without creating anything, while the
-# dashboard and manager pod builders hardcode the canonical secret names
-# (constants.APICredentialsName / IndexerCredentialsName). The result is pods stuck
-# in CreateContainerConfigError on a missing wazuh-api-credentials.
-#
-# Instead the OpenBao-backed ExternalSecret below targets the canonical name
-# directly, with the canonical keys from docs/usage/features/credentials.md. The
-# indexer admin password stays operator-generated: its secret already exists and
-# the security index is initialised from it, so a second owner would only cause
-# churn.
+# Chart ESO path is half-wired (operator 2026.9.1): the CR gets an externalSecretRef
+# but pods still mount the canonical secret names, stuck in CreateContainerConfigError
+# on a missing wazuh-api-credentials. Operator-generated credentials stay as they are.
 externalSecrets:
   enabled: false  # pinned: the chart's ESO path is half-wired, see above
 
@@ -33,17 +19,12 @@ cluster:
     storageClassName: longhorn
 
     indexer:
-      # Single node: green health is impossible with replicas, so indices stay
-      # yellow — that is expected and not a degraded state here.
+      # Single node: indices stay yellow by design, not degraded.
       replicas: 1
       storageSize: 30Gi
-      # Prefer the NVMe worker (2026-10, disk writes): the Longhorn volume
-      # keeps one replica local there (dataLocality best-effort, set on the
-      # volume) and one elsewhere, so the index survives a node. Index
-      # settings that cut writes (refresh 30s, async translog) live in the
-      # legacy template `homelab-io-tuning`, order 10, applied through the
-      # API — a composable OpenSearchIndexTemplate would shadow the legacy
-      # `wazuh` template and its mappings.
+      # Prefer the NVMe worker (disk writes); dataLocality best-effort is set on the volume.
+      # Write-cutting index settings live in legacy template `homelab-io-tuning` (order 10,
+      # via API): a composable OpenSearchIndexTemplate would shadow the `wazuh` mappings.
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -52,8 +33,7 @@ cluster:
                 matchExpressions:
                   - key: node-role.kubernetes.io/control-plane
                     operator: DoesNotExist
-      # 670 MB of the 1500 MB heap in use, young gen included (jcmd
-      # GC.heap_info); container peak 2.1 Gi, ~0.65 Gi of it off-heap (2026-10).
+      # Heap use 670MB; container peak 2.1Gi, ~0.65Gi off-heap (2026-10).
       javaOpts: "-Xms1g -Xmx1g -Dlog4j2.formatMsgNoLookups=true"
       resources:
         requests:
@@ -66,7 +46,7 @@ cluster:
     manager:
       master:
         storageSize: 20Gi
-        # 7d max 1.7Gi of 2Gi, CPU p95 369m (2026-09).
+        # 7d max 1.7Gi, CPU p95 369m (2026-09).
         resources:
           requests:
             cpu: 400m
@@ -74,30 +54,15 @@ cluster:
           limits:
             cpu: "1"
             memory: 3Gi
-        # The whole queue/ tree is node-local. On the shared Longhorn volume
-        # (2 replicas, both on control-plane disks) its write load starved
-        # etcd on 2026-09-18: WAL fsync p99 3s, ~150 leader changes in an
-        # hour, control-plane static pods and every leader-elected controller
-        # restarting, three volumes degraded.
-        #
-        # It is not only queue/vd (the ~8GB unpacked CVE database, rewritten
-        # on every restart): queue/vd_updater stages the feed download at
-        # ~2.7MB/s for as long as it runs, and queue/indexer spools alerts.
-        # Carving out one path at a time just moved the problem, so the whole
-        # directory goes local. Everything in it is rebuildable state -
-        # agent keys live in /var/ossec/etc, which stays on Longhorn, as do
-        # the logs.
-        #
-        # local-path is WaitForFirstConsumer and Delete, so the volume is
-        # created on the node the pod lands on and goes away with the PVC. If
-        # that node is ever lost, delete the PVC and let the scanner refetch.
+        # Whole queue/ stays node-local: on Longhorn its writes (CVE db, feed staging,
+        # alert spool) starved etcd (2026-09-18). Single subpaths just moved the load.
+        # Rebuildable; agent keys stay on Longhorn in /var/ossec/etc.
+        # Node lost → delete the PVC, the scanner refetches.
         volumeClaims:
           - path: /var/ossec/queue
             size: 40Gi
             storageClass: local-path
-        # Pin the manager off the control-plane nodes: required by the
-        # node-local PVC above, and it keeps the manager's own I/O away from
-        # the etcd disks. Only talos-worker-01 matches.
+        # Off control-plane (node-local PVC, etcd disks); only talos-worker-01 matches.
         affinity:
           nodeAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -105,13 +70,8 @@ cluster:
                 - matchExpressions:
                     - key: node-role.kubernetes.io/control-plane
                       operator: DoesNotExist
-        # Agent enrollment (1515) and agent events (1514) for hosts outside the
-        # cluster: VPS over the NetBird mesh, ops, Synology, OpenWrt syslog.
-        # BGP announces the pool from every node, so the IP is reachable on LAN.
-        #
-        # ports REPLACES the operator's default set rather than extending it
-        # (applyManagerServiceSpec → WithPorts), so every port the manager needs
-        # is listed here — dropping one would silently unpublish it.
+        # For agents/syslog outside the cluster. ports REPLACES the operator defaults:
+        # dropping one silently unpublishes it.
         service:
           type: LoadBalancer
           annotations:
@@ -125,39 +85,14 @@ cluster:
               port: 1515
             - name: cluster
               port: 1516
-            # Devices that cannot run an agent (OpenWrt, DSM) ship syslog here.
             - name: syslog
               port: 514
               protocol: UDP
-        #
-        # Syslog arrives SNATed to whichever node took the datagram (ECMP over
-        # all four), so `location` is a node IP, not the sender; the sender is
-        # in predecoder.hostname. externalTrafficPolicy: Local would keep the
-        # source but was tried and reverted: the LB IP vanished from the
-        # router's BGP table and every agent disconnected.
-        #
-        # The CRD models <remote> as a single object, so the syslog listener is
-        # added as raw XML; the operator appends it inside <ossec_config>.
-        # allowed-ips is mandatory: without it wazuh-remoted drops every message.
-        #
-        # The operator renders no <vulnerability-detection>, no <command> and no
-        # <active-response>, so all three live here too.
-        #  - vulnerability-detection matches the syscollector package inventory
-        #    against the Wazuh CTI feed and writes wazuh-states-vulnerabilities-*.
-        #    Its ~8GB CVE database lives under queue/, which is a node-local
-        #    PVC (see volumeClaims below) - on the shared Longhorn volume it
-        #    took the control plane down on 2026-09-18.
-        #  - firewall-drop is the agent's built-in script, so no
-        #    WazuhActiveResponse (which only ships a script to the manager) is
-        #    needed. SSH brute force only: 100204 (non-existent users; the
-        #    homelab-noise rebuild of 5712), 100208 (repeated preauth failures,
-        #    i.e. root guessing on key-only hosts) and 5763 (valid user,
-        #    failed password). Web-scan rules are left out on purpose —
-        #    the VPS terminate VPN traffic and a CGNAT neighbour would get
-        #    banned with the scanner. CrowdSec runs on vps-panel as well; a double
-        #    ban there is harmless.
-        #  - white_list is what the manager checks before sending a response:
-        #    LAN, pod network and the NetBird mesh are never banned.
+        # Syslog is SNATed (ECMP): `location` is a node IP, the sender is predecoder.hostname.
+        # Don't set externalTrafficPolicy: Local — the LB IP left BGP, all agents dropped.
+        # Raw XML: the operator renders no second <remote>, vulnerability-detection,
+        # command or active-response. allowed-ips is mandatory, else remoted drops all.
+        # Active response is SSH brute force only: web-scan bans would hit CGNAT VPN users.
         extraConfig: |
           <remote>
             <connection>syslog</connection>
@@ -183,14 +118,9 @@ cluster:
             <executable>firewall-drop</executable>
             <timeout_allowed>yes</timeout_allowed>
           </command>
-          <!-- 0215-policy_rules.xml = "login during non-business hours" /
-               "weekend". Meaningless for one user, and ~11k alerts a week from
-               Forgejo git-over-ssh alone. A child rule cannot silence it: the
-               rules are if_group children of every authentication_success rule,
-               so a level-0 child would swallow every night-time login too.
-               A second <ruleset> that only held rule_exclude dropped etc/rules
-               in logtest, so the directories are repeated here (no duplicate
-               loading: loader warnings are unchanged). -->
+          <!-- 0215 = off-hours/weekend logins: noise for one user, and a child rule
+               would swallow every night login. The dirs are repeated because a
+               <ruleset> with only rule_exclude drops etc/rules. -->
           <ruleset>
             <decoder_dir>ruleset/decoders</decoder_dir>
             <decoder_dir>etc/decoders</decoder_dir>
@@ -205,14 +135,11 @@ cluster:
             <timeout>3600</timeout>
           </active-response>
       workers:
-        # Workers only scale agent-event ingestion horizontally; the master
-        # accepts events itself and ~10 agents do not need a second node.
+        # ~10 agents: the master ingests events itself.
         replicas: 0
       config:
         auth:
-          # Agents must present a password to enroll. The chart only wires this
-          # up for its own inline/ESO secrets, so it is set explicitly here and
-          # points at the OpenBao-backed secret created below.
+          # Set explicitly: the chart wires this only for its own secrets.
           usePassword: true
           passwordSecretRef:
             name: wazuh-authd-pass
@@ -220,15 +147,10 @@ cluster:
 
     dashboard:
       replicas: 1
-      # TLS terminates at cilium-gateway-internal, so the dashboard serves plain
-      # HTTP and no BackendTLSPolicy is needed. Operator bug #63 (bool fields
-      # with omitempty snapping back to their default) is fixed in 2026.9.1.
+      # TLS terminates at the gateway.
       enableSSL: false
-      # Keep the dashboard off the control-plane nodes. OpenSearch Dashboards is
-      # CPU-bound while it optimises bundles on boot, and on a saturated N100
-      # control-plane node it never opened :5601 inside the liveness window
-      # (60s + 3x30s) — the pod crash-looped there while an identical pod on the
-      # worker came up fine.
+      # Off control-plane: on a busy N100 the boot-time bundle optimise misses the
+      # liveness window and the pod crash-loops.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -241,36 +163,18 @@ cluster:
           cpu: 100m
           memory: 512Mi
         limits:
-          # 500m was not enough to finish the boot-time optimise step promptly.
+          # 500m is too slow for the boot-time optimise.
           cpu: "1"
           memory: 1Gi
 
-# The chart fills in clusterRefs (this WazuhCluster) for opensearchAuthConfig,
-# opensearchRoleMappings and every detection-content entry below.
-
-# Sign-in through Authentik. The dashboard keeps its local login as well: the
-# operator forces the basic auth domain on and it is what `kibanaserver` uses to
-# talk to the indexer, so removing it takes the dashboard down with it (operator
-# issue #57). Only one domain may issue the WWW-Authenticate challenge, hence
-# basic keeps challenge=true and OIDC leaves it false.
+# Basic auth must stay: `kibanaserver` uses it to reach the indexer (operator #57).
 opensearchAuthConfig:
   enabled: true
   name: wazuh-auth
   spec:
-    # The basic domain has to be declared explicitly. Leaving this block out
-    # does NOT preserve a default: the operator emits a config.yml holding only
-    # the domains named here, so omitting it produced activeAuthDomains=["oidc"]
-    # and removed local sign-in — including kibanaserver's, which is how the
-    # dashboard reaches the indexer.
-    #
-    # challenge MUST be false once OIDC is in play, despite the CRD advising to
-    # keep it on. With challenge=true this domain answers a request carrying no
-    # Basic credentials by returning 401 WWW-Authenticate immediately, which
-    # ends the auth-domain walk before the OIDC domain is ever reached: a valid
-    # bearer token produced 336 checks against internal/0 and not one against
-    # the OIDC domain, with no JWT parsing at TRACE level. Local accounts stay
-    # usable — the dashboard's login form sends credentials explicitly, and
-    # challenge only governs the browser's basic-auth prompt.
+    # Declare basic explicitly: omitted domains are dropped, which kills local and
+    # kibanaserver sign-in. challenge MUST be false (despite the CRD advice): true
+    # returns 401 before the OIDC domain is ever tried.
     basicAuth:
       enabled: true
       httpEnabled: true
@@ -279,7 +183,6 @@ opensearchAuthConfig:
     oidc:
       enabled: true
       httpEnabled: true
-      # Evaluated before basic so a bearer token is examined first.
       order: 0
       clientId: wazuh
       clientSecretRef:
@@ -288,9 +191,7 @@ opensearchAuthConfig:
       connectURL: https://authentik.example.com/application/o/wazuh/.well-known/openid-configuration
       logoutUrl: https://authentik.example.com/application/o/wazuh/end-session/
       subjectKey: preferred_username
-      # Authentik's default profile mapping emits group names in this claim;
-      # OpenSearch treats each entry as a backend role, which is what
-      # opensearchRoleMappings below matches on.
+      # Authentik groups become backend roles for opensearchRoleMappings.
       rolesKey: groups
       dashboard:
         rootUrl: https://wazuh.example.com
@@ -298,19 +199,10 @@ opensearchAuthConfig:
           name: wazuh-oidc
           key: cookie_password
 
-# The operator REPLACES a role mapping with exactly what is listed here; it does
-# not merge into the existing one. Leaving "admin" out of all_access is a
-# lockout, not a tidy-up: the operator authenticates as admin, so the moment it
-# drops that entry it can no longer read or write any mapping (403 "does not
-# have any role privileged for admin access"), cannot undo its own change, and
-# every dashboard query fails. Recovery takes the admin certificate. Keep admin
-# and the admin cert DN listed for as long as this mapping is managed here.
-#
-# No viewer mapping on purpose: an OpenSearch role only governs index reads,
-# while the Wazuh app reaches the manager API through one shared account with
-# run_as disabled, so a read-only role would still leave agent restarts and
-# active response reachable from the UI. Real separation needs runAs plus Wazuh
-# API RBAC rules, and this operator exposes no CRD for those.
+# The operator REPLACES the mapping. Dropping "admin" or the cert DN locks the operator
+# out (403 "does not have any role privileged for admin access"); recovery needs
+# the admin certificate. No viewer mapping: the shared manager API account would
+# still allow agent restarts and active response from the UI.
 opensearchRoleMappings:
   - name: all-access-wazuh-admins
     spec:
@@ -323,34 +215,21 @@ opensearchRoleMappings:
         # Required by the certificate hot-reload API.
         - "CN=admin,OU=Security,O=Wazuh,L=San Francisco,ST=California,C=US"
 
-# Detection content. Each change rolls the manager StatefulSet (content is
-# subPath-mounted).
+# Each detection-content change rolls the manager StatefulSet (subPath mounts).
 wazuhRules:
-  # Noise control, checked with wazuh-logtest against real events. What is
-  # left after it: sshd/sudo/su logins, FIM changes, SCA score summaries,
-  # brute-force bans, k8s audit by people, and anything unusual.
-  # Before it ~95% of indexed alerts were internet background on the public
-  # VPS (web scanners, SSH guessing), the provider agent crash-looping on
-  # vps-panel, PAM/cron bookkeeping and Forgejo git-over-ssh on ops. That policy file is excluded outright in
-  # extraConfig above; everything else is here.
+  # Noise control, checked with wazuh-logtest against real events.
   - name: homelab-noise
     spec:
       ruleName: homelab_noise
       description: "Silence known-benign high-volume events"
       rules: |
         <group name="homelab_noise,">
-          <!-- The operator only accepts rule IDs >= 100000, so stock rules cannot be
-               overwritten. Noise is silenced with children instead. A child becomes
-               the event's final rule, which starves any stock if_matched_sid
-               correlation on the parent, so the correlations that matter are
-               rebuilt on top of the children. Silencing children are level 2, not 0:
-               below log_alert_level (3) they are never indexed, but level-0 events
-               do not feed if_matched_sid at all (checked in logtest). Stock children
-               of a parent load before these, so they still win where they match. -->
+          <!-- IDs must be >= 100000, so noise is silenced by child rules. A child
+               starves stock if_matched_sid correlations, so the needed ones are
+               rebuilt below. Level 2, not 0: still unindexed (< 3), but level-0
+               events do not feed if_matched_sid. -->
 
-          <!-- Public VPS web: every nginx there is a decoy that answers 200 to any
-               path, so "attack returned 200" is as meaningless as the 4xx noise.
-               Scanners hit all of it around the clock. -->
+          <!-- VPS nginx is a decoy answering 200 to any path: all web alerts are noise. -->
           <rule id="100201" level="2">
             <if_sid>31101</if_sid>
             <description>Web server 4xx (silenced)</description>
@@ -372,12 +251,8 @@ wazuhRules:
             <group>nginx,</group>
           </rule>
 
-          <!-- Internet-wide SSH noise on the VPS: user guessing, preauth resets and
-               key-exhaustion disconnects. Two correlations replace what the
-               silencing breaks, both drive firewall-drop (extraConfig): 100204 for
-               non-existent users (was 5712) and 100208 for everything preauth,
-               which is how root brute force looks on key-only servers. Level 6:
-               the ban is the action, the alert is only a record. -->
+          <!-- VPS SSH noise. 100204 (replaces 5712) and 100208 (preauth) drive
+               firewall-drop in extraConfig; level 6 since the ban is the action. -->
           <rule id="100203" level="2">
             <if_sid>5710</if_sid>
             <description>sshd: non-existent user (silenced; see 100204)</description>
@@ -413,16 +288,14 @@ wazuhRules:
             <group>authentication_failures,attack,</group>
           </rule>
 
-          <!-- vps-panel: the provider's Cloud VMManager Agent exits 1 every 10s. -->
+          <!-- vps-panel: the provider agent exits 1 every 10s. -->
           <rule id="100210" level="0">
             <if_sid>40704</if_sid>
             <match>osconfig.service</match>
             <description>vps-panel: osconfig.service crash loop (known, provider agent)</description>
           </rule>
 
-          <!-- PAM session bookkeeping. Logins are already recorded by sshd (5715),
-               sudo (5402/5407) and su; the session open/close pair around them, plus
-               every cron job and systemd user instance, only doubles the count. -->
+          <!-- PAM sessions duplicate the sshd/sudo/su login alerts. -->
           <rule id="100211" level="2">
             <if_sid>5502</if_sid>
             <description>PAM: session closed (silenced)</description>
@@ -439,16 +312,14 @@ wazuhRules:
             <srcip>10.11.0.0/16</srcip>
             <description>sshd: Forgejo git-over-ssh from the LAN (silenced)</description>
           </rule>
-          <!-- ops: the scheduled Forgejo backup restore test runs psql/pg_restore as
-               postgres through sudo, dozens of times a day. -->
+          <!-- ops: Forgejo backup restore test, dozens of sudo runs a day. -->
           <rule id="100214" level="2">
             <if_sid>5402,5407</if_sid>
             <field name="command" type="pcre2">^/run/current-system/sw/bin/(psql|pg_restore|pg_dump|pg_dumpall|createdb|dropdb) </field>
             <description>sudo: Forgejo backup restore test on ops (silenced)</description>
           </rule>
 
-          <!-- Unattended upgrades on the VPS. Package state is covered by the
-               syscollector inventory and vulnerability detection. -->
+          <!-- Unattended upgrades; syscollector covers package state. -->
           <rule id="100215" level="2">
             <if_sid>2902,2904</if_sid>
             <description>dpkg: package installed / half configured (silenced)</description>
@@ -459,9 +330,7 @@ wazuhRules:
             <description>Log file rotated (silenced)</description>
           </rule>
 
-          <!-- SCA re-reports every failed/passed/not-applicable check on each scan.
-               The results live in the SCA tab (read from the manager API, not from
-               alerts); the per-scan score summary (19003/19004) still alerts. -->
+          <!-- Per-check SCA results; the SCA tab and the 19003/19004 summary remain. -->
           <rule id="100217" level="2">
             <if_sid>19007,19008,19009</if_sid>
             <description>SCA check result (silenced; see SCA tab)</description>
@@ -469,17 +338,15 @@ wazuhRules:
           </rule>
         </group>
 
-  # Kubernetes audit events that Vector forwards over syslog. Before this they
-  # were decoded as JSON and then dropped: no stock rule matches them.
+  # K8s audit events forwarded by Vector over syslog; no stock rule matches them.
   - name: k8s-audit
     spec:
       ruleName: k8s_audit
       description: "Kubernetes audit: exec, RBAC and secret changes"
       rules: |
         <group name="kubernetes,k8s_audit,">
-          <!-- Vector (argocd/infra/victoria-logs) already filters the audit stream to
-               RBAC/secret mutations and exec/attach/port-forward. Base level 2 keeps
-               the raw event out of the index; only the children below alert. -->
+          <!-- Vector (argocd/infra/victoria-logs) pre-filters the stream. Level 2 keeps
+               the raw event unindexed; only children alert. -->
           <rule id="100400" level="2">
             <decoded_as>json</decoded_as>
             <field name="apiVersion">^audit.k8s.io/</field>
@@ -512,8 +379,7 @@ wazuhRules:
             <group>k8s_rbac,</group>
           </rule>
 
-          <!-- Controllers (ESO, cert-manager, ArgoCD) rewrite secrets all day; only a
-               person touching one is worth an alert. -->
+          <!-- Controllers rewrite secrets all day; alert on people only. -->
           <rule id="100405" level="8">
             <if_sid>100400</if_sid>
             <field name="objectRef.resource">^secrets$</field>
@@ -524,9 +390,7 @@ wazuhRules:
         </group>
 
 wazuhIntegrations:
-  # Level 12+ goes to Alertmanager, which already routes to Robusta ->
-  # Telegram with grouping, inhibition and silences. Nothing in the last week
-  # reached 12, so this is a quiet channel by design.
+  # Level 12+ only: a quiet channel by design.
   - name: alertmanager
     spec:
       name: alertmanager
@@ -537,9 +401,7 @@ wazuhIntegrations:
       hookURL: http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093/api/v2/alerts
       script: |
         #!/var/ossec/framework/python/bin/python3
-        # wazuh-integratord calls: <script> <alert_file> [<api_key>] <hook_url> ...
-        # No api_key is configured, so the hook URL is found by its scheme rather
-        # than by position.
+        # argv: <alert_file> [<api_key>] <hook_url> ...; find the hook by scheme.
         import datetime
         import json
         import sys
@@ -572,7 +434,7 @@ wazuhIntegrations:
                 "location": alert.get("location", ""),
             },
             "startsAt": now.isoformat(),
-            # A Wazuh alert is a point event; let it resolve on its own.
+            # Point event: auto-resolve.
             "endsAt": (now + datetime.timedelta(hours=1)).isoformat(),
             "generatorURL": "https://wazuh.example.com/app/threat-hunting",
         }]
@@ -587,8 +449,7 @@ wazuhIntegrations:
         sys.exit(0)
 
 wazuhAgentGroups:
-  # Every agent sits in "default". Before this its agent.conf was empty and
-  # each host ran on its local ossec.conf defaults.
+  # Every agent is in "default".
   - name: default
     spec:
       groupName: default
@@ -605,8 +466,7 @@ wazuhAgentGroups:
         </agent_config>
 
 opensearchISMPolicies:
-  # Nothing deleted indices before this. The template only attaches the policy
-  # to indices created after it exists; older ones were attached by hand.
+  # ismTemplate attaches only to new indices; older ones need attaching by hand.
   - name: wazuh-alerts-retention
     spec:
       description: "Delete wazuh-alerts-* after 90 days"
@@ -643,18 +503,15 @@ opensearchISMPolicies:
           priority: 100
 
 homelab-common:
-  # Default-deny ingress. Dashboard via the gateway; the manager's agent and
-  # syslog ports are opened separately in manifests/networkpolicy.yaml.
+  # Agent/syslog ports are opened in manifests/networkpolicy.yaml.
   networkPolicy:
     enabled: true
     allow:
-      # wazuh-operator -> indexer security/ISM API and manager API
       - namespaces: [wazuh-operator]
         ports: [9200, 55000]
 
-  # Manager state: agent registrations (client.keys), sslmanager.key, API
-  # config. Losing it means re-enrolling every agent. The indexer (events) and
-  # the local-path queue are rebuildable and not backed up.
+  # Manager state (client.keys): losing it re-enrolls every agent. Indexer and
+  # queue are rebuildable, not backed up.
   volsync:
     - name: wazuh-manager
       claim: wazuh-data-wazuh-manager-master-0
@@ -664,24 +521,15 @@ homelab-common:
         - repo: ovh
           schedule: "40 6 * * 0"
   externalSecrets:
-    # NOTE: the API credentials are NOT managed here. The operator creates
-    # wazuh-api-credentials itself (user "wazuh", 20-char generated password) as
-    # soon as the CR exists, and it owns the Secret — an ExternalSecret aimed at
-    # the same name just fails with "failed to take ownership of target secret".
-    # Same story as the indexer admin password. Both generated values are copied
-    # into OpenBao for reference only; the operator stays the source of truth.
-
-    # Agent enrollment password, referenced from manager.config.auth above.
-    # This one has no operator-side counterpart, so ESO owns it cleanly.
+    # Not wazuh-api-credentials or the indexer admin: the operator owns them, an ES
+    # fails "failed to take ownership of target secret". OpenBao copies are reference only.
     - name: wazuh-authd-pass
       vaultPath: wazuh/authd
       data:
         - secretKey: password
           property: password
 
-    # OIDC client secret and the dashboard's session-cookie signing password,
-    # referenced from opensearchAuthConfig above. Authentik reads the same
-    # wazuh/oidc client_secret (grant oidc-clients) for the blueprint's !Env.
+    # Authentik's blueprint reads the same wazuh/oidc client_secret.
     - name: wazuh-oidc
       vaultPath: wazuh/oidc
       data:
@@ -692,7 +540,7 @@ homelab-common:
 
   httpRoutes:
     - name: wazuh
-      hostname: wazuh  # -> wazuh.example.com
+      hostname: wazuh
       gateway: internal  # SIEM stays off the public tunnel
       service:
         name: wazuh-dashboard

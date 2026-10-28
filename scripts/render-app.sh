@@ -1,21 +1,15 @@
 #!/usr/bin/env bash
-# Render one ApplicationSet app the way ArgoCD does and print the manifests to
-# stdout. Sources mirror argocd/appsets/{apps,infra}-appset.yaml:
-#   1. upstream chart (repoURL/chart/targetRevision from config.yaml) with
-#      values.yaml — skipped when homelabOnly: true
-#   2. homelab-common with global.yaml + values.yaml (or homelabValuesFile) —
-#      the WHOLE file, the chart reads its `homelab-common:` key itself
+# Render one ApplicationSet app as ArgoCD does, manifests to stdout. Sources
+# mirror argocd/appsets/{apps,infra}-appset.yaml:
+#   1. upstream chart (config.yaml) with values.yaml — unless homelabOnly: true
+#   2. homelab-common with global.yaml + the WHOLE values.yaml (or
+#      homelabValuesFile); the chart reads its `homelab-common:` key itself
 #   3. raw manifests/*.yaml — when extraManifests: true
-# homelab-common comes from the Forgejo chart-museum at the version pinned in
-# the appset (what ArgoCD deploys); HC_LOCAL=1 uses charts/homelab-common
-# instead (to preview an unpublished chart change).
-# `argocd` renders the standalone argocd Application (argo-cd + homelab-common).
-#
-# Usage: scripts/render-app.sh <app>
+# homelab-common is the appset-pinned chart-museum version; HC_LOCAL=1 uses
+# charts/homelab-common. `argocd` renders the standalone argocd Application.
 # Requires helm and yq (.mise.toml); kubectl for the cluster capabilities.
-# Exit 3: the cluster is reachable and the live Application tracks objects this
-# render lacks (objects the change removes, or a source the render dropped);
-# the list goes to stderr.
+# Exit 3: the live Application tracks objects this render lacks (removed by the
+# change, or a dropped source); list on stderr.
 set -euo pipefail
 
 usage() { echo "usage: $0 <app>  (folder name under argocd/apps or argocd/infra, or argocd)" >&2; exit 2; }
@@ -90,10 +84,9 @@ trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP  # else a signal 
   fi
 } | tee "$out"
 
-# Blind-render guard (cd7f7f55: a shadowed loop variable silently dropped a whole
-# source). requiresPruning objects are already gone from git (suspended app,
-# Prune=false). Not the jsonpath filter ?(@.requiresPruning!=true): it matches
-# nothing for objects without the field.
+# Blind-render guard (cd7f7f55: a shadowed variable dropped a whole source).
+# requiresPruning objects are already gone from git. Not the jsonpath filter
+# ?(@.requiresPruning!=true): it matches nothing when the field is absent.
 # shortcut: misses a dropped source with no live objects yet; upgrade if a new-app render goes blind.
 if [[ ${#caps[@]} -gt 0 ]]; then
   missing=$(comm -13 <(yq -N -r 'select(.kind) | .kind + "/" + .metadata.name' "$out" | sort -u) \

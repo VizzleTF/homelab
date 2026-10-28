@@ -10,10 +10,8 @@ extraArgs:
   rotate-server-certificates: "true"
 config:
   serverTLSBootstrap: true
-  # Reserve CPU/memory for system daemons + kubelet so node-pressure eviction
-  # kills app pods BEFORE starving cilium/longhorn/etcd/kubelet (the
-  # Renovate/Immich OOM-cascade class). evictionMinimumReclaim reclaims a
-  # meaningful chunk past the threshold to stop MemoryPressure flapping.
+  # Eviction kills app pods before cilium/longhorn/etcd/kubelet starve (OOM
+  # cascades). evictionMinimumReclaim stops MemoryPressure flapping.
   systemReserved:
     cpu: 200m
     memory: 512Mi
@@ -27,10 +25,8 @@ config:
     memory.available: 300Mi
     nodefs.available: 5%
 ---
-# Longhorn data disk. A user volume is propagated into the kubelet on its own;
-# /var/lib/longhorn needed a kubelet extraMount, which has no replacement in
-# the v1.14 documents (siderolabs/talos#14365). Directory type: lives on
-# EPHEMERAL, no separate partition.
+# Longhorn data dir: a user volume reaches the kubelet without extraMount
+# (none in v1.14 documents, siderolabs/talos#14365). Directory on EPHEMERAL.
 apiVersion: v1alpha1
 kind: UserVolumeConfig
 name: longhorn
@@ -38,10 +34,8 @@ volumeType: directory
 ---
 apiVersion: v1alpha1
 kind: ResolverConfig
-# Pin host resolver to the LAN gateway (OpenWrt) so nodes resolve internal
-# split-horizon records (e.g. git.example.com → cilium-gateway-internal) for
-# image pulls. Without this Talos falls back to 1.1.1.1/8.8.8.8 when DHCP
-# gives no DNS, and public DNS returns NXDOMAIN for internal names.
+# OpenWrt resolves split-horizon names (git.example.com) for image pulls; the
+# Talos fallback 1.1.1.1/8.8.8.8 returns NXDOMAIN for them.
 nameservers:
   - address: ${gateway}
 hostDNS:
@@ -61,9 +55,8 @@ kind: UnattendedInstallConfig
 installer:
   image: ${install_image}
 ---
-# Spegel (argocd/infra/spegel): keep unpacked image layers in containerd's
-# content store so nodes can serve them to peers. containerd 2.x plugin key
-# (io.containerd.cri.v1.images, not the old io.containerd.grpc.v1.cri).
+# Spegel serves layers to peers from the content store. containerd 2.x key:
+# io.containerd.cri.v1.images, not io.containerd.grpc.v1.cri.
 apiVersion: v1alpha1
 kind: CRICustomizationConfig
 name: spegel
@@ -71,18 +64,15 @@ content: |
   [plugins."io.containerd.cri.v1.images"]
     discard_unpacked_layers = false
 ---
-# Hugepages and nvme_tcp serve only the Longhorn v2 data engine, which is off
-# (v2-data-engine=false). 1024 x 2 MiB sat free on every node, 8 GiB in total
-# (2026-10). "0" rather than dropping the document: Talos leaves a removed
-# sysctl at its live value until reboot. Bring both back together with v2.
+# Hugepages serve only the Longhorn v2 engine (off). "0", not removal: Talos
+# keeps a removed sysctl live until reboot. Restore with v2.
 apiVersion: v1alpha1
 kind: SysctlConfig
 params:
   vm.nr_hugepages: "0"
 ---
-# Runs CRI, kubelet and pods in a sandbox PID+mount namespace (the v1.14
-# default). Tested on talos-worker-01 on 2026-10-17: Longhorn iSCSI attach and
-# rebuild, Cilium, Spegel, the Intel GPU plugin. Takes effect on reboot.
+# Sandbox PID+mount namespace for CRI/kubelet/pods; takes effect on reboot.
+# Verified 2026-10-17: Longhorn iSCSI, Cilium, Spegel, Intel GPU plugin.
 apiVersion: v1alpha1
 kind: SecurityProfileConfig
 workloadIsolation: true

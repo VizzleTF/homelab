@@ -1,7 +1,5 @@
-# Pinned CLI toolchain for the homelab repo.
-# Single source of truth for "what tool versions does this repo expect".
-# Renovate's native `mise` manager bumps these (datasource auto-resolved per tool).
-# `scripts/kubeconform-validate.sh` (and CI) read the kubeconform pin from here.
+# Renovate's mise manager bumps these; CI and scripts/kubeconform-validate.sh
+# read pins from here.
 [tools]
 helm = "4.3.1"          # CI and chart publish install it via scripts/ci-install-helm.sh
 kubectl = "1.37.2"       # match cluster k8s version

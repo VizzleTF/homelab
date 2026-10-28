@@ -1,6 +1,6 @@
-# homelab-common only (second source of the AppSet). Kept apart from values.yaml: the upstream chart has a strict values schema.
+# Kept apart from values.yaml: the chart has a strict values schema.
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
 

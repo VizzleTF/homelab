@@ -1,9 +1,4 @@
-# Алерты по хостам VPN-парка: node_exporter (job=node) и CrowdSec (job=crowdsec),
-# всё с external_label cluster=vps. Скрейпит crowdsec-scraper по netbird mesh.
-#
-# Почему отдельные правила, а не чартовые node-exporter: чартовый набор целится в
-# job="node-exporter" (in-cluster DaemonSet), а VPS приезжают под job="node" —
-# до этого файла у них не было НИ ОДНОГО алерта: полный диск на ноде был нем.
+# Свои правила: чартовые целятся в job="node-exporter", а VPS приходят под job="node".
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -13,9 +8,7 @@ spec:
   groups:
     - name: vps-host
       rules:
-        # Один хост недоступен. Условие `< 4` отсекает случай «упал mesh/скрейпер»,
-        # который выносится в отдельный алерт ниже — иначе на каждый обрыв netbird
-        # прилетало бы четыре critical вместо одного.
+        # `< 4`: обрыв mesh — один VpsScraperMeshDown вместо четырёх critical.
         - alert: VpsHostDown
           expr: |
             up{job="node"} == 0
@@ -97,7 +90,7 @@ spec:
               Если жертвой был rw-core или nginx — нода уже не обслуживает клиентов.
               ssh {{ $labels.host }} 'dmesg -T | grep -i "killed process" | tail'
 
-        # load5 на ядро. Порог 2 — не «занят», а «очередь вдвое длиннее числа ядер».
+        # load5 на ядро.
         - alert: VpsHighLoad
           expr: |
             node_load5{job="node"}
@@ -110,8 +103,7 @@ spec:
             description: |
               ssh {{ $labels.host }} 'uptime; top -bn1 | head -20'
 
-        # node_exporter не смог прочитать .prom-файл textfile-коллектора.
-        # Обычно = скрипт-сборщик пишет файл не атомарно и его поймали пустым.
+        # Обычно скрипт пишет .prom не атомарно.
         - alert: VpsTextfileScrapeError
           expr: node_textfile_scrape_error{job="node"} > 0
           for: 15m
@@ -133,11 +125,7 @@ spec:
             description: |
               ssh {{ $labels.host }} 'systemctl status crowdsec --no-pager'
 
-        # Скачок локальных банов. На vps-panel http-слой CrowdSec включён (там nginx
-        # фронтит панель и страницу подписки), и сценарий http-crawl-non_statics
-        # принимает чанки XHTTP-туннеля за краулер — то есть банит РЕАЛЬНОГО
-        # подписчика. Симптом у пользователя: «с VPN интернета нет, без VPN есть».
-        # Смысл алерта — посмотреть decisions ДО того, как придёт жалоба.
+        # http-crawl-non_statics на vps-panel банит реальных подписчиков (чанки XHTTP).
         - alert: VpsCrowdsecDecisionsSpike
           expr: |
             delta(

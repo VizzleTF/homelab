@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
-# Checks a LAN DNS name on the OpenWrt router at every hop, so a stale cache
-# is not mistaken for a broken external-dns-openwrt pipeline.
+# Check a LAN DNS name on the OpenWrt router at every hop, so a stale cache is
+# not mistaken for a broken external-dns-openwrt pipeline.
 #
-# The router hijacks ALL port-53 traffic (LAN and its own) to mihomo (Nikki,
-# :1053), which forwards `+.example.com` to dnsmasq and CACHES negative answers.
-# `nslookup <name> 10.11.12.1` therefore shows mihomo's cache, not dnsmasq:
-# a name queried before its HTTPRoute existed keeps returning NXDOMAIN (and a
-# removed one keeps resolving) long after dnsmasq has the right answer.
-# See [[reference_openwrt_dnsmasq_reload_ujail]].
+# The router hijacks ALL port-53 traffic to mihomo (Nikki, :1053), which forwards
+# `+.example.com` to dnsmasq and CACHES negative answers: `nslookup <name>
+# 10.11.12.1` shows mihomo's cache, so NXDOMAIN (or a removed name) can persist
+# long after dnsmasq is right. See [[reference_openwrt_dnsmasq_reload_ujail]].
 #
-# Shows:
-#   1. UCI dhcp sections for the name (`external_dns=homelab` = written by
-#      external-dns-openwrt; other sections are hand-made)
-#   2. dnsmasq's answer, bypassing the hijack (dig runs inside the
-#      services/dnsmasq cgroup, which the Nikki nft rules exempt)
-#   3. the answer clients get via router :53 (through mihomo)
-#   then a verdict.
+# Shows UCI dhcp sections (`external_dns=homelab` = external-dns-openwrt, others
+# hand-made), dnsmasq's answer bypassing the hijack, the answer via :53, a verdict.
+# --flush (the only mutation) POSTs /cache/dns/flush to the mihomo controller,
+# read from /etc/nikki/run/config.yaml on the router.
 #
 # Exit codes:
 #   0    mihomo agrees with dnsmasq, and dnsmasq serves every UCI record
@@ -23,10 +18,6 @@
 #        dnsmasq does not serve it
 #   2    usage error, invalid host, unusable mihomo controller or flush failed
 #   255  ssh to the router failed
-#
-# --flush first POSTs /cache/dns/flush to the mihomo controller (the only
-# mutation; clears mihomo's DNS cache, harmless). The controller address and
-# secret are read from /etc/nikki/run/config.yaml on the router at runtime.
 set -euo pipefail
 
 OWRT_SSH="${OWRT_SSH:-root@10.11.12.1}"

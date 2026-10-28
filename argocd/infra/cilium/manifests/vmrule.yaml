@@ -16,9 +16,7 @@ spec:
             summary: "Метрики cilium-agent не собираются"
             description: "VMPodScrape victoria-metrics/cilium-agent не отдаёт данных 30 минут — дропы и состояние датаплейна снова не видны."
 
-        # Traffic to an IP that no longer belongs to any endpoint. The one case
-        # seen so far: a host-side iSCSI session left behind by an old
-        # Longhorn instance-manager, retrying every 0.5s (logout fixed it).
+        # Seen once: a stale host iSCSI session of an old Longhorn instance-manager.
         - alert: CiliumStaleIPDrops
           expr: sum by (pod) (rate(cilium_drop_count_total{reason="Stale or unroutable IP"}[15m])) > 0.2
           for: 30m
@@ -32,10 +30,8 @@ spec:
               kubectl -n longhorn-system exec <longhorn-manager на ноде> -c longhorn-manager -- \
                 nsenter --mount=/host/proc/1/ns/mnt --net=/host/proc/1/ns/net -- iscsiadm -m session
 
-        # "restoring" is left out: on 1.20.4 the gauge stays at 1 on every agent
-        # after a restart while `cilium-dbg endpoint list` shows all endpoints
-        # ready (reproduced 2026-10-24). A real restore that hangs still shows
-        # up as regenerating/waiting-* or as pods without connectivity.
+        # "restoring" excluded: on 1.20.4 it stays 1 after an agent restart though
+        # all endpoints are ready (2026-10-24).
         - alert: CiliumEndpointsNotReady
           expr: sum by (pod) (cilium_endpoint_state{endpoint_state!~"ready|restoring"}) > 0
           for: 30m
@@ -44,10 +40,7 @@ spec:
           annotations:
             summary: "{{ $labels.pod }}: {{ $value }} endpoint(s) Cilium не ready 30 минут"
 
-        # Default-deny ingress is on for most app namespaces (homelab-common
-        # networkPolicy, cnpg/openbao/vaultwarden policies). A sustained
-        # "Policy denied" rate means a legitimate client is missing from an
-        # allow-list (or something is probing where it should not).
+        # Sustained denies under default-deny = a client missing from an allow-list.
         - alert: CiliumPolicyDenied
           expr: sum by (pod) (rate(cilium_drop_count_total{reason="Policy denied"}[10m])) > 0.05
           for: 15m

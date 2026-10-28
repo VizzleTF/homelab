@@ -1,6 +1,3 @@
-# Daily backup via the Barman Cloud Plugin (method: plugin), replacing the
-# chart's in-tree barmanObjectStore ScheduledBackup. Same name → ArgoCD adopts
-# the existing object in place.
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:

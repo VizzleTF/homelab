@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Phase 08 — CNPG operator. Cluster CRs themselves come up via ArgoCD in
-# phase 10, since ESO is now able to resolve every secret they need.
+# Phase 08 — CNPG operator. Cluster CRs come via ArgoCD in phase 10, once ESO
+# resolves their secrets.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh

@@ -1,10 +1,3 @@
-# OpenCloud — homelab-common.workloads (no upstream chart: opencloud-eu/helm is archived).
-# Mirrors the opencloud-compose base stack: one container running
-# `opencloud init || true; opencloud server`, config + data on separate PVCs.
-#
-# Auth: Authentik OIDC. The built-in `idp` service is disabled; the built-in `idm`
-# (LDAP) keeps running as the writable user store that PROXY_AUTOPROVISION_ACCOUNTS
-# writes into on first login.
 homelab-common:
   networkPolicy:
     enabled: true
@@ -49,8 +42,7 @@ homelab-common:
         port: 9200
 
   persistentVolumeClaims:
-    # `opencloud init` writes /etc/opencloud/opencloud.yaml with the generated
-    # service secrets — losing this PVC invalidates every issued token.
+    # Holds generated service secrets: losing it invalidates every issued token.
     - name: opencloud-config
       accessModes:
         - ReadWriteOnce
@@ -65,8 +57,7 @@ homelab-common:
   configMaps:
     - name: opencloud
       data:
-        # Upstream config/opencloud/csp.yaml with the IdP host pinned to
-        # Authentik.
+        # Upstream csp.yaml with the IdP host set to Authentik.
         csp.yaml: |
           directives:
             child-src:
@@ -117,7 +108,7 @@ homelab-common:
   workloads:
     - name: opencloud
       legacySelector:
-        app: opencloud              # immutable selector of the Deployment created before 1.19
+        app: opencloud              # immutable selector of the existing Deployment
       pod:
         securityContext:
           runAsNonRoot: true
@@ -131,8 +122,7 @@ homelab-common:
           image:
             repository: opencloudeu/opencloud
             tag: "7.2.4"
-          # `opencloud init` fails once the config file exists — ignore it and
-          # start the server, same as the upstream compose entrypoint.
+          # `opencloud init` fails once the config exists; ignore it.
           command: ["/bin/sh"]
           args:
             - -c
@@ -153,7 +143,6 @@ homelab-common:
               value: https://opencloud.example.com
             - name: PROXY_HTTP_ADDR
               value: 0.0.0.0:9200
-            # TLS terminates on the Cloudflare tunnel / cilium-gateway.
             - name: PROXY_TLS
               value: "false"
             - name: OC_INSECURE
@@ -168,8 +157,7 @@ homelab-common:
               value: "10000000000"
             - name: PROXY_CSP_CONFIG_FILE_LOCATION
               value: /etc/opencloud-csp/csp.yaml
-            # --- external IdP (Authentik) ---
-            # The built-in idp is replaced; idm stays as the LDAP user store.
+            # idm stays: it is the user store autoprovisioning writes to.
             - name: OC_EXCLUDE_RUN_SERVICES
               value: idp
             - name: OC_OIDC_ISSUER
@@ -184,7 +172,7 @@ homelab-common:
               value: jwt
             - name: PROXY_AUTOPROVISION_ACCOUNTS
               value: "true"
-            # `sub` is stable across renames in Authentik, unlike preferred_username.
+            # `sub` survives renames, preferred_username does not.
             - name: PROXY_USER_OIDC_CLAIM
               value: sub
             - name: PROXY_AUTOPROVISION_CLAIM_USERNAME
@@ -193,7 +181,6 @@ homelab-common:
               value: username
             - name: OC_LDAP_SERVER_WRITE_ENABLED
               value: "true"
-            # Roles come from the `roles` claim (Authentik group names).
             # A user in neither opencloudAdmin nor opencloudUser cannot log in.
             - name: PROXY_ROLE_ASSIGNMENT_DRIVER
               value: oidc
@@ -207,12 +194,8 @@ homelab-common:
               value: "false"
             - name: OC_ADMIN_USER_ID
               value: ""
-            # WebFinger tells the clients which OIDC client to use. Authentik
-            # scopes an issuer to one application, so every OpenCloud client
-            # shares the single `opencloud-web` provider.
-            # The web UI reads its own scope list from config.json, not from
-            # WebFinger — without `roles` here the claim never arrives and the
-            # oidc role driver refuses every login.
+            # All clients share the `opencloud-web` provider (one issuer per app).
+            # Without `roles` here the web UI never gets the claim and every login is refused.
             - name: WEB_OIDC_SCOPE
               value: openid profile email roles
             - name: WEBFINGER_WEB_OIDC_CLIENT_ID
@@ -252,13 +235,13 @@ homelab-common:
             failureThreshold: 6
       persistence:
         config:
-          claim: opencloud-config     # RWO -> strategy Recreate
+          claim: opencloud-config
           mountPath: /etc/opencloud
         data:
           claim: opencloud-data
           mountPath: /var/lib/opencloud
         csp:
           configMap:
-            name: opencloud           # -> configmap.reloader.stakater.com/reload
+            name: opencloud
           mountPath: /etc/opencloud-csp
           readOnly: true

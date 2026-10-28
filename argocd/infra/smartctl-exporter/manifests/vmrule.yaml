@@ -1,6 +1,4 @@
-# Disk SMART health alerts — ported from the chart's built-in prometheusRules
-# (disabled, no Prometheus-operator CRDs) to a native VMRule. Bare-metal drive-
-# failure prediction for the Longhorn-on-physical-disk setup.
+# Port of the chart's prometheusRules (no prometheus-operator CRDs here).
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:

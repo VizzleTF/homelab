@@ -20,7 +20,5 @@ spec:
               снят. До восстановления не доставляется ничего, включая этот алерт —
               он виден только в UI Alertmanager / VMAlert.
 
-        # PlaybookErrors / DiscoveryErrors удалены — transient'ы плюс известная история
-        # ложных срабатываний (Vault/ESO transient'ы, sink 404 при перезапуске).
-        # RunnerDown остаётся маркером «совсем сломалось» в UI — доставки при лежащем Runner нет.
-        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #29.
+        # Без PlaybookErrors / DiscoveryErrors: ложные срабатывания на transient'ах
+        # (Alert Cleanup.md #29).

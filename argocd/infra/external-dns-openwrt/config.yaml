@@ -3,5 +3,5 @@ repoURL: ghcr.io/vizzletf/charts
 targetRevision: "0.11.0"
 wave: "-2"
 extraManifests: true
-# external-dns + OpenWrt webhook sidecar in one chart, published by our fork. Source: https://github.com/VizzleTF/external-dns-openwrt-next
+# Our fork's chart: https://github.com/VizzleTF/external-dns-openwrt-next
 homelabValuesFile: homelab-values.yaml

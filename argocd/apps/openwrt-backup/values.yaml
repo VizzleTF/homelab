@@ -1,28 +1,19 @@
-# OpenWrt config backup — cluster-side CronJob.
-# SSH root@10.11.12.1 (main router) → `sysupgrade -b -` streams the config tarball
-# to stdout → upload to Garage (on-site) + OVH (off-site, independent, versioned).
-# The backup logic lives in the cluster, NOT on the router (never keep a backup
-# on the thing being backed up).
-#
-# `sysupgrade -b` includes /etc/config/* + /etc/bird.conf (the BGP peer for the
-# Cilium LB!) + dnsmasq + usteer (BTM) + crontabs + dropbear/authorized_keys by
-# default — the bird2 package registers its conffile, no need to edit
-# /etc/sysupgrade.conf.
+# `sysupgrade -b` already includes /etc/bird.conf (Cilium LB BGP peer): no
+# /etc/sysupgrade.conf edit needed.
 homelab-common:
   networkPolicy:
     enabled: true
 
   externalSecrets:
-    # SSH private key (reuses the existing admin id_rsa). The pubkey is already in
-    # /etc/dropbear/authorized_keys on the router. Vault: home/homelab/k8s/openwrt-backup/ssh.
+    # Admin id_rsa; its pubkey is in the router's /etc/dropbear/authorized_keys.
     - name: openwrt-ssh-key
       vaultPath: openwrt-backup/ssh
       data:
         - secretKey: id_rsa
           property: id_rsa
 
-    # rclone creds: Garage (dedicated bucket config-backups — NOT velero-backups,
-    # otherwise Velero fails the garage-default BSL with "invalid top-level dir") + OVH (off-site).
+    # Garage bucket config-backups, NOT velero-backups: Velero fails the BSL
+    # with "invalid top-level dir".
     - name: openwrt-backup-rclone
       data:
         - secretKey: garage_ak
@@ -54,16 +45,14 @@ homelab-common:
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
 
   workloads:
-    - name: config-backup           # -> CronJob openwrt-backup-config-backup
+    - name: config-backup
       type: cronjob
-      schedule: "30 5 * * 0"        # Sundays 05:30 UTC (weekly, configs change rarely)
-      # Chart defaults: concurrencyPolicy Forbid, startingDeadlineSeconds 600,
-      # history 1/3, backoffLimit 2, restartPolicy OnFailure.
+      schedule: "30 5 * * 0"
       job:
         activeDeadlineSeconds: 600
       pod:
         securityContext:
-          runAsUser: 0              # root for apk add; the pod is short-lived
+          runAsUser: 0              # root for apk add
           runAsGroup: 0
           seccompProfile:
             type: RuntimeDefault
@@ -86,7 +75,7 @@ homelab-common:
                 -o ConnectTimeout=15 \
                 root@10.11.12.1 "sysupgrade -b -" > "/tmp/b/owrt-router-$ts.tar.gz"
               ls -lh /tmp/b/
-              gzip -t /tmp/b/*.tar.gz   # sanity: valid gzip
+              gzip -t /tmp/b/*.tar.gz
               for r in garage:config-backups/openwrt ovh:offsite-homelab/openwrt; do
                 echo "[$(date -u)] rclone copy -> $r/"
                 rclone copy /tmp/b "$r/" --s3-acl=private --stats-one-line

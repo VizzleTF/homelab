@@ -1,19 +1,13 @@
-# Lampac - Media server with online sources, torrents and DLNA support
-# Source: https://github.com/lampac-nextgen/lampac
 homelab-common:
   networkPolicy:
     enabled: true
     allow:
-      # KEDA HTTP interceptor / loading proxy
       - namespaces: [keda]
         ports: [9118]
 
   httpRoutes:
-    # KEDA-fronted scale-to-zero (see manifests/httpscaledobject.yaml).
-    # kedaColdStartLoadingPage points the backend at keda-loading-proxy, so a
-    # cold start shows a "service is starting" page; `service:` is ignored
-    # while it is set. The cross-namespace backendRef needs the ReferenceGrant
-    # in ns keda (argocd/infra/keda-add-ons-http/manifests/referencegrant.yaml).
+    # `service:` is ignored while kedaColdStartLoadingPage is set. The backendRef
+    # needs the ReferenceGrant in argocd/infra/keda-add-ons-http/manifests/referencegrant.yaml.
     - name: lampac
       hostname: lampac
       gateway: internal
@@ -24,7 +18,7 @@ homelab-common:
         port: 8080
 
   configMaps:
-    - name: init-conf               # -> lampac-init-conf
+    - name: init-conf
       data:
         init.conf: |
           {
@@ -57,20 +51,15 @@ homelab-common:
           }
 
   workloads:
-    - name: lampac                  # -> Deployment + Service "lampac"; no replicas: KEDA scales 0..1
+    - name: lampac                  # no replicas: KEDA scales 0..1
       pod:
-        # Explicit: the live pod template still carries the deprecated alias
-        # serviceAccount: lampac, which no field manager owns. Dropping only
-        # serviceAccountName would let the apiserver restore it from the alias,
-        # and the next cold start would fail once the old SA is pruned.
+        # Keep: the live template still has the unowned alias serviceAccount: lampac;
+        # without this the apiserver restores it and cold starts fail on the pruned SA.
         serviceAccountName: default
         securityContext:
           seccompProfile:
             type: RuntimeDefault
-        # Keep it off the control-plane nodes: lampac downloads and runs the
-        # TorrServer binary at runtime (Falco "drop and execute new binary"),
-        # which should not happen next to etcd. Stateless, so any
-        # non-control-plane node is fine.
+        # Off control-plane: it downloads and runs the TorrServer binary at runtime.
         affinity:
           nodeAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -80,9 +69,7 @@ homelab-common:
                       operator: DoesNotExist
       containers:
         - name: lampac
-          # Upstream tags every release as both `X.Y.Z` and `vX.Y.Z`. Stay on the
-          # non-v scheme: a renovate.json rule (allowedVersions "!/^v/") locks
-          # tracking to it so the prefix never flips.
+          # Tags exist as `X.Y.Z` and `vX.Y.Z`; renovate.json locks the non-v scheme.
           image:
             repository: ghcr.io/lampac-nextgen/lampac
             tag: "1.86.0"
@@ -92,9 +79,7 @@ homelab-common:
           env:
             - name: LAMPAC_PORT
               value: "9118"
-          # Cold start compiles modules and binds Kestrel in ~130-150s: the
-          # startupProbe allows 24*10=240s, after it liveness restarts a hung
-          # pod within 5*15=75s.
+          # Cold start takes ~130-150s.
           startupProbe:
             httpGet:
               path: /
@@ -126,7 +111,7 @@ homelab-common:
         init-conf:
           configMap:
             name: lampac-init-conf
-          mountPath: /lampac/init.conf   # WORKDIR of the image
+          mountPath: /lampac/init.conf   # image WORKDIR
           subPath: init.conf
           readOnly: true
         dshm:

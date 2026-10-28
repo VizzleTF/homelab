@@ -1,95 +1,50 @@
-# Longhorn: default replicated block storage. Source: https://github.com/longhorn/longhorn
-
-# `networkPolicies.restrictInternalTraffic` (default true since 1.12.1) stays
-# on: Longhorn components stay isolated. Cross-namespace access is granted
-# per client: manifests/networkpolicy-allow-monitoring.yaml (vmagent -> 9500).
-# UI/API stay ClusterIP: the manager API (9500) can delete volumes and has no
-# auth, so it must not be announced over BGP. UI access goes through the
-# internal HTTPRoute in homelab-common below.
+# networkPolicies.restrictInternalTraffic (default true) stays on; grant
+# cross-namespace access per client (manifests/networkpolicy-allow-monitoring.yaml).
+# Keep UI/API ClusterIP: manager API (9500) has no auth and can delete volumes.
 persistence:
-  # longhorn-manager owns the default SC `longhorn` through the ConfigMap
-  # `longhorn-storageclass` (it overwrites any external manifest). Replica
-  # auto-balance comes from the global setting below (best-effort), so no
-  # extra StorageClass is needed for it.
+  # longhorn-manager owns SC `longhorn` via ConfigMap `longhorn-storageclass`
+  # and overwrites any external manifest of it.
   defaultClassReplicaCount: 2
   reclaimPolicy: Retain
 defaultSettings:
   storageMinimalAvailablePercentage: "5"
   defaultReplicaCount: "2"
-  # Talos UserVolumeConfig `longhorn` (terraform_talos/modules/talos/patches/
-  # common.yaml.tftpl). Since the v1.14 config contract the kubelet no longer
-  # sees /var/lib/longhorn (no extraMounts). Only used for a node's first disk.
+  # Talos UserVolumeConfig `longhorn` (terraform_talos/modules/talos/patches/common.yaml.tftpl);
+  # kubelet no longer sees /var/lib/longhorn. Used only for a node's first disk.
   defaultDataPath: /var/mnt/longhorn
-  # Volumes are thin: at 100% the nodes hit the scheduling limit (421 of 474Gi
-  # reserved) long before the disks filled (144Gi used), and a 50Gi VolSync
-  # clone no longer fit. storageMinimalAvailablePercentage still guards
-  # against a full disk.
+  # Volumes are thin: at 100% scheduling hit the limit long before disks filled
+  # and a 50Gi VolSync clone no longer fit. storageMinimalAvailablePercentage
+  # still guards against a full disk.
   storageOverProvisioningPercentage: "200"
   replicaAutoBalance: "best-effort"
-  # CPU reservation for instance-manager, as a PERCENTAGE of the node's
-  # allocatable CPU — not millicores. "0.1" therefore meant 0.1%, i.e. 4m on a
-  # 3600m node, not the 100m the old comment assumed. Instance-manager then lost
-  # the CPU race against etcd/apiserver on the control-plane nodes, its
-  # `nc localhost 8500-8503` liveness probe timed out, kubelet killed it, every
-  # iSCSI target on the node died, and Postgres hit
-  # `EXT4-fs error ... Detected aborted journal`.
-  # 12 is the Longhorn default (~432m per control-plane node here). Despite the
-  # 1.11 docs describing millicores for v2, 1.12.1 validates BOTH engines as a
-  # percentage capped at 40 — "value 1250 for data engine v2 should be less than
-  # or equal to 40" — and one invalid key makes Longhorn drop the whole
-  # customized default block, same trap as freezeFilesystemForSnapshot below.
+  # PERCENT of node allocatable CPU (both engines, max 40), not millicores.
+  # Too low ("0.1" = 4m) starves instance-manager → liveness kill → iSCSI
+  # targets die → Postgres "EXT4-fs error ... Detected aborted journal".
+  # One invalid key ("should be less than or equal to 40") makes Longhorn
+  # drop the whole customized default block.
   guaranteedInstanceManagerCPU: '{"v1":"12","v2":"12"}'
-  # fsfreeze while a snapshot is taken: without it a CSI snapshot is only
-  # crash-consistent, and restoring SQLite or a DB equals starting after a
-  # power cut. Freezing makes it FS-consistent for a sub-second I/O pause.
-  # v1 key only: since 1.12.1 Longhorn rejects `v2` for v1-only settings (it
-  # did for disableRevisionCounter: "mismatched data engines"), which dropped
-  # the whole customized default block with a warning on every reconcile.
+  # fsfreeze makes CSI snapshots FS-consistent, not just crash-consistent.
+  # v1 key only: a `v2` key on a v1-only setting ("mismatched data engines")
+  # drops the whole customized default block.
   freezeFilesystemForSnapshot: '{"v1":"true"}'
-  # Clean up system-generated snapshots automatically.
   autoCleanupSystemGeneratedSnapshot: "true"
-  # One concurrent rebuild per node, not 3: Longhorn shares the SSD with etcd.
-  # On 2026-09-30 three parallel rebuilds on cp-01 pushed sda write latency to
-  # ~350 ms, etcd fell 25k entries behind and Talos removed the control-plane
-  # static pods from the node.
+  # Longhorn shares the SSD with etcd; 3 parallel rebuilds starved etcd and
+  # Talos dropped the control-plane static pods (cp-01, 2026-09-30).
   concurrentReplicaRebuildPerNodeLimit: "1"
-  # Live-upgrade engines to the default engine image after a Longhorn upgrade,
-  # one volume per node at a time — otherwise a volume can sit on the old
-  # engine image (and keep its DaemonSet alive) forever.
+  # Without auto engine upgrade a volume stays on the old engine image forever.
   concurrentAutomaticEngineUpgradePerNodeLimit: "1"
-  # Node reboots/upgrades leave orphaned replica directories that nothing
-  # cleans up (39 of them, ~0.4 TB scheduled, after the 2026-09-19 Talos
-  # upgrade). Delete them after the default 300s grace period.
+  # Node reboots leave orphaned replica dirs nothing else cleans up
+  # (39, ~0.4 TB after the 2026-09-19 Talos upgrade).
   orphanResourceAutoDeletion: "replica-data;instance"
-  # Drain policy for automated node drains (tuppr Talos rolling upgrades).
-  # `always-allow`: drains proceed without forced replica eviction; replicas
-  # stay on the node's disk through the reboot and are reused afterwards
-  # (delta sync, not a rebuild from scratch). Paired with
-  # replicaReplenishmentWaitInterval=1800 below.
-  #
-  # Trade-off: if a node dies for good during a drain, its replicas are lost;
-  # defaultReplicaCount=2 keeps a copy on another node.
-  #
-  # Alternatives:
-  # - `block-if-contains-last-replica` (default): the PDB blocks tuppr eviction
-  # - `block-for-eviction*`: Longhorn evicts replicas, gigabytes of network
-  #   traffic on every rolling upgrade
-  # Docs: https://longhorn.io/docs/1.10.0/references/settings/#node-drain-policy
+  # tuppr drains: replicas stay on disk through the reboot and delta-sync after
+  # (pairs with replicaReplenishmentWaitInterval). The default policy's PDB
+  # blocks tuppr eviction; block-for-eviction* moves GBs on every upgrade.
   nodeDrainPolicy: "always-allow"
-  # Grace period before rebuilding a returning node's replicas from scratch
-  # (default 600s). 1800s covers a Talos power cycle, kubelet cold start and
-  # cilium readiness.
+  # Seconds; covers a Talos power cycle + kubelet/cilium startup before a full rebuild.
   replicaReplenishmentWaitInterval: "1800"
-  # A dead node leaves its StatefulSet/Deployment pods Terminating forever and
-  # their RWO volumes attached to it, so the app never comes back elsewhere
-  # without a manual force-delete. Longhorn force-deletes them once the node is
-  # NotReady (kubelet heartbeat gone) and the volume reattaches on a live node.
-  # Planned reboots are unaffected: tuppr drains first.
+  # Otherwise a dead node's pods stay Terminating and hold their RWO volumes.
   nodeDownPodDeletionPolicy: "delete-both-statefulset-and-deployment-pod"
-  # CSI sidecar resources sized to real use (1-2m CPU each): requests 10m
-  # instead of the 250m default for csi-attacher, csi-provisioner, csi-resizer,
-  # csi-snapshotter, longhorn-csi-plugin, node-driver-registrar,
-  # longhorn-liveness-probe.
+  # CSI sidecars use 1-2m CPU; the 250m default request wastes CPU.
   systemManagedCSIComponentsResourceLimits: '{"csi-attacher":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"csi-provisioner":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"csi-resizer":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"csi-snapshotter":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"longhorn-csi-plugin":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"node-driver-registrar":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}},"longhorn-liveness-probe":{"requests":{"cpu":"10m","memory":"64Mi"},"limits":{"cpu":"100m","memory":"128Mi"}}}'
 
 longhornManager:
@@ -101,7 +56,7 @@ longhornManager:
       memory: 512Mi
       cpu: 250m
 
-# Chart sets no resources (BestEffort); live use 2-4m / 28-31Mi per replica.
+# Chart sets no resources (BestEffort).
 longhornGlobalManager:
   resources:
     requests:
@@ -112,10 +67,8 @@ longhornGlobalManager:
       memory: 128Mi
 
 homelab-common:
-  # requests-only: default limits would cap instance-manager and engine-image
-  # pods. Gives the chart pods without resources (engine-image, longhorn-ui,
-  # driver-deployer, jobs) a request instead of BestEffort. Needs
-  # homelab-common >= 2.1.0 (`defaults: null`).
+  # requests-only: default limits would cap instance-manager and engine-image.
+  # `defaults: null` needs homelab-common >= 2.1.0.
   limitRange:
     enabled: true
     defaults: null

@@ -1,5 +1,4 @@
-# LF everywhere: the repo is edited on WSL, macOS and Linux and consumed by
-# ArgoCD/Helm on Linux. Binary files are never normalised.
+# LF everywhere: edited on WSL, macOS and Linux; consumed by ArgoCD/Helm on Linux.
 * text=auto eol=lf
 
 *.png binary

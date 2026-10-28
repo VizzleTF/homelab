@@ -1,7 +1,4 @@
-# cnpg-cluster is managed via raw manifests (manifests/) + homelab-common, NOT
-# the cloudnative-pg/cluster chart: the chart was ≤0.6.1 at the PG18 migration and
-# could not emit .spec.plugins (Barman Cloud Plugin). cluster 0.9.0 has `plugins`,
-# so moving back to the chart is possible but not planned.
+# Raw Cluster manifest, not the cloudnative-pg/cluster chart.
 homelabOnly: true
 extraManifests: true
 wave: "1"

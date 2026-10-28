@@ -1,8 +1,5 @@
-# Only here for the VolSync annotation: the manager volume mixes 0600 files
-# owned by uid 999 (sslmanager.key, filebeat registry) and by root, so an
-# unprivileged restic mover cannot read everything under any single uid.
-# The namespace itself is still created by CreateNamespace; Prune/Delete=false
-# keep ArgoCD from ever deleting it with the app.
+# For the VolSync annotation: 0600 files of uid 999 and root, no single uid reads all.
+# Prune/Delete=false: deleting the app must never delete the namespace.
 apiVersion: v1
 kind: Namespace
 metadata:

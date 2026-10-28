@@ -1,15 +1,10 @@
-# OpenBao (MPL 2.0 fork of HashiCorp Vault): HA, Raft storage, KV v2 mount `home`.
-
 server:
-  # RollingUpdate (chart default = OnDelete): image/chart bumps roll the pods
-  # without a manual delete. Reverse ordinal, one at a time, waiting for Ready:
-  # autounseal unseals a cold pod (~30s) before readiness. The active pod
-  # (openbao-0) rolls last.
+  # Chart default OnDelete needs a manual pod delete per bump; autounseal
+  # unseals each restarted pod before Ready.
   updateStrategyType: "RollingUpdate"
 
-  # 200m limit throttled every pod (~25% of CFS periods) — the exec readiness
-  # probe `bao status` then blew its 3s timeout, flapping the STS 3/3↔2/3 and the
-  # ArgoCD app Progressing↔Healthy.
+  # A 200m limit throttled the `bao status` readiness probe past its timeout
+  # and flapped the STS.
   resources:
     requests:
       memory: 250Mi
@@ -24,15 +19,10 @@ server:
   extraEnvironmentVars:
     GOMEMLIMIT: "460MiB"
 
-  # RWO: raft already keeps three copies. RWX put every member's boltdb on
-  # NFS via a share-manager pod, and all six share-managers sat on one node —
-  # one node loss took down all three members at once. Migrated member by
-  # member (remove-peer, recreate PVC, retry_join) on 2026-09-24.
-  # local-path since 2026-10: Longhorn's two replicas on top of raft's three
-  # meant six copies of every write on the SATA SSDs etcd shares. A lost node
-  # now means a lost member: remove-peer, delete the PVC, let it rejoin.
-  # volumeClaimTemplates are immutable — the STS is deleted with
-  # --cascade=orphan before sync.
+  # local-path RWO: raft already keeps three copies (RWX/Longhorn multiplied
+  # writes on the SSDs etcd shares). Lost node = lost member: remove-peer,
+  # delete the PVC, let it rejoin. volumeClaimTemplates are immutable: delete
+  # the STS with --cascade=orphan before a sync that changes them.
   dataStorage:
     size: 2Gi
     storageClass: local-path
@@ -84,9 +74,7 @@ server:
 
         service_registration "kubernetes" {}
 
-# Agent injector off: no pod carries vault.hashicorp.com/agent-inject — every
-# secret comes through ESO. It only added a mutating webhook on all pods and
-# an image (hashicorp/vault-k8s 1.7.2) with 3 critical CVEs.
+# Every secret comes through ESO; the injector only adds a mutating webhook on all pods.
 injector:
   enabled: false
 
@@ -94,21 +82,16 @@ ui:
   enabled: true
 
 homelab-common:
-  # Default-deny ingress: own namespace (raft :8201, autounseal, snapshot and
-  # DR-pack jobs), node/gateway traffic, and External Secrets on :8200.
+  # Own namespace (raft, autounseal, backup jobs) is allowed implicitly.
   networkPolicy:
     enabled: true
     allow:
       - namespaces: [external-secrets-system]
         ports: [8200]
 
-  # Raft snapshot straight to both S3 targets (backup v2, obsidian/113 Backups/Backup Overview.md):
-  # bao writes the snapshot to an emptyDir, rclone copies it to garage and ovh.
-  #
-  # The snapshot is self-contained: a full copy of the Raft store that
-  # `bao operator raft snapshot restore` loads into an empty cluster, so the
-  # PVCs need no backup. SA `openbao` is the StatefulSet's own, so the k8s-auth
-  # role openbao-snapshot accepts its token without extra bindings.
+  # The raft snapshot is the whole backup (PVCs need none); restore with
+  # `bao operator raft snapshot restore`. SA `openbao` is already bound to
+  # k8s-auth role openbao-snapshot.
   workloads:
     - name: raft-snapshot           # -> CronJob openbao-raft-snapshot
       type: cronjob
@@ -194,15 +177,10 @@ homelab-common:
               cpu: 500m
               memory: 512Mi
 
-    # Weekly off-site copy of the DR pack (Shamir + raft snapshot + S3/CF creds)
-    # to both S3 targets. The local scripts/dr-pack/build.sh still makes the
-    # offline copy on the operator's machine; this CronJob covers "the pack on
-    # the laptop is stale and the cluster is already gone".
-    #
-    # Encrypted with its own passphrase (OpenBao shared/dr-pack), NOT the
-    # Vaultwarden master password: the pack sits in the same S3 as the backups,
-    # and a leaked S3 key must not also open the password store.
-    # Keep the passphrase in Vaultwarden as "10 - DR pack passphrase (off-site)".
+    # Off-site DR pack (Shamir + raft snapshot + S3/CF creds); offline twin is
+    # scripts/dr-pack/build.sh. Own passphrase (shared/dr-pack), never the
+    # Vaultwarden master: a leaked S3 key must not open the password store.
+    # Passphrase copy: Vaultwarden "10 - DR pack passphrase (off-site)".
     - name: dr-pack-offsite         # -> CronJob openbao-dr-pack-offsite
       type: cronjob
       schedule: "40 2 * * 0"
@@ -219,8 +197,7 @@ homelab-common:
           seccompProfile:
             type: RuntimeDefault
         initContainers:
-          # Collect: kubectl+jq+curl only exist in alpine/k8s, gpg and
-          # rclone live in other images, hence three steps.
+          # Three steps: no single image has kubectl+jq+curl, gpg and rclone.
           - name: collect
             image: alpine/k8s:1.37.1
             command: ["/bin/sh", "-c"]
@@ -268,8 +245,7 @@ homelab-common:
                 unset root
 
                 echo "=== 2/3 raft snapshot ==="
-                # HTTP API, not the bao CLI: this image lacks it, and a
-                # fourth image for one command is not worth it.
+                # HTTP API: this image has no bao CLI.
                 BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
                 JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
                 login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
@@ -293,8 +269,7 @@ homelab-common:
                   cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
                   echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
                 } > "$work/01-bootstrap.env"
-                # Same format as scripts/dr-pack/build.sh: DR phases 01/04 read
-                # exactly these variables, so the packs are interchangeable.
+                # Must match scripts/dr-pack/build.sh: DR phases 01/04 read these vars.
                 {
                   echo "# Refreshed: $(date -u -Iseconds)"
                   echo "GATEWAY_EXTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
@@ -304,7 +279,7 @@ homelab-common:
                 kubectl get nodes -o wide > "$work/04-nodes.txt" 2>/dev/null || true
                 echo "collected $(ls -1 "$work" | wc -l) files"
           - name: encrypt
-            # The only image in the cluster with gpg: the CNPG postgres base.
+            # The only image in the cluster with gpg.
             image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
             command: ["/bin/sh", "-c"]
             env:
@@ -371,7 +346,6 @@ homelab-common:
                 for dst in garage:snapshots/dr-pack ovh:offsite-homelab/snapshots/dr-pack; do
                   echo "--- upload -> $dst"
                   rclone copy "$f" "$dst" --verbose
-                  # Keep the last 8 weekly copies.
                   n=$(rclone lsf "$dst" | wc -l)
                   if [ "$n" -gt 8 ]; then
                     rclone lsf "$dst" | sort | head -n $((n - 8)) | while IFS= read -r old; do
@@ -419,9 +393,6 @@ homelab-common:
               echo "dr-pack ${ts} uploaded (${size} bytes)"
 
   externalSecrets:
-    # rclone remotes for the raft-snapshot and dr-pack CronJobs: garage = bucket
-    # `snapshots` (shared/s3-snapshots), ovh = `offsite-homelab` under snapshots/
-    # (shared/s3-ovh, the shared OVH key).
     - name: snapshots-rclone
       data:
         - secretKey: garage_ak
@@ -451,8 +422,6 @@ homelab-common:
         RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
-    # Creds for the weekly off-site DR pack: the passphrase and the restic-apps
-    # bucket key (it goes into 01-bootstrap.env inside the pack).
     - name: dr-pack-creds
       vaultPath: shared/dr-pack
       data:
@@ -494,8 +463,7 @@ homelab-common:
         port: 8200
 
   rbac:
-    # SA for the weekly off-site DR pack: exactly three Secrets by name, plus
-    # nodes and Gateways for the topology snapshot. Writes and deletes nothing.
+    # Read-only on purpose: the pack needs only these three Secrets.
     - serviceAccount:
         name: openbao-dr-pack
         create: true

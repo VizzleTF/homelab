@@ -1,6 +1,3 @@
-# RSS-to-Telegram-Bot: posts RSS feed updates to Telegram chats (own fork of
-# https://github.com/Rongronggg9/RSS-to-Telegram-Bot). SQLite in /app/config.
-# Vault: homelab/k8s/rsstt/rss-to-telegram-bot
 homelab-common:
   networkPolicy:
     enabled: true
@@ -23,15 +20,12 @@ homelab-common:
         - ReadWriteOnce
       storageClassName: longhorn
       size: 1Gi
-      # volumeName intentionally unpinned — the PV changes on every Velero restore;
-      # a stale pin makes the SSA dry-run reject the immutable field, breaking diff
-      # (SYNC=Unknown). The global ignoreDifferences._PersistentVolumeClaim masks the
-      # live volumeName instead. See reference_argocd_pvc_volumename_drift.
+      # No volumeName pin: a stale one breaks the SSA dry-run (SYNC=Unknown); global
+      # ignoreDifferences masks it.
 
-  # A crash-consistent snapshot is enough for SQLite in WAL mode (recovery
-  # replays the WAL).
+  # Crash-consistent is enough: SQLite WAL mode replays on recovery.
   volsync:
-    - name: rss-to-telegram-bot     # restic repo path; claim defaults to name
+    - name: rss-to-telegram-bot
       moverSecurityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -43,11 +37,10 @@ homelab-common:
           schedule: "40 1 * * 0"
 
   workloads:
-    - name: rss-to-telegram-bot     # -> Deployment "rss-to-telegram-bot"
-      service: false                # nothing calls the redirect server; the port is for probes
+    - name: rss-to-telegram-bot
+      service: false                # the port is for probes only
       pod:
-        # ndots:2: the default ndots:5 burns 3-4 NXDOMAIN search-suffix lookups
-        # per external name (RSS feed hosts, api.telegram.org).
+        # Default ndots:5 burns 3-4 NXDOMAIN lookups per external name.
         dnsConfig:
           options:
             - name: ndots
@@ -78,8 +71,7 @@ homelab-common:
           envFrom:
             - secretRef:
                 name: rss-to-telegram-bot
-          # /healthz fails when the feed scheduler stalls, /readyz when Telegram or
-          # the database is unreachable. startupProbe allows 5 min for migrations.
+          # /healthz: feed scheduler stalled; /readyz: Telegram or DB unreachable.
           startupProbe:
             httpGet:
               path: /healthz
@@ -110,5 +102,5 @@ homelab-common:
               memory: 256Mi
       persistence:
         data:
-          claim: rss-to-telegram-bot  # RWO -> strategy Recreate
+          claim: rss-to-telegram-bot
           mountPath: /app/config

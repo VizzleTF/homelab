@@ -1,6 +1,5 @@
-# go-task entry point for the local pre-merge gate (`task ci:all`).
-# Everything else is a plain script under scripts/ — call it directly.
-# Tool versions are pinned in .mise.toml (`mise install` to provision them).
+# Local pre-merge gate (`task ci:all`); other tooling is plain scripts under
+# scripts/. Tool pins: .mise.toml.
 version: '3'
 
 includes:

@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
-# Configures eBGP on the OpenWrt router (10.11.12.1 mgmt, 10.11.11.1 servers
-# VLAN) to peer with every Talos node and learn LoadBalancer routes from
-# the Cilium BGP control plane.
-#
-# Pairs with:
-#   argocd/infra/cilium/manifests/cilium-bgp.yaml             (Cilium side CRs)
-#
-# Subcommands:
-#   install   apk add bird2 + uci firewall rule for TCP/179 on the servers zone
-#   configure render /etc/bird.conf, restart BIRD (no MD5, see cmd_configure),
-#             L4 ECMP hash sysctl kept across sysupgrade
-#   verify    birdc show protocols + show route, plus ip route to the LB pool
-#   down      stop+disable BIRD, leave config in place (for rollback drills)
-#
-# Idempotent — rerun safely. All writes atomic (tmp + mv).
+# eBGP on the OpenWrt router (10.11.12.1 mgmt, 10.11.11.1 servers VLAN): peer
+# with every Talos node, learn LoadBalancer routes from Cilium BGP
+# (argocd/infra/cilium/manifests/cilium-bgp.yaml). configure also sets an L4
+# ECMP hash sysctl kept across sysupgrade. Idempotent; writes are tmp + mv.
 set -euo pipefail
 
 # OpenWrt management endpoint (LAN VLAN) — see [[reference_openwrt_router_topology]]
@@ -150,24 +139,23 @@ EOF
 }
 
 cmd_configure() {
-  # MD5 auth deliberately disabled — OpenWrt kernel lacks CONFIG_TCP_MD5SIG.
-  # Trusted LAN segment (10.11.11.0/24) carries the cluster; security model
-  # matches the L2-announce baseline we're replacing.
+  # No MD5: the OpenWrt kernel lacks CONFIG_TCP_MD5SIG; the servers VLAN
+  # (10.11.11.0/24) is trusted.
   local tmpconf=""
   trap '[ -n "${tmpconf:-}" ] && rm -f "$tmpconf"' EXIT
   tmpconf=$(mktemp)
   render_bird_conf >"$tmpconf"
 
   echo "[+] uploading /etc/bird.conf (atomic write)"
-  # Push to /tmp then mv — /tmp is tmpfs on OpenWrt 25.12, safe scratch.
+  # /tmp is tmpfs on OpenWrt 25.12.
   cat "$tmpconf" | ssh_owrt 'cat > /tmp/bird.conf.new && \
     mv /tmp/bird.conf.new /etc/bird.conf && \
     chmod 600 /etc/bird.conf'
 
-  # L4 hash: with the default policy 0 the kernel hashes only on L3, so every
-  # connection of one client to one LB IP lands on the same node. Policy 1
-  # adds ports. /etc/sysctl.d is not kept by sysupgrade (only sysctl.conf is),
-  # so the file goes into /etc/sysupgrade.conf too — it was lost once.
+  # L4 hash: default policy 0 hashes L3 only, so one client's connections to an
+  # LB IP all land on one node; policy 1 adds ports. sysupgrade keeps
+  # sysctl.conf but not /etc/sysctl.d, so the file is listed in
+  # /etc/sysupgrade.conf too (it was lost once).
   echo "[+] ECMP L4 hash: /etc/sysctl.d/99-bgp-ecmp.conf"
   ssh_owrt sh -s <<'SH'
 set -e

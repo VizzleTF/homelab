@@ -1,15 +1,10 @@
-# Atuin — self-hosted shell-history sync server (homelab-common workload).
-# Stateless: all state in shared cnpg-cluster (DB `atuin`). No PVC.
-# DB via cnpg-cluster-rw DIRECT (not the pooler): atuin/sqlx prepared statements
-# break under pgbouncer transaction-mode pooling.
-# See obsidian/112 ArgoCD/Apps/all/atuin.md.
+# DB via cnpg-cluster-rw, NOT the pooler: sqlx prepared statements break in transaction mode.
 homelab-common:
   networkPolicy:
     enabled: true
 
   externalSecrets:
-    # Builds the libpq URI atuin reads via ATUIN_DB_URI. Password is alphanumeric
-    # in Vault → no URL-encoding needed in the connection string.
+    # Not URL-encoded: the password must stay alphanumeric.
     - name: atuin-db
       vaultPath: atuin/atuin
       data:
@@ -20,8 +15,8 @@ homelab-common:
 
   httpRoutes:
     - name: atuin
-      hostname: atuin  # -> atuin.example.com
-      gateway: internal  # LAN/VPN only (sync is e2e-encrypted regardless)
+      hostname: atuin
+      gateway: internal
       service:
         name: atuin
         port: 8888
@@ -30,9 +25,9 @@ homelab-common:
     enabled: true
 
   workloads:
-    - name: atuin                   # -> Deployment + Service "atuin"
+    - name: atuin
       legacySelector:
-        app: atuin                  # immutable selector of the Deployment created before 1.19
+        app: atuin                  # immutable selector of the existing Deployment
       pod:
         securityContext:
           runAsNonRoot: true
@@ -46,7 +41,6 @@ homelab-common:
           image:
             repository: ghcr.io/atuinsh/atuin
             tag: "18.24.2"
-          # Image entrypoint is `atuin server`; `start` launches the sync server.
           args: ["start"]
           ports:
             - name: http
@@ -56,14 +50,13 @@ homelab-common:
               value: "0.0.0.0"
             - name: ATUIN_PORT
               value: "8888"
-            # Locked down post-registration. `atuin login` on new devices works
-            # regardless; this only gates new-account signups. Flip to "true"
-            # temporarily if registering a fresh account (see obsidian/112 ArgoCD/Apps/all/atuin.md).
+            # Gates new accounts only; `atuin login` works regardless. Flip to "true"
+            # temporarily to register (obsidian/112 ArgoCD/Apps/all/atuin.md).
             - name: ATUIN_OPEN_REGISTRATION
               value: "false"
           envFrom:
             - secretRef:
-                name: atuin-db      # -> secret.reloader.stakater.com/reload: atuin-db
+                name: atuin-db
           livenessProbe:
             httpGet:
               path: /

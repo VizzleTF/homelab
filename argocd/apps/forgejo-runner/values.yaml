@@ -1,14 +1,10 @@
-# Forgejo Runner (act_runner) — chart values + homelab-common section at the bottom.
-# Registration: ESO secret forgejo-runner-init {CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME}
-# from OpenBao homelab/k8s/forgejo-runner/runner; the chart's pre-install hook job registers
-# the runner and stores the .runner JWT in Secret forgejo-runner-config (resource-policy: keep).
+# The chart's pre-install job registers the runner; the .runner JWT is kept in
+# Secret forgejo-runner-config (resource-policy: keep).
 
-# wrenix's chart 0.7.x is the last release on codeberg — guard requires explicit ack.
+# Chart 0.7.x is the last release: without the ack helm template hits `fail`.
 knownLastVersion: true
 
-# The chart is EOL, so its appVersion and dind default never move again. Explicit
-# {registry, repository, tag} lets Renovate's helm-values manager bump both images;
-# the runner major does not automerge (renovate.json rule).
+# EOL chart: images are bumped here by Renovate.
 image:
   registry: code.forgejo.org  # pinned: Renovate needs registry+repository next to tag
   repository: forgejo/runner  # pinned: Renovate needs registry+repository next to tag
@@ -19,18 +15,10 @@ runner:
     existingInitSecret: forgejo-runner-init
     file:
       runner:
-        # act_runner runs JS actions with the node binary from these images, so the
-        # newest label must carry a node runtime at least as new as the actions we
-        # use. actions/checkout v7 declares `using: node24`, which cannot start on
-        # node:22. ubuntu-latest and ubuntu-24.04 therefore run node:24-bookworm;
-        # the older labels stay put so a workflow can pin an older runtime.
-        # ubuntu-26.04 exists because Renovate once bumped runs-on to it: a job
-        # whose label no runner has is never picked up, its run stays "waiting"
-        # forever and, through `concurrency`, blocks every later run of that ref
-        # (main included — mirror-to-github stops). Workflows use ubuntu-latest.
-        # diff-preview exists only here, not on the ops runner (nodes/ops/runner.nix):
-        # the argocd-diff job starts a kind cluster through this pod's dind, and the
-        # ops runner runs jobs on podman.
+        # JS actions run on the image's node: checkout v7 needs node24.
+        # A label no runner has leaves the run "waiting" forever and, via `concurrency`,
+        # blocks the ref (mirror-to-github stops); keep ubuntu-26.04.
+        # diff-preview is only here (ops runner is podman): argocd-diff needs dind for kind.
         labels:
           - ubuntu-latest:docker://node:24-bookworm
           - diff-preview:docker://node:24-bookworm
@@ -48,10 +36,8 @@ runner:
       host:
         workdir_parent:  # pinned: null default, renders only when set here
 
-# Privileged DinD must not share a node with etcd and the Talos secrets: CI jobs
-# (gitleaks, helm, kaniko) run untrusted-ish code as root there, and their disk
-# and CPU bursts hit etcd on the control-plane nodes (same reason renovate is
-# pinned to the worker). Any non-control-plane node.
+# Privileged DinD stays off control-plane: root CI code near etcd/Talos secrets,
+# and its I/O bursts hit etcd.
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
@@ -60,7 +46,6 @@ affinity:
             - key: node-role.kubernetes.io/control-plane
               operator: DoesNotExist
 
-# DinD sidecar that runs the jobs.
 dind:
   image:
     registry: docker.io  # pinned: Renovate needs registry+repository next to tag
@@ -72,7 +57,7 @@ dind:
       memory: 256Mi
     limits:
       cpu: "2"
-      # kind + a full ArgoCD for the argocd-diff job take 2-3Gi on top of the job itself.
+      # argocd-diff's kind + ArgoCD take 2-3Gi on top of the job.
       memory: 4Gi
 
 resources:
@@ -83,26 +68,18 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-# ndots:2 — pod resolv.conf defaults to ndots:5, so CI image/registry hosts
-# (git.example.com, ghcr.io, docker.io — all <5 dots) burn 3-4 NXDOMAIN
-# search-suffix lookups each before resolving. Highest-volume external-caller
-# of these, so the clearest win. Chart renders this as pod dnsConfig.
+# Default ndots:5 burns 3-4 NXDOMAIN lookups per registry host.
 dnsConfig:
   options:
     - name: ndots
       value: "2"
 
 homelab-common:
-  # Nothing calls into the runner: it only polls git.example.com and pulls images.
   networkPolicy:
     enabled: true
 
   externalSecrets:
-    # Init secret for the register job: env CONFIG_TOKEN, CONFIG_INSTANCE, CONFIG_NAME
-    # from homelab/k8s/forgejo-runner/runner (keys token, instance, name).
-    # PreSync hook + sync-wave -10: synced BEFORE the chart's pre-install Job (wave 0).
-    # The ES owns its Secret, so a hook rerun deletes and recreates both; the
-    # PreSync wave above rebuilds the Secret before the Job runs.
+    # PreSync wave -10: must exist before the chart's pre-install register Job.
     - name: forgejo-runner-init
       annotations:
         argocd.argoproj.io/hook: PreSync

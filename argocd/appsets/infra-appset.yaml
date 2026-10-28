@@ -4,25 +4,18 @@ metadata:
   name: infrastructure
   namespace: argocd
   annotations:
-    # Cascade guard: even if root gets a finalizer or prune again, ArgoCD
-    # does not delete this AppSet. Deleting it would take every child
-    # Application via ownerReferences, and they would take their namespaces
-    # and PVCs.
+    # Cascade guard: deleting this AppSet would delete every child Application
+    # and with them their namespaces and PVCs.
     argocd.argoproj.io/sync-options: Delete=false
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
   syncPolicy:
     applicationsSync: create-update
-    # Stops the AppSet from adding its default foreground resources-finalizer;
-    # the template sets the background one explicitly (two finalizers otherwise).
+    # Skips the default foreground finalizer; the template sets the background one.
     preserveResourcesOnDeletion: true
-  # Pausing one app is one command and the AppSet leaves it alone:
-  #   kubectl -n argocd patch app <APP> --type merge \
-  #     -p '{"spec":{"syncPolicy":{"automated":{"enabled":false}}}}'
-  # Resume with "enabled":true. List paused apps:
-  #   kubectl -n argocd get app -o json | jq -r '.items[]
-  #     | select(.spec.syncPolicy.automated.enabled==false) | .metadata.name'
+  # Lets one app be paused (automated.enabled=false) without the AppSet reverting
+  # it; commands in obsidian/112 ArgoCD/ArgoCD Architecture.md.
   ignoreApplicationDifferences:
     - jsonPointers:
         - /spec/syncPolicy/automated/enabled
@@ -37,31 +30,24 @@ spec:
       name: "{{ .path.basename }}"
       namespace: argocd
       annotations:
-        # Resources created before ServerSideApply=true still list
-        # argocd-application-controller (operation Update) as a co-owner.
-        # SSA then keeps any field that owner shares with argocd-controller
-        # after it disappears from values: a removed blueprint volume stayed
-        # in authentik-worker on 2026-09-13. On sync, ArgoCD hands those
-        # fields over to argocd-controller.
+        # Pre-SSA resources keep argocd-application-controller as co-owner, so SSA
+        # kept fields removed from values (authentik-worker volume, 2026-09-13).
+        # On sync ArgoCD hands them to argocd-controller.
         argocd.argoproj.io/client-side-apply-migration-manager: argocd-application-controller
     spec:
       project: infrastructure
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{ dig \"namespace\" .path.basename . }}"
-  # No argocd.argoproj.io/sync-wave on generated Applications: they are
-  # created by the ApplicationSet controller, not synced by a parent, so a
-  # wave would order nothing (progressive syncs stay off: RollingSync turns
-  # off autosync). config.yaml `wave` documents the dependency layer only;
-  # cold-start order lives in scripts/dr/phases/.
+  # No sync-wave on generated Applications: the AppSet controller creates them,
+  # so a wave orders nothing (RollingSync would turn off autosync). config.yaml
+  # `wave` is documentation; cold-start order lives in scripts/dr/phases/.
   templatePatch: |
     metadata:
       annotations:
-        # argocd-diff CI job (argocd-diff-preview) renders an app only when one of
-        # these paths changes in the PR; without it every PR renders every app.
+        # CI argocd-diff renders an app only when these paths change.
         argocd-diff-preview/watch-pattern: "{{ .path.path }}/.*, argocd/appsets/.*, argocd/values/global.yaml"
-        # Regenerate manifests only when the app's own folder or global.yaml
-        # changes, not on every commit to the monorepo.
+        # Regenerate only on the app's folder or global.yaml, not every monorepo commit.
         argocd.argoproj.io/manifest-generate-paths: "/{{ .path.path }};/argocd/values/global.yaml"
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
@@ -106,9 +92,8 @@ spec:
           - CreateNamespace=true
           - ServerSideApply=true
           - RespectIgnoreDifferences=true
-          # Resources whose CRD arrives with another Application (VMRule in
-          # cilium/longhorn/volsync, BGP CRs) wait for it via retry instead of
-          # failing the dry-run of the whole sync.
+          # CRDs from another Application (VMRule, BGP CRs) arrive via retry
+          # instead of failing the whole sync's dry-run.
           - SkipDryRunOnMissingResource=true
         retry:
           limit: 5

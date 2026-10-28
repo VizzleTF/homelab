@@ -1,6 +1,4 @@
-# VolSync metrics sit behind kube-rbac-proxy (Service volsync-metrics, port
-# https/8443), so `insecureSkipVerify` alone is not enough: vmagent sends its SA
-# token, authorized by clusterrolebinding-metrics-reader.yaml.
+# Behind kube-rbac-proxy: needs the SA token (clusterrolebinding-metrics-reader.yaml).
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:

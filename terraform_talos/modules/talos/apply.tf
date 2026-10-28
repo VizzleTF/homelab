@@ -7,19 +7,17 @@ locals {
   }
 }
 
-# Control-plane machineconfig. Separate from the worker resource so it can carry
-# prevent_destroy: on_destroy below RESETS + REBOOTS the node (wipes it).
-# Disabling a CP node via configs/nodes.yaml `enabled: false` — or a stray
-# `-replace` — would otherwise silently wipe a control-plane / etcd member.
-# To deliberately replace a CP member, set prevent_destroy = false here first.
+# Separate from workers for prevent_destroy: on_destroy wipes the node, so
+# `enabled: false` or a stray `-replace` would wipe an etcd member. To replace a
+# CP member on purpose, set prevent_destroy = false first.
 resource "talos_machine_configuration_apply" "controlplane" {
   for_each = local.managed_cp
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
   node                        = each.value.address
-  # auto — Talos decides reboot vs. in-place. No reboot for certSANs / hostEntries /
-  # install.image. Reboot for cluster endpoint / kernel args / first install.
+  # Reboots for cluster endpoint, kernel args, first install; not for certSANs,
+  # hostEntries, install.image.
   apply_mode = "auto"
 
   config_patches = [
@@ -42,8 +40,7 @@ resource "talos_machine_configuration_apply" "controlplane" {
   }
 }
 
-# Worker machineconfig. No prevent_destroy — workers are decommissioned by
-# flipping `enabled: false` in configs/nodes.yaml (drain the node first).
+# Decommission: drain, then `enabled: false` in configs/nodes.yaml (wipes the node).
 resource "talos_machine_configuration_apply" "worker" {
   for_each = local.managed_worker
 

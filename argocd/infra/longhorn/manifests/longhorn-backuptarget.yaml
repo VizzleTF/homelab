@@ -1,11 +1,6 @@
-# Default BackupTarget CR — kept empty (S3 backup target decommissioned, see
-# project_longhorn_s3_decommissioned). Longhorn auto-creates a `default`
-# BackupTarget and its admission webhook forbids deleting it. Without this
-# manifest ArgoCD treats the live CR as an orphan and tries to prune it on
-# every sync — the webhook denies the delete and the longhorn app is stuck
-# OutOfSync / sync-failed permanently. Declaring it here makes ArgoCD manage
-# it instead of pruning it. `spec.syncRequestedAt` is mutated by Longhorn and
-# is excluded from diff via `ignoreDiff` in config.yaml.
+# Empty on purpose (no S3 backup target). Longhorn auto-creates `default` and
+# its webhook denies deletion: without this manifest ArgoCD prunes it on every
+# sync and the app stays sync-failed.
 apiVersion: longhorn.io/v1beta2
 kind: BackupTarget
 metadata:

@@ -1,9 +1,6 @@
-# Extra deprecation rules for pluto (`pluto -f`), used by the argocd-diff CI job
-# and by scripts/kubeconform-validate.sh (raw manifests).
-# Pluto ships rules only for core Kubernetes, cert-manager and istio. Third-party
-# APIs we use go here. The component version comes from the CLI
-# (`-t cilium=<targetRevision from argocd/infra/cilium/config.yaml>`), so it never
-# drifts from the deployed chart. Leave removed-in empty until upstream announces it.
+# Third-party deprecation rules for pluto (argocd-diff CI, scripts/kubeconform-validate.sh).
+# Component versions come from the CLI (`-t cilium=<targetRevision>`); leave
+# removed-in empty until upstream announces it.
 deprecated-versions:
   # cilium.io/v2 BGP kinds arrived in 1.18; v2alpha1 is still served in 1.20.
   - version: cilium.io/v2alpha1

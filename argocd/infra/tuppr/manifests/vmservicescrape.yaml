@@ -1,7 +1,4 @@
-# The chart renders Service "tuppr-metrics-service" in ns system-upgrade with
-# labels app.kubernetes.io/name=tuppr, app.kubernetes.io/instance=tuppr,
-# port metrics/tcp/8080, plain HTTP (controller.metrics.secure=false).
-# tuppr-webhook-service shares the labels but has no `metrics` port.
+# tuppr-webhook-service shares these labels but has no `metrics` port
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:

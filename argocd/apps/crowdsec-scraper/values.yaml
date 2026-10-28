@@ -1,22 +1,11 @@
-# crowdsec-scraper — pulls CrowdSec :6060 metrics from vps-panel (CrowdSec is off on dp/ape/vps-fi)
-# into the home VictoriaMetrics. The pod = netbird sidecar (joins the self-hosted mesh
-# netbird.example.com as its own peer k8s-crowdsec-scraper) + vmagent in the shared netns: it sees
-# both the cluster (VMSingle via eth0/CoreDNS) and the VPS mesh IPs (100.104.x.x via wt0). vmagent
-# scrapes :6060 and remote_writes to the in-cluster VMSingle. On the VPS the crowdsec prometheus
-# listener binds 0.0.0.0, nft lets :6060 in only from 100.64.0.0/16 (see obsidian/112 ArgoCD/Apps/all/crowdsec-scraper.md).
-# The third job is the Remnawave panel metrics on vps-panel via the nginx gateway :9101 (see the
-# comment at job_name: remnawave-panel).
+# netbird sidecar + vmagent in one netns: scrapes VPS mesh IPs (wt0), writes to in-cluster VMSingle.
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No VMServiceScrape reads it, so no victoria-metrics allow.
   networkPolicy:
     enabled: true
 
-  # The netbird peer key: 100Mi, but without it the scraper loses mesh access.
-  #
-  # `name` sets the repository path (restic-apps/<name>) and therefore must be
-  # unique cluster-wide. The PVC here has the same name as the peers' PVC in ns
-  # netbird, and both wrote to one restic repository: snapshots of different volumes
-  # mixed together, shared retention, and a prune that cleaned the other's history.
+  # Peer key: without it the scraper loses mesh access. `name` is the restic repo
+  # path and must be unique cluster-wide (the netbird ns has a PVC of the same name).
   volsync:
     - name: crowdsec-netbird-peer
       claim: netbird-peer
@@ -28,19 +17,15 @@ homelab-common:
 
   externalSecrets:
     - name: netbird-peer
-      vaultPath: crowdsec-scraper/netbird   # → home/homelab/k8s/crowdsec-scraper/netbird
+      vaultPath: crowdsec-scraper/netbird
       data:
         - secretKey: setup-key
           property: setup-key
       templateData:
         NB_SETUP_KEY: '{{ index . "setup-key" }}'
 
-    # Remnawave panel basic auth (METRICS_USER / METRICS_PASS from /opt/remnawave/.env
-    # on vps-panel). The Secret is mounted into vmagent as files and read via
-    # basic_auth.username_file / password_file — the credentials are NOT inlined into
-    # scrape.yaml, which lives in git and goes to the public mirror. Password rotation =
-    # edit in OpenBao; ESO updates the Secret, kubelet the files, and vmagent picks them
-    # up without a restart (Reloader still rolls the pod on the Secret change).
+    # METRICS_USER/METRICS_PASS from /opt/remnawave/.env on vps-panel. Mounted as files:
+    # never inline them in scrape.yaml (public mirror).
     - name: remnawave-metrics
       vaultPath: crowdsec-scraper/remnawave-metrics
       data:
@@ -49,7 +34,7 @@ homelab-common:
         - secretKey: password
           property: password
 
-  # netbird identity PVC (/var/lib/netbird) — a separate peer, do NOT reuse the netbird app's.
+  # A separate peer: do NOT reuse the netbird app's PVC.
   persistentVolumeClaims:
     - name: netbird-peer
       accessModes:
@@ -66,19 +51,12 @@ homelab-common:
             external_labels:
               cluster: vps
           scrape_configs:
-            # Only one target is left: on 12.09.2026 CrowdSec was turned off on dp,
-            # ape and vps-fi, no metrics come from there anymore. On vps-panel it is
-            # alive and needed — nginx fronts the panel and the subscription page
-            # there, and the CrowdSec http layer bans real subscribers (see
-            # VpsCrowdsecDecisionsSpike). node_exporter stays on all four hosts.
+            # CrowdSec runs only on vps-panel (off on dp/ape/vps-fi since 2026-09-12).
             - job_name: crowdsec
               metrics_path: /metrics
               static_configs:
                 - targets: ["100.64.0.0:6060"]
                   labels: {host: vps-panel}
-            # node_exporter (apt prometheus-node-exporter) on each VPS — host load
-            # (CPU/RAM/disk/net). View via the chart's "Node Exporter Full" dashboard
-            # with the job=node selector. :9100 firewalled to mesh (nft, ../vps).
             - job_name: node
               metrics_path: /metrics
               static_configs:
@@ -90,13 +68,8 @@ homelab-common:
                   labels: {host: vps-panel}
                 - targets: ["100.64.0.0:9100"]
                   labels: {host: vps-fi}
-            # Remnawave panel (vps-panel). The backend publishes :3001 on loopback
-            # only — a docker-published port bypasses ufw entirely (the DOCKER-USER
-            # chain is empty), so 0.0.0.0:3001 would be open to the whole internet.
-            # A host-network nginx on :9101 exposes it to the mesh with
-            # `allow 100.64.0.0/16; deny all` (/opt/remnawave/nginx.conf).
-            # Covers at once: panel↔nodes link (remnawave_node_status), online
-            # users, traffic per inbound, backend health.
+            # Backend :3001 stays on loopback (docker ports bypass ufw); nginx :9101
+            # exposes it to the mesh only (/opt/remnawave/nginx.conf).
             - job_name: remnawave-panel
               metrics_path: /metrics
               basic_auth:
@@ -107,7 +80,7 @@ homelab-common:
                   labels: {host: vps-panel}
 
   workloads:
-    - name: scraper                 # -> Deployment crowdsec-scraper (release name contains it)
+    - name: scraper
       legacySelector:
         app: crowdsec-scraper       # immutable selector of the Deployment created before 1.19
       containers:
@@ -131,23 +104,8 @@ homelab-common:
               value: "k8s-crowdsec-scraper"
             - name: NB_LOG_LEVEL
               value: "info"
-            # Do not accept the LAN routes NetBird hands out. The peers
-            # advertise 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16 —
-            # mirroring the router, which sends all of 10/8 into the
-            # work VPN on tun0 — and the client installs them in table
-            # 7120 at rule priority 110, ahead of main. Inside a pod
-            # that swallows the cluster itself: pod CIDR 10.244.0.0/16
-            # and service CIDR 10.96.0.0/12 both fall in 10/8, so every
-            # in-cluster address routes into the mesh and disappears.
-            # vmagent then scrapes fine but cannot reach vmsingle to
-            # ship anything, and CoreDNS is unreachable too.
-            #
-            # This scraper only ever talks to mesh peers by their
-            # 100.104.x addresses, which come from the kernel route on
-            # wt0 and are unaffected. Narrowing the advertised route is
-            # not an option: the router cannot enumerate what lives
-            # behind the corporate tunnel, so any narrower prefix
-            # silently cuts something off.
+            # Peers advertise 10.0.0.0/8, which swallows pod/service CIDRs: vmagent
+            # loses vmsingle and CoreDNS. Narrowing the route upstream is not an option.
             - name: NB_DISABLE_CLIENT_ROUTES
               value: "true"
           envFrom:
@@ -166,15 +124,14 @@ homelab-common:
             tag: v1.154.1
           args:
             - -promscrape.config=/etc/vmagent/scrape.yaml
-            # auto-reload scrape.yaml ConfigMap changes (no config-reloader sidecar)
+            # No config-reloader sidecar.
             - -promscrape.configCheckInterval=30s
             - -remoteWrite.url=http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428/api/v1/write
             - -remoteWrite.tmpDataPath=/tmp/vmagent-rw
             - -remoteWrite.maxDiskUsagePerURL=512MB
             - -remoteWrite.queues=1
             - -memory.allowedPercent=60
-          # 8429 is vmagent's default -httpListenAddr. A numeric port, not a named
-          # containerPort: a declared port would make the chart render a Service.
+          # Numeric port: a declared containerPort would make the chart render a Service.
           readinessProbe:
             httpGet:
               path: /health
@@ -197,14 +154,10 @@ homelab-common:
             type: CharDevice
           mountPath: /dev/net/tun
           containers: [netbird]
-        # The PVC is mounted at /var/lib/netbird, not /etc/netbird: the netbird
-        # client keeps active_profile.json, default.json and state.json there
-        # (peer identity and keys). With the old path the volume stayed empty and
-        # the backup was a backup of nothing: VolSync honestly logged "Directory
-        # is empty skipping backup", and Velero before it silently snapshotted
-        # the empty PVC as well.
+        # Not /etc/netbird: identity lives here, else backups are empty
+        # ("Directory is empty skipping backup").
         state:
-          claim: netbird-peer       # RWO -> strategy Recreate
+          claim: netbird-peer
           mountPath: /var/lib/netbird
           containers: [netbird]
         scrape-config:

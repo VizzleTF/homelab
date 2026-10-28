@@ -7,11 +7,10 @@ spec:
   groups:
     - name: renovate
       rules:
-        # RenovateCronJobFailing was dropped: upstream KubeJobFailed covers it.
+        # No RenovateCronJobFailing: KubeJobFailed covers it.
         - alert: RenovateScanMissing
-          # CronJob status, not Job objects: Jobs are deleted 24h after they finish
-          # (ttlSecondsAfterFinished), and job_name=~"renovate-.*" also matched the
-          # daily renovate-notify Jobs, so a dead scan never fired.
+          # CronJob status, not Jobs: Jobs vanish after 24h (TTL) and
+          # job_name=~"renovate-.*" also matches renovate-notify.
           expr: |
             time() - kube_cronjob_status_last_successful_time{namespace="renovate", cronjob="renovate"} > 172800
           for: 30m

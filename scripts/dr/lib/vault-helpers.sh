@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# OpenBao helpers (`bao` CLI — the `vault` binary is not used anywhere).
+# OpenBao helpers (`bao` CLI; no `vault` binary).
 
 # shellcheck disable=SC2034 # sourced; the defaults are read by the caller
 : "${BAO_POD_NS:=openbao}"
 : "${BAO_POD:=openbao-0}"
 : "${BAO_ADDR_INTERNAL:=http://127.0.0.1:8200}"
 
-# Read BAO_TOKEN from env (legacy VAULT_TOKEN honoured) or from the decrypted
-# DR pack shamir file.
+# BAO_TOKEN from env (legacy VAULT_TOKEN honoured) or the decrypted DR-pack shamir file.
 ensure_bao_token() {
   : "${BAO_TOKEN:=${VAULT_TOKEN:-}}"
   if [[ -n "${BAO_TOKEN:-}" ]]; then
@@ -39,7 +38,6 @@ bao_exec() {
     env BAO_TOKEN="$BAO_TOKEN" BAO_ADDR="$BAO_ADDR_INTERNAL" "$@"
 }
 
-# Enable an auth method if not enabled yet.
 bao_auth_enable() {
   local method="$1" path="${2:-$1}"
   if bao_exec bao auth list -format=json 2>/dev/null \
@@ -51,7 +49,6 @@ bao_auth_enable() {
   log_ok "auth/$path enabled"
 }
 
-# Enable a secrets engine if not mounted.
 bao_secrets_enable() {
   local engine="$1" path="$2" ; shift 2
   if bao_exec bao secrets list -format=json 2>/dev/null \

@@ -1,9 +1,3 @@
-# Alerts for the ops node.
-#
-# The node holds the GitOps source of truth and runs every backup timer, so the
-# failures worth waking up for are: it stopped reporting at all, a backup went
-# stale, it is about to run out of disk for the next dump (~675 MB nightly), or
-# a Forgejo webhook stopped delivering.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -14,9 +8,7 @@ spec:
     - name: ops-node
       rules:
         - alert: OpsNodeDown
-          # The node itself being unreachable is also covered by Gatus, which
-          # keeps working when this stack does not. This one exists so the
-          # condition shows up in the same place as every other alert.
+          # Gatus covers this too and survives this stack going down
           expr: up{job="ops-node"} == 0
           for: 10m
           labels:
@@ -26,8 +18,7 @@ spec:
             description: "Метрики ноды ops не собираются 10 минут. На ней Forgejo (источник истины GitOps), бэкапы и watchdog."
 
         - alert: OpsBackupStale
-          # 26h, not 24h: the dump runs at 01:30 and ships at 02:15, and a
-          # tighter window would fire on every slow night.
+          # 24h would fire on every slow night (dump 01:30, ship 02:15)
           expr: time() - homelab_ops_backup_timestamp > 26 * 3600
           for: 30m
           labels:
@@ -76,9 +67,8 @@ spec:
             description: "Контроллер NVMe {{ $labels.device }} ({{ $labels.model }}) в состоянии {{ $labels.state }}: диск не читается, Forgejo и Postgres падают, SSH обрывает соединение. Лечится перезагрузкой по питанию; затем smartctl -a /dev/{{ $labels.device }}. Повторяется — менять диск."
 
         - alert: ForgejoWebhookFailing
-          # Forgejo never retries and ArgoCD silently polls instead (10 min),
-          # so nothing else notices. 30m = two runs of the 15-min exporter timer
-          # (forgejo-webhook-status in nodes/ops/metrics.nix).
+          # Forgejo never retries, ArgoCD silently falls back to polling.
+          # 30m = two runs of forgejo-webhook-status (nodes/ops/metrics.nix).
           expr: homelab_forgejo_webhook_last_status{job="ops-node"} == 2
           for: 30m
           labels:

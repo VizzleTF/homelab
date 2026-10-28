@@ -1,4 +1,3 @@
-# Upstream community chart (github.com/opencloud-eu/helm) is archived — no releases,
-# no chart repo, no OCI package. Deployed as a plain workload via homelab-common.workloads.
+# Upstream chart opencloud-eu/helm is archived.
 homelabOnly: true
 wave: "2"

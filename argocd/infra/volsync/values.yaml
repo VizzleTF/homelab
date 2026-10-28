@@ -1,9 +1,5 @@
-# VolSync: asynchronous PV replication. The base of backup scheme v2 (see obsidian/113 Backups/Backup Overview.md):
-# every PVC gets two ReplicationSources (restic → Garage, restic → OVH), and a
-# restore is a manual ReplicationDestination (scripts/dr/restore-app.sh).
-#
-# Wave -3: after snapshot-controller (-4, installs the snapshot.storage.k8s.io CRDs) and
-# Longhorn, before the apps, whose ReplicationSources reference the VolSync CRDs.
+# Backup v2: obsidian/113 Backups/Backup Overview.md; restore: scripts/dr/restore-app.sh.
+# Wave -3: after snapshot-controller CRDs (-4), before apps that use ReplicationSources.
 
 resources:
   requests:
@@ -18,7 +14,6 @@ metrics:
   disableAuth: false  # pinned: keep auth on if the default flips
 
 homelab-common:
-  # Default-deny ingress; only vmagent (victoria-metrics) scrapes from outside.
   networkPolicy:
     enabled: true
     allow:

@@ -1,18 +1,5 @@
-# Rancher local-path-provisioner — node-local hostPath PVs for ephemeral /
-# rebuildable data (build caches, scratch, restore-from-backup). Avoids
-# Longhorn's 2x write amplification + network replica overhead for throwaway
-# data. NOT for anything that must survive a node loss — data is pinned to one
-# node and dies with it.
-#
-# StorageClass `local-path`: WaitForFirstConsumer (provisions on the node the
-# pod lands on), reclaimPolicy Delete, defaultClass false (Longhorn stays the
-# cluster default). Consuming PVCs opt in via `storageClassName: local-path`.
-#
-# ⚠️ Talos: the rootfs is read-only — only /var is writable. Override the
-# default /opt path to /var/local-path-provisioner (the ephemeral partition;
-# survives reboot, wiped on `talosctl reset`). hostPath helper pod runs
-# privileged (PSA enforce=privileged allows it).
-
+# Rebuildable data only: PVs are pinned to one node and die with it.
+# Talos rootfs is read-only; only /var is writable (wiped on `talosctl reset`).
 nodePathMap:
   - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
     paths:
@@ -26,8 +13,7 @@ resources:
     cpu: 100m
     memory: 128Mi
 
-# The chart's probes have the 1s default timeout; /ready calls the API
-# server and failed ~980 times in four days during etcd latency spikes.
+# Default 1s timeout: /ready calls the API server, failed ~980x in 4 days on etcd spikes.
 health:
   readinessProbe:
     periodSeconds: 10
@@ -36,6 +22,6 @@ health:
     timeoutSeconds: 5
 
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true

@@ -5,9 +5,8 @@ data "talos_client_configuration" "this" {
   endpoints            = [for _, n in var.nodes : n.address if n.role == "controlplane"]
 }
 
-# Post-apply health gate. `terraform plan/apply` reads cluster health (etcd /
-# apiserver / kubelet on every node) and fails loudly if anything is unhealthy.
-# Escape hatch: `skip_health_check = true` (variables.tf).
+# plan/apply fail on unhealthy etcd/apiserver/kubelet; escape hatch
+# `skip_health_check = true`.
 data "talos_cluster_health" "this" {
   count = var.skip_health_check ? 0 : 1
 

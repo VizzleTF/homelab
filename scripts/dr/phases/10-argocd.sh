@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 # Phase 10 — ArgoCD bootstrap + adoption.
-# Vault now holds the Forgejo SSH key + every repo cred ArgoCD needs. Forgejo
-# itself runs on the ops node outside the cluster (since 2026-09-12), so a
-# cluster rebuild does not restore it: it only has to answer before ArgoCD
-# starts. If it does not, recover the node first
-# (obsidian/113 Backups/Forgejo Recovery.md).
+# Forgejo runs on the ops node outside the cluster and must answer before ArgoCD
+# starts; if not, recover it first (obsidian/113 Backups/Forgejo Recovery.md).
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -33,10 +30,9 @@ wait_for "argocd-server Ready" \
 wait_for "argocd-repo-server Ready" \
   "kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s"
 
-# The repo-creds ExternalSecret comes from the homelab-common source of the
-# standalone argocd app, and that app cannot render without those creds (its
-# $values source is the SSH monorepo). Apply the ESO objects from a local
-# render first; ArgoCD adopts them on its first sync.
+# The repo-creds ExternalSecret comes from the standalone argocd app, which
+# cannot render without those creds ($values is the SSH monorepo): apply the
+# ESO objects from a local render first; ArgoCD adopts them.
 HC_VERSION="$(chart_version standalone/argocd-application.yaml '.spec.sources[] | select(.chart == "homelab-common") | .targetRevision')"
 log_info "applying the argocd SecretStore + repo-creds ExternalSecret (homelab-common $HC_VERSION)"
 helm template argocd homelab-common --repo https://git.example.com/api/packages/vizzle/helm \
@@ -45,16 +41,13 @@ helm template argocd homelab-common --repo https://git.example.com/api/packages/
   | yq 'select(.kind == "ServiceAccount" or .kind == "SecretStore" or (.kind == "ExternalSecret" and .metadata.name == "argocd-repo-creds-forgejo"))' \
   | kubectl apply -f -
 
-# Wait for ESO to populate the Forgejo repo-creds template (covers every
-# AppProject) before applying the root project + Application.
+# The root project + Application need the Forgejo repo-creds template (all AppProjects).
 wait_for "argocd-repo-creds-forgejo Secret synced" \
   "kubectl -n argocd get secret argocd-repo-creds-forgejo >/dev/null 2>&1" \
   120
 
-# Bootstrap Secrets from phases 03/04. ESO would adopt them (it takes over an
-# unowned Secret with the same name), but dropping them leaves no DR-only label
-# behind and makes every value come from OpenBao; ESO recreates them once
-# ArgoCD syncs the apps. Running pods keep their env.
+# Drop the phase 03/04 bootstrap Secrets so every value comes from OpenBao with
+# no DR-only label left; ESO recreates them on sync, running pods keep their env.
 log_info "deleting DR bootstrap Secrets (ESO takes over)"
 kubectl delete secret -A -l homelab.dr/bootstrap=true --ignore-not-found >/dev/null
 
@@ -68,8 +61,7 @@ kubectl apply -f "$REPO_ROOT/argocd/root-application.yaml"
 log_info "kicking root Application sync"
 kubectl -n argocd annotate app root argocd.argoproj.io/refresh=hard --overwrite >/dev/null
 
-# Phases 01-08 installed charts with helm; ArgoCD now owns those objects, so
-# the helm release records are dead weight (and confuse a later `helm list`).
+# ArgoCD now owns the helm-installed objects; the release records only confuse `helm list`.
 log_info "deleting bootstrap helm release records (ArgoCD owns the objects)"
 kubectl delete secret -A -l owner=helm --ignore-not-found >/dev/null
 

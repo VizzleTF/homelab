@@ -1,6 +1,4 @@
-# Labels and port names match the Services the chart renders:
-#   runner:    labels app=robusta-runner, port http
-#   forwarder: labels app=robusta-forwarder, port forwarder-metrics
+# Labels and port names must match the chart's Services.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:

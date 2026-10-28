@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
-# scripts/dr/restore-app.sh — restore one data volume from its VolSync restic
-# repository.
+# Restore one data volume from its VolSync restic repository
+# (DR_RESTIC_TARGET=garage|ovh). Only the volume: pods, SAs and namespaces come
+# from git through ArgoCD.
 #
-# The volume list comes from git, not from a table here: every
-# homelab-common.volsync[] entry in argocd/{apps,infra}/*/values.yaml is a
-# restorable volume. Its parameters are read from the same file:
-#   name                 restic repository (and the key this script takes)
-#   claim                PVC name (default: name)
-#   accessMode           else the claim's persistentVolumeClaims[] accessModes[0]
-#   cacheCapacity        restic cache (default 2Gi)
-#   namespace            config.yaml namespace, else the folder name
-#   size                 the claim's persistentVolumeClaims[] size, else VCT_SIZE
-# The mover runs as root: restic must lchown files back to their owners
-# (opencloud-data failed as uid 1000, 41d8e3d8). volsync[].moverSecurityContext
-# is the backup mover's uid and is ignored here.
-#
-# What comes back is the VOLUME, not objects: pods, SAs and namespaces come
-# from git through ArgoCD. The source is DR_RESTIC_TARGET=garage|ovh.
+# Volumes are the homelab-common.volsync[] entries in argocd/{apps,infra}/*/values.yaml:
+#   name          restic repository (and this script's key)
+#   claim         PVC name (default: name)
+#   accessMode    else the claim's persistentVolumeClaims[] accessModes[0]
+#   cacheCapacity restic cache (default 2Gi)
+#   namespace     config.yaml namespace, else the folder name
+#   size          the claim's persistentVolumeClaims[] size, else VCT_SIZE
+# The mover runs as root so restic can lchown files back (opencloud-data failed
+# as uid 1000, 41d8e3d8); volsync[].moverSecurityContext is ignored here.
 #
 # Usage: scripts/dr/restore-app.sh <volsync-name>     restore one volume
 #        scripts/dr/restore-app.sh --list             print the resolved table
@@ -34,7 +29,7 @@ declare -A VCT_SIZE=(
   [database-storage-obsidian-livesync-couchdb-0]=5Gi   # obsidian-livesync persistentVolume.size
   [wazuh-data-wazuh-manager-master-0]=20Gi             # wazuh cluster.spec.manager.master.storageSize
 )
-# Old keys of the hand-written table, kept so existing runbooks keep working.
+# Old keys of the hand-written table, for existing runbooks.
 declare -A ALIAS=(
   [rsstt]=rss-to-telegram-bot [immich]=immich-library
   [opencloud]=opencloud-data [trek]=trek-uploads
@@ -83,9 +78,8 @@ fi
 require_kubectl
 load_bootstrap_env
 
-# Guard against running on a live cluster: the script creates a PVC with the
-# production name in the production namespace and fills it from the repo. On an
-# empty cluster that is the point; on a running one it overwrites a live volume.
+# Refuse a live cluster: this creates a PVC with the production name and
+# namespace and fills it from the repo, overwriting a live volume.
 if kubectl -n "$NS" get pvc "$PVC" >/dev/null 2>&1 && [[ "${DR_FORCE:-0}" != "1" ]]; then
   MOUNTED=$(kubectl -n "$NS" get pods -o json 2>/dev/null \
     | grep -c "\"claimName\": *\"$PVC\"" || true)
@@ -97,9 +91,8 @@ fi
 
 volsync_restore "$NS" "$REPO" "$PVC" "$SIZE" "$MODE" "$UID_" "$CACHE"
 
-# Post-fixes about application state, not about the backup. In a full DR
-# (phase 09, before ArgoCD) immich-cluster does not exist yet: the step is
-# skipped with a warning; run it by hand once the cluster is up.
+# App-state post-fixes. In a full DR (phase 09, before ArgoCD) immich-cluster
+# does not exist yet: skipped with a warning; run by hand once it is up.
 case "$APP" in
   immich-library)
     log_info "fix: REASSIGN OWNED if the DB still has the old owner immich_user"

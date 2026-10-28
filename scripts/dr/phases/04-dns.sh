@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Phase 04 — external-dns CF + external-dns-openwrt, before Vault exists.
-# The token and OpenWrt creds come from the DR pack. Their Secrets carry the
-# label homelab.dr/bootstrap=true: in git both are ESO-managed, so phase 10
-# deletes them and ESO recreates them from OpenBao.
+# Token and OpenWrt creds come from the DR pack; label homelab.dr/bootstrap=true
+# lets phase 10 delete them so ESO recreates them from OpenBao.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -28,7 +27,7 @@ helm_apply external-dns external-dns/external-dns external-dns \
   --version "$(chart_version external-dns)" \
   -f "$REPO_ROOT/argocd/infra/external-dns/values.yaml"
 
-# OpenWrt instance — only if OPENWRT_HOST/USER/PASS are in DR pack
+# OpenWrt only if OPENWRT_HOST/USER/PASS are in the DR pack.
 if [ -n "${OPENWRT_HOST:-}" ] && [ -n "${OPENWRT_USER:-}" ] && [ -n "${OPENWRT_PASS:-}" ]; then
   log_info "creating openwrt-credentials Secret"
   kubectl create ns external-dns-openwrt 2>/dev/null || true

@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
-# Write the OpenBao policies and Kubernetes-auth roles that ESO uses, from the
-# access map `global.openbao.access` in argocd/values/global.yaml.
-#
+# Write the OpenBao policies and Kubernetes-auth roles ESO uses, from
+# `global.openbao.access` in argocd/values/global.yaml:
 #   eso-own                 policy, templated: read <pathPrefix>/<SA namespace>/*
 #   eso-grant-<group>       policy: read the exact paths of one grant group
 #   eso-own                 role: SA `eso-*` in any namespace -> eso-own
 #   eso-ns-<namespace>      role: SA `eso-*` in that namespace -> eso-own + its grants
-#
-# homelab-common renders SA `eso-<release>` + SecretStore per release and picks
-# `eso-ns-<namespace>` when the namespace is in the map, `eso-own` otherwise.
-# Idempotent: re-run after every change of the map. Roles and policies that
-# left the map stay until a run with --prune, which deletes every eso-* role and
-# policy the map no longer names. Prune only after the PR that removed them is
-# synced: a live SecretStore may still log in with the role.
+# homelab-common picks `eso-ns-<namespace>` when the namespace is in the map.
+# Idempotent: re-run after every map change. --prune deletes eso-* roles and
+# policies the map no longer names; run it only after the removing PR is synced,
+# a live SecretStore may still log in with the role.
 #
 # Needs: bao (admin token in ~/.vault-token or BAO_TOKEN), yq (mikefarah), jq.
 # BAO_CMD overrides how bao is run (DR phase 07 runs it inside the openbao pod).
@@ -37,11 +33,9 @@ fi
 
 AUTH_MOUNT=kubernetes
 TTL=1h
-# batch: the token lives only in the client, so a login is no raft write and
-# expiry needs no revoke write either. ESO reuses it (vault.enableTokenCache in
-# argocd/infra/external-secrets) and never revokes a cached token. Before
-# (2026-10) ~70 SecretStores logged in and revoked every 5 min: ~8 GB/day of
-# raft writes per member on the SATA SSDs etcd shares.
+# batch token: login and expiry cost no raft write; ESO caches it
+# (vault.enableTokenCache) and never revokes. Service tokens cost ~8 GB/day of
+# raft writes per member (2026-10) on the SATA SSDs etcd shares.
 TOKEN_TYPE="batch"
 
 global=$(yq -o json '.global' < argocd/values/global.yaml)

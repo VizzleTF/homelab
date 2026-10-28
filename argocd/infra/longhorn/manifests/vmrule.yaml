@@ -1,10 +1,4 @@
-# Longhorn volume/node health — stateful Prometheus-сигнал.
-# Заменяет шумные kubewatch-event'ы FailedRebuilding/FailedDeleting, которые
-# Robusta слала в Telegram пачкой каждую ночь (benign rebuild aborts). См. obsidian/112 ArgoCD/Infrastructure/all/longhorn.md.
-#
-# longhorn_volume_robustness — набор серий с label `state`
-# (degraded/faulted/healthy/unknown), value=1 для активного состояния.
-# `max by (...)` — дедуп 4× managers (каждый отдаёт глобальный view).
+# `max by (...)` — дедуп: каждый longhorn-manager отдаёт глобальный view.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -25,11 +19,8 @@ spec:
               Volume {{ $labels.volume }} (pvc {{ $labels.pvc_namespace }}/{{ $labels.pvc }}) в состоянии faulted >5m — данные недоступны.
               kubectl -n longhorn-system get volumes.longhorn.io {{ $labels.volume }} -o yaml
 
-        # for:45m — после ребута ноды Longhorn по дизайну ждёт возврата реплик
-        # replicaReplenishmentWaitInterval=1800s и только потом пересобирает.
-        # С for:10m каждый rolling-upgrade Talos давал по алерту на каждый том
-        # с репликой на этой ноде (2371 firing-сэмпл за один день). 45m =
-        # окно ожидания + ребилд; дольше — реплика действительно не вернулась.
+        # 45m = replicaReplenishmentWaitInterval (1800s) + ребилд; короче —
+        # алерт на каждый том при каждом rolling-upgrade Talos.
         - alert: LonghornVolumeDegraded
           expr: max by (volume, pvc, pvc_namespace) (longhorn_volume_robustness{state="degraded"}) == 1
           for: 45m
@@ -52,11 +43,8 @@ spec:
               Longhorn manager на ноде {{ $labels.node }} не ready >5m — реплики на ней недоступны.
               kubectl -n longhorn-system get nodes.longhorn.io {{ $labels.node }} -o yaml
 
-        # Регресс-детектор на утечку томов. Штатно Released PV быть не должно:
-        # эфемерные тома (VolSync-клоны, drill) живут в классе с reclaimPolicy
-        # Delete, а боевые PVC в longhorn (Retain) удаляются вручную и редко.
-        # Двузначное число Released означает, что что-то снова создаёт тома в
-        # Retain-классе и они копятся.
+        # Эфемерные тома (VolSync-клоны, drill) должны жить в классе с Delete;
+        # копятся Released — что-то снова создаёт их в Retain-классе.
         - alert: OrphanedReleasedPVs
           expr: count(kube_persistentvolume_status_phase{phase="Released"} == 1) > 10
           for: 1h
@@ -70,8 +58,8 @@ spec:
               kubectl get pv -o json | jq -r '.items[] | select(.status.phase=="Released")
                 | "\(.spec.claimRef.namespace)/\(.spec.claimRef.name) \(.spec.storageClassName)"' | sort | uniq -c
 
-        # KubePersistentVolumeFillingUp sees single PVCs, not the node disk that
-        # holds every replica (and, on the control-plane nodes, etcd too).
+        # KubePersistentVolumeFillingUp sees single PVCs, not the node disk
+        # (which on control-plane nodes also holds etcd).
         - alert: LonghornNodeDiskFilling
           expr: max by (node) (longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes) > 0.85
           for: 30m

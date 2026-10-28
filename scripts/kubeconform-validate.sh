@@ -1,28 +1,15 @@
 #!/usr/bin/env bash
-# Validate Kubernetes manifests with kubeconform: the rendered output of the
-# homelab-common chart from the local charts/ source, for every values file that
-# uses it (a render or values-schema failure fails the run too). ArgoCD deploys
-# the published chart version, so this is the only check that sees an
-# unpublished chart change.
-#
-# Raw manifests (argocd/**/manifests, argocd/standalone) are not schema-checked
-# here: the argocd-diff CI job validates them as part of the full rendered output
-# of every Application the PR touches. They do get a pluto pass (below) that fails
-# on any deprecated or removed apiVersion, rules from .pluto-versions.yaml, so a
-# stale API (e.g. cilium.io/v2alpha1 BGP kinds) is caught in the PR that adds it.
-#
-# Single source of truth shared by `.forgejo/workflows/ci.yaml` (kubeconform and
-# argocd-diff jobs), `task ci:kubeconform` and the Claude hook
-# .claude/hooks/validate-yaml.sh (file mode). Requires `kubeconform`, `helm` and
-# `pluto` on PATH (file mode: only `kubeconform`), from .mise.toml locally or
-# installed in CI.
-#
-# With file arguments it validates only those files (the argocd-diff CI job
-# passes the fully rendered target branch), using the same flags.
-#
-# CRD schemas come from the datreeio/CRDs-catalog; kinds not in the catalog
-# (tuppr TalosUpgrade/KubernetesUpgrade, Cilium BGP CRDs, …) are skipped via
-# -ignore-missing-schemas instead of failing.
+# Validate manifests with kubeconform. No args: render local charts/homelab-common
+# for every values file using it (render or values-schema failure fails too) —
+# the only check that sees an unpublished chart change. File args: validate only
+# those (argocd-diff passes the rendered target branch; the
+# .claude/hooks/validate-yaml.sh file mode needs only kubeconform).
+# Raw manifests (argocd/**/manifests, argocd/standalone) get no schema check here
+# (argocd-diff validates them) but a pluto pass that fails on deprecated or
+# removed apiVersions (.pluto-versions.yaml).
+# Shared by .forgejo/workflows/ci.yaml, `task ci:kubeconform` and that hook.
+# Needs kubeconform, helm, pluto on PATH (.mise.toml locally).
+# CRD schemas: datreeio/CRDs-catalog; kinds missing there are skipped.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -33,10 +20,8 @@ cd "$(git rev-parse --show-toplevel)"
 KUBE_VERSION="${KUBE_VERSION:-1.37.0}"
 CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
-# tuppr CRDs (KubernetesUpgrade/TalosUpgrade) live in the catalog but its
-# schema lags upstream (missing maintenance/drain/parallelism) → -strict would
-# false-fail valid manifests. -ignore-missing-schemas can't help (schema exists),
-# so skip these kinds explicitly.
+# tuppr's catalog schema lags upstream (no maintenance/drain/parallelism), so
+# -strict false-fails; the schema exists, so -ignore-missing-schemas can't help.
 SKIP_KINDS="${SKIP_KINDS:-KubernetesUpgrade,TalosUpgrade}"
 
 kc() {

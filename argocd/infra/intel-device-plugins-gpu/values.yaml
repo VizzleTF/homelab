@@ -1,16 +1,10 @@
-# Intel GPU Device Plugin — Intel Iris Xe (N100)
-# Advertises gpu.intel.com/i915 resource and sets cgroup device permissions.
-# Nodes are selected by the static Talos label homelab.example.com/gpu
-# (terraform_talos/configs/nodes.yaml); node-feature-discovery was removed
-# (2026-10) because it ran ~230 MiB only to produce that one label.
-
-# CR/DS name override: chart default `gpudeviceplugin-sample` → `gpu`
-# DaemonSet becomes `intel-gpu-plugin-gpu` (instead of `-gpudeviceplugin-sample`).
+# DaemonSet becomes `intel-gpu-plugin-gpu`.
 name: gpu
 
+# Static Talos label from terraform_talos/configs/nodes.yaml (no NFD).
 nodeSelector:
   intel.feature.node.kubernetes.io/gpu: null
   homelab.example.com/gpu: "true"
 
-# No NFD in the cluster: the chart's NodeFeatureRule CRs have no CRD to land on.
+# No NFD: the NodeFeatureRule CRD does not exist.
 nodeFeatureRule: false

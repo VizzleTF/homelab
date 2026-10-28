@@ -1,23 +1,19 @@
 #!/usr/bin/env bash
-# What the branch changes in the rendered manifests of ArgoCD apps: renders each
-# app with scripts/render-app.sh at <base> (default: merge-base with origin/main,
-# like `git diff origin/main...`) in a temporary worktree and in the working tree
-# (uncommitted edits included), then diffs object by object (one file per
-# kind/namespace/name). CI argocd-diff renders the tip of main instead: rebase
-# when main has moved under the same apps.
-# First prints the CI review-gate summary (scripts/diff-review-gate.sh).
-# Paths in the app's config.yaml ignoreDiff.jqPathExpressions are dropped on
-# both sides (cilium regenerates its CA on every render).
-# --hc-local renders the working tree with the local charts/homelab-common; the
-# base keeps the published pin. homelab-common alone, all consumers:
-# scripts/chart-diff.sh.
+# Diff the rendered manifests of ArgoCD apps (scripts/render-app.sh) at <base>
+# (default: merge-base with origin/main) vs the working tree incl. uncommitted
+# edits, object by object. Prints the review-gate summary first
+# (scripts/diff-review-gate.sh). CI argocd-diff renders the tip of main instead:
+# rebase when main moved under the same apps. config.yaml
+# ignoreDiff.jqPathExpressions are dropped on both sides (cilium regenerates
+# its CA on every render). --hc-local renders
+# the working tree with local charts/homelab-common (base keeps the pin); for
+# homelab-common alone use scripts/chart-diff.sh.
 #
 # Usage: scripts/render-diff.sh [--base <ref>] [--hc-local] [app ...]
-#   no app: every app whose argocd/{apps,infra}/<app>/ differs from <base>,
-#   argocd for argocd/standalone/argocd-application.yaml or argocd/values/, and
-#   every app plus argocd for argocd/values/global.yaml or argocd/appsets/ (the
-#   apps' watch-patterns in CI argocd-diff).
-#   Run `git fetch` first when origin/main may be stale.
+#   no app: every app whose argocd/{apps,infra}/<app>/ differs from <base>, argocd
+#   for argocd/standalone/argocd-application.yaml or argocd/values/, every app plus
+#   argocd for argocd/values/global.yaml or argocd/appsets/ (CI watch-patterns).
+#   `git fetch` first when origin/main may be stale.
 # Exit codes (3 wins over 1, 1 over 4):
 #   0  nothing for the review gate (the diff, if any, is printed)
 #   1  prunes a resource or changes a CRD: the PR needs `diff-reviewed`
@@ -81,8 +77,7 @@ render() {
   [[ $4 == base ]] || cat "$tmp/err" >&2
   case $rc in
     0) ;;
-    # The guard's list closes stderr. On the base side it is expected: the
-    # merge-base lags the live main.
+    # The guard's list closes stderr; expected on the base side (merge-base lags live main).
     3) [[ $4 == base ]] || sed -n '/^warning: live app/,$p' "$tmp/err" | tail -n +2 >> "$tmp/missing" ;;
     *) [[ $4 == head ]] || cat "$tmp/err" >&2
        echo "render failed: $2 at $4 (render-app.sh exit $rc)" >&2; exit 2 ;;

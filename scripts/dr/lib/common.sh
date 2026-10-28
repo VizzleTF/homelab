@@ -3,7 +3,6 @@
 
 set -euo pipefail
 
-# Colors only on TTY
 if [ -t 1 ]; then
   COLOR_RED=$'\033[0;31m'
   COLOR_GREEN=$'\033[0;32m'
@@ -26,17 +25,14 @@ log_skip()  { printf "%b[SKIP]%b  %s\n"  "$COLOR_YELLOW" "$COLOR_RESET" "$*"; }
 
 die() { log_error "$*"; exit 1; }
 
-# Resolve repo root (relative to this lib file, $REPO_ROOT/scripts/dr/lib/common.sh)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DR_LIB_DIR="$SCRIPT_DIR"
 DR_DIR="$(cd "$DR_LIB_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$DR_DIR/../.." && pwd)"
 
-# DR pack location (override via env)
 DR_PACK_DIR="${DR_PACK_DIR:-$HOME/dr-pack}"
 
-# Wait for a kubectl condition with a sane timeout and progress logging.
-# Usage: wait_for "label" "command that returns 0 when ready" [timeout_seconds]
+# wait_for "label" "command that returns 0 when ready" [timeout_seconds]
 wait_for() {
   local label="$1" cmd="$2" timeout="${3:-300}"
   local deadline=$(( $(date +%s) + timeout ))
@@ -51,7 +47,6 @@ wait_for() {
   die "timeout waiting for: $label"
 }
 
-# Require an env var to be set and non-empty
 require_env() {
   local name="$1"
   if [ -z "${!name:-}" ]; then
@@ -59,7 +54,7 @@ require_env() {
   fi
 }
 
-# Source ~/dr-pack/01-bootstrap.env (CF_API_TOKEN + Garage + OVH creds)
+# Source ~/dr-pack/01-bootstrap.env (CF_API_TOKEN + Garage + OVH creds).
 load_bootstrap_env() {
   local f="$DR_PACK_DIR/01-bootstrap.env"
   [ -f "$f" ] || die "missing $f — run scripts/dr-pack/build.sh"
@@ -69,15 +64,14 @@ load_bootstrap_env() {
   set +a
 }
 
-# kubectl reachable?
 require_kubectl() {
   kubectl cluster-info --request-timeout=5s >/dev/null 2>&1 \
     || die "kubectl not configured / cluster unreachable. Set KUBECONFIG."
 }
 
 # Chart version (or image tag) pinned in git, so DR installs exactly what ArgoCD runs.
-# Usage: chart_version <component>           -> argocd/infra/<component>/config.yaml
-#        chart_version <file> <yq-expression> -> any yaml under argocd/
+# chart_version <component>           -> argocd/infra/<component>/config.yaml
+# chart_version <file> <yq-expression> -> any yaml under argocd/
 chart_version() {
   local f expr v
   if [ $# -eq 1 ]; then
@@ -90,7 +84,7 @@ chart_version() {
   echo "$v"
 }
 
-# helm upgrade --install wrapper: idempotent, --wait
+# helm upgrade --install, idempotent, --wait.
 helm_apply() {
   local release="$1" chart="$2" namespace="$3" ; shift 3
   local extra_args=("$@")

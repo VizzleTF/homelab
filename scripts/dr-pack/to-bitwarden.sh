@@ -1,34 +1,16 @@
 #!/usr/bin/env bash
-# scripts/dr-pack/to-bitwarden.sh: copy the DR secrets from OpenBao into
-# Vaultwarden (bw CLI) so they are at hand when the cluster is gone.
+# Copy the DR secrets from OpenBao into Vaultwarden, so they survive the cluster:
+# OpenBao's restore needs the restic passwords that OpenBao itself holds.
+# Values pass via env vars, never to the screen; only names and status print.
 #
-# Why: recovery hits a loop. The restic passwords live in OpenBao, and OpenBao
-# is restored from a backup encrypted with those same passwords. Two
-# independent copies outside the cluster break the loop: the offline DR-pack
-# and a Vaultwarden item (every client keeps its own copy).
+# Writes need bw: since Vaultwarden 1.37.4 (GHSA-7ccc-c43j-4p36) POST
+# /api/ciphers requires `encryptedFor`; rbw 1.15.0 gets 422, so it only reads
+# (default when unlocked; DR_CLIENT=bw forces bw). bw "Master password unlock
+# data is required..." = stale state: `bw logout && bw login`.
 #
-# Secret values go from bao to bw through environment variables and never
-# reach the screen: the script prints only item names and status.
-#
-# Two clients:
-#   bw  - writes. Since Vaultwarden 1.37.4 only bw can: after the
-#         GHSA-7ccc-c43j-4p36 fix the server requires the `encryptedFor` field
-#         in POST /api/ciphers, which the official CLI sends. If `bw unlock`
-#         answers "Master password unlock data is required is null or
-#         undefined", the cached state is stale: `bw logout && bw login`.
-#   rbw - read-only: rbw 1.15.0 does not send the field and gets 422 on add/edit.
-#         It is the default when unlocked; DR_CLIENT=bw forces bw.
-#
-# Usage:
-#   # in your own terminal, not under `!` in Claude Code: bw unlock needs a TTY
+# Usage, in your own terminal (bw unlock needs a TTY, so not under `!`):
 #   DR_CLIENT=bw BW_SESSION=$(bw unlock --raw) scripts/dr-pack/to-bitwarden.sh [--dry-run]
-#
-# Env:
-#   BW_FOLDER   Vaultwarden folder name (default: Infra / Homelab DR)
-#   BAO_MOUNT   OpenBao KV mount (default: home)
-#   BAO_PREFIX  path prefix (default: homelab/k8s)
-#   BW_SESSION  official CLI session (alternative to rbw)
-#   DR_CLIENT   rbw | bw: pick the client explicitly (default rbw when unlocked)
+# Env: BW_FOLDER (Infra / Homelab DR), BAO_MOUNT (home), BAO_PREFIX (homelab/k8s).
 
 set -euo pipefail
 export BAO_ADDR="${BAO_ADDR:-https://openbao.example.com}"
@@ -65,10 +47,9 @@ MSG
   echo "client: $CLIENT"
 fi
 
-# Names continue the numbering of the existing items 01..07 in the same folder.
-# 11: without SECRET_KEY a Forgejo database restored on a new ops node cannot
-# decrypt the Authentik client secret, 2FA and push-mirror passwords, and after
-# a full cluster loss OpenBao itself is not up yet.
+# Names continue items 01..07 in the same folder.
+# 11: without SECRET_KEY a Forgejo DB restored on a new ops node cannot decrypt
+# its Authentik client secret, 2FA and push-mirror passwords.
 # Format: name | path:fields[,fields];path:fields
 ITEMS='
 08 - Restic repo passwords (backup v2)|shared/restic-garage:password;shared/restic-ovh:password
@@ -93,7 +74,7 @@ upsert() {
   notes="# заполняется scripts/dr-pack/to-bitwarden.sh из OpenBao
 "
 
-  # Values are read into a variable and handed to the client; never to stdout.
+  # Values stay in a variable for the client; never to stdout.
   for entry in $(echo "$spec" | tr ';' ' '); do
     path="${entry%%:*}"; fields="${entry#*:}"
     notes="${notes}
@@ -113,8 +94,8 @@ upsert() {
   done
   if [[ "$missing" = "1" ]]; then return 0; fi
 
-  # The first payload line becomes the password field. With a single value it
-  # goes there so it copies with one click; otherwise everything is in the note.
+  # Line 1 = password field: a single value goes there for one-click copy;
+  # otherwise everything is in the note.
   if [[ "$count" = "1" ]]; then first_line="$last_val"; else first_line="(see notes)"; fi
 
   if [[ "$DRY_RUN" = "1" ]]; then
@@ -123,10 +104,9 @@ upsert() {
   fi
 
   if [[ "$CLIENT" = "rbw" ]]; then
-    # rbw's help promises $EDITOR, but with a non-interactive stdin no editor
-    # starts at all: the payload is read straight from stdin (first line =
-    # password, the rest = note). A substituted EDITOR silently created an
-    # empty item. Here-string, not a pipe: the calling loop owns its stdin.
+    # With non-interactive stdin rbw reads the payload from stdin (line 1 =
+    # password, rest = note), not $EDITOR; a substituted EDITOR made an empty
+    # item. Here-string, not a pipe: the calling loop owns its stdin.
     local action=add
     if rbw get "$name" >/dev/null 2>&1; then action=edit; fi
     local err
@@ -159,9 +139,8 @@ $notes" 2>&1 >/dev/null); then
 }
 
 echo "=== DR secrets -> Vaultwarden (folder: $BW_FOLDER) ==="
-# The loop reads a here-string, not a pipe: the clients (rbw, bw) take stdin
-# for themselves, and with a pipe the second and later table rows simply
-# vanished, so item 09 was silently never created.
+# Here-string, not a pipe: rbw/bw consume stdin, and with a pipe rows after
+# the first silently vanished (item 09 was never created).
 while IFS='|' read -r name spec; do
   if [[ -z "$name" ]]; then continue; fi
   upsert "$name" "$spec"

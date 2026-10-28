@@ -1,14 +1,5 @@
-# PgBouncer pooler in front of the shared cnpg-cluster. Consumer: authentik
-# (its values point at cnpg-cluster-pooler-rw); atuin talks to cnpg-cluster-rw.
-# Transaction pooling keeps PG backend count low while chatty apps share one cluster.
-# max_prepared_statements came with the forgejo mirror (xorm uses protocol-level
-# prepared statements, unsupported by transaction mode without this knob). Kept
-# after the mirror left: it costs nothing, any client that prepares statements
-# needs it, and changing it restarts pgbouncer.
-# Authentik additionally sets AUTHENTIK_POSTGRESQL__USE_PGBOUNCER=true to
-# disable server-side cursors.
-# The pg_dump CronJob (pglogical-offsite) intentionally stays on cnpg-cluster-rw:
-# dumps must not run through a transaction pooler.
+# Used by authentik; atuin and pg_dump go to cnpg-cluster-rw directly.
+# max_prepared_statements: clients that prepare statements need it; changing it restarts pgbouncer.
 apiVersion: postgresql.cnpg.io/v1
 kind: Pooler
 metadata:
@@ -27,14 +18,9 @@ spec:
       max_prepared_statements: "200"
   template:
     spec:
-      # Hard spread across nodes. All three control-plane nodes carry tuppr's
-      # PreferNoSchedule taint (tuppr.home-operations.com/outdated), so a soft
-      # constraint loses to the taint penalty and both replicas pile onto
-      # talos-worker-01. descheduler's RemoveDuplicates then evicts one every
-      # 5 min and the scheduler puts it straight back — an endless churn loop
-      # that resets pgbouncer connections for authentik.
-      # matchLabelKeys keeps old ReplicaSet pods out of the skew math so
-      # rollouts are not blocked.
+      # Hard spread: tuppr's PreferNoSchedule taint beats a soft one, both land on one
+      # node and descheduler evicts every 5 min, resetting authentik connections.
+      # matchLabelKeys keeps old ReplicaSet pods out of the skew so rollouts proceed.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname

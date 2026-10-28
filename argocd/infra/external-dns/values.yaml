@@ -1,5 +1,3 @@
-# external-dns (Cloudflare): public CNAMEs for proxied HTTPRoutes. Source: https://github.com/kubernetes-sigs/external-dns
-
 provider:
   name: cloudflare
 
@@ -22,11 +20,8 @@ extraArgs:
   - --cloudflare-proxied
   - --cloudflare-dns-records-per-page=5000
 
-# The prefix is explicit although it equals the v0.22 default: it sits next to
-# annotationFilter, which spells the annotation name in full, and the two must
-# match. Change them only together: out of sync, external-dns stops seeing the
-# target and substitutes the Gateway address, Cloudflare rejects that record,
-# and policy: sync deletes the live CNAMEs (DNS went down this way 2026-09-12).
+# Must match annotationFilter's annotation name: on a mismatch policy: sync
+# deletes live CNAMEs (DNS outage 2026-09-12). Change both together.
 annotationPrefix: external-dns.kubernetes.io/
 
 annotationFilter: "external-dns.kubernetes.io/cloudflare-proxied in (true)"

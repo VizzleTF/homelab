@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   yamllint:
-    # Pre-merge gate. After the squash merge the same files are already validated on main.
+    # Pre-merge only: main gets the same files after the squash merge.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
@@ -27,8 +27,8 @@ jobs:
       - name: Lint
         run: yamllint --strict .
       - name: shellcheck
-        # Exact shellcheck-py rev of the pre-commit hook: its PyPI build suffix
-        # varies (0.9.0.2, 0.11.0.1), so it cannot be derived from .mise.toml.
+        # Rev from the pre-commit hook: the PyPI build suffix varies (0.11.0.1),
+        # so it cannot come from .mise.toml.
         run: |
           set -eu
           VERSION=$(sed -n '/shellcheck-py\/shellcheck-py/{n;s/.*rev: v\([^ ]*\).*/\1/p}' .pre-commit-config.yaml)
@@ -36,12 +36,9 @@ jobs:
           /tmp/yamllint/bin/pip install --quiet "shellcheck-py==${VERSION}"
           git ls-files -z '*.sh' '.git-hooks/*' | xargs -0 /tmp/yamllint/bin/shellcheck -x -S warning
       - name: Lint Claude skills
-        # Checkable rules of Anthropic's skill authoring best practices:
-        # frontmatter limits, third-person description, body size, one-level references.
         run: python3 scripts/lint-skills.py
       - name: Audit docs (repo side)
-        # The Obsidian vault is not in git, so only the repo-side checks run here:
-        # config.yaml contract, repo paths cited in CLAUDE.md (error) / .claude (warning), etc.
+        # Repo-side checks only: the Obsidian vault is not in git.
         run: python3 scripts/audit-docs.py
 
   helm-lint:
@@ -55,8 +52,8 @@ jobs:
       - name: Lint homelab-common
         run: helm lint --strict charts/homelab-common
       - name: Published chart version is immutable
-        # A change under charts/homelab-common must carry a version not yet in
-        # the registry. Chart.yaml is excluded: helm package re-serialises it.
+        # A charts/homelab-common change needs a version not yet in the registry.
+        # Chart.yaml is excluded: helm package re-serialises it.
         run: |
           set -eu
           v=$(sed -n 's/^version:[[:space:]]*//p' charts/homelab-common/Chart.yaml)
@@ -70,18 +67,14 @@ jobs:
           apt-get install -y --no-install-recommends python3 python3-yaml >/dev/null
           scripts/homelab-common-selfcheck.sh
       - name: Render diff vs the published chart
-        # What a charts/ change does to every consumer; argocd-diff only sees
-        # it in the later PR that bumps the pin. Informational, never fails on
-        # differences.
+        # argocd-diff sees a charts/ change only in the later pin-bump PR.
+        # Informational: never fails on differences.
         run: scripts/chart-diff.sh
 
   kubeconform:
-    # Pre-merge gate. Schema-validates homelab-common rendered from the local
-    # charts/ source (raw manifests are covered by argocd-diff; here they only get
-    # a pluto deprecated-API pass) against core + CRD
-    # schemas — catches bad apiVersion / wrong CRD fields (ESO v1 vs v1beta1)
-    # that helm-lint's values-schema check cannot see. kubeconform version is
-    # read from .mise.toml (single source of truth, Renovate-tracked).
+    # Pre-merge. Schema-validates local homelab-common renders against core + CRD
+    # schemas (bad apiVersion, ESO v1 vs v1beta1) that helm lint cannot see.
+    # Raw manifests get only pluto here; argocd-diff covers them.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
@@ -119,10 +112,7 @@ jobs:
       - name: Validate manifests
         run: scripts/kubeconform-validate.sh
       - name: Self-check of the Claude Code hooks
-        # validate-yaml calls yamllint and kubeconform-validate.sh; fixtures pin
-        # past false failures of it and helm-repo, plus the bash-guard and
-        # program-gate (running-program Stop hook) selftests.
-        # node:*-bookworm ships without jq.
+        # validate-yaml calls yamllint and kubeconform; node:*-bookworm ships without jq.
         run: |
           set -eu
           scripts/ci-install-yamllint.sh >/dev/null
@@ -130,10 +120,8 @@ jobs:
           scripts/hooks-selfcheck.sh
 
   talos-validate:
-    # Validates the Talos machine config terraform_talos/ would apply (contract
-    # from nodes.yaml + rendered patches) with talosctl, so a Talos or contract
-    # bump whose patches conflict with the generated documents fails here, not
-    # on `terraform apply`. terraform and talosctl versions from .mise.toml.
+    # talosctl-validates the machine config terraform_talos/ would apply, so a
+    # conflicting patch fails here, not on `terraform apply`.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
@@ -161,9 +149,8 @@ jobs:
         run: scripts/talos-validate.sh --strict
 
   gitleaks:
-    # Pre-merge required check (branch protection). Not run on push to main: the
-    # same diff was checked in the PR; the post-sanitize gitleaks inside
-    # mirror-to-github stays the second line for the rewritten history.
+    # Pre-merge required check (branch protection). Second line: the
+    # post-sanitize gitleaks in mirror-to-github.
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -212,28 +199,22 @@ jobs:
           if-no-files-found: ignore
 
   argocd-diff:
-    # Pre-merge. Renders every Application the PR touches with a real ArgoCD for
-    # main and for the PR head (argocd-diff-preview starts a kind cluster through
-    # the runner pod's dind), then:
-    #   - fails on any render error: broken values, missing chart version, unreachable repo;
-    #   - kubeconform and pluto on the rendered PR head;
-    #   - review gate: a pruned resource or a changed CRD fails the job unless the
-    #     PR has the `diff-reviewed` label (add it, then re-run the job);
-    #   - posts the diff as a PR comment, editing its previous one.
+    # Renders touched Applications for main and PR head in kind (runner dind).
+    # Fails on render errors and kubeconform/pluto; a pruned resource or changed
+    # CRD fails unless the PR has the `diff-reviewed` label (add it, re-run).
     # Only the cluster runner has the `diff-preview` label: kind needs its dind.
     if: github.event_name == 'pull_request'
     runs-on: diff-preview
     timeout-minutes: 30
-    # The automatic token reads PR labels and writes the diff comment. Set the
-    # DIFF_PREVIEW_TOKEN secret (scope write:issue) only if it lacks those rights.
+    # DIFF_PREVIEW_TOKEN (write:issue) only if the automatic token cannot read
+    # labels or write the comment.
     permissions:
       contents: read
       issues: write
       pull-requests: write
     container:
       image: node:24-bookworm
-      # The dind socket of the runner pod (the daemon running this job): docker
-      # commands here start sibling containers next to this one.
+      # Runner pod's dind: docker starts sibling containers, not children.
       options: -v /var/run/docker.sock:/var/run/docker.sock
     env:
       # renovate: datasource=docker depName=dagandersen/argocd-diff-preview
@@ -308,9 +289,8 @@ jobs:
           ARGOCD_CHART=$(yq '.spec.sources[] | select(.chart == "argo-cd") | .targetRevision' \
             base-branch/argocd/standalone/argocd-application.yaml)
 
-          # Docker paths resolve on the dind host, not in this container, so the
-          # inputs and outputs go through docker cp instead of bind mounts.
-          # One retry: a chart repo that blips (GHCR, codeberg) fails the render.
+          # Paths resolve on the dind host: use docker cp, not bind mounts.
+          # One retry: a blipping chart repo (GHCR, codeberg) fails the render.
           for attempt in 1 2; do
             docker rm -f argocd-diff-preview argocd-diff-preview-control-plane >/dev/null 2>&1 || true
             docker create --name argocd-diff-preview --network host \
@@ -329,9 +309,8 @@ jobs:
             if docker start -a argocd-diff-preview; then
               docker cp argocd-diff-preview:/output .
               docker rm -f argocd-diff-preview >/dev/null
-              # No Application selected: the tool exits 0 and writes only diff.md with a
-              # "Found no ..." line (pkg/diff/no_apps_found.go). Missing manifests without
-              # that line is a broken run: fail, never check empty files.
+              # No Application selected = exit 0 + diff.md with "Found no ...".
+              # Missing manifests without that line is a broken run: fail.
               if [ ! -f output/target-branch.yaml ]; then
                 grep -q '^Found no' output/diff.md 2>/dev/null \
                   || { echo "::error::argocd-diff-preview wrote no manifests"; exit 1; }
@@ -349,8 +328,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.DIFF_PREVIEW_TOKEN || github.token }}
         run: |
-          # The runner starts bash with -e; every check below must run and report,
-          # and the Verdict step fails the job from `fail`.
+          # Runner bash has -e; every check must run, Verdict fails from `fail`.
           set +e -uo pipefail
           fail=0
           : > checks.md
@@ -364,8 +342,8 @@ jobs:
           fi
           cat kc.log
 
-          # Exit 3 = removed API (fail); deprecations are listed but do not fail.
-          # Target versions from git: the cluster's k8s (tuppr, Renovate-tracked) and the cilium chart.
+          # Exit 3 = removed API (fail); deprecations do not fail.
+          # Targets: cluster k8s (tuppr) and the cilium chart, from git.
           K8S=$(yq '.spec.kubernetes.version' target-branch/argocd/infra/tuppr/manifests/kubernetes-upgrade.yaml)
           CILIUM=$(yq '.targetRevision' target-branch/argocd/infra/cilium/config.yaml)
           echo "### pluto" >> checks.md
@@ -419,9 +397,7 @@ jobs:
           exit 1
 
   mirror-to-github:
-    # Post-merge only. Pre-merge gitleaks (job above) is the pull_request gate;
-    # a commit reaches this job only after the merge to main, already validated.
-    # workflow_dispatch allows re-running the mirror without a re-merge.
+    # Post-merge only; workflow_dispatch re-runs the mirror without a re-merge.
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -475,9 +451,8 @@ jobs:
           gitleaks version
 
       - name: Post-sanitize gitleaks gate
-        # Re-scan the rewritten history after `Sanitize history` to catch any
-        # secret pattern that slipped through MIRROR_SANITIZE_RULES. Fails the
-        # mirror job before push so nothing leaked-then-redacted reaches GitHub.
+        # Re-scans the sanitized history; fails before push if a secret slipped
+        # through MIRROR_SANITIZE_RULES.
         run: |
           gitleaks detect \
             --source . \
@@ -506,8 +481,7 @@ jobs:
           git push --force "https://VizzleTF:${GH_PAT}@github.com/${GH_REPO}.git" HEAD:main
 
   notify-failure:
-    # Post-merge only. Pre-merge gitleaks failures show in the Forgejo PR UI and need no Telegram.
-    # Trigger: mirror-to-github failed (including its post-sanitize gitleaks gate).
+    # Post-merge only: pre-merge failures show in the Forgejo PR UI.
     needs: mirror-to-github
     if: always() && needs.mirror-to-github.result == 'failure'
     runs-on: ubuntu-latest
@@ -525,7 +499,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f post-sanitize-leaks.json ]; then
-            # node:*-bookworm runner images ship without jq.
+            # node:*-bookworm ships without jq.
             apt-get update -qq && apt-get install -y -qq jq >/dev/null
             SUMMARY=$(jq -r '
               if type=="array" and length>0 then

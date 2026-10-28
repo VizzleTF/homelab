@@ -26,19 +26,12 @@ resources:
   limits:
     # Full scans peg the limit (throttled 81% at 1000m); runs on the worker.
     cpu: 2000m
-    # Bumped 1536→2048Mi: first-attempt OOM observed during full repo scan
-    # (Node.js heap 1024 + child processes for cargo/yarn/github-actions
-    # extractors).
+    # OOM at 1536Mi on a full scan: Node heap 1024 + extractor child processes.
     memory: 2048Mi
 
-# Keep the scan off the control plane. etcd shares the single SATA SSD with
-# everything else on a CP node, and a run on talos-cp-03 (the etcd leader)
-# pushed apply latency to 600ms at 06:00:13 on 2026-09-13: every controller
-# with leader election lost its lease and restarted.
-#
-# The cache PV below is local-path, pinned to whichever node first mounted
-# it. Changing this selector means deleting the renovate-cache PVC so it is
-# provisioned again on the new node.
+# Off the control plane: a scan on the etcd leader's SSD made every
+# leader-elected controller lose its lease (2026-09-13). The local-path cache
+# PV is node-pinned: changing this selector means deleting PVC renovate-cache.
 nodeSelector:
   kubernetes.io/hostname: talos-worker-01
 
@@ -50,16 +43,11 @@ renovate:
   persistence:
     cache:
       enabled: true
-      # node-local scratch — renovate cache is fully rebuildable, so skip
-      # Longhorn's 2x replica + network overhead. local-path PV is node-pinned
-      # (WaitForFirstConsumer); the cronjob follows it via PV node affinity. If
-      # the node dies the cache is lost and renovate rebuilds it. See
-      # argocd/infra/local-path-provisioner.
+      # Cache is fully rebuildable, so no Longhorn replicas.
       storageClass: local-path
       storageSize: 2Gi
-  # exitCodeForErrors: a repository run that ends in an error (e.g.
-  # external-host-error, 2026-10-16) fails the Job instead of exiting 0, so
-  # RenovateScanMissing sees it through last_successful_time.
+  # exitCodeForErrors: an errored run must fail the Job, else RenovateScanMissing
+  # never sees it (2026-10-16).
   config: |
     {
       "$schema": "https://docs.renovatebot.com/renovate-schema.json",
@@ -76,7 +64,7 @@ renovate:
     }
 
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No scrape here, so no victoria-metrics allow.
   networkPolicy:
     enabled: true
 
@@ -95,15 +83,11 @@ homelab-common:
           property: token
       templateData:
         GITHUB_COM_TOKEN: "{{ .token }}"
-        # GITHUB_COM_TOKEN adds a hostRule for github.com only; ghcr.io is queried
-        # anonymously with a short-lived, heavily rate-limited token. The same PAT
-        # (scope read:packages) authenticates ghcr.io lookups. hostRules is
-        # parsed as JSON5 from the env var; the github.com rule from
-        # GITHUB_COM_TOKEN is added after it and is not overwritten.
+        # GITHUB_COM_TOKEN covers github.com only; anonymous ghcr.io is heavily
+        # rate-limited, so the same PAT (read:packages) is reused here.
         RENOVATE_HOST_RULES: '[{"matchHost":"ghcr.io","hostType":"docker","username":"VizzleTF","password":"{{ .token }}"}]'
     - name: renovate-notify-telegram
-      # The homelab's one Telegram bot (grant `telegram`): alerts, ArgoCD
-      # notifications and this digest share the bot and the chat.
+      # Needs the `telegram` grant (shared bot).
       vaultPath: shared/telegram
       data:
         - secretKey: bot_token
@@ -123,11 +107,10 @@ homelab-common:
       cpu: 50m
       memory: 128Mi
 
-  # Daily Telegram digest of Renovate PRs, read from the Forgejo API.
   workloads:
     - name: notify                  # -> CronJob renovate-notify
       type: cronjob
-      schedule: "0 8 * * *"         # two hours after the 06:00 scan
+      schedule: "0 8 * * *"         # after the 06:00 scan
       spec:
         timeZone: UTC
       job:
@@ -146,7 +129,7 @@ homelab-common:
           image:
             repository: badouralix/curl-jq
             tag: "latest@sha256:3670578737d1d2019b10a4f9e607284101feb9fdd6b0478e78ea87bf61d96145"
-          # The image has no versioned tags; a ":latest" tag defaults to Always even with a digest.
+          # No versioned tags; ":latest" defaults to Always even with a digest.
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "/scripts/digest.sh"]
           envFrom:
@@ -202,15 +185,13 @@ homelab-common:
               "${FG_API}/$1"
           }
 
-          # Strip Renovate's commit prefix / "Update|Pin " noise, then HTML-escape.
           clean_title() {
             printf '%s' "$1" \
               | sed -e 's/^chore(deps): //' -e 's/^Update //' -e 's/^Pin //' \
               | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
           }
 
-          # --- Merged in last 24h (the "what landed in the cluster" changelog) ---
-          # Renovate PRs carry no labels in this repo — match by author login instead.
+          # Renovate PRs carry no labels here: match by author login.
           closed=$(fg_get "repos/${REPO}/pulls?state=closed&sort=newest&limit=50")
           merged_tsv=$(printf '%s' "$closed" | jq -r --argjson s "$DAY_AGO" --arg a "$PR_AUTHOR" '
             [ .[]
@@ -230,7 +211,6 @@ homelab-common:
             done)
           fi
 
-          # --- Open Renovate PRs (not auto-merged — every one warrants a look) ---
           open_prs=$(fg_get "repos/${REPO}/pulls?state=open&limit=50")
           open_tsv=$(printf '%s' "$open_prs" | jq -r --arg a "$PR_AUTHOR" '
             [ .[] | select(.user.login == $a) ] | sort_by(.created_at) | .[]
@@ -249,14 +229,11 @@ homelab-common:
             done)
           fi
 
-          # --- Dependency Dashboard: what Renovate itself flagged (errored / queued) ---
-          # Discover the dashboard issue by title (number is not stable across repos).
           dash_num=$(fg_get "repos/${REPO}/issues?state=open&type=issues&limit=50" \
             | jq -r '[.[] | select(.title == "Dependency Dashboard")][0].number // empty')
           dash_body=""
           [ -n "$dash_num" ] && dash_body=$(fg_get "repos/${REPO}/issues/${dash_num}" | jq -r '.body // ""')
 
-          # Extract clean update titles for a given dashboard marker (one per line).
           dash_titles() {
             printf '%s\n' "$dash_body" \
               | grep -oE "<!-- $1=[^>]*-->.*" \
@@ -264,7 +241,7 @@ homelab-common:
               | while IFS= read -r t; do printf '%s\n' "$(clean_title "$t")"; done
           }
           dash_block() {
-            # $1=marker  $2=icon+label ; emits a section only when non-empty
+            # $1=marker  $2=icon+label
             titles=$(dash_titles "$1")
             [ -n "$titles" ] || return 0
             n=$(printf '%s\n' "$titles" | grep -c .)
@@ -283,7 +260,6 @@ homelab-common:
 
           queued=$((errored + pending_checks + pending_approval + rate_limited + awaiting))
 
-          # --- Idle: nothing merged, no open PR, nothing queued → one-line heartbeat ---
           if [ "$merged_count" -eq 0 ] && [ "$open_count" -eq 0 ] && [ "$queued" -eq 0 ] && [ "$repo_problems" -eq 0 ]; then
             printf '<b>🤖 Renovate</b> — всё тихо, ничего в очереди · %s UTC\n' \
               "$(date -u +'%Y-%m-%d')" > /tmp/message.txt
@@ -313,7 +289,7 @@ homelab-common:
             } > /tmp/message.txt
           fi
 
-          # Telegram caps at 4096 chars
+          # Telegram caps messages at 4096 chars.
           if [ "$(wc -c < /tmp/message.txt)" -gt 4000 ]; then
             head -c 3900 /tmp/message.txt > /tmp/message.trunc
             printf '\n…truncated…' >> /tmp/message.trunc

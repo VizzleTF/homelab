@@ -1,15 +1,13 @@
-# Forgejo — the GitOps source of truth, deliberately outside the cluster.
-# See obsidian/111 Memory/Ops Node.md. No reverse proxy: Forgejo terminates TLS itself with a
-# certificate obtained over DNS-01, and git-over-ssh rides the system sshd, so
-# clone URLs stay ssh://git@git.example.com/... exactly as before the move.
+# Forgejo, outside the cluster on purpose (obsidian/111 Memory/Ops Node.md).
+# No reverse proxy: Forgejo terminates TLS (DNS-01 cert); git-over-ssh uses the
+# system sshd, so clone URLs stay ssh://git@git.example.com/...
 { config, lib, pkgs, ... }:
 
 {
   services.postgresql.enable = true;
 
-  # The service runs Forgejo from the store, but the admin CLI is not on PATH
-  # unless asked for. Recovery needs it: `forgejo admin regenerate keys` after
-  # restoring a dump (obsidian/113 Backups/Forgejo Recovery.md, S3 step 4).
+  # Admin CLI on PATH for recovery: `forgejo admin regenerate keys` after a
+  # dump restore (obsidian/113 Backups/Forgejo Recovery.md, S3 step 4).
   environment.systemPackages = [ config.services.forgejo.package ];
 
   security.acme = {
@@ -17,13 +15,11 @@
     defaults.email = "vizzle@example.com";
     certs."git.example.com" = {
       dnsProvider = "cloudflare";
-      # Same Cloudflare token as cert-manager and external-dns, kept out of git:
-      # /var/lib/secrets/cloudflare-dns.env holds CF_DNS_API_TOKEN, mode 0600.
+      # CF_DNS_API_TOKEN (same as cert-manager), mode 0600, outside git.
       environmentFile = "/var/lib/secrets/cloudflare-dns.env";
-      # git.example.com resolves to this node only on the LAN, so the ACME client
-      # must not ask the local resolver whether the TXT record has propagated.
+      # The LAN resolver answers git.example.com locally; check TXT propagation upstream.
       dnsResolver = "1.1.1.1:53";
-      # Forgejo reads the certificate directly, so it owns the group.
+      # Forgejo reads the cert directly.
       group = "git";
     };
   };
@@ -33,8 +29,8 @@
     user = "git";
     group = "git";
 
-    # Role and database share the name because the module grants ownership by
-    # matching them, and the role has to match the system user for peer auth.
+    # Names must match: the module grants ownership by name, peer auth needs
+    # role = system user.
     database = {
       type = "postgres";
       user = "git";
@@ -43,10 +39,8 @@
 
     lfs.enable = true;
 
-    # Carried over from the in-cluster instance during the migration. They key
-    # everything the database stores encrypted — mirror credentials, OAuth
-    # secrets, 2FA — so a freshly generated set would quietly invalidate all of
-    # it. Files live outside git, mode 0600, owned by root.
+    # These keys encrypt DB data (mirror creds, OAuth, 2FA): a fresh set silently
+    # invalidates all of it. Files outside git, root, mode 0600.
     secrets = {
       security = {
         SECRET_KEY = lib.mkForce "/var/lib/secrets/forgejo/SECRET_KEY";
@@ -70,8 +64,7 @@
         HTTP_PORT = 443;
         CERT_FILE = "/var/lib/acme/git.example.com/fullchain.pem";
         KEY_FILE = "/var/lib/acme/git.example.com/key.pem";
-        # git-over-ssh goes through the system sshd as the git user, which is
-        # why clone URLs need no port and the built-in ssh server stays off.
+        # git-over-ssh goes through the system sshd as the git user.
         START_SSH_SERVER = false;
         SSH_DOMAIN = "git.example.com";
         SSH_PORT = 22;
@@ -101,12 +94,9 @@
         ISSUE_INDEXER_TYPE = "bleve";
       };
 
-      # Packages (the homelab-common chart museum and OCI images) keep their
-      # blobs in Garage on the NAS — 563 MB across 211 blobs — while the
-      # database only holds metadata. Pointing this anywhere else would leave
-      # every package in the restored database dangling. Use the [packages]
-      # section, not [storage.packages]: the latter makes bucket init hang for
-      # 30s against Garage.
+      # Package blobs live in Garage; the DB holds only metadata, so another
+      # target leaves every restored package dangling. Use [packages], not
+      # [storage.packages]: the latter hangs bucket init 30s against Garage.
       packages = {
         ENABLED = true;
         STORAGE_TYPE = "minio";
@@ -118,12 +108,11 @@
         MINIO_BASE_PATH = "packages/";
       };
 
-      # Push mirror to the NAS Gitea copy targets an RFC1918 address, which
-      # Forgejo's SSRF protection blocks unless local networks are allowed.
+      # Push mirror to the NAS Gitea is RFC1918; SSRF protection blocks it otherwise.
       migrations.ALLOW_LOCALNETWORKS = true;
 
-      # The push webhook to ArgoCD (argocd.example.com, a LAN-only gateway IP) is
-      # blocked by the default "external" list; ArgoCD then only polls (10 min).
+      # argocd.example.com is a LAN IP, blocked by "external"; without it ArgoCD
+      # only polls (10 min).
       webhook.ALLOWED_HOST_LIST = "external,argocd.example.com";
 
       metrics.ENABLED = true;
@@ -131,11 +120,9 @@
     };
   };
 
-  # The module only creates the account when it runs under its default name,
-  # so the git user is declared here. The home directory must be Forgejo's
-  # state dir: that is where Forgejo maintains authorized_keys, and sshd looks
-  # for it under the user's home. A real shell is required too — the default
-  # nologin would refuse the forced command behind every push.
+  # The module creates only its default user. home = state dir: sshd reads
+  # Forgejo's authorized_keys there. A real shell: nologin refuses the forced
+  # command behind every push.
   users.users.git = {
     isSystemUser = true;
     group = "git";
@@ -144,11 +131,8 @@
   };
   users.groups.git = { };
 
-  # Forgejo runs unprivileged, so binding 443 needs the capability granted
-  # explicitly. PrivateUsers has to go with it: inside a user namespace the
-  # ambient capability does not apply to the host's privileged ports, and the
-  # service just dies on "bind: permission denied". That is the price of
-  # serving TLS directly instead of putting a reverse proxy in front.
+  # Unprivileged bind to 443. PrivateUsers must be off: in a user namespace the
+  # ambient cap does not apply and the service dies on "bind: permission denied".
   systemd.services.forgejo.serviceConfig = {
     AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
     CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];

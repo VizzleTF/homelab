@@ -1,16 +1,6 @@
-# Policy engine for the cluster.
-#
-# PodSecurity admission is effectively off here: Talos defaults to `privileged`
-# and no namespace carries enforcement labels, so any workload can ask for
-# privileged, hostPath or hostNetwork and nothing objects. Kyverno enforces it:
-# the policies in argocd/infra/kyverno-policies run in Enforce since 2026-09-24.
-
-# No reports since 2026-10: the policies run in Enforce, so a violation is a
-# rejected admission, not a report entry. Background scan plus admission and
-# policy reports cost ~55 PolicyReport writes/min in etcd, which shares the
-# SATA SSD whose fsync latency this cluster fights. Before that the background
-# scan also re-emitted every violation as an Event (1400+ for the same
-# privileged DaemonSets) — hence omitEvents below.
+# Kyverno is the only pod-security gate: Talos PodSecurity defaults to privileged.
+# Reports off: Enforce rejects at admission; reports cost ~55 etcd writes/min on
+# the fsync-bound SSD. omitEvents: background scan emitted 1400+ duplicate Events.
 features:
   admissionReports:
     enabled: false
@@ -24,11 +14,8 @@ features:
       - PolicySkipped
       - PolicyViolation
 
-# Single replica per controller: this is a four-node homelab, and the policies
-# use failurePolicy Ignore, so a brief controller restart lets admissions through
-# unchecked instead of blocking them.
-# Leader election: lease renewals are etcd writes, every 2 s per controller by
-# default. 15 s retry (lease = 6x retry = 90 s) cuts them ~7x (2026-10).
+# One replica is safe: policies use failurePolicy Ignore, so a restart only skips checks.
+# 15 s lease retry cuts etcd lease writes ~7x vs the 2 s default (2026-10).
 admissionController:
   container:
     extraArgs:
@@ -46,7 +33,6 @@ backgroundController:
       memory: 256Mi
 
 reportsController:
-  # Nothing to aggregate with reports off (features above).
   enabled: false
   replicas: 1
   resources:
@@ -64,11 +50,10 @@ cleanupController:
     requests:
       cpu: 50m
     limits:
-      # 113Mi max of 128Mi, 12 restarts (2026-09).
+      # OOM at 128Mi: 12 restarts (2026-09).
       memory: 256Mi
 
 homelab-common:
-  # Default-deny ingress for the whole namespace (also covers the sibling app
-  # sharing it). No VMServiceScrape reads metrics there, so victoria-metrics gets no allow.
+  # Covers kyverno-policies too (shared namespace). No VMServiceScrape here, so no victoria-metrics allow.
   networkPolicy:
     enabled: true

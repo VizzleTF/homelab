@@ -1,5 +1,4 @@
-# The chart ships ClusterRole volsync-metrics-reader (nonResourceURL /metrics)
-# without a binding; this grants it to vmagent for vmservicescrape.yaml.
+# The chart ships this ClusterRole without a binding.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

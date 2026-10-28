@@ -1,14 +1,6 @@
-# Scrapes Longhorn manager metrics through the VictoriaMetrics operator.
-# The Helm chart creates a ServiceMonitor (prometheus-operator), but with
-# `vm-operator.disable_prometheus_converter: true` nothing picks it up, so an
-# explicit VMServiceScrape is needed (like tuppr and smartctl-exporter).
-#
-# The longhorn-backend Service (port `manager`/9500, /metrics) selects all 4
-# longhorn-manager pods. Every manager exports a GLOBAL view of all volumes ->
-# 4x duplicate series. Deduplication is in the VMRule exprs via `max by (...)`.
-#
-# 60s and the dropped rest_client/workqueue histograms (~8.5k series, no rule
-# reads them): vmsingle writes to a SATA SSD next to etcd (2026-10).
+# Needed because disable_prometheus_converter ignores the chart's ServiceMonitor.
+# Every manager exports all volumes: dedup with `max by (...)` in VMRule exprs.
+# 60s + dropped histograms (~8.5k unused series): vmsingle shares the SSD with etcd.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:

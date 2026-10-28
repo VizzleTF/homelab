@@ -1,23 +1,14 @@
 #!/usr/bin/env bash
-# Wrapper for provisioning Garage S3 buckets + keys on the Synology NAS
-# (memini, 10.11.12.237) and storing credentials in OpenBao (`bao` CLI).
+# Provision Garage S3 buckets and keys on the Synology NAS and store the
+# credentials in OpenBao; subcommands in usage().
 #
-# The Garage CLI runs on the NAS over SSH because DSM 7.2 noexec /tmp
-# prevents shipping binaries here. The CLI is from the SynoCommunity
-# package:
-#     /volume4/@appstore/garage/bin/garage  -c /volume4/garage/garage/garage.toml
-#
-# OpenBao path convention: <BAO_PATH_PREFIX>/<namespace>/s3-<key-name>
-# (default prefix: homelab/k8s; mount: home). Two fields are written:
-# ACCESS_KEY_ID and ACCESS_SECRET_KEY — ExternalSecret consumers read
-# them via their release's SecretStore; a namespace other than the path's
-# needs a grant in global.openbao.access (scripts/openbao-eso-access.sh).
-#
-# Note: `garage key create <name>` is NOT idempotent — Garage happily
-# creates multiple keys with the same name, distinguished by ID. To
-# prevent silent dup-creation, `create` here aborts if a key with the
-# given name already exists; use `revoke` to retire the old one first.
-# Bucket creation IS idempotent (skipped if global alias already exists).
+# The garage CLI runs on the NAS over SSH: DSM 7.2 mounts /tmp noexec, so no
+# binary can be shipped there.
+# OpenBao fields ACCESS_KEY_ID / ACCESS_SECRET_KEY; consumers in another
+# namespace than the path's need a grant in global.openbao.access
+# (scripts/openbao-eso-access.sh).
+# `garage key create` is NOT idempotent (same-name keys get distinct IDs), so
+# `create` aborts if the key name exists; `revoke` the old one first.
 set -euo pipefail
 
 GARAGE_SSH="${GARAGE_SSH:-ivan@10.11.12.237}"
@@ -57,7 +48,6 @@ require() {
   command -v "$1" >/dev/null 2>&1 || { echo "missing dependency: $1" >&2; exit 1; }
 }
 
-# Build a properly-quoted remote command line for ssh.
 garage_remote_cmd() {
   local cmd="sudo $GARAGE_BIN -c $GARAGE_CONFIG"
   local a
@@ -79,17 +69,16 @@ probe_health() {
 }
 
 bao_path() {
-  # bao_path <namespace> <key-name>
   printf '%s/%s/s3-%s' "$BAO_PATH_PREFIX" "$1" "$2"
 }
 
-# Count keys with the given name (Garage allows duplicates by ID; we count by name column).
+# Count keys by name: Garage allows same-name keys with distinct IDs.
 key_count_by_name() {
   garage_cmd key list 2>/dev/null \
     | awk -v n="$1" 'NR > 1 && $3 == n { c++ } END { print (c+0) }'
 }
 
-# Resolve a key name to its Key ID. Echoes nothing if 0 matches; multiple matches: echo "AMBIGUOUS".
+# Key name → Key ID; nothing on 0 matches, "AMBIGUOUS" on several.
 key_id_by_name() {
   garage_cmd key list 2>/dev/null \
     | awk -v n="$1" 'NR > 1 && $3 == n { ids = ids ? ids " " $1 : $1; c++ } END {
@@ -146,8 +135,7 @@ cmd_create() {
   echo "=== 2/6 create key '$key' ==="
   local key_out key_id secret
   key_out=$(garage_cmd key create "$key")
-  # Garage Key IDs are "GK" + 24 hex chars; Secret is 64 hex chars. Use awk
-  # against labelled lines to be robust against any other hex blobs in output.
+  # Key ID = "GK" + 24 hex, Secret = 64 hex; match labelled lines, not any hex blob.
   key_id=$(printf '%s\n' "$key_out" | awk -F': *' '/^Key ID:/ { print $2; exit }')
   secret=$(printf '%s\n' "$key_out" | awk -F': *' '/^Secret key:/ { print $2; exit }')
   if [ -z "$key_id" ] || [ -z "$secret" ]; then

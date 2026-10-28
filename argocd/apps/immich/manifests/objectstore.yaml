@@ -1,8 +1,4 @@
-# Barman Cloud Plugin object store for immich-cluster, replacing the in-tree
-# .spec.backup.barmanObjectStore (deprecated in CNPG). destinationPath and
-# serverName (set on the Cluster plugin entry in cluster.yaml) mirror the
-# in-tree layout, so the plugin continues the existing catalog and WALs:
-# s3://cnpg-backups/immich-cluster-restored/immich-cluster.
+# destinationPath + serverName (cluster.yaml) must match the existing catalog.
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:

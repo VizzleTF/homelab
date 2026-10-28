@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/dr-pack/verify.sh — sanity-check the DR pack BEFORE you need it.
+# Sanity-check the DR pack BEFORE you need it.
 
 set -euo pipefail
 
@@ -28,8 +28,8 @@ check "03-cluster.env exists"               "[ -f '$DR_PACK_DIR/03-cluster.env' 
 # The off-site pack carries the bundle unencrypted; the local one is gpg -c.
 if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" || -f "$DR_PACK_DIR/00-shamir.json" ]]; then
   tmp=$(mktemp)
-  # --batch без passphrase не спросит её и просто провалится; с GPG_PASSPHRASE
-  # проверка проходит неинтерактивно, без него — обычный pinentry.
+  # --batch without a passphrase fails instead of asking: GPG_PASSPHRASE makes
+  # the check non-interactive, otherwise the normal pinentry runs.
   if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
     gpg_decrypt() { local file="$1"; gpg --quiet --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --decrypt "$file"; }
   else
@@ -59,9 +59,8 @@ if [[ -f "$DR_PACK_DIR/01-bootstrap.env" ]]; then
   else
     log_ok "01-bootstrap.env has no MISSING markers"
   fi
-  # Без паролей restic пакет бесполезен: репозитории VolSync не открыть, а
-  # OpenBao (где они лежат в обычной жизни) сам восстанавливается из бэкапа,
-  # зашифрованного ими. Проверяем явно, а не только на отсутствие MISSING.
+  # Without the restic passwords the pack is useless (OpenBao, their home, is
+  # restored from a backup they encrypt): check them explicitly, not just MISSING.
   for k in RESTIC_PASSWORD_GARAGE RESTIC_PASSWORD_OVH GARAGE_RESTIC_ACCESS_KEY OVH_S3_ACCESS_KEY; do
     if grep -qE "^${k}=.+" "$DR_PACK_DIR/01-bootstrap.env"; then
       log_ok "01-bootstrap.env carries $k"
@@ -79,10 +78,8 @@ if [[ -f "$DR_PACK_DIR/02-vault-raft-snapshot.snap" ]]; then
   check "raft snapshot <7 days old" "[ '$age_days' -lt 7 ]"
 fi
 
-# Что должно лежать в Vaultwarden, чтобы восстановление было возможно без
-# кластера. Парольная фраза пакета отдельной записью НЕ проверяется: она равна
-# мастер-паролю хранилища (см. ~/.zshrc, GPG_PASSPHRASE=$BW_PASSWORD) —
-# записывать её внутрь того же хранилища смысла нет.
+# Items Vaultwarden must hold for a cluster-less restore. The pack passphrase is
+# not one: it equals the vault master password (~/.zshrc GPG_PASSPHRASE=$BW_PASSWORD).
 VW_ITEMS='08 - Restic repo passwords (backup v2)
 09 - S3 keys backup v2 (restic-apps, snapshots, OVH)
 11 - Forgejo instance secrets'

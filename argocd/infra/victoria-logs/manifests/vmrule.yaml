@@ -20,8 +20,7 @@ spec:
               kubectl -n victoria-logs get pods
               kubectl -n victoria-logs logs sts/victoria-logs-server
 
-        # Server and Vector can both be "up" while nothing is written (sink
-        # errors, backpressure). ~20-30 rows/s is normal; zero is never normal.
+        # Both can be "up" while nothing is written; ~20-30 rows/s is normal.
         - alert: VictoriaLogsNoIngestion
           expr: sum(rate(vl_rows_ingested_total[15m])) == 0
           for: 15m
@@ -46,8 +45,7 @@ spec:
               Опции: увеличить PVC, снизить retentionPeriod (сейчас 7d), сузить
               retentionDiskSpaceUsage (сейчас 9GiB).
 
-        # VictoriaLogsRowsDropped удалён — каскад VictoriaLogsDiskUsageHigh / VictoriaLogsDown.
-        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #24.
+        # Без VictoriaLogsRowsDropped: каскад DiskUsageHigh/Down (Alert Cleanup.md #24).
 
         - alert: VectorDown
           expr: absent(up{job=~".*vector.*"}) == 1 or up{job=~".*vector.*"} == 0
@@ -62,5 +60,4 @@ spec:
               kubectl -n victoria-logs get ds
               kubectl -n victoria-logs logs ds/victoria-logs-vector --tail=100
 
-        # VectorSinkErrors удалён — каскад VictoriaLogsDown.
-        # См. obsidian/112 ArgoCD/Infrastructure/Alert Cleanup.md #36.
+        # Без VectorSinkErrors: каскад VictoriaLogsDown (Alert Cleanup.md #36).

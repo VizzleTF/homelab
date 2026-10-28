@@ -1,38 +1,11 @@
 #!/usr/bin/env bash
-# Wrapper for the VictoriaMetrics stack (vmsingle/vmagent/vmalert/
-# vmalertmanager/grafana in the `victoria-metrics` namespace).
+# Query the VictoriaMetrics stack (namespace victoria-metrics); subcommands in usage().
+# Skill: managing-monitoring (with the Alert→Memory triage matrix in its reference.md).
 #
-# All actions hit each component's HTTP API via `kubectl exec wget` (logsql
-# and silence delete: apiserver service proxy, since the VictoriaLogs image
-# has no wget and busybox wget cannot DELETE) and parse the JSON locally
-# with jq; no port-forward anywhere. Pod lookup always filters
-# --field-selector status.phase=Running because deployments rotate replicas
-# and the stale Succeeded pods are returned first by the default selector.
-#
-# Subcommands:
-#   status                       components health + PVC + top metrics +
-#                                vmagent up/down + vmalert firing count
-#   alerts                       firing + pending alerts from vmalert,
-#                                grouped by severity, with description
-#   query    <promql> [--limit N] [--raw]   /api/v1/query against vmsingle
-#   range    <promql> [--start 1h] [--end now] [--step 5m] [--limit N] [--raw]
-#                                /api/v1/query_range against vmsingle
-#   logsql   <query> [--limit 100] [--start 1h]   LogsQL against VictoriaLogs
-#                                (/select/logsql/query via apiserver service
-#                                proxy), JSONL output
-#   rules    [errors]            list rule groups; `errors` filters to
-#                                rules with lastError
-#   targets  [job-filter]        scrape targets from vmagent; optional
-#                                substring filter on job name
-#   silence  <alertname> [dur]   POST /api/v2/silences to alertmanager,
-#                                default duration 2h
-#   silence  delete <silence-id> DELETE /api/v2/silence/<id> (service proxy)
-#   logs     <component> [--tail N]  kubectl logs from the named component
-#                                (vmsingle|vmagent|vmalert|alertmanager|
-#                                 grafana)
-#
-# Skill that wraps this: managing-monitoring (all actions, plus
-# the Alert→Memory triage matrix in its reference.md).
+# Calls each component's HTTP API via `kubectl exec wget` (logsql and silence
+# delete: apiserver service proxy), jq parses locally, no port-forward. Pod
+# lookup filters status.phase=Running: the default selector returns stale
+# Succeeded pods of rotated replicas first.
 set -euo pipefail
 
 VM_NS="${VM_NS:-victoria-metrics}"

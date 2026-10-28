@@ -1,51 +1,16 @@
-# TalosUpgrade — declarative rolling upgrade of Talos OS on all CP nodes.
-#
-# CRITICAL: tuppr has no built-in interval between nodes.
-# The "pause" is the healthChecks (CEL): the next node is not upgraded until
-# ALL checks PASS against the current cluster snapshot. The main gate is
-# Longhorn Volume robustness=healthy: replicas must fully recover on the
-# remaining nodes before the next one is touched.
-#
+# tuppr has no delay between nodes: healthChecks are the only gate.
 # parallelism: 1 is mandatory (3 CP: a parallel reboot kills etcd quorum).
-# rebootMode: powercycle works around the Talos v1.13+ unmountPodMounts hang
-# on Longhorn RWX-NFS (see memory: reference_talos_113_upgrade_gotchas).
+# powercycle avoids the Talos v1.13+ unmountPodMounts hang on Longhorn RWX-NFS.
 apiVersion: tuppr.home-operations.com/v1alpha1
 kind: TalosUpgrade
 metadata:
   name: cluster
 spec:
   talos:
-    # Unfrozen 2026-08-18 (was pinned to v1.13.7 since the 2026-08-06 incident).
-    #
-    # ROOT CAUSE of that incident — NOT Talos and NOT Longhorn: v1.13.8 bumped the
-    # iscsi-tools extension from open-iscsi 2.1.11 to 2.1.12, which renamed
-    # `node.session.conn_reopen_log_freq` to `node.session.sess_reopen_log_freq`
-    # in a patch release (open-iscsi/open-iscsi#540). The persistent node DB under
-    # /var/lib/iscsi (EPHEMERAL, survives reboot AND `talosctl upgrade`) still held
-    # the old key, and libopeniscsiusr treats an unknown parameter as a hard error
-    # — so every record failed to parse, discovery/login died, and Longhorn reported
-    # `iscsidev StartInitator: Failed to discover`.
-    #
-    # All four nodes were rolled to v1.13.8 by hand on 2026-08-18, wiping
-    # /var/lib/iscsi/{nodes,send_targets} on each while it was still cordoned;
-    # Longhorn recreated the records through 2.1.12 with the new key. Nothing is
-    # left to clean up, so tuppr can drive plain rolling upgrades again.
-    #
-    # BEFORE any future upgrade that changes the open-iscsi version, check whether
-    # the node DB has to be wiped again — see the runbook in
-    # `obsidian/112 ArgoCD/Infrastructure/all/tuppr.md`. Checked for v1.14.0
-    # (2026-09-05): iscsi-tools stays at v0.2.0 — the same version the nodes
-    # already run — and the extensions v1.14.0 release even carries
-    # `fix: preserve open-iscsi node record compatibility`. No wipe needed.
-    #
-    # Datasource fixed 2026-09-05: was `ghcr.io/siderolabs/installer`, whose tag
-    # stream ends at 1.13 — Talos v1.14 renamed the image to `metal-installer`,
-    # so Renovate silently offered patches only and the minor never arrived while
-    # kubernetes-upgrade.yaml had already moved to v1.37.0 (which ships with
-    # Talos v1.14). Tracking github-releases, same as
-    # `terraform_talos/configs/nodes.yaml`. tuppr itself pre-pulls
-    # `factory.talos.dev/metal-installer/<schematic>:<version>` off the node
-    # schematic annotation, so it never used the ghcr image anyway.
+    # A bump that changes open-iscsi may need a /var/lib/iscsi wipe first, or Longhorn
+    # fails with `iscsidev StartInitator: Failed to discover` (2026-08-06). Runbook:
+    # `obsidian/112 ArgoCD/Infrastructure/all/tuppr.md`.
+    # github-releases: the ghcr installer image stops at 1.13 (renamed metal-installer).
     # renovate: datasource=github-releases depName=siderolabs/talos
     version: v1.14.4
 
@@ -53,71 +18,40 @@ spec:
 
   policy:
     rebootMode: powercycle
-    # Wait for Longhorn to detach this node's attached (iSCSI) volumes after the
-    # drain BEFORE rebooting. Without this the Talos v1.13 upgrade sequencer hangs
-    # in unmountPodMounts on the still-attached iSCSI devices (EXT4 I/O errors,
-    # "failed to convert unwritten extents"), the reboot never fires, and the node
-    # stays on the old version despite "upgrade completed successfully" (incident
-    # 2026-08-06: cp-01 ran 3 installs, 0 reboots, 10d uptime). This only waits for
-    # the ATTACHMENT to release (workload pods reschedule elsewhere) — it does NOT
-    # migrate replicas: node-drain-policy=always-allow keeps replica data on disk,
-    # reused after reboot within replica-replenishment-wait-interval (1800s).
+    # Without it the upgrade hangs in unmountPodMounts on attached iSCSI volumes:
+    # no reboot, old version, yet "upgrade completed successfully" (2026-08-06).
+    # Waits for detach only; replica data stays on disk.
     waitForVolumeDetach: true
     placement: soft
     timeout: 45m
 
   drain:
-    # spec.drain accepts only enabled + disableEviction. The
-    # deleteLocalData/ignoreDaemonSets/force fields are gone from the CRD (force
-    # moved to spec.policy.force, DaemonSets are always ignored).
+    # Only enabled + disableEviction exist (force moved to spec.policy.force)
     enabled: true
-    # Longhorn 1.7+ creates a per-node PDB on instance-manager pods with
-    # minAvailable=1, allowedDisruptions=0, so the Eviction API always refuses
-    # with "violates pod's disruption budget". Longhorn
-    # `nodeDrainPolicy=always-allow` does not lift it (the PDB stays and the k8s
-    # controller computes allowedDisruptions). disableEviction=true makes tuppr
-    # use a plain DELETE: PDBs apply only to the eviction API, not to DELETE.
-    # Replica data stays on disk (/var/lib/longhorn/) and Longhorn reuses it
-    # after the reboot (the replicaReplenishmentWaitInterval=1800s grace period
-    # covers a Talos powercycle).
+    # Longhorn instance-manager PDBs (allowedDisruptions=0, even with always-allow)
+    # make eviction fail with "violates pod's disruption budget"; DELETE ignores PDBs.
+    # Replicas are reused after reboot within replicaReplenishmentWaitInterval (1800s).
     disableEviction: true
 
   maintenance:
     windows:
-      # Permanent: daily 09:00 MSK for 6h. The window opens every day, but an
-      # actual rolling upgrade starts only when spec.talos.version differs from
-      # the running one (i.e. after a Renovate PR merge). Not at night: the
-      # night hours belong to VolSync backups (00:10-03:30) and the Forgejo/etcd
-      # dumps on the ops node.
-      #
-      # A one-off window for a specific upgrade is a separate entry with a date
-      # in the cron. Such a cron (`M H D Mon *`) repeats every year: remove it
-      # in the next PR.
-      #
-      # Paused 2026-09-16..19: the v1.14.1 roll stalled half-way while etcd WAL
-      # fsync p99 hit 2-7s, because Longhorn gave up waiting for worker-01's
-      # replicas and rebuilt ~30 volumes onto the control-plane disks etcd lives
-      # on. cp-01/cp-02 were finished by hand on 2026-09-19. The health checks
-      # below still gate on Node/Longhorn state only, not on etcd.
+      # Not at night: VolSync backups (00:10-03:30) and ops-node dumps run then.
+      # A dated one-off cron (`M H D Mon *`) repeats yearly: remove it in the next PR.
+      # Health checks do not gate on etcd (a roll stalled on fsync p99 2-7s, 2026-09-16).
       - start: "0 9 * * *"
         duration: "6h"
         timezone: "Europe/Moscow"
 
-  # ===== INTERVAL GATE between nodes =====
-  # tuppr re-enters the HealthChecking phase after every node. All exprs must
-  # pass before it takes the next one. This is the "interval": not a sleep,
-  # but an exact gate on the real storage/db state.
+  # All must pass before tuppr takes the next node
   healthChecks:
-    # 1. All nodes Ready.
     - apiVersion: v1
       kind: Node
       description: "All nodes Ready"
       expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
       timeout: 15m
 
-    # 2. MAIN GATE: all Longhorn volumes healthy after the replica rebuild.
-    # Short-circuit on detached: detached volumes report robustness=unknown
-    # and without the || would block the upgrade forever.
+    # Main gate. Detached volumes report robustness=unknown: without the || they
+    # block the upgrade forever.
     - apiVersion: longhorn.io/v1beta2
       kind: Volume
       namespace: longhorn-system
@@ -125,18 +59,8 @@ spec:
       expr: "status.state != 'attached' || status.robustness == 'healthy'"
       timeout: 45m
 
-    # 3. Longhorn nodes ready (storage controller alive).
-    #
-    # The Schedulable condition is NOT checked: Longhorn sets it to False on any
-    # cordoned node, and tuppr itself cordons nodes before the upgrade. If the
-    # controller loses its in-flight state (2026-09-04: a Renovate bump of the
-    # tuppr chart arrived through ArgoCD right inside the maintenance window and
-    # rolled the Deployment mid-upgrade of worker-01), the node stays cordoned,
-    # the Schedulable check NEVER passes, and tuppr hangs in HealthChecking
-    # forever without reaching uncordon. The deadlock lasted 4h, and
-    # immich-machine-learning (nodeSelector ml=true, a single such node) stayed
-    # Pending all along. Data integrity is gated by check #2 (attached volumes
-    # healthy); Schedulable added nothing there.
+    # Do not check Schedulable: it is False on a cordoned node, so a controller that
+    # loses state mid-upgrade never uncordons and hangs in HealthChecking (2026-09-04).
     - apiVersion: longhorn.io/v1beta2
       kind: Node
       namespace: longhorn-system
@@ -144,7 +68,6 @@ spec:
       expr: "status.conditions.exists(c, c.type == 'Ready' && c.status == 'True')"
       timeout: 15m
 
-    # 4. CNPG shared cluster (authentik + atuin) — 3 instance up.
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
       namespace: cnpg
@@ -152,7 +75,6 @@ spec:
       expr: "status.readyInstances == object.spec.instances && status.phase == 'Cluster in healthy state'"
       timeout: 20m
 
-    # 5. CNPG immich-cluster (1 instance, its own ns).
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
       namespace: immich

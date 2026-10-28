@@ -1,26 +1,13 @@
 #!/usr/bin/env bash
-# Wrapper for Synology NAS (memini) LE cert renewal via acme.sh + Cloudflare
-# DNS-01, then DSM cert-archive update + nginx reload via synow3tool.
+# Renew the Synology NAS (memini) LE cert via acme.sh + Cloudflare DNS-01, then
+# update the DSM cert archive and reload nginx; subcommands in usage().
 #
-# acme.sh on this NAS lives at /var/services/homes/ivan/.acme.sh with
-# custom paths (see ~/.acme.sh/renew.sh on the box):
-#     --home ~/.acme.sh  --config-home ~/.acme.sh/data  --cert-home ~/.acme.sh/certs
-# CF credentials come from ~/.acme.sh/cf.env (CF_Token + CF_Account_ID),
-# the same token as OpenBao home/homelab/k8s/external-dns/cloudflare, which ESO
-# feeds to ExternalDNS and cert-manager.
-#
-# DSM cert archive: /usr/syno/etc/certificate/_archive/<id>/ — each is a
-# 6-char random id with cert.pem/chain.pem/fullchain.pem/privkey.pem.
-# We match the right id by checking each archive's cert.pem subject/SAN
-# against the domain we want to refresh.
-#
-# Subcommands:
-#   status [<domain>]   list DSM cert archive (or one match) + acme.sh state
-#   renew  [<domain>]   acme.sh --renew --force; copy ECC files into the
-#                       matching archive id; synow3tool reload
-#
-# Default domain (no arg): wildcard *.example.com — the only LE cert on this
-# NAS today; quote it on the CLI to escape the glob.
+# acme.sh uses custom paths (as ~/.acme.sh/renew.sh on the box): --home
+# ~/.acme.sh --config-home ~/.acme.sh/data --cert-home ~/.acme.sh/certs.
+# ~/.acme.sh/cf.env holds the same CF token as OpenBao
+# home/homelab/k8s/external-dns/cloudflare.
+# DSM archive ids are random 6-char dirs; the right one is found by matching
+# cert.pem subject/SAN against the domain.
 set -euo pipefail
 
 SYNOLOGY_SSH="${SYNOLOGY_SSH:-ivan@10.11.12.237}"
@@ -67,7 +54,7 @@ probe_health() {
     || { echo "acme.sh, cf.env, or DSM_ARCHIVE missing on $SYNOLOGY_SSH" >&2; exit 1; }
 }
 
-# Emit one TSV line per real archive entry: id<TAB>subject<TAB>notAfter
+# One TSV line per real archive entry: id<TAB>subject<TAB>notAfter
 list_certs_remote() {
   ssh_nas "sudo bash -s" "$DSM_ARCHIVE" <<'REMOTE'
     archive="$1"
@@ -111,7 +98,6 @@ cmd_status() {
   if [ -n "$filter" ]; then
     echo
     echo "=== external TLS handshake for hostname matching '$filter' (best-effort) ==="
-    # If filter looks like a real hostname (no wildcards) probe directly.
     case "$filter" in
       \**|*\**) echo "(skip — filter is a glob/wildcard)" ;;
       *)
@@ -122,8 +108,7 @@ cmd_status() {
   fi
 }
 
-# Resolve a domain to a DSM archive id by matching cert subject or SAN.
-# Echoes the id (or empty if no match / multiple matches).
+# Domain → DSM archive id by subject or SAN; empty on no or multiple matches.
 resolve_archive_id() {
   local domain="$1" id subj san matches=""
   while IFS=$'\t' read -r id subj san _end; do
@@ -148,7 +133,7 @@ cmd_renew() {
   echo
 
   echo "=== 1/6 acme.sh --renew --force -d '$domain' (CF DNS-01) ==="
-  # Forward execution; renew.sh sets HOME + CF env. We mimic that.
+  # As renew.sh does: set HOME and source the CF env.
   local rc=0
   ssh_nas "sudo -u ivan bash -s" "$ACME_HOME" "$domain" <<'REMOTE' || rc=$?
     set -euo pipefail
@@ -209,13 +194,11 @@ REMOTE
 
   echo
   echo "=== 6/6 verify ==="
-  # Show new dates on the archive
   ssh_nas "sudo openssl x509 -in $DSM_ARCHIVE/$archive_id/cert.pem -noout -subject -dates" \
     | head -3
-  # External handshake — best-effort for non-wildcard
   case "$domain" in
     \**|*\**)
-      # Wildcard — probe the most likely consumer.
+      # Wildcard: probe the most likely consumer.
       echo "(wildcard cert; probing s3.example.com as consumer)"
       echo | openssl s_client -connect s3.example.com:443 -servername s3.example.com 2>/dev/null \
         | openssl x509 -noout -subject -dates 2>&1 | head -3

@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# scripts/dr/restore.sh — disaster recovery orchestrator.
-#
-# Usage:
-#   scripts/dr/restore.sh all                 # run every phase in order
-#   scripts/dr/restore.sh phase 03-tls        # run a single phase
-#   scripts/dr/restore.sh list                # list available phases
+# Disaster recovery orchestrator; commands in the help text below.
 
 set -euo pipefail
 

@@ -1,5 +1,4 @@
-# Local mirror of the .forgejo/workflows/ci.yaml pre-merge gate.
-# Run `task ci:all` before pushing.
+# Mirrors the .forgejo/workflows/ci.yaml pre-merge gate.
 version: '3'
 
 tasks:

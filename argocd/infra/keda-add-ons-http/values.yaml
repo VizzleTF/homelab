@@ -1,9 +1,3 @@
-# KEDA HTTP add-on: interceptor proxy for on-demand scale-to-zero,
-# fronting Lampac (PR #4).
-#
-# Chart defaults are interceptor min 3 / max 50 and 3 scaler replicas:
-# overkill for a solo homelab, cut to 1/1.
-
 # Chart default request is 250m CPU per component; real p95 is 2-9m.
 operator:
   resources:
@@ -13,7 +7,7 @@ operator:
       cpu: 500m
 
 scaler:
-  replicas: 1   # default 3, too many for a single KEDA install
+  replicas: 1
   resources:
     requests:
       cpu: 20m
@@ -29,28 +23,15 @@ interceptor:
       cpu: 20m
     limits:
       cpu: 500m
-  # Lampac cold start (initialDelaySeconds=60): how long to wait before
-  # forwarding to a freshly scaled-up pod (code default 300s).
+  # Covers Lampac cold start (initialDelaySeconds=60).
   responseHeaderTimeout: "120s"
-  # readinessTimeout — wait for backend ready, e.g. scale from zero (default disabled)
   readinessTimeout: "120s"
 
 homelab-common:
-  # keda-loading-proxy: a tiny always-on nginx in front of the interceptor.
-  # During a cold start the interceptor holds requests for up to
-  # responseHeaderTimeout (120s); without the proxy the browser sits on a blank
-  # tab, with it the user sees a Russian "service is starting" page.
-  # Traffic: HTTPRoute -> keda-loading-proxy:8080 -> interceptor -> app.
-  # Browser path:
-  #   GET / -> interceptor (proxy_read_timeout 2s for navigations, 5s otherwise)
-  #     - pod up: response in <500ms, passed through
-  #     - pod down: KEDA holds, nginx times out -> 504 -> @loading
-  #   Navigations must answer under 3s: Chrome HTTPS-Upgrades falls back to
-  #   http:// after 3s, gets the gateway's 301 back to https and shows an error.
-  #   @loading -> 200 with loading.html; its JS calls /__loading_proxy_wake__
-  #   /__loading_proxy_wake__ -> interceptor (proxy_read_timeout 180s)
-  #     - waits for the scale-up, then the JS reloads and GET / hits a warm pod
-  # The ReferenceGrant for HTTPRoutes in other namespaces stays in manifests/.
+  # keda-loading-proxy: HTTPRoute -> nginx -> interceptor -> app. A cold pod
+  # makes nginx time out -> @loading page, whose JS long-polls the wake path.
+  # Navigations must answer under 3s: Chrome HTTPS-Upgrades falls back to
+  # http:// after 3s and shows an error.
   configMaps:
     - name: loading-proxy-config
       fullnameOverride: keda-loading-proxy-config
@@ -66,13 +47,12 @@ homelab-common:
             log_format main '$remote_addr "$request" $status us=$upstream_response_time host=$host';
             access_log /dev/stdout main;
 
-            # WebSocket upgrade support
             map $http_upgrade $connection_upgrade {
               default upgrade;
               ''      close;
             }
 
-            # nginx alpine needs writable paths for client_body / proxy temp files
+            # readOnlyRootFilesystem: temp paths must be under /tmp.
             client_body_temp_path /tmp/client_body;
             proxy_temp_path       /tmp/proxy;
             fastcgi_temp_path     /tmp/fastcgi;
@@ -91,17 +71,13 @@ homelab-common:
               # / -> 418 -> @navigate -> 504 -> @loading is two error_page hops.
               recursive_error_pages on;
 
-              # Health probe — internal only by virtue of being unroutable from outside.
               location = /__health__ {
                 access_log off;
                 add_header Content-Type "text/plain" always;
                 return 200 "ok\n";
               }
 
-              # Wake endpoint — long-poll, hit by the loading page JS.
-              # Rewrites path to "/" so the app gets its homepage request, not
-              # a literal "/__loading_proxy_wake__" (which would 404 on the app).
-              # Holds open until KEDA confirms pod is ready (or 180s pass).
+              # Long-poll from loading.html; rewritten to / so the app doesn't 404.
               location = /__loading_proxy_wake__ {
                 rewrite ^ / break;
                 proxy_pass http://keda_interceptor;
@@ -115,9 +91,8 @@ homelab-common:
                 proxy_read_timeout 180s;
               }
 
-              # Main pass-through. Short proxy_read_timeout to detect cold-start
-              # (KEDA interceptor sends no bytes while holding the request).
-              # API calls keep 5s: warm Lampac answers some of them in 1.5-2.5s.
+              # Short read timeout detects a cold start (interceptor sends no bytes
+              # while holding). Not below 5s: warm Lampac answers some APIs in 1.5-2.5s.
               location / {
                 error_page 418 = @navigate;
                 if ($http_sec_fetch_mode = "navigate") {
@@ -140,8 +115,8 @@ homelab-common:
                 error_page 502 504 = @loading;
               }
 
-              # Browser page loads: same as / but 2s, under Chrome's 3s
-              # HTTPS-Upgrades fallback (proxy_read_timeout takes no variables).
+              # Navigations: 2s, under Chrome's 3s HTTPS-Upgrades fallback
+              # (proxy_read_timeout takes no variables, hence a separate location).
               location @navigate {
                 proxy_pass http://keda_interceptor;
                 proxy_set_header Host $host;
@@ -192,9 +167,7 @@ homelab-common:
             </div>
             <script>
               document.getElementById("h").textContent = location.hostname;
-              // Wake endpoint resolves when KEDA finishes scale-up and the app
-              // responds (any status — 2xx/3xx/4xx all mean pod is reachable).
-              // Only network errors or 5xx loop via setTimeout fallback.
+              // Any status below 500 means the pod is reachable.
               fetch("/__loading_proxy_wake__", {cache: "no-store", redirect: "manual"})
                 .then(function(r){
                   if (r.status === 0 || r.status >= 500) {
@@ -204,7 +177,6 @@ homelab-common:
                   }
                 })
                 .catch(function(){ setTimeout(function(){ location.reload(); }, 5000); });
-              // Hard fallback if neither branch fires (e.g., browser drops fetch)
               setTimeout(function(){ location.reload(); }, 30000);
             </script>
           </body>
@@ -229,10 +201,8 @@ homelab-common:
           runAsGroup: 101
           seccompProfile:
             type: RuntimeDefault
-        # DoNotSchedule, not ScheduleAnyway: a soft constraint lost to node
-        # scoring and both replicas once landed on one node. matchLabelKeys keeps
-        # old ReplicaSet pods out of the skew math so the maxSurge:1 rollout is
-        # not blocked.
+        # ScheduleAnyway once put both replicas on one node. matchLabelKeys keeps
+        # old ReplicaSet pods out of the skew so the maxSurge:1 rollout isn't blocked.
         topologySpreadConstraints:
           - maxSkew: 1
             topologyKey: kubernetes.io/hostname
@@ -274,9 +244,8 @@ homelab-common:
               port: http
             periodSeconds: 10
             timeoutSeconds: 3
-      # nginx.conf and loading.html are subPath mounts, which never see
-      # ConfigMap updates in a running pod: the chart derives the Reloader
-      # annotation from these volumes, so an edit rolls the pods.
+      # subPath mounts never see ConfigMap updates; the chart's Reloader
+      # annotation (derived from these volumes) rolls the pods instead.
       persistence:
         config:
           configMap:

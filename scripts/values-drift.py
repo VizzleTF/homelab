@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 """Report values that repeat the chart default or that the chart does not know.
 
-For every argocd/{apps,infra}/<app> with an upstream chart, compares values.yaml
-(without the homelab-common section) with `helm show values` of the pinned
-version and prints three lists per app:
-  default  - leaf keys whose value equals the chart default (.claude/reference/conventions.md: write
-             only non-defaults; a deliberate pin carries a `# pinned:` comment
-             on the same line and is skipped)
-  unknown  - keys the chart's default values do not have. Often a typo or a
-             removed option, but charts with free-form maps (env, annotations,
-             config files) show up here too: read before deleting.
-  gomem    - maps whose GOMEMLIMIT (env list or env map) is out of pair with
-             the sibling resources.limits.memory: the convention is
-             GOMEMLIMIT ~= 0.85 x limit, flagged outside 0.80-0.90.
+For each argocd/{apps,infra}/<app> with an upstream chart, compare values.yaml
+(minus homelab-common) with `helm show values` of the pinned version and print:
+  default  - leaf keys equal to the chart default (convention: only
+             non-defaults; a deliberate pin has `# pinned:` on its line, skipped)
+  unknown  - keys absent from the chart defaults: often a typo or removed
+             option, but free-form maps (env, annotations, config) land here
+             too: read before deleting.
+  gomem    - GOMEMLIMIT outside 0.80-0.90 x sibling resources.limits.memory.
 A report, not a gate: exit code is always 0.
 
 Usage: scripts/values-drift.py [app ...]   (run from the repo root; needs helm)

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Filename blocklist — run by pre-commit and by the CI gitleaks job.
-# Fails fast if any tracked file matches a known sensitive name pattern.
+# Sensitive filename blocklist, run by pre-commit and the CI gitleaks job.
 set -euo pipefail
 
 PATTERNS='(^|/)((id_rsa.*)|.*\.(pem|key|pfx|p12|crt|kubeconfig)|kubeconfig.*|\.env(\..+)?|vault_secrets_backup.*|vault-unseal.*|.*shamir.*|terraform\.tfstate.*|terraform\.tfvars)$'

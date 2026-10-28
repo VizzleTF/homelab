@@ -1,6 +1,4 @@
-# Cilium agent (:9962) and operator (:9963) metrics. The chart's ServiceMonitor
-# needs prometheus-operator CRDs, which this cluster does not run.
-# Lives in victoria-metrics like every other VM object; namespaceSelector points at kube-system.
+# Replaces the chart's ServiceMonitor (no prometheus-operator CRDs here).
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMPodScrape
 metadata:

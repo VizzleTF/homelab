@@ -1,19 +1,7 @@
-# Pod Security Standards as Kyverno policies.
-#
-# Separate component from the engine on purpose: the policies get edited far
-# more often than Kyverno itself, and a bad policy should never require
-# touching the controller's release.
-
-# Baseline, not restricted: restricted would flag almost everything here
-# (Longhorn, Cilium and the Wazuh operator all need privileges by
-# design), and a report nobody can act on is noise.
+# Baseline: restricted would flag Longhorn, Cilium, Wazuh (privileged by design).
 podSecurityStandard: baseline  # pinned: deliberate choice (comment above), also the chart default
 
-# Enforce (since 2026-09-24). The Audit reports showed violations only in the
-# namespaces below, all privileged by design; every other namespace is clean,
-# so from now on a new privileged/hostPath/hostNetwork workload there is
-# rejected instead of just reported. To add a namespace, check its
-# PolicyReports first.
+# Only the excluded namespaces below may run privileged/hostPath/hostNetwork pods.
 validationFailureAction: Enforce
 
 vpolExclude:
@@ -34,7 +22,5 @@ vpolExclude:
     - name: skip-restore-drill-namespaces
       expression: "!has(request.namespace) || !request.namespace.startsWith('drill-')"
 
-# Ignore, not the chart's default Fail. With Fail, a Kyverno outage turns into
-# a cluster-wide admission outage — nothing new can be scheduled while the
-# controller is down.
+# Not the default Fail: a Kyverno outage would block all admissions cluster-wide.
 failurePolicy: Ignore

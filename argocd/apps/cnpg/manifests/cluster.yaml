@@ -1,10 +1,4 @@
-# Shared cnpg-cluster (authentik / atuin).
-# Managed as a raw manifest (not the cloudnative-pg/cluster chart) because that
-# chart (≤0.6.1 at the PG18 migration) could not emit .spec.plugins, required for
-# the Barman Cloud Plugin after PG18 GA images dropped in-tree barman. Spec mirrors the prior
-# chart-rendered values so ArgoCD adopts the live Cluster in place (SSA, no
-# recreate). Operator-defaulted fields (probes, monitoring, extra postgresql
-# params, etc.) are intentionally omitted — the operator manages them.
+# Operator-defaulted fields are omitted on purpose.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -14,29 +8,22 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   instances: 3
-  # Full `standard` image, Renovate-managed. Majors automerge like every other
-  # update (renovate.json only labels them critical-infra), and a major bump
-  # makes CNPG run an offline in-place pg_upgrade of this shared cluster.
+  # Majors automerge too: a major bump runs an offline in-place pg_upgrade.
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
   imageName: "ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm"
   imagePullPolicy: IfNotPresent
   postgresUID: 26
   postgresGID: 26
   primaryUpdateMethod: switchover
-  # Keeps the operator-generated cnpg-cluster-superuser secret, the postgres
-  # password for connections from outside the pod; omitting it defaults to false.
+  # Keeps the cnpg-cluster-superuser secret; the default is false.
   enableSuperuserAccess: true
 
-  # local-path since 2026-10: streaming replication already keeps three
-  # copies; Longhorn's two replicas under each made it six on the SATA SSDs
-  # etcd shares. Applies to new PVCs only — existing instances are recreated
-  # one by one. A lost node = destroy that
+  # local-path: replication already keeps three copies. Node lost → destroy that
   # instance, CNPG rebuilds it from the primary.
   storage:
     size: "5Gi"
     storageClass: local-path
 
-  # Garage region for any barman tooling that runs in the postgres container path.
   env:
     - name: AWS_DEFAULT_REGION
       value: garage
@@ -48,11 +35,8 @@ spec:
       effective_cache_size: "512MB"
       work_mem: "4MB"
       maintenance_work_mem: "64MB"
-      # Disk writes (2026-10): CNPG's archive_timeout=5min closed a 16 MB WAL
-      # segment every 5 min and wal_init_zero zero-filled each new one — ~4.6
-      # GB/day per instance against ~0.4 GB/day of real WAL. 30min keeps the
-      # barman RPO acceptable for a homelab. lz4 shrinks full-page images, and
-      # rarer checkpoints mean fewer of them.
+      # Cut disk writes: default 5min archive_timeout + wal_init_zero wrote ~4.6 GB/day
+      # vs ~0.4 GB real WAL (2026-10). 30min RPO is fine here.
       archive_timeout: "30min"
       wal_init_zero: "off"
       wal_compression: "lz4"
@@ -80,7 +64,7 @@ spec:
         passwordSecret:
           name: atuin-db-credentials
 
-  # init-only; ignored on the existing cluster. Mirrors live to avoid SSA churn.
+  # Init-only; mirrors live to avoid SSA churn.
   bootstrap:
     initdb:
       database: app
@@ -89,16 +73,12 @@ spec:
       localeCollate: C
       localeCType: C
 
-  # Barman Cloud Plugin: WAL archiving + backups via the ObjectStore CR.
-  # Replaces .spec.backup.barmanObjectStore (removed).
   plugins:
     - name: barman-cloud.cloudnative-pg.io
-      # mirrors the webhook default: .spec.plugins is an atomic list, so an
-      # apply without `enabled` would drop the defaulted field -> perpetual OutOfSync
+      # Atomic list: without `enabled` the defaulted field drops -> perpetual OutOfSync.
       enabled: true
       isWALArchiver: true
       parameters:
         barmanObjectName: cnpg-cluster-store
-        # serverName must match the prior in-tree layout for backup continuity:
-        # objects live at <destinationPath>/<serverName> = s3://cnpg-backups/cnpg-cluster/cnpg-cluster
+        # Must match the existing catalog: s3://cnpg-backups/cnpg-cluster/cnpg-cluster.
         serverName: cnpg-cluster

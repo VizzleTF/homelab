@@ -1,14 +1,11 @@
-# ops — the host that holds the GitOps source of truth outside the cluster.
-# See obsidian/111 Memory/Ops Node.md. Forgejo itself lands in a follow-up change; this is the
-# base system only, so that a broken service can never cost us ssh access.
+# ops node base system (obsidian/111 Memory/Ops Node.md); services live in
+# their own modules so a broken one never costs ssh access.
 { pkgs, ... }:
 
 {
   networking = {
     hostName = "ops";
-    # VLAN 11, address comes from the dnsmasq pool on OpenWrt (10.11.11.150-199)
-    # with a static lease pinned by MAC. No static config here on purpose:
-    # the router stays the single place where addresses are decided.
+    # VLAN 11, static DHCP lease by MAC on OpenWrt: the router alone assigns addresses.
     useDHCP = true;
     firewall = {
       enable = true;
@@ -18,18 +15,10 @@
 
   time.timeZone = "Asia/Nicosia";
 
-  # The board runs in legacy BIOS mode (CSM), so GRUB goes onto the bios_grub
-  # partition from disko.nix. Switching the firmware to UEFI later means
-  # swapping this block for systemd-boot — the partition layout already fits.
-  # The root disk is NVMe, and legacy BIOS cannot boot from NVMe at all — there
-  # is no legacy option ROM for it, which is why the first install produced
-  # "boot device not found" despite GRUB reporting success. So GRUB is installed
-  # into the ESP as well, as the removable fallback path (EFI/BOOT/BOOTX64.EFI):
-  # that one needs no EFI variables, so it can be written from a legacy-booted
-  # installer and still be found once the firmware is switched to UEFI.
-  # The disk itself is not named here — disko already registers it in
-  # boot.loader.grub.devices via its bios_grub partition, and repeating it
-  # fails the "duplicated devices in mirroredBoots" assertion.
+  # Legacy BIOS cannot boot NVMe ("boot device not found"), so GRUB also goes to
+  # the ESP removable path (EFI/BOOT/BOOTX64.EFI): no EFI vars needed, found
+  # after switching to UEFI. Do not name the disk: disko registers it, a repeat
+  # fails "duplicated devices in mirroredBoots".
   boot.loader = {
     efi.canTouchEfiVariables = false;
     grub = {
@@ -39,12 +28,10 @@
     };
   };
 
-  # The Toshiba KXG50 root disk hung under APST power-state transitions: write
-  # timeouts on 2026-10-14, then the controller went "dead" on 2026-10-18 and
-  # took Forgejo down until a power cycle. Keep it in the highest power state.
+  # Toshiba KXG50 hangs on APST transitions (controller "dead" 2026-10-18,
+  # Forgejo down until power cycle): keep the highest power state.
   boot.kernelParams = [ "nvme_core.default_ps_max_latency_us=0" ];
 
-  # 8 GB of DDR3 — compressed swap is worth more than a swap partition here.
   zramSwap.enable = true;
 
   nix.settings = {
@@ -55,7 +42,6 @@
     auto-optimise-store = true;
   };
 
-  # /nix/store on a 256 GB SSD needs no babysitting, but old generations add up.
   nix.gc = {
     automatic = true;
     dates = "weekly";
@@ -86,9 +72,8 @@
 
   security.sudo.wheelNeedsPassword = false;
 
-  # /root/ops is a local git repo (the flake source for nixos-rebuild); without
-  # an identity an ad-hoc `git commit` there fails with "Author identity unknown".
-  # Same identity the deploy skill passes with -c and that the history already uses.
+  # /root/ops (flake source) needs an identity, else `git commit` fails with
+  # "Author identity unknown". Same identity the deploy skill passes with -c.
   programs.git = {
     enable = true;
     config.user = {
@@ -97,10 +82,7 @@
     };
   };
 
-  # DR workstation: scripts/dr/ and the recovery runbooks are driven from a
-  # shell, and until now that shell had to be a laptop that happened to have
-  # the right tools installed. The node is the one machine guaranteed to be up
-  # when the cluster is not, so the toolbox lives here.
+  # DR toolbox for scripts/dr/ and runbooks: this node is up when the cluster is not.
   environment.systemPackages = with pkgs; [
     curl
     git

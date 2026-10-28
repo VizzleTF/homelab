@@ -1,14 +1,5 @@
-# Alerts around the weekly restore drill.
-#
-# Success or failure itself reaches Telegram straight from the CronJob (an
-# alert to Alertmanager -> Robusta). This is the second line: it catches the
-# case where the drill stopped running at all and so sends nothing.
-#
-# IMPORTANT, the shape of the expressions: the metrics are pushed once a week
-# via /api/v1/import/prometheus, and an instant query only sees a point inside
-# the lookbehind window (5 minutes). Hence max_over_time/last_over_time with a
-# 30-day window everywhere: without it `homelab_restore_drill_success == 0`
-# would never fire, and `absent(...)` would fire a day after every run.
+# Metrics are pushed once a week and an instant query sees only 5 minutes back:
+# keep the [30d] *_over_time wrappers, or `== 0` never fires and absent() fires daily.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -18,9 +9,7 @@ spec:
   groups:
     - name: backup-drill
       rules:
-        # A failure is held by the metric, not by one push alert: the CronJob
-        # message goes out once and closes after resolve_timeout, while this
-        # alert stays until the volume restores successfully.
+        # Holds the failure until a successful restore; the CronJob's push alert expires
         - alert: RestoreDrillFailed
           expr: last_over_time(homelab_restore_drill_success[30d]) == 0
           for: 5m
@@ -35,11 +24,8 @@ spec:
               kubectl get replicationsource -A | grep {{ $labels.app }}
 
         - alert: RestoreDrillStale
-          # One volume of the rotation per weekly run, so a given volume is
-          # checked only once per full round: look at the freshest run of any
-          # volume, not at each one separately.
-          # drill="core" (restore-drill-core) is left out: it runs every week
-          # and would hide a stopped volume drill. It has its own rule below.
+          # Freshest run of any volume: each volume is checked once per round.
+          # drill="core" runs weekly and would hide a stopped volume drill.
           expr: time() - max(max_over_time(homelab_restore_drill_timestamp{drill!="core"}[30d])) > 16 * 24 * 3600
           labels:
             severity: critical

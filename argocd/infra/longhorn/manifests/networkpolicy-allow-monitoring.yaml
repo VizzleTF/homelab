@@ -1,16 +1,6 @@
-# Longhorn 1.12.1 added six NetworkPolicies gated by the new
-# `networkPolicies.restrictInternalTraffic` (default true), NOT by
-# `networkPolicies.enabled` (default false). So the 1.12.0 -> 1.12.1 upgrade
-# silently turned isolation on: the `longhorn-manager` policy admits port 9500
-# only from longhorn-manager / longhorn-ui / longhorn-csi-plugin pods of its own
-# namespace. vmagent lives in `victoria-metrics`, so the /metrics scrape timed
-# out, the VMRule fired TargetDown and the storage dashboards went blind.
-#
-# Isolation stays on (see values.yaml); this adds a narrow allow on top.
-# NetworkPolicies are additive: a pod gets the union of every policy that
-# selects it. Any other cross-namespace consumer of the 9500 API (support
-# bundle, an external exporter) needs the same explicit allow, otherwise it
-# times out just as silently.
+# The chart's `longhorn-manager` policy (networkPolicies.restrictInternalTraffic,
+# not .enabled) admits 9500 only from its own namespace; without this allow the
+# vmagent scrape times out. Any other cross-namespace 9500 client needs its own allow.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

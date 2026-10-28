@@ -1,15 +1,10 @@
-# Cloudflared (upstream chart): chart keys only; homelab-common lives in homelab-values.yaml
-# Use existing secrets from External Secrets
 tunnelSecrets:
   existingConfigJsonFileSecret:
     name: "cloudflared-secrets"
-  # Modern tunnels don't use cert.pem, but the chart requires a non-empty name
-  # to skip the inline-secret path. The name lands in a non-optional projected
-  # volume, so it must be a Secret that exists — reuse the credentials one.
+  # cert.pem is unused, but the chart mounts this name non-optionally: it must exist.
   existingPemFileSecret:
     name: "cloudflared-secrets"
 
-# Tunnel configuration
 tunnelConfig:
   name: "home"
   noAutoUpdate: false
@@ -17,7 +12,6 @@ tunnelConfig:
 ingress:
   - service: http://cilium-gateway-cilium-gateway.kube-system.svc.cluster.local:80
 
-# Resource limits for HomeLab
 resources:
   limits:
     cpu: 100m
@@ -26,6 +20,5 @@ resources:
     cpu: 15m
     memory: 64Mi
 
-# Run only on control-plane nodes
 nodeSelector:
   node-role.kubernetes.io/control-plane: ""

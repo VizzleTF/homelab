@@ -1,7 +1,5 @@
-# Wazuh operator (MaximeWewer) — reconciles the WazuhCluster CR deployed by
-# argocd/apps/wazuh. CRDs ship as regular templates; wazuhclusters.yaml alone is
-# ~2.7MB, so the AppSet's ServerSideApply=true is mandatory (client-side apply
-# would blow the 256KB last-applied annotation limit).
+# CRDs are templates (~2.7MB): keep ServerSideApply, client-side apply exceeds
+# the 256KB last-applied annotation limit.
 
 operator:
   resources:

@@ -1,21 +1,12 @@
-# NetBird peer on the node.
-#
-# The mesh peer that reaches the home LAN lives in the cluster, which means
-# remote access disappears exactly when it is needed: the cluster is down and
-# someone has to get in and fix it. This peer has no such dependency.
-#
-# Routes themselves are declared in the NetBird dashboard (Network Routes), not
-# here — same as for the in-cluster peer. This node only joins the mesh; making
-# it advertise the LAN subnets is a click in the UI, and worth doing only once
-# it proves stable, otherwise two peers announce the same subnets.
+# Remote access that survives a cluster outage. Routes live in the NetBird
+# dashboard; enabling LAN routes here makes two peers announce the same subnets.
 { pkgs, ... }:
 
 {
   services.netbird.enable = true;
 
-  # First contact only: netbird keeps its identity under /var/lib/netbird and
-  # ignores the setup key afterwards, so leaving this enabled is safe — it
-  # re-registers by itself if that state is ever lost.
+  # Safe to leave on: after first join the setup key is ignored; re-registers
+  # if /var/lib/netbird is lost.
   systemd.services.netbird-join = {
     description = "Join the NetBird mesh if this peer is not registered yet";
     after = [

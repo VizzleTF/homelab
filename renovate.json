@@ -107,13 +107,13 @@
       "groupName": "talos"
     },
     {
-      "description": "Group `talos` also takes every other copy of the Talos version (tuppr TalosUpgrade and talosctl images, .mise.toml talosctl, devcontainer), so one PR moves them together instead of four. Must come after the `infra` rule (a later matching rule wins). The terraform provider siderolabs/talos has its own version line and stays out.",
+      "description": "Group `talos` also takes every other copy of the Talos version (tuppr TalosUpgrade and talosctl images, .mise.toml talosctl), so one PR moves them together. Must come after the `infra` rule (a later matching rule wins). The terraform provider siderolabs/talos has its own version line and stays out.",
       "matchPackageNames": ["siderolabs/talos", "ghcr.io/siderolabs/talosctl"],
       "matchDatasources": ["!terraform-provider"],
       "groupName": "talos"
     },
     {
-      "description": "Lint tools and pre-commit itself are pinned in .mise.toml (CI reads it), .pre-commit-config.yaml (hook revs) and the devcontainer. One PR bumps all copies so CI and the hooks run the same version.",
+      "description": "Lint tools and pre-commit itself are pinned in .mise.toml (CI reads it), .pre-commit-config.yaml (hook revs). One PR bumps all copies so CI and the hooks run the same version.",
       "matchPackageNames": ["/yamllint/", "/gitleaks/", "/shellcheck/", "pre-commit"],
       "groupName": "lint-tools"
     },
@@ -179,15 +179,14 @@
       ]
     },
     {
-      "description": "Versions marked with `# renovate: datasource=<ds> depName=<name>`. No datasourceTemplate on purpose: a template overrides the captured group, and github-releases deps (siderolabs/talos) would hit Docker Hub. Covers argocd/**, terraform_talos/configs/** (nodes.yaml), .forgejo/workflows/** (argocd-diff job tools) and .devcontainer/Dockerfile.",
+      "description": "Versions marked with `# renovate: datasource=<ds> depName=<name>`. No datasourceTemplate on purpose: a template overrides the captured group, and github-releases deps (siderolabs/talos) would hit Docker Hub. Covers argocd/**, terraform_talos/configs/** (nodes.yaml) and .forgejo/workflows/** (argocd-diff job tools).",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/values/.+\\.ya?ml$/",
         "/argocd/apps/.+\\.ya?ml$/",
         "/argocd/infra/.+\\.ya?ml$/",
         "/terraform_talos/configs/.+\\.ya?ml$/",
-        "/\\.forgejo/workflows/.+\\.ya?ml$/",
-        "/\\.devcontainer/Dockerfile$/"
+        "/\\.forgejo/workflows/.+\\.ya?ml$/"
       ],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n.*?[\"']?(?<currentValue>v?[0-9][^\"'\\s]*)[\"']?"

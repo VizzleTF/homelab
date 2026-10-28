@@ -24,36 +24,28 @@ controller:
 configs:
   ssh:
     extraHosts: |
-      # git.example.com is the ops node. The old in-cluster key was removed once the
-      # move settled — keeping a second key for the same name would silently
-      # accept whichever instance answered.
+      # git.example.com is the ops node; one key set per host, or ssh accepts
+      # whichever instance answers.
       git.example.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCmYbWoHzeQjI+yW8iYcTTidXVSCIMtx4lUsY5rd5U69MK9M4gnIK4ytLNNnRm45iFX9NdUCl7wF6+7A9Yj+7XDL/6qHk7KzlgBBZkff68Md7aA2m0rZwoPTSsY9AiOdJup039ilFAEputUTxJ1qrLK9yF4kZNuClCgvLe6o5mL6yUcltBowDkvMyRh69xlbMR9ZHb/5tLmgBb8hVRCB5UghqnFiGjFZ6g9XoyEFXzOdBkC7my2I6COq0epADkRfEE28pLrBpASSKjKE8q4iZFhBnDZKvAcKopvOQG0+49aX/sqlqvxPXH5u7GttQFNDDOcUG6Ip/A7Um5P2EtohXFrPo4WbCKQE7atpctBsTpssDGVRV6+dHUtK3TUc4+aFfyh7RTp68t/QU3zAFkhAalTBcTVOsMkO96GM04QC3ppoWnKQqf9GOpirhTQNNoGmXEUkVRVmqPAtO/JSNmmtz9itGVQMf2omJIJXzhHprkglaK3Wc4Fa8/H9CQkIreyw05XCY/J+c4ZMGkKyJcLJa2zaKc9I0JyrF6AHLqhdsFi9DM/ptD2/0h3/O8xBjSUCZmnOTnkZdKqrvdlbSdf1aTHRhk1VP4bsd1yJpgDydjHTHk3xo74Zo7gWaTmmE/SaTGLy+0cg/oLLo/AKTahb6VvfoNykSwPQ5l663+bPWgiPw==
       git.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeIktqiiqI/CPq562yq7ikPn7pXJ20yO9S3N7iyooCP
   params:
-    # Cap concurrent manifest generations on repo-server. Default unlimited
-    # → each gen 100-500 MiB. Bump to 4 if argocd_repo_pending_request_total
-    # stays elevated.
+    # Default unlimited, 100-500 MiB per generation. Raise to 4 if
+    # argocd_repo_pending_request_total stays high.
     reposerver.parallelism.limit: "2"
-    # Cap concurrent `git ls-remote` over SSH to the ops-node Forgejo. A burst
-    # (homelab-common pin bump, mass refresh) opened dozens at once, sshd's
-    # MaxStartups reset them and apps sat at ComparisonError "handshake failed".
+    # A burst (pin bump, mass refresh) tripped ops-node sshd MaxStartups:
+    # apps sat at ComparisonError "handshake failed".
     reposerver.git.lsremote.parallelism.limit: "4"
-    # Server-Side Diff: compare via dry-run SSA on the apiserver, so
-    # webhook/operator-defaulted fields (CNPG plugins[].enabled, atomic lists)
-    # no longer produce perpetual OutOfSync with an empty `argocd app diff`.
+    # Otherwise defaulted fields (CNPG plugins[].enabled, atomic lists) stay
+    # OutOfSync with an empty `argocd app diff`.
     controller.diff.server.side: "true"
   cm:
     server.sessionMaxTokenAge: "720h"
-    # 10 min, not 2: every periodic refresh PATCHes Application status in
-    # etcd (~22/min across 60 apps, 2026-10). Git pushes arrive through the
-    # Forgejo webhook (argocd-webhook-secret below); selfHeal on live changes
-    # does not depend on this timer.
+    # Not 2 min: each refresh PATCHes Application status in etcd (~22/min,
+    # 2026-10). Pushes arrive via the Forgejo webhook; selfHeal ignores this timer.
     timeout.reconciliation: 600s
     accounts.mcp: apiKey
-    # resource.exclusions is left to the chart default (Endpoints, EndpointSlice,
-    # Lease, *Review, CSR, CertificateRequest, Cilium identities/endpoints,
-    # Kyverno reports). Add own entries via resourceExclusionsAdditional (key
-    # in this cm block), never by overriding resource.exclusions.
+    # resource.exclusions: keep the chart default; add entries via
+    # resourceExclusionsAdditional, never override it.
     oidc.config: |
       name: Authentik
       issuer: https://authentik.example.com/application/o/argocd/
@@ -61,19 +53,14 @@ configs:
       clientSecret: $oidc.argocd.clientSecret
       enablePKCEAuthentication: true
     # No defaulting ignores for HTTPRoute/TLSRoute/Gateway: server-side diff
-    # (controller.diff.server.side) compares against a dry-run apply, which
-    # defaults group/kind/weight on both sides. With RespectIgnoreDifferences
-    # such an ignore keeps the LIVE value of the whole matched array element
-    # on sync, so it swallowed real edits (sectionName from homelab-common
-    # 1.16.0 never reached the cluster; backendRefs/filters of internal routes
-    # were exposed the same way). Ignore only fields a controller writes at
-    # runtime.
+    # defaults both sides, and with RespectIgnoreDifferences an ignore keeps the
+    # LIVE array element on sync, swallowing real edits (homelab-common 1.16.0
+    # sectionName never landed). Ignore only fields a controller writes at runtime.
     resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
       jqPathExpressions:
         - '.webhooks[]?.clientConfig.caBundle'
-    # Kept: CNPG lists are atomic, and its webhook defaulting does not survive
-    # the server-side dry-run (same story as plugins[].enabled, which is
-    # mirrored in git instead).
+    # Kept: CNPG lists are atomic; webhook defaulting doesn't survive the
+    # server-side dry-run.
     resource.customizations.ignoreDifferences.postgresql.cnpg.io_Cluster: |
       jqPathExpressions:
         - '.spec.managed.roles[]?.connectionLimit'
@@ -118,10 +105,8 @@ configs:
       return hs
 
   rbac:
-    # No implicit access: any Authentik user can complete the OIDC login (the
-    # argocd application has no policy binding), so only the groups below get
-    # a role. Local admin stays enabled as break-glass — ArgoCD deploys
-    # Authentik itself.
+    # Any Authentik user can log in via OIDC; only the groups below get a role.
+    # Local admin stays as break-glass: ArgoCD deploys Authentik itself.
     policy.default: ""
     policy.csv: |
       g, ArgoCD Admins, role:admin
@@ -132,9 +117,7 @@ dex:
 
 global:
   domain: argocd.example.com
-  # warn, not info: repo-server, application-controller and notifications
-  # logged ~180 MB/day (every GenerateManifest call, every trigger check) into
-  # VictoriaLogs on the SATA SSDs etcd shares (2026-10).
+  # info logged ~180 MB/day into VictoriaLogs on the SSDs etcd shares (2026-10).
   logging:
     level: warn
 
@@ -191,8 +174,8 @@ repoServer:
   env:
     - name: GOMEMLIMIT
       value: "1700MiB"
-  # A homelab-common pin bump re-renders every app at once; with cpu 500m and the
-  # default 1s timeout, /healthz?full=true timed out and kubelet restarted the pod.
+  # A pin bump re-renders every app; the default 1s /healthz?full=true timeout
+  # tripped and kubelet restarted the pod.
   livenessProbe:
     timeoutSeconds: 5
   resources:
@@ -216,10 +199,8 @@ server:
       memory: 64Mi
 
 homelab-common:
-  # Default-deny ingress. UI/API come through the TLS gateway (ingress entity),
-  # webhooks through the gateway too; nothing scrapes ArgoCD metrics. The
-  # repo-server (:8081) has no auth, so it must stay unreachable from other
-  # namespaces.
+  # Default-deny ingress: UI, API and webhooks come via the gateway. repo-server
+  # :8081 has no auth; keep it unreachable from other namespaces.
   networkPolicy:
     enabled: true
 
@@ -245,8 +226,7 @@ homelab-common:
         auth: ""
 
   externalSecrets:
-    # Valkey ACL user `app` for externalRedis.existingSecret. The chart
-    # reads keys redis-username / redis-password.
+    # The chart reads keys redis-username / redis-password.
     - name: argocd-valkey
       vaultPath: valkey/valkey
       templateData:
@@ -262,9 +242,8 @@ homelab-common:
       data:
         - secretKey: oidc.argocd.clientSecret
           property: client_secret
-    # Forgejo push webhook (repo vizzle/homelab -> /api/webhook). Forgejo sends
-    # X-Gogs-Signature, so ArgoCD verifies it with the gogs secret. It lets
-    # timeout.reconciliation stay at 10 min without slower deploys.
+    # Forgejo push webhook -> /api/webhook; Forgejo signs X-Gogs-Signature,
+    # hence the gogs key. Lets timeout.reconciliation stay at 10 min.
     - name: argocd-webhook-secret
       vaultPath: argocd/webhook
       targetName: argocd-secret
@@ -282,13 +261,9 @@ homelab-common:
         - secretKey: telegram-chatID
           property: chat_id
 
-    # Forgejo SSH access: a dedicated ed25519 keypair for the argocd-bot user in Forgejo.
-    # Forgejo now lives on the ops node outside the cluster; git.example.com is a
-    # static record in OpenWrt pointing at 10.11.11.153 (see obsidian/111 Memory/Ops Node.md).
-    # A credential template, not a repository Secret: it matches every repo
-    # under vizzle/ for every AppProject (project-scoped repository Secrets each
-    # needed a copy, and root broke without its own). Public OCI chart repos
-    # (code.forgejo.org and others) need no Secret at all.
+    # repo-creds template for every repo under vizzle/ in every AppProject
+    # (per-project repo Secrets each needed a copy). git.example.com is the ops
+    # node (obsidian/111 Memory/Ops Node.md). Public OCI chart repos need none.
     - name: argocd-repo-creds-forgejo
       vaultPath: argocd/repo-ssh-forgejo
       templateMetadata:

@@ -1,31 +1,20 @@
-# TREK — self-hosted collaborative travel planner (NestJS + React, SQLite).
-# Travel-only: kept at replicas 0 and scaled up on demand
-# (`kubectl -n trek scale deploy/trek --replicas=1` before a trip, back to 0
-# after); data and VolSync backups keep running. See config.yaml ignoreDiff.
-# Chart pins fsGroup:1000 and exposes no securityContext override → image runs as
-# UID 1000 (Node). No LimitRange-incompatible knobs; resources are the chart defaults.
+# Replicas 0 by design: see config.yaml.
 
-# ENCRYPTION_KEY / ADMIN_* / OIDC_CLIENT_SECRET are read from this ESO-managed
-# Secret (see homelab-common.externalSecrets). Setting existingSecret makes the
-# chart skip its own Secret template — no name clash.
 existingSecret: trek-secret
 
 env:
   DEFAULT_LANGUAGE: "ru"
-  # Behind Cloudflare tunnel + Gateway (TLS terminated upstream).
   APP_URL: "https://trek.example.com"
   ALLOWED_ORIGINS: "https://trek.example.com"
   FORCE_HTTPS: "true"
   TRUST_PROXY: "1"
-  # OIDC (Authentik) — OIDC_CLIENT_SECRET comes from the ESO secret above.
   OIDC_ISSUER: "https://authentik.example.com/application/o/trek/"
   OIDC_DISCOVERY_URL: "https://authentik.example.com/application/o/trek/.well-known/openid-configuration"
   OIDC_CLIENT_ID: "trek"
   OIDC_DISPLAY_NAME: "Authentik"
   OIDC_SCOPE: "openid email profile"
 
-# Volumes are declared in homelab-common (persistentVolumeClaims below, kept
-# on uninstall); the chart only mounts them.
+# PVCs are declared in homelab-common below; the chart only mounts them.
 persistence:
   data:
     existingClaim: trek-data
@@ -70,13 +59,11 @@ homelab-common:
 
   httpRoutes:
     - name: trek
-      hostname: trek            # → trek.example.com
-      # external-only, see immich/values.yaml for the split-horizon / QUIC story
+      hostname: trek
+      # External only: see the split-horizon / QUIC comment in immich/values.yaml.
       gateway: external
-      # cloudflared forwards to cilium-gateway on :80, so Envoy stamps
-      # X-Forwarded-Proto: http. With FORCE_HTTPS=true and TRUST_PROXY=1 trek
-      # then redirects to https on every request -> ERR_TOO_MANY_REDIRECTS.
-      # Same treatment as authentik's external route.
+      # Envoy stamps X-Forwarded-Proto: http (tunnel hits :80); with FORCE_HTTPS
+      # trek redirects forever -> ERR_TOO_MANY_REDIRECTS.
       filters:
         - type: RequestHeaderModifier
           requestHeaderModifier:
@@ -89,7 +76,7 @@ homelab-common:
 
   externalSecrets:
     - name: trek-secret
-      vaultPath: trek/trek      # → home/homelab/k8s/trek/trek
+      vaultPath: trek/trek
       data:
         - secretKey: ENCRYPTION_KEY
           property: encryption_key

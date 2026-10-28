@@ -1,5 +1,3 @@
-# Alerts for failure modes that were silent until the 2026-09-24 audit:
-# the delivery path itself and CronJobs that quietly stop running.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -9,8 +7,7 @@ spec:
   groups:
     - name: alert-delivery
       rules:
-        # Routed to telegram-direct (alertmanager-config, externalSecrets in values.yaml), not Robusta:
-        # if Robusta is the thing failing, a Robusta notification never lands.
+        # Routed to telegram-direct in values.yaml (alertmanager-config): Robusta may be what fails
         - alert: AlertmanagerNotificationsFailing
           expr: sum by (integration) (rate(alertmanager_notifications_failed_total[15m])) > 0
           for: 15m
@@ -25,9 +22,7 @@ spec:
 
     - name: cronjobs
       rules:
-        # KubeJobFailed only sees a Job that ran and failed. These two catch the
-        # rest: the last scheduled run did not succeed, or nothing has succeeded
-        # for longer than the longest schedule here (weekly).
+        # KubeJobFailed misses CronJobs that stop running; 8d = weekly schedule + margin
         - alert: CronJobLastRunNotSuccessful
           expr: (kube_cronjob_status_last_schedule_time - kube_cronjob_status_last_successful_time) > 2 * 3600
           for: 1h

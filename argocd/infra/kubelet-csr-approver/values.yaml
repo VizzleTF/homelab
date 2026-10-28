@@ -6,7 +6,7 @@ bypassDnsResolution: true
 replicas: 1
 leaderElection: false
 
-# Chart defaults are 64Mi/128Mi; live usage ~11Mi. Tightened.
+# Live usage ~11Mi.
 resources:
   requests:
     cpu: 10m
@@ -16,6 +16,6 @@ resources:
     memory: 64Mi
 
 homelab-common:
-  # Default-deny ingress. No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
+  # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true

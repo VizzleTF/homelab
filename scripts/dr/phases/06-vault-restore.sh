@@ -24,8 +24,7 @@ wait_for "openbao-0 Running" \
   "kubectl -n openbao get pod openbao-0 -o jsonpath='{.status.phase}' | grep -q Running" \
   180
 
-# Shamir bundle: encrypted on its own in the laptop pack, plain inside the
-# off-site tarball (that one is encrypted as a whole).
+# Shamir bundle: gpg -c in the laptop pack, plain in the off-site tarball (encrypted whole).
 tmp=$(mktemp)
 trap 'shred -u "$tmp" 2>/dev/null || rm -f "$tmp"' EXIT
 if [[ -f "$DR_PACK_DIR/00-shamir.json.gpg" ]]; then
@@ -50,9 +49,8 @@ is_initialized=$(kubectl -n openbao exec openbao-0 -- bao status -format=json 2>
 if [[ "$is_initialized" = "false" ]]; then
   log_warn "OpenBao reports uninitialized — Raft will be empty, restoring from snapshot will populate it"
   log_info "running bao operator init (NEW cluster — generates throwaway keys, we will restore the snapshot over it)"
-  # NOTE: init is required even when restoring from snapshot — Raft needs an
-  # initial leader. We discard the resulting keys and unseal with the Shamir
-  # bundle from the DR pack after restore.
+  # init is required even when restoring a snapshot (Raft needs an initial
+  # leader); its keys are discarded, the DR-pack bundle unseals after restore.
   kubectl -n openbao exec openbao-0 -- bao operator init \
     -key-shares=1 -key-threshold=1 -format=json > /tmp/throwaway-init.json
   trap 'shred -u "$tmp" /tmp/throwaway-init.json 2>/dev/null || rm -f "$tmp" /tmp/throwaway-init.json' EXIT
@@ -68,7 +66,7 @@ else
   log_info "OpenBao already initialized — checking if sealed"
 fi
 
-# Unseal all 3 pods with original DR pack keys (snapshot put the original keyring back)
+# Unseal with the DR-pack keys: the snapshot restored the original keyring.
 log_info "unsealing all 3 openbao pods with DR pack Shamir keys"
 for pod in openbao-0 openbao-1 openbao-2; do
   for k in "$K0" "$K1" "$K2"; do
@@ -76,12 +74,11 @@ for pod in openbao-0 openbao-1 openbao-2; do
   done
 done
 
-# Verify unsealed
 wait_for "openbao-0 unsealed" \
   "kubectl -n openbao exec openbao-0 -- bao status -format=json 2>/dev/null | jq -re '.sealed == false'" \
   120
 
-# Store keys in k8s Secrets for autounseal controller (handles future pod restarts)
+# Keys as k8s Secrets for the autounseal controller (future pod restarts).
 log_info "creating openbao-keys + openbao-root-token Secrets"
 kubectl -n openbao create secret generic openbao-keys \
   --from-literal=key-0="$K0" \

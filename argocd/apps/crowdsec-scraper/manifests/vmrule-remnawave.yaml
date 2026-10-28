@@ -1,9 +1,5 @@
-# Алерты по метрикам панели Remnawave (job=remnawave-panel, cluster=vps).
-# Источник — vps-panel:9101 (nginx-шлюз к backend :3001), см. ../values.yaml.
-#
-# ВАЖНО: remnawave_node_status несёт ТОЛЬКО node_uuid. Человеческое имя ноды
-# живёт в remnawave_node_basic_info{node_name=...}. Без join в Telegram улетит
-# голый UUID — все правила по нодам джойнят через group_left(node_name).
+# remnawave_node_status несёт только node_uuid: правила по нодам джойнят
+# group_left(node_name) из remnawave_node_basic_info, иначе в Telegram голый UUID.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -13,9 +9,7 @@ spec:
   groups:
     - name: remnawave-panel
       rules:
-        # Скрейпер молчит → мы не знаем ничего о стенде. Это должно алертить
-        # раньше и громче всего остального в этой группе (§ "живость мониторинга"):
-        # тишина иначе неотличима от здоровья.
+        # Самый ранний и громкий алерт группы: тишина неотличима от здоровья.
         - alert: RemnawavePanelMetricsAbsent
           expr: absent(up{job="remnawave-panel"}) == 1 or up{job="remnawave-panel"} == 0
           for: 5m
@@ -31,8 +25,6 @@ spec:
               ssh vps-panel 'sudo docker ps --filter name=remnawave'
               ssh vps-panel 'curl -s -o /dev/null -w "%{http_code}\n" http://100.64.0.0:9101/metrics'   # ждём 401
 
-        # Главный сигнал: нода потеряла связь с панелью. Пользователи на ней
-        # прямо сейчас без VPN.
         - alert: RemnawaveNodeDown
           expr: |
             (remnawave_node_status == 0)
@@ -50,9 +42,7 @@ spec:
               ssh vps-panel 'rwapi GET /api/nodes | jq -r ".response[] | \"\(.name) \(.isConnected)\""'
               dig +short {{ $labels.node_name }}.vpn.example.org
 
-        # Ноды на связи, но онлайна нет ни на одной — проблема на пути клиента
-        # (подписка, DNS, реалити), а не с нодами. Порог намеренно длинный:
-        # 13 пользователей, ночной провал до нуля — штатное явление.
+        # 2h: ночной провал до нуля у 13 пользователей штатен.
         - alert: RemnawaveNoOnlineUsers
           expr: |
             sum(remnawave_users_online_stats{metricType="onlineNow"}) == 0
@@ -68,8 +58,7 @@ spec:
               ssh vps-panel 'rwsub Ivan'
               ssh vps-panel 'rwsub Ivan Happ/1.0'
 
-        # Backend перезапускается по кругу — OOM, краш, миграция.
-        # resets() ловит обнуление uptime, единичный рестарт (деплой) не шумит.
+        # Единичный рестарт (деплой) не шумит.
         - alert: RemnawaveBackendFlapping
           expr: resets(remnawave_process_uptime_seconds[1h]) > 2
           for: 0m
@@ -81,8 +70,6 @@ spec:
               ssh vps-panel 'cd /opt/remnawave && sudo docker compose logs --tail 200 remnawave'
               Проверить OOM: ssh vps-panel 'sudo dmesg -T | grep -i oom | tail'
 
-        # Event loop встал — backend жив, но API отвечает медленно; подписка и
-        # хендшейки нод начнут таймаутиться раньше, чем что-то упадёт.
         - alert: RemnawaveEventLoopLag
           expr: remnawave_process_event_loop_p99_ms > 200
           for: 15m
@@ -94,12 +81,11 @@ spec:
               Backend панели throttled. Смотреть remnawave_process_rss_bytes и
               remnawave_process_heap_used_bytes рядом — обычно это утечка heap.
 
-    # Textfile-метрики скриптов на самих хостах (job=node, приезжают через node_exporter).
-    # vpn-healthcheck на vps-panel — раз в сутки 07:15 MSK; xhttp-health.sh на vps-fi/ape/dp — */5.
+    # Textfile-метрики (job=node): vpn-healthcheck на vps-panel раз в сутки, xhttp-health.sh */5.
     # Исходники: vpn-репо node-configs/bin/{vpn-healthcheck,xhttp-health.sh}.
     - name: remnawave-host-scripts
       rules:
-        # 0 = секция дала WARN или FAIL; подробности только в логе на хосте.
+        # Подробности только в логе на хосте.
         - alert: VpnHealthcheckFailed
           expr: vpn_health_check{job="node"} == 0
           for: 0m
@@ -111,8 +97,7 @@ spec:
               ssh vps-panel 'sudo cat /var/log/vpn-health.last'
               Ручной перезапуск: ssh vps-panel 'sudo vpn-healthcheck'
 
-        # Суточный прогон не отработал (26h = сутки + запас). Без этого правила
-        # залипшая единица из вчерашнего файла выглядит как здоровье.
+        # 26h; без правила вчерашняя единица выглядит как здоровье.
         - alert: VpnHealthcheckStale
           expr: |
             time() - vpn_health_last_run_timestamp_seconds{job="node"} > 93600
@@ -135,9 +120,7 @@ spec:
             description: |
               ssh {{ $labels.host }} 'cat /etc/cron.d/xhttp-health; tail /var/log/xhttp-health.log'
 
-        # Контейнер или rw-core (в нём xray) не живы — нода не обслуживает клиентов,
-        # даже если nginx на 443 отвечает. Дублирует RemnawaveNodeDown со стороны хоста:
-        # срабатывает и когда панель сама лежит.
+        # Дублирует RemnawaveNodeDown со стороны хоста: работает и при лежащей панели.
         - alert: XhttpNodeProcessDown
           expr: xhttp_remnanode_up{job="node"} == 0 or xhttp_rwcore_up{job="node"} == 0
           for: 10m
@@ -149,7 +132,7 @@ spec:
               ssh {{ $labels.host }} 'docker ps -a --filter name=remnanode; pgrep -c rw-core'
               Поднимать только compose: cd /opt/remnanode && docker compose up -d
 
-        # nginx упёрся в лимит fd — XHTTP отдаёт 5xx всем. Любое значение > 0 = авария.
+        # Любое значение > 0 = 5xx всем.
         - alert: XhttpNginxEmfile
           expr: xhttp_emfile_window{job="node"} > 0
           for: 0m
@@ -161,8 +144,7 @@ spec:
               Проверить worker_rlimit_nofile 65535 и worker_connections 16384 в nginx.conf.
               ssh {{ $labels.host }} 'grep -E "rlimit|worker_conn" /etc/nginx/nginx.conf'
 
-        # Фон ~150 5xx/сутки на ape (≈0.5 за окно) и всплеск при перезагрузке профиля xray.
-        # 30 за окно 15 минут подряд — уже не фон и не reload.
+        # Фон ~0.5 за окно плюс всплески при reload xray; 30 за 15m — уже нет.
         - alert: XhttpErrorsHigh
           expr: xhttp_5xx_window{job="node"} > 30
           for: 15m
@@ -174,10 +156,7 @@ spec:
               ssh {{ $labels.host }} "awk '\$5 ~ /^\/xhttppath\// && \$7 ~ /^5/' /var/log/nginx/access.log | tail"
               ssh {{ $labels.host }} 'tail -50 /var/log/nginx/error.log'
 
-        # Обратный SSH-туннель к роутеру (tun2 = родители, tun3 = дом, tun4 = сестра).
-        # Пишут tun{2,3,4}-reaper.sh на vps-panel каждые 3 минуты. 15m = reaper уже дважды
-        # снял зомби-сессию, а роутер так и не переподключился — без этого правила
-        # туннель родителей однажды лежал 57 часов незамеченным.
+        # tun2 = родители, tun3 = дом, tun4 = сестра; пишут tun*-reaper.sh на vps-panel каждые 3m.
         - alert: ReverseTunnelDown
           expr: vpn_reverse_tunnel_up{job="node"} == 0
           for: 15m

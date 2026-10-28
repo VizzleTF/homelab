@@ -1,7 +1,6 @@
 # Read by every shellcheck run (CI, pre-commit, task ci:lint, by hand).
 # Follow sourced files; resolve `# shellcheck source=../lib/x.sh` from the
-# script's own dir (default: the cwd). There is no rc key for --severity:
-# call sites pass -S warning, agent sessions get it from SHELLCHECK_OPTS in
-# .claude/settings.json.
+# script's own dir. No rc key for --severity: call sites pass -S warning,
+# agents get SHELLCHECK_OPTS from .claude/settings.json.
 external-sources=true
 source-path=SCRIPTDIR

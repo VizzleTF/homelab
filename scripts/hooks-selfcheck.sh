@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
-# Self-check of the Claude Code hooks in .claude/hooks on fixtures:
-#   - validate-yaml.sh: files it must pass (each one a past false failure) and
-#     files it must reject;
-#   - helm-repo.sh: commands that do not read the local repo index pass, a stale
-#     `<repo>/<chart>` read is flagged;
-#   - bash-guard.py --selftest;
-#   - program-gate.sh --selftest (Stop hook of the running-program skill).
-# Runs in the CI kubeconform job and in `task ci:kubeconform`; needs jq,
-# yamllint, kubeconform, python3 and network for the kubeconform schemas.
+# Self-check the Claude Code hooks in .claude/hooks on fixtures: validate-yaml.sh
+# (past false failures must pass, bad files fail), helm-repo.sh (a stale
+# `<repo>/<chart>` read is flagged), bash-guard.py and program-gate.sh --selftest.
+# Runs in CI kubeconform and `task ci:kubeconform`; needs jq, yamllint,
+# kubeconform, python3 and network for the kubeconform schemas.
 set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel)" || exit 1

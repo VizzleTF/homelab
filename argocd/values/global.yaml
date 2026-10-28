@@ -1,25 +1,19 @@
-# Shared top-level Helm defaults (homelab-common and cluster conventions).
-# Loaded first in the valueFiles of the homelab-common source; the app's own files follow.
+# Loaded first in homelab-common valueFiles; each app's own files override it.
 global:
   vault:
-    # Every release reads OpenBao through its own SecretStore
-    # (homelab-common templates/eso-store.yaml, access map in global.openbao).
+    # Per-release SecretStore (homelab-common templates/eso-store.yaml).
     secretStoreKind: SecretStore
     refreshInterval: 1h
     pathPrefix: homelab/k8s
 
-  # OpenBao access for ESO in SecretStore mode (homelab-common >= 1.18.0,
-  # templates/eso-store.yaml). Kept outside `vault`: homelab-common 1.17.0
-  # rejects unknown keys there.
+  # homelab-common >= 1.18.0. Kept outside `vault`: 1.17.0 rejects unknown keys there.
   openbao:
     server: http://openbao.openbao.svc.cluster.local:8200
     kvMount: home
-    # Who may read what in OpenBao (docs: obsidian/111 Memory/Vault Paths Reference.md).
-    # Every namespace reads its own <pathPrefix>/<namespace>/* without an entry here.
-    # Cross-namespace reads must be listed: `grants` = group -> exact paths under
-    # pathPrefix, `namespaces` = namespace -> groups. scripts/openbao-eso-access.sh
-    # turns this into OpenBao policies and roles; homelab-common picks the role
-    # `eso-ns-<namespace>` for listed namespaces and `eso-own` for the rest.
+    # Each namespace reads <pathPrefix>/<namespace>/* by default; cross-namespace
+    # reads need grants (group -> paths) and namespaces (namespace -> groups).
+    # Apply with scripts/openbao-eso-access.sh; listed namespaces get role
+    # eso-ns-<namespace>, the rest eso-own. See obsidian/111 Memory/Vault Paths Reference.md.
     access:
       grants:
         backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, shared/s3-ovh]
@@ -29,11 +23,11 @@ global:
         valkey: [valkey/valkey]
         telegram: [shared/telegram]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
-        # Snapshot bucket alone, without the DR pack: backup-drill reads etcd and raft snapshots.
+        # Snapshots without the DR pack.
         snapshots: [shared/s3-snapshots]
-        # Each app's OIDC client secret, read by Authentik for its blueprints' !Env.
+        # Authentik reads these for its blueprints' !Env.
         oidc-clients: [argocd/oidc, victoria-metrics/oidc, immich/oidc, wazuh/oidc, trek/oidc, forgejo/oidc]
-        # Cloudflare DNS token: external-dns owns it, cert-manager DNS-01 reads it.
+        # external-dns owns it; cert-manager DNS-01 reads it.
         cloudflare: [external-dns/cloudflare]
       namespaces:
         argocd: [valkey, telegram]
@@ -73,17 +67,14 @@ global:
       name: cilium-gateway-tls
       namespace: kube-system
 
-  # VolSync (backup v2, see obsidian/113 Backups/Backup Overview.md). Two independent
-  # restic targets: garage = on-prem (Synology), ovh = off-site. DIFFERENT repository
-  # passwords: the repos are not mirrors, so corruption of one never reaches the other.
-  # The passwords must also be in the offline DR-pack, not only in OpenBao: OpenBao
-  # itself is restored from a backup encrypted with them.
+  # Restic targets: garage = on-prem Synology, ovh = off-site. Separate passwords:
+  # corruption of one repo never reaches the other. Keep the passwords in the
+  # offline DR pack too: OpenBao is restored from a backup encrypted with them.
   volsync:
     snapshotClass: longhorn-volsync
-    # The mover's clone is ephemeral and single-replica: see the comment in
-    # argocd/infra/volsync/manifests/storageclass-clone.yaml.
+    # Ephemeral single-replica clone: see argocd/infra/volsync/manifests/storageclass-clone.yaml.
     storageClass: longhorn-volsync-clone
-    # The restic index cache is node-local; it need not survive a node loss.
+    # Node-local; need not survive a node loss.
     cacheStorageClass: local-path
     cacheCapacity: 2Gi
     repos:

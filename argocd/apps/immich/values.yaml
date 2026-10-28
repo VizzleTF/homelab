@@ -1,26 +1,15 @@
-# Immich Self-hosted Photo and Video Backup Solution
-# Configuration for HomeLab deployment with CNPG PostgreSQL
-
 _shared_config:
   url: &url https://immich.example.com
-  # Server and ML ship in one immich-app/immich release. The docker datasource
-  # fails on ghcr.io/immich-app/* (hundreds of thousands of PR-build tags =
-  # hundreds of tags/list pages per lookup, "no-result" in the Dependency
-  # Dashboard), so both versions come from github-releases immich-app/immich;
-  # the ML -openvino suffix stays outside currentValue (customManager in
-  # renovate.json). One PR bumps both, so server and ML never drift.
+  # github-releases, not docker: ghcr immich-app has too many PR tags ("no-result").
+  # One PR bumps server and ML together; -openvino suffix via customManager in renovate.json.
   # renovate: datasource=github-releases depName=immich-app/immich
   version: &version "v3.3.5"
   # renovate: immich-ml
   ml_tag: &ml_tag "v3.3.5-openvino"
 
-# Server-only settings. Top-level controllers/defaultPodOptions/persistence in
-# the immich chart are shared by every component, so they also landed in the
-# ML pod (DB/Redis credentials, the OIDC config mount, the server affinity).
+# Server-only: top-level controllers/defaultPodOptions/persistence leak into the ML pod.
 server:
-  # Prefer the bare-metal ML worker so the server lands next to the ML pod
-  # (low-latency calls during re-encode, thumbnail and transcode jobs), but fall
-  # back to any node if worker-01 is full or down: the server is not GPU-bound.
+  # Prefer the ML node (next to the ML pod), any node as fallback.
   defaultPodOptions:
     securityContext:
       seccompProfile:
@@ -36,8 +25,7 @@ server:
                   values: ["true"]
   controllers:
     main:
-      # Roll on DB/OIDC secret rotation. Not immich-valkey: it rotates together
-      # with valkey (valkey cheatsheet).
+      # Not immich-valkey: it rotates together with valkey (valkey cheatsheet).
       annotations:
         secret.reloader.stakater.com/reload: immich-main-user-credentials,immich-oidc-secret
       containers:
@@ -49,15 +37,10 @@ server:
               cpu: 500m
               memory: 2400Mi
             limits:
-              # Server consolidates the v2.x microservices (job dispatcher, thumbnail
-              # generator, metadata extractor, transcode launcher). During bulk re-encode
-              # it was pinned at 1000m and the kernel throttled 93 % of periods, stealing
-              # 5.4 x more CPU time than the pod was allowed to run. Bump to 6 cores;
-              # worker-01 has 16 allocatable and runs at ~20 % otherwise.
+              # 1000m throttled 93% of periods during bulk re-encode; worker-01 has 16 cores.
               cpu: 6000m
               memory: 5Gi
           env:
-            # PostgreSQL via CNPG
             DB_HOSTNAME: "immich-cluster-rw"
             DB_PORT: "5432"
             DB_DATABASE_NAME: "immich"
@@ -71,7 +54,7 @@ server:
                 secretKeyRef:
                   name: immich-main-user-credentials
                   key: password
-            # Shared Valkey (ns valkey); Immich on DB index 1, argocd on DB 0
+            # Shared Valkey: Immich DB 1, argocd DB 0.
             REDIS_HOSTNAME: "valkey-primary.valkey.svc.cluster.local"
             REDIS_DBINDEX: "1"
             REDIS_USERNAME: "app"
@@ -82,7 +65,7 @@ server:
                   key: password
             IMMICH_SERVER_URL: *url
             PUBLIC_IMMICH_SERVER_URL: *url
-            # OAuth / Authentik: v2+ reads it from a config file, not env vars
+            # OAuth is read from the config file only, not env vars.
             IMMICH_CONFIG_FILE: "/config/immich-config.json"
   persistence:
     immich-config:
@@ -94,23 +77,17 @@ server:
             - path: /config
               readOnly: true
 
-# Immich configuration
 immich:
   persistence:
-    # Main library storage for photos and videos
     library:
       existingClaim: "immich-library-pvc"
 
-# Machine Learning component: OpenVINO image on the Intel Iris Xe iGPU of the ML
-# worker (i915 extension, gpu.intel.com/i915).
 machine-learning:
   defaultPodOptions:
     securityContext:
       seccompProfile:
         type: RuntimeDefault
-    # Pinned by the Talos-managed label homelab.example.com/ml
-    # (terraform_talos/configs/nodes.yaml); a GPU-feature selector would also
-    # match the control planes.
+    # Label from terraform_talos/configs/nodes.yaml; a GPU selector would match the control planes.
     nodeSelector:
       homelab.example.com/ml: "true"
   controllers:
@@ -122,25 +99,14 @@ machine-learning:
             tag: *ml_tag
           env:
             MACHINE_LEARNING_DEVICE: GPU
-            # PRELOAD env warms the model cache on pod start — it does NOT pick the active
-            # model. The active CLIP model is read from Immich's system-config (DB or the
-            # IMMICH_CONFIG_FILE JSON via $IMMICH_CONFIG_FILE on the server). See
-            # immich-config.json templateData below for the authoritative setting.
-            # immich v3 split the flat PRELOAD__CLIP into __TEXTUAL/__VISUAL — the old
-            # flat form crashes ML on boot (pydantic SettingsError parsing "preload").
-            # Textual only: smart search stays warm. Preloading the visual model
-            # too pinned both in memory (~2.7 Gi idle): after MODEL_TTL the worker
-            # restarts and PRELOAD loads everything again (2026-10). The visual
-            # model now loads for upload jobs and unloads after the TTL.
+            # PRELOAD only warms the cache; the active model is in immich-config.json below.
+            # Flat PRELOAD__CLIP crashes ML on boot (SettingsError parsing "preload").
+            # Textual only: preloading visual too pins ~2.7Gi idle after every TTL restart.
             MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: nllb-clip-large-siglip__mrl
             MACHINE_LEARNING_WORKERS: "1"
             MACHINE_LEARNING_WORKER_TIMEOUT: "0"
-          # First boot with NLLB-Large on OpenVINO compiles the visual encoder ONNX graph
-          # for ~10-25 min on an Intel iGPU (cached afterwards). Default startup probe of
-          # 60×10s = 10 min is too tight; raise to 240×10s = 40 min. timeoutSeconds bumped
-          # to 5 because gunicorn's single worker can't always reply to /ping in 1 s while
-          # loading model weights. Liveness/readiness defaults are kept — once Ready, the
-          # /ping endpoint is fast.
+          # First boot compiles the OpenVINO graph for 10-25 min: 40 min startup window.
+          # Timeout 5s: the single worker misses 1s /ping while loading weights.
           probes:
             startup:
               spec:
@@ -152,74 +118,49 @@ machine-learning:
               cpu: 2000m
               memory: 4Gi
             limits:
-              # NLLB-Large encoding pins to 2 cores at the previous 2000m limit and was
-              # throttled ~80 % of the time (cgroup nr_throttled 1258/3293, throttled_usec
-              # 295s/370s). Bump to 8 cores; worker-01 is 16-core, runs at ~20 % otherwise.
-              # OpenVINO offloads tensor ops to iGPU but pre/post-processing stays on CPU.
+              # 2000m throttled ~80% of the time; pre/post-processing stays on CPU.
               cpu: 8000m
-              # NLLB-Large peak ~13-14 GB during OpenVINO JIT compile (model file 14.9 GB
-              # on disk maps into memory plus working set). 8Gi was OOMKilled twice.
+              # JIT compile peaks ~13-14GB; 8Gi was OOMKilled.
               memory: 16Gi
               gpu.intel.com/i915: "1"
   persistence:
     cache:
-      # NLLB-Large (~14.9 GB) + buffalo_l face detection + recognition + OpenVINO compile
-      # caches + HF download temp files filled 20Gi to 100 %. Bump to 30Gi.
+      # Models + compile caches filled 20Gi.
       size: 30Gi
       type: persistentVolumeClaim
-      # ML model cache (NLLB/buffalo_l/OpenVINO) is fully regenerable — re-downloaded
-      # on demand — so node-local local-path instead of Longhorn (30Gi × 2 replicas
-      # = 60Gi saved). Single ML pod (replicas:1, Recreate, GPU-node-pinned) → RWO is
-      # fine; local-path is RWO-only and node-pins the PV to the GPU node anyway.
+      # Regenerable cache: node-local, saves 60Gi of Longhorn replicas.
       storageClass: "local-path"
       accessMode: ReadWriteOnce
       retain: true
 
-# Platform resources via the homelab-common chart
 homelab-common:
   networkPolicy:
     enabled: true
     allow:
-      # CNPG operator -> instance manager
       - namespaces: [cnpg-system]
-      # postgres exporter
       - namespaces: [victoria-metrics]
         ports: [9187]
 
-  # The library is 250Gi
-  # (~184Gi used), RWO since 2026-10: RWX cost a
-  # Longhorn NFS share-manager (0.7-2.5 GiB) only so the Direct mover could
-  # mount it. For a Direct mover on an in-use RWO PVC VolSync copies the app
-  # pod's nodeName into the Job. The restic index cache
-  # is 10Gi: the default 2Gi is too small for this many files. Off-site runs
-  # weekly: a full upload takes hours. CNPG pgdata is a separate PVC covered by
-  # barman/pg_dump.
+  # RWO is enough: VolSync runs the Direct mover on the app pod's node.
+  # Cache 10Gi: 2Gi is too small for this many files.
   volsync:
     - name: immich-library
       claim: immich-library-pvc
       accessMode: ReadWriteOnce
       cacheCapacity: 10Gi
-      # Direct, not Snapshot: a 250Gi snapshot materialises as a clone PVC, and
-      # two targets meant two clones of 250Gi x 2 replicas = 1 TiB that Longhorn
-      # could not place (cp-02/cp-03 have ~160Gi free); the volumes went faulted.
-      # The mover reads the live PVC in place. Cost: the read is not atomic; files uploaded during a run go into
-      # the next snapshot. Acceptable for a photo archive. The mover runs on
-      # immich-server's node; if the server moves mid-run, VolSync recreates
-      # the Job and leaves a stale restic lock (volsync cheatsheet).
+      # Direct: Snapshot clones (1 TiB) could not be placed and volumes faulted.
+      # Read is not atomic. Server moving mid-run leaves a stale restic lock (volsync cheatsheet).
       copyMethod: Direct
       drill: false  # 250Gi (~190Gi used) does not fit the drill's 20Gi DRILL_SIZE
       targets:
         - repo: garage
           schedule: "30 3 * * *"
-        # Five hours after on-prem: two movers on one volume break nothing,
-        # but they share the disk and the 1 GbE link.
+        # Offset from garage: movers share the disk and 1 GbE link.
         - repo: ovh
           schedule: "0 8 * * 0"
           retain:
             weekly: 8
-      # No bootstrap on purpose: a ReplicationDestination would materialise
-      # another 250Gi volume. Restoring the library is a deliberate operation;
-      # the destination is created by hand.
+      # No bootstrap: it would materialise another 250Gi; restore by hand.
 
   persistentVolumeClaims:
     - name: immich-library-pvc
@@ -227,13 +168,11 @@ homelab-common:
         - ReadWriteOnce
       storageClassName: longhorn
       size: 250Gi
-      # volumeName intentionally unpinned — the PV changes on every Velero restore,
-      # and a stale pin makes the SSA dry-run reject the immutable field, breaking
-      # diff (SYNC=Unknown). The global ignoreDifferences._PersistentVolumeClaim
-      # masks the live volumeName instead. See reference_argocd_pvc_volumename_drift.
+      # No volumeName pin: a stale one breaks the SSA dry-run (SYNC=Unknown); global
+      # ignoreDifferences masks it.
 
   externalSecrets:
-    # Valkey ACL user `app` (see argocd/apps/valkey).
+    # Valkey ACL user `app`.
     - name: immich-valkey
       vaultPath: valkey/valkey
       data:
@@ -260,8 +199,6 @@ homelab-common:
         - secretKey: ACCESS_SECRET_KEY
           property: ACCESS_SECRET_KEY
 
-    # rclone OVH creds for the pg-logical CronJob (an independent off-site
-    # logical dump of the immich DB, not a barman mirror). OpenBao: shared/s3-ovh.
     - name: ovh-pglogical-rclone
       vaultPath: shared/s3-ovh
       data:
@@ -280,7 +217,6 @@ homelab-common:
 
     - name: immich-oidc-secret
       vaultPath: immich/oidc
-      # clientId is the authentik provider slug; only the secret is in OpenBao.
       data:
         - secretKey: client_secret
           property: client_secret
@@ -307,19 +243,15 @@ homelab-common:
   httpRoutes:
     - name: immich
       hostname: immich
-      # external-only: split-horizon DNS (internal route + LAN A-record) made
-      # browsers reuse the Cloudflare-advertised HTTP/3 Alt-Svc against the
-      # TCP-only internal gateway -> ERR_QUIC_PROTOCOL_ERROR at home.
-      # Note: LAN traffic now hairpins through Cloudflare, so the free-plan
-      # 100 MB request cap applies to uploads.
+      # No split-horizon: cached HTTP/3 Alt-Svc hits the TCP-only internal gateway
+      # (ERR_QUIC_PROTOCOL_ERROR). Cloudflare's 100 MB upload cap applies.
       gateway: external
       service:
         name: immich-server
         port: 2283
     - name: immich-lan
       hostname: immich-lan
-      # LAN-only twin with its own hostname: Alt-Svc is cached per host, so
-      # browsers never try QUIC here; uploads skip the Cloudflare 100 MB cap.
+      # Separate host: Alt-Svc is per host, so no QUIC; no upload cap.
       gateway: internal
       service:
         name: immich-server
@@ -334,9 +266,7 @@ homelab-common:
         - name: cube
         - name: earthdistance
 
-  # Independent logical backup (pg_dump -Fc) immich DB → OVH pg-logical/immich-cluster/.
-  # Runs alongside barman->Garage. immich owns the whole DB, so the dump covers it all.
-  # Restore needs the vchord image (CREATE EXTENSION vchord). Daily 03:55, 90d retention.
+  # Off-site pg_dump to OVH, independent of barman. Restore needs the vchord image.
   workloads:
     - name: pglogical-offsite
       type: cronjob
