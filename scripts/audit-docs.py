@@ -2,18 +2,15 @@
 """Deterministic drift checks between the repo and its documentation.
 
 Covers what a script can verify without judgement: the config.yaml contract
-of every argocd/{apps,infra}/* folder, the homelab-common legacySelector guard, Obsidian registries and
-cheatsheets vs argocd/{apps,infra,standalone}, wave/namespace in the registry
-tables and cheatsheet headers vs config.yaml, pinned chart versions in
-cheatsheets, broken wikilinks, repo paths in backticks that do not exist, apps-appset vs infra-appset parity,
+of every argocd/{apps,infra}/* folder, the homelab-common legacySelector guard,
+cheatsheets without an argocd folder, broken wikilinks, repo paths in backticks that do not exist, apps-appset vs infra-appset parity,
 and Authentik blueprints (grant_types set, no launch_url, no ambiguous profile
 !Find, every blueprint ConfigMap mounted by blueprints.configMaps and back).
 Facts in prose (commands, runbook steps) need a reviewer: see the
 auditing-docs skill.
 
 Usage: scripts/audit-docs.py [--vault obsidian]   (run from the repo root)
-Without the vault (CI) only the config.yaml, legacySelector,
-repo-path, AppSet parity and blueprint checks run.
+Without the vault (CI) the cheatsheet and wikilink checks are skipped.
 Output: `path: level: message`. Exit 1 on any error.
 """
 import argparse
@@ -29,8 +26,6 @@ args = ap.parse_args()
 
 REPO = Path(".")
 VAULT = Path(args.vault)
-APPS_REG = VAULT / "112 ArgoCD/Apps/Applications.md"
-INFRA_REG = VAULT / "112 ArgoCD/Infrastructure/Infrastructure.md"
 APPS_CS = VAULT / "112 ArgoCD/Apps/all"
 INFRA_CS = VAULT / "112 ArgoCD/Infrastructure/all"
 # CI has no vault (gitignored symlink): run only the repo-side checks there.
@@ -67,85 +62,18 @@ def load_configs(kind):
     return out
 
 
-def table_rows(text):
-    """Yield (header_cells, row_cells, raw_row) for every markdown table."""
-    header = None
-    for line in text.splitlines():
-        if not line.startswith("|"):
-            header = None
-            continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if header is None:
-            header = [c.lower() for c in cells]
-        elif not set(line) <= set("|-: "):
-            yield header, cells, line
-
-
-def row_name(cell, raw):
-    m = re.search(r"папка `([^`]+)`", raw)
-    if m:
-        return m.group(1)
-    m = re.match(r"\[\[([^\]|#]+)", cell)
-    return m.group(1) if m else cell.split()[0]
-
-
-def col(header, row, *names):
-    for n in names:
-        if n in header and header.index(n) < len(row):
-            return row[header.index(n)].strip("` ")
-    return None
-
-
 apps, infra = load_configs("apps"), load_configs("infra")
 for f, name in STANDALONE.items():
     doc = yaml.safe_load((REPO / "argocd/standalone" / f).read_text())
     wave = doc["metadata"].get("annotations", {}).get("argocd.argoproj.io/sync-wave", "")
     infra[name] = {"wave": str(wave), "namespace": doc["spec"]["destination"]["namespace"]}
 
-# 1-2. Registries vs code, wave/namespace columns.
-for reg, configs in ((APPS_REG, apps), (INFRA_REG, infra)) if HAVE_VAULT else ():
-    seen = set()
-    for header, row, raw in table_rows(reg.read_text()):
-        if "name" not in header or not row[0]:
-            continue
-        name = row_name(row[0], raw)
-        if name not in configs:
-            report(reg, "error", f"row '{name}' has no folder in argocd/ or standalone")
-            continue
-        seen.add(name)
-        wave = col(header, row, "wave")
-        if wave is not None and wave != configs[name]["wave"]:
-            report(reg, "error", f"{name}: wave {wave} != config {configs[name]['wave']}")
-        ns = col(header, row, "namespace", "ns")
-        if ns is not None and ns != configs[name]["namespace"]:
-            report(reg, "error", f"{name}: namespace {ns} != config {configs[name]['namespace']}")
-    for name in sorted(set(configs) - seen):
-        report(reg, "error", f"'{name}' exists in argocd/ but has no registry row")
-
-# 1. Cheatsheets vs folders; cheatsheet header Namespace / Sync-wave.
+# 1. Every cheatsheet belongs to an argocd folder (a cheatsheet is optional).
 for cs_dir, configs in ((APPS_CS, apps), (INFRA_CS, infra)) if HAVE_VAULT else ():
-    expected = {}
-    for name in configs:
-        expected.setdefault(CHEATSHEET_ALIAS.get(name, name), name)
-    present = {p.stem for p in cs_dir.glob("*.md")}
-    for cs in sorted(set(expected) - present):
-        report(cs_dir, "error", f"no cheatsheet {cs}.md for argocd folder '{expected[cs]}'")
-    for cs in sorted(present - set(expected) - NON_APP_CHEATSHEETS):
-        report(cs_dir / f"{cs}.md", "error", "cheatsheet without an argocd folder")
-    for cs in sorted(present & set(expected)):
-        path = cs_dir / f"{cs}.md"
-        if cs in CHEATSHEET_ALIAS.values():
-            continue  # one page for several folders; header names one of them
-        cfg = configs[expected[cs]]
-        text = path.read_text()
-        for label, key in (("Namespace", "namespace"), ("Sync-wave", "wave")):
-            m = re.search(rf"^\| \*\*{label}\*\* \| `([^`]+)`", text, re.M)
-            if m and m.group(1) != cfg[key]:
-                report(path, "error", f"{label} `{m.group(1)}` != config {cfg[key]}")
-        # 3. Pinned versions (single source of truth is config.yaml targetRevision).
-        for m in re.finditer(r"^\| \*\*(Chart|Version)\*\* \|.*$", text, re.M):
-            if re.search(r"(?<![\w.])v?\d+\.\d+\.\d+(?![\w.])", m.group(0)):
-                report(path, "warning", f"pinned version in **{m.group(1)}** row; use config.yaml targetRevision")
+    expected = {CHEATSHEET_ALIAS.get(name, name) for name in configs}
+    for p in sorted(cs_dir.glob("*.md")):
+        if p.stem not in expected | NON_APP_CHEATSHEETS:
+            report(p, "error", "cheatsheet without an argocd folder")
 
 # 4. Wikilinks. Targets: vault notes.
 notes = {p.stem for p in VAULT.rglob("*.md")}

@@ -1,14 +1,12 @@
-# DR Recovery Automation
+# DR restore
 
-Idempotent disaster recovery for the homelab cluster. Brings a freshly-bootstrapped Talos cluster back to a fully-functional Healthy state by restoring an OpenBao Raft snapshot from S3 and letting ESO/ArgoCD replay everything else from there.
+Brings a freshly bootstrapped Talos cluster back to Healthy: restores the OpenBao Raft snapshot, then ESO and ArgoCD replay everything else.
 
-## Design principles
+## Rules for the phases
 
-1. **DR pack is the single source of truth** for bootstrap-time secrets (Shamir keys, a Raft snapshot, two env files). Everything else flows out of the restored OpenBao.
-2. **Phases are idempotent.** Each phase installs through `helm_apply` (`helm upgrade --install --wait`, `lib/common.sh`) and waits for readiness, so re-running is safe.
-3. **No manual TODO in the pack.** If something can't be auto-included it's a bug in `build.sh`, not a checkbox for the operator.
-4. **Self-contained scripts.** No hardcoded tokens / UUIDs / account IDs — those come from env vars or `~/dr-pack/` files at runtime.
-5. **Wait only for what is already on its way.** A `wait_for` target must follow from objects this phase or an earlier one applied (directly or through a controller already running, such as ESO or cert-manager). No Application syncs before phase 10 ends (7e6e6f5a).
+- The DR pack holds only bootstrap-time secrets; everything else comes from the restored OpenBao. A secret that cannot be auto-included is a bug in `build.sh`.
+- Phases are idempotent (`helm_apply` in `lib/common.sh` = `helm upgrade --install --wait`).
+- A `wait_for` target must follow from objects this or an earlier phase applied. No Application syncs before phase 10 ends (7e6e6f5a).
 
 ## Quick start (after fresh Talos cluster is up + kubeconfig in place)
 
@@ -41,7 +39,7 @@ Generate / refresh with `bash scripts/dr-pack/build.sh` (see [`../dr-pack/README
 
 After OpenBao is restored, every other secret (Forgejo SSH key, OIDC client secrets, Cloudflared tunnel JSON, OpenWrt creds, all S3 keys) is read from it, so none of them live in the DR pack.
 
-Forgejo is not part of this rebuild: since 2026-09-12 it runs on the ops node, outside the cluster. Phase 10 only checks that `git.example.com` answers. If the ops node is lost too, recover it first (`obsidian/113 Backups/Forgejo Recovery.md`).
+Forgejo is not part of this rebuild: it runs on the ops node, outside the cluster. Phase 10 only checks that `git.example.com` answers. If the ops node is lost too, recover it first (`obsidian/113 Backups/Forgejo Recovery.md`).
 
 ## Phases
 
@@ -59,8 +57,6 @@ Forgejo is not part of this rebuild: since 2026-09-12 it runs on the ops node, o
 | 09 | apps | VolSync restic repositories, one volume per app via `restore-app.sh`; runs before ArgoCD so the PVCs do not exist yet, ArgoCD adopts them |
 | 10 | argocd | Forgejo on the ops node must answer; deletes the bootstrap Secrets so ESO owns them, installs ArgoCD, then ApplicationSets render everything |
 
-Phase 09 used to restore the in-cluster Forgejo; that phase went away when Forgejo moved to the ops node, and the apps restore took its number so it runs before ArgoCD.
-
 Chart versions are read at run time from git (`chart_version` in `lib/common.sh`): `argocd/infra/<name>/config.yaml` `targetRevision`, and `argocd/standalone/*.yaml` for Gateway API and ArgoCD. DR installs exactly what ArgoCD runs, so Renovate bumps need no second edit here.
 
 ## Per-app restore wrapper
@@ -72,7 +68,3 @@ DR_NAMESPACE=<ns> scripts/dr/restore-app.sh x <REPO> <PVC> <SIZE> [<ACCESS_MODE>
 ```
 
 Restores one volume from its VolSync restic repository (`DR_RESTIC_TARGET=garage|ovh`, default `garage`). The volume list is `homelab-common.volsync[]` in git, with namespace, PVC, size, access mode and restic cache read from the same values file (VCT-based claims get their size from `VCT_SIZE` in the script); the mover runs as root so restic can give files back their owners. The wait is 1 min per Gi of the claim, never under 15 min. Phase 09 restores every volume on that list. The script refuses to run when the PVC already exists, unless `DR_FORCE=1`. For immich it also reassigns database objects left owned by `immich_user` to `immich`; in a full DR `immich-cluster` does not exist yet at phase 09, so this step warns and skips — run it by hand once the cluster is up.
-
-## Sanitization
-
-Nothing in this directory carries secrets — only logic. `gitleaks` runs pre-commit, as a required PR check on Forgejo and as the mirror gate before the GitHub push. All sensitive values are read at runtime from env vars or files under `~/dr-pack/` (which never enters git).

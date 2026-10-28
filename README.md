@@ -180,18 +180,7 @@ Two targets, and neither is a copy of the other: **Garage** on the Synology (`s3
 | DR pack | Shamir keys, root token, Raft snapshot, bootstrap creds in one GPG file | `snapshots/dr-pack/` on both | Sundays 02:40 UTC | last 8 |
 | Terraform state | Garage → OVH mirror | `terraform-state/` | 08:00 UTC | — |
 
-### How the PVC layer works
-
-Each volume declares a `volsync:` block in its app values; the `homelab-common` chart renders one `ReplicationSource` per target plus the `ExternalSecret` holding that repository's credentials.
-
-- **`copyMethod: Snapshot`** for everything except immich: VolSync takes a Longhorn CSI snapshot, clones it, and the restic mover reads the clone, so the application never pauses. Clones live in `longhorn-volsync-clone` (one replica, `reclaimPolicy: Delete`): the default class retains, and a retained clone per volume per night leaves an orphaned PV behind each time.
-- **`copyMethod: Direct`** for the immich library: a full-size clone would not fit the disks. The mover reads the live volume in place on immich-server's node, so files written mid-run land in the next snapshot instead.
-- Longhorn freezes the filesystem for the snapshot, so a restored SQLite database opens cleanly instead of replaying a WAL as if the power had been cut.
-- Repository names are cluster-unique: the name *is* the path under `restic-apps/`, and two volumes sharing one would interleave their snapshots and prune each other's history.
-
-### Verifying backups
-
-A weekly drill (`backup-drill`, Sundays 09:00 UTC) restores one repository into a throwaway namespace, rotating through every VolSync volume labelled `homelab.dr/drill` plus the ops node's Forgejo dump (14 today). The target switches between Garage and OVH after each full round, so each repository is checked on each target once every two rounds. It checks the restored data (non-empty, `PRAGMA integrity_check` for SQLite), pushes `homelab_restore_drill_*` to VictoriaMetrics and fires an alert on failure. Two more rules watch the drill itself: stale for over 16 days, or never seen at all.
+Each volume declares `volsync:` in its values; `homelab-common` renders one `ReplicationSource` per target. Restic repository names are cluster-unique (the name is the path under `restic-apps/`). Everything except the immich library uses `copyMethod: Snapshot` (frozen Longhorn snapshot → clone in `longhorn-volsync-clone`); immich uses `Direct`, a full clone does not fit the disks. A weekly `backup-drill` restores one repository into a throwaway namespace, alternating targets, and alerts on failure.
 
 ### Restore
 
@@ -211,42 +200,13 @@ The circular dependency to know about: restic passwords live in OpenBao, and Ope
 
 ## Forgejo-first workflow
 
-Origin is a self-hosted Forgejo instance on the `ops` node, outside the cluster. GitHub is a read-only mirror.
-
-```
-local branch
-   │ push
-   ▼
-Forgejo
-   │ PR: gitleaks, yamllint, helm-lint, kubeconform, argocd-diff
-   ▼
-squash-merge to main
-   │
-   ▼
-filter-repo sanitize + gitleaks on the rewritten history
-   │ push
-   ▼
-GitHub mirror
-```
-
-Direct push to `main` is blocked by branch protection; changes go through a PR. Pre-commit runs gitleaks, yamllint --strict, shellcheck, a filename blocklist and the skill linter. Five Forgejo Actions checks must be green to merge: `gitleaks`, `yamllint`, `helm-lint`, `kubeconform` and `argocd-diff`. `argocd-diff` renders every touched Application with a throwaway ArgoCD and posts the manifest diff as a PR comment; a PR that prunes a resource or changes a CRD also needs the `diff-reviewed` label.
-
-After merge, `mirror-to-github` strips `CLAUDE.md` and `.claude/`, applies `MIRROR_SANITIZE_RULES` (a multiline `<old>==><new>` Forgejo Actions secret), runs gitleaks over the rewritten history and force-pushes to GitHub.
-
-`scripts/forgejo-pr.sh open|merge` wraps the API calls with a per-user token, so squash merges are attributed to the user, not to an admin account.
+Origin is Forgejo on the `ops` node; GitHub is a read-only mirror. `main` is protected: every change is a PR that must pass `gitleaks`, `yamllint`, `helm-lint`, `kubeconform` and `argocd-diff` (renders every touched Application and posts the manifest diff; pruning a resource or changing a CRD also needs the `diff-reviewed` label). After the squash-merge, `mirror-to-github` strips `CLAUDE.md` and `.claude/`, rewrites history with `MIRROR_SANITIZE_RULES`, re-runs gitleaks and force-pushes. `scripts/forgejo-pr.sh` drives the PR with a per-user token, so merges are not attributed to an admin.
 
 ---
 
 ## Provisioning a node
 
-Bare-metal Talos install:
-
-1. Boot the host from a Talos factory ISO (image schematic from `terraform_talos/modules/talos/schematic.yaml`).
-2. Add an entry to `terraform_talos/configs/nodes.yaml` (address, role, install disk, optional NIC MAC).
-3. `terraform -chdir=terraform_talos apply` applies the machine config, joins the cluster, and waits for `talos_cluster_health`.
-4. `kubectl get nodes` to verify. Cilium and Longhorn onboard the new node automatically; the GPU plugin needs the `homelab.example.com/gpu` label in `nodes.yaml`.
-
-Full procedure (including the Talos secrets cascade: any `talos_machine_secrets` mutation invalidates pod SA tokens cluster-wide, and the cilium / CSI / controller rollouts that follow take roughly fifteen minutes) is in the `managing-talos-node` Claude Code skill (private Forgejo origin only).
+Boot the Talos factory ISO (`terraform_talos/modules/talos/schematic.yaml`), add the node to `terraform_talos/configs/nodes.yaml`, run `terraform -chdir=terraform_talos apply`. Any `talos_machine_secrets` change invalidates pod SA tokens cluster-wide: expect ~15 min of rollouts.
 
 ---
 
@@ -254,7 +214,6 @@ Full procedure (including the Talos secrets cascade: any `talos_machine_secrets`
 
 - Cilium checks the Gateway API GVKs it needs at startup. Cilium 1.20 requires the v1 `ReferenceGrant`, `TLSRoute` and `BackendTLSPolicy`, which means Gateway API v1.6.1 or newer from the experimental channel. Downgrading the CRDs deletes the objects stored in them.
 - `ghcr.io/siderolabs/kubelet:<k8s-ver>` lags upstream Kubernetes releases. Do not bump the K8s version on the Talos side until the image is published; `scripts/talos-upgrade.sh check` HEADs the manifest first.
-- Mutating Talos secrets triggers a cluster-wide auth cascade. Cilium agents lose the apiserver, and everything serial-fails `Unauthorized`. Expect roughly fifteen minutes of rollout afterwards.
 - OpenWrt mt76 hardware flow offload breaks Wi-Fi roaming. FT/BTM transitions hang for ~60s under the conntrack timeout. Disable HW offload, keep SW offload.
 - `vmagent`'s default 16 MiB scrape-size limit is too small for kube-apiserver `/metrics`. Raise `maxScrapeSize` to 64 MB; otherwise the target goes down and its series stop arriving.
 - Forgejo Actions runner only emulates the GHES artifact protocol up to v3. Pin `actions/upload-artifact` v3.1.3 and `download-artifact` v3.1.0. v3.2.0 and later use the v4 protocol and fail with `GHESNotSupportedError`.
