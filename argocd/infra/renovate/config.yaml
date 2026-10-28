@@ -1,5 +1,5 @@
 chart: renovate
 repoURL: https://docs.renovatebot.com/helm-charts
-targetRevision: "46.385.4"
+targetRevision: "46.388.0"
 wave: "2"
 extraManifests: true
