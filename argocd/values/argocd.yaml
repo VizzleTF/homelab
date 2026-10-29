@@ -28,6 +28,8 @@ configs:
       # whichever instance answers.
       git.example.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCmYbWoHzeQjI+yW8iYcTTidXVSCIMtx4lUsY5rd5U69MK9M4gnIK4ytLNNnRm45iFX9NdUCl7wF6+7A9Yj+7XDL/6qHk7KzlgBBZkff68Md7aA2m0rZwoPTSsY9AiOdJup039ilFAEputUTxJ1qrLK9yF4kZNuClCgvLe6o5mL6yUcltBowDkvMyRh69xlbMR9ZHb/5tLmgBb8hVRCB5UghqnFiGjFZ6g9XoyEFXzOdBkC7my2I6COq0epADkRfEE28pLrBpASSKjKE8q4iZFhBnDZKvAcKopvOQG0+49aX/sqlqvxPXH5u7GttQFNDDOcUG6Ip/A7Um5P2EtohXFrPo4WbCKQE7atpctBsTpssDGVRV6+dHUtK3TUc4+aFfyh7RTp68t/QU3zAFkhAalTBcTVOsMkO96GM04QC3ppoWnKQqf9GOpirhTQNNoGmXEUkVRVmqPAtO/JSNmmtz9itGVQMf2omJIJXzhHprkglaK3Wc4Fa8/H9CQkIreyw05XCY/J+c4ZMGkKyJcLJa2zaKc9I0JyrF6AHLqhdsFi9DM/ptD2/0h3/O8xBjSUCZmnOTnkZdKqrvdlbSdf1aTHRhk1VP4bsd1yJpgDydjHTHk3xo74Zo7gWaTmmE/SaTGLy+0cg/oLLo/AKTahb6VvfoNykSwPQ5l663+bPWgiPw==
       git.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeIktqiiqI/CPq562yq7ikPn7pXJ20yO9S3N7iyooCP
+      git.example.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCmYbWoHzeQjI+yW8iYcTTidXVSCIMtx4lUsY5rd5U69MK9M4gnIK4ytLNNnRm45iFX9NdUCl7wF6+7A9Yj+7XDL/6qHk7KzlgBBZkff68Md7aA2m0rZwoPTSsY9AiOdJup039ilFAEputUTxJ1qrLK9yF4kZNuClCgvLe6o5mL6yUcltBowDkvMyRh69xlbMR9ZHb/5tLmgBb8hVRCB5UghqnFiGjFZ6g9XoyEFXzOdBkC7my2I6COq0epADkRfEE28pLrBpASSKjKE8q4iZFhBnDZKvAcKopvOQG0+49aX/sqlqvxPXH5u7GttQFNDDOcUG6Ip/A7Um5P2EtohXFrPo4WbCKQE7atpctBsTpssDGVRV6+dHUtK3TUc4+aFfyh7RTp68t/QU3zAFkhAalTBcTVOsMkO96GM04QC3ppoWnKQqf9GOpirhTQNNoGmXEUkVRVmqPAtO/JSNmmtz9itGVQMf2omJIJXzhHprkglaK3Wc4Fa8/H9CQkIreyw05XCY/J+c4ZMGkKyJcLJa2zaKc9I0JyrF6AHLqhdsFi9DM/ptD2/0h3/O8xBjSUCZmnOTnkZdKqrvdlbSdf1aTHRhk1VP4bsd1yJpgDydjHTHk3xo74Zo7gWaTmmE/SaTGLy+0cg/oLLo/AKTahb6VvfoNykSwPQ5l663+bPWgiPw==
+      git.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeIktqiiqI/CPq562yq7ikPn7pXJ20yO9S3N7iyooCP
   params:
     # Default unlimited, 100-500 MiB per generation. Raise to 4 if
     # argocd_repo_pending_request_total stays high.
@@ -266,6 +268,18 @@ homelab-common:
     # (per-project repo Secrets each needed a copy). git.example.com is the ops
     # node (obsidian/111 Memory/Ops Node.md). Public OCI chart repos need none.
     - name: argocd-repo-creds-forgejo
+      vaultPath: argocd/repo-ssh-forgejo
+      templateMetadata:
+        labels:
+          argocd.argoproj.io/secret-type: repo-creds
+      templateData:
+        url: "ssh://git@git.example.com:22/vizzle"
+        type: git
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+      data:
+        - secretKey: sshPrivateKey
+          property: sshPrivateKey
+    - name: argocd-repo-creds-forgejo-example
       vaultPath: argocd/repo-ssh-forgejo
       templateMetadata:
         labels:
