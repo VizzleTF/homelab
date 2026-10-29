@@ -7,7 +7,7 @@ source "$(dirname "$0")/../lib/common.sh"
 
 require_kubectl
 
-GW_API_VERSION="$(chart_version standalone/gateway-api.yaml .spec.source.targetRevision)"
+GW_API_VERSION="$(chart_version standalone/gateway-api.yaml '.spec.sources[] | select(.path == "config/crd/experimental") | .targetRevision')"
 
 log_info "applying Gateway API experimental CRDs ($GW_API_VERSION)"
 kubectl apply --server-side --force-conflicts \
