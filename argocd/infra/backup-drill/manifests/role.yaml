@@ -1,0 +1,54 @@
+# ConfigMap restore-drill-state: the drills write it, restore-drill-metrics reads it.
+# create cannot be limited by resourceNames.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-drill-state
+  namespace: backup-drill
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["restore-drill-state"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-drill-state
+  namespace: backup-drill
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-drill-state
+subjects:
+  - kind: ServiceAccount
+    name: backup-drill
+    namespace: backup-drill
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-drill-state-read
+  namespace: backup-drill
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["restore-drill-state"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-drill-state-read
+  namespace: backup-drill
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-drill-state-read
+subjects:
+  - kind: ServiceAccount
+    name: backup-drill-metrics
+    namespace: backup-drill

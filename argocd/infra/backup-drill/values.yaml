@@ -87,6 +87,53 @@ homelab-common:
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
 
+  # Shared by the three CronJobs, mounted at /etc/drill. Results live in ConfigMap
+  # restore-drill-state (created by the first run, not by ArgoCD), one key per
+  # <drill>.<app>.<target>. vmsingle keeps 7d while a pair is retested every ~28
+  # weeks, so the state is re-pushed with the current time; the values carry the
+  # real run time, which the VMRule compares.
+  configMaps:
+    - name: lib                     # -> ConfigMap backup-drill-lib
+      data:
+        drill-state.sh: |
+          STATE_NS=backup-drill
+          STATE_CM=restore-drill-state
+
+          # state_save drill app target ok timestamp duration
+          state_save() {
+            kubectl -n "$STATE_NS" get configmap "$STATE_CM" >/dev/null 2>&1 \
+              || kubectl -n "$STATE_NS" create configmap "$STATE_CM" >/dev/null
+            patch=$(jq -nc --arg drill "$1" --arg app "$2" --arg target "$3" \
+              --argjson ok "$4" --argjson ts "$5" --argjson dur "$6" \
+              '{data: {"\($drill).\($app).\($target)": ({drill: $drill, app: $app, target: $target,
+                success: $ok, timestamp: $ts, duration_seconds: $dur} | tojson)}}')
+            kubectl -n "$STATE_NS" patch configmap "$STATE_CM" --type merge -p "$patch" >/dev/null
+          }
+
+          # state_prune drill app...: drop the drill's pairs whose app left the rotation
+          state_prune() {
+            d=$1; shift
+            patch=$(kubectl -n "$STATE_NS" get configmap "$STATE_CM" -o json | jq -c --arg d "$d" --arg apps "$*" '
+              ($apps | split(" ")) as $keep
+              | {data: (.data // {} | with_entries(select((.value | fromjson) as $v
+                  | $v.drill == $d and ($keep | index([$v.app]) == null)) | .value = null))}')
+            [ "$patch" = '{"data":{}}' ] || kubectl -n "$STATE_NS" patch configmap "$STATE_CM" --type merge -p "$patch" >/dev/null
+          }
+
+          # state_push: every stored pair, stamped with the current time by VictoriaMetrics
+          state_push() {
+            state=$(kubectl -n "$STATE_NS" get configmap "$STATE_CM" --ignore-not-found -o json)
+            [ -n "$state" ] || { echo "no drill state yet"; return 0; }
+            echo "$state" | jq -r '.data // {} | .[] | fromjson
+              | "app=\"\(.app)\",target=\"\(.target)\"\(if .drill == "core" then ",drill=\"core\"" else "" end)" as $l
+              | "homelab_restore_drill_success{\($l)} \(.success)",
+                "homelab_restore_drill_timestamp{\($l)} \(.timestamp)",
+                "homelab_restore_drill_duration_seconds{\($l)} \(.duration_seconds)"' > /tmp/state.prom
+            [ -s /tmp/state.prom ] || return 0
+            curl -sf -X POST --data-binary @/tmp/state.prom "$VM_URL/api/v1/import/prometheus"
+            echo "pushed $(( $(wc -l < /tmp/state.prom) / 3 )) drill pairs"
+          }
+
   rbac:
     - serviceAccount:
         name: backup-drill
@@ -121,6 +168,10 @@ homelab-common:
           - apiGroups: ["barmancloud.cnpg.io"]
             resources: ["objectstores"]
             verbs: ["get", "create"]
+    # restore-drill-metrics reads the state only (Role in manifests/role.yaml)
+    - serviceAccount:
+        name: backup-drill-metrics
+        create: true
 
   workloads:
     - name: restore-drill           # -> CronJob backup-drill-restore-drill
@@ -144,6 +195,8 @@ homelab-common:
           runAsGroup: 65532
           seccompProfile:
             type: RuntimeDefault
+      persistence:
+        lib: {configMap: {name: backup-drill-lib}, mountPath: /etc/drill, readOnly: true}
       containers:
         - name: drill
           image:
@@ -190,6 +243,7 @@ homelab-common:
           args:
             - |
               set -eu
+              . /etc/drill/drill-state.sh
 
               # One app per week; target flips per full round (plain week parity pins every
               # app to one target when COUNT is even). Epoch weeks: ISO weeks reset in January.
@@ -204,10 +258,14 @@ homelab-common:
               i=0
               for a in $APPS; do [ $i -eq $IDX ] && APP="$a" && break; i=$((i+1)); done
               if [ $(( WEEK / COUNT % 2 )) -eq 0 ]; then TARGET=garage; else TARGET=ovh; fi
+              # Manual retest of one pair (clears a held RestoreDrillFailed): set both in the Job
+              if [ -n "${DRILL_APP:-}" ]; then APP=$DRILL_APP; TARGET=${DRILL_TARGET:?set DRILL_TARGET too}; fi
+              case " $* " in *" $APP "*) ;; *) echo "app $APP is not in the rotation: $*"; exit 1 ;; esac
 
               case "$TARGET" in
                 garage) REPO_URL="s3:https://s3.example.com/restic-apps/$APP"; AK="$GARAGE_AK"; SK="$GARAGE_SK"; PW="$PW_GARAGE" ;;
                 ovh)    REPO_URL="s3:https://s3.de.io.cloud.ovh.net/offsite-homelab/restic-apps/$APP"; AK="$OVH_AK"; SK="$OVH_SK"; PW="$PW_OVH" ;;
+                *)      echo "unknown target $TARGET"; exit 1 ;;
               esac
 
               NS="drill-$APP"
@@ -219,9 +277,6 @@ homelab-common:
               report() {
                 ok="$1"; detail="$2"
                 now=$(date -u +%s); dur=$((now - START))
-                printf 'homelab_restore_drill_success{app="%s",target="%s"} %s\nhomelab_restore_drill_timestamp{app="%s",target="%s"} %s\nhomelab_restore_drill_duration_seconds{app="%s",target="%s"} %s\n' \
-                  "$APP" "$TARGET" "$ok" "$APP" "$TARGET" "$now" "$APP" "$TARGET" "$dur" \
-                  | curl -sf -X POST --data-binary @- "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
 
                 # No endsAt: BusyBox date silently turns "-d '+10 minutes'" into "now" and
                 # the alert arrives resolved. Alertmanager closes it after resolve_timeout.
@@ -237,6 +292,11 @@ homelab-common:
               }]
               JSON
                 echo "reported: ok=$ok $detail"
+
+                # A lost result fails the Job (errexit) instead of passing silently
+                state_save volume "$APP" "$TARGET" "$ok" "$now" "$dur"
+                state_prune volume $APPS
+                state_push || echo "WARN: metric push failed"
               }
 
               trap 'cleanup' EXIT
@@ -350,6 +410,8 @@ homelab-common:
           runAsGroup: 65532
           seccompProfile:
             type: RuntimeDefault
+      persistence:
+        lib: {configMap: {name: backup-drill-lib}, mountPath: /etc/drill, readOnly: true}
       containers:
         - name: drill
           image:
@@ -393,6 +455,7 @@ homelab-common:
           args:
             - |
               set -eu
+              . /etc/drill/drill-state.sh
 
               START=$(date -u +%s)
               WEEK=$(( START / 604800 ))
@@ -410,9 +473,12 @@ homelab-common:
               report() {   # app target ok detail duration
                 now=$(date -u +%s)
                 detail=$(printf '%s' "$4" | tr -d '"\\' | tr '\n' ' ' | cut -c1-400)
-                printf 'homelab_restore_drill_success{app="%s",target="%s",drill="core"} %s\nhomelab_restore_drill_timestamp{app="%s",target="%s",drill="core"} %s\nhomelab_restore_drill_duration_seconds{app="%s",target="%s",drill="core"} %s\n' \
-                  "$1" "$2" "$3" "$1" "$2" "$now" "$1" "$2" "$5" \
-                  | curl -sf -X POST --data-binary @- "$VM_URL/api/v1/import/prometheus" || echo "WARN: metric push failed"
+                # A lost result fails the Job at the end; the other drills still run
+                if state_save core "$1" "$2" "$3" "$now" "$5"; then
+                  state_push || echo "WARN: metric push failed"
+                else
+                  echo "ERROR: state save failed for $1"; FAILED="$FAILED $1-state"
+                fi
                 # No endsAt: see restore-drill.
                 if [ "$3" = "1" ]; then name=RestoreDrillSucceeded; sev=info; else name=RestoreDrillFailed; sev=critical; fi
                 cat <<JSON | curl -sf -X POST -H 'Content-Type: application/json' --data-binary @- "$AM_URL/api/v2/alerts" >/dev/null || echo "WARN: alert push failed"
@@ -714,3 +780,49 @@ homelab-common:
 
               [ -z "$FAILED" ] || { echo "FAILED:$FAILED"; exit 1; }
               echo "all core drills passed"
+
+    # Daily re-push of restore-drill-state: vmsingle keeps 7d, the drills report weekly
+    # per pair, and RestoreDrillStale needs the series alive to compare stored times.
+    - name: restore-drill-metrics   # -> CronJob backup-drill-restore-drill-metrics
+      type: cronjob
+      schedule: "30 8 * * *"
+      job:
+        backoffLimit: 1
+        activeDeadlineSeconds: 300
+      pod:
+        restartPolicy: Never
+        serviceAccountName: backup-drill-metrics
+        automountServiceAccountToken: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+      persistence:
+        lib: {configMap: {name: backup-drill-lib}, mountPath: /etc/drill, readOnly: true}
+      containers:
+        - name: push
+          image:
+            repository: alpine/k8s
+            tag: "1.37.1"
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: VM_URL
+              value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          args:
+            - |
+              set -eu
+              . /etc/drill/drill-state.sh
+              state_push

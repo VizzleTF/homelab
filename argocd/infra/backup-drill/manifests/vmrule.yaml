@@ -1,5 +1,8 @@
-# Metrics are pushed once a week and an instant query sees only 5 minutes back:
-# keep the [30d] *_over_time wrappers, or `== 0` never fires and absent() fires daily.
+# The drills keep each {app,target} result in ConfigMap backup-drill/restore-drill-state;
+# restore-drill-metrics re-pushes all of it daily (vmsingle keeps 7d), the drills on
+# every run. Values carry the stored run time, so Stale compares it, not sample age.
+# An instant query sees only 5 minutes back: keep the [8d] last_over_time wrappers,
+# they bridge missed daily pushes up to the weekly drill push.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMRule
 metadata:
@@ -9,9 +12,10 @@ spec:
   groups:
     - name: backup-drill
       rules:
-        # Holds the failure until a successful restore; the CronJob's push alert expires
+        # The stored result holds the failure until the pair restores successfully
+        # (next round, ~28 weeks, or a manual retest); the CronJob's push alert expires.
         - alert: RestoreDrillFailed
-          expr: last_over_time(homelab_restore_drill_success[30d]) == 0
+          expr: last_over_time(homelab_restore_drill_success[8d]) == 0
           for: 5m
           labels:
             severity: critical
@@ -20,19 +24,20 @@ spec:
             description: |
               Том не восстановился или восстановился пустым. Это значит, что
               копия в {{ $labels.target }} непригодна — не «джоба упала».
+              Алерт держится до успешной перепроверки этой пары.
               kubectl -n backup-drill logs job/<последний>
               kubectl get replicationsource -A | grep {{ $labels.app }}
 
         - alert: RestoreDrillStale
           # Freshest run of any volume: each volume is checked once per round.
           # drill="core" runs weekly and would hide a stopped volume drill.
-          expr: time() - max(max_over_time(homelab_restore_drill_timestamp{drill!="core"}[30d])) > 16 * 24 * 3600
+          expr: time() - max(last_over_time(homelab_restore_drill_timestamp{drill!="core"}[8d])) > 16 * 24 * 3600
           labels:
             severity: critical
           annotations:
             summary: "Проверка восстановления не запускалась больше двух недель"
             description: |
-              Последний успешный restore drill старше 16 дней — расписание
+              Последний restore drill старше 16 дней — расписание
               сломано, CronJob suspend'нут или задание не доходит до отчёта.
               Бэкапы снова стали предположением.
               kubectl -n backup-drill get cronjob,job
@@ -40,25 +45,27 @@ spec:
 
         # Per app: openbao and etcd run weekly, each CNPG cluster every other week.
         - alert: RestoreDrillCoreStale
-          expr: time() - max by (app) (max_over_time(homelab_restore_drill_timestamp{drill="core"}[30d])) > 16 * 24 * 3600
+          expr: time() - max by (app) (last_over_time(homelab_restore_drill_timestamp{drill="core"}[8d])) > 16 * 24 * 3600
           labels:
             severity: critical
           annotations:
             summary: "Проверка восстановления {{ $labels.app }} не запускалась больше двух недель"
             description: |
               restore-drill-core не дошёл до отчёта по {{ $labels.app }}: CronJob
-              suspend'нут, падает до проверки или не может опубликовать метрику.
+              suspend'нут, падает до проверки или не может сохранить результат.
               kubectl -n backup-drill get cronjob,job
               kubectl -n backup-drill logs job/<последний restore-drill-core>
 
+        # Also the bootstrap state: an empty restore-drill-state pushes nothing.
         - alert: RestoreDrillNeverRan
-          expr: absent(max_over_time(homelab_restore_drill_timestamp[30d])) == 1
+          expr: absent(last_over_time(homelab_restore_drill_timestamp[8d])) == 1
           for: 24h
           labels:
             severity: warning
           annotations:
             summary: "Нет ни одной метрики restore drill"
             description: |
-              В VictoriaMetrics нет homelab_restore_drill_timestamp: либо drill
-              ещё ни разу не отработал, либо не может опубликовать метрику.
-              Проверить: kubectl -n backup-drill get job
+              В VictoriaMetrics нет homelab_restore_drill_timestamp за 8 дней:
+              drill ещё ни разу не отработал (ConfigMap restore-drill-state пуст)
+              или ни drill, ни restore-drill-metrics не могут опубликовать метрику.
+              Проверить: kubectl -n backup-drill get cronjob,job,cm
