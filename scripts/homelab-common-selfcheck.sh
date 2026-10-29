@@ -59,6 +59,16 @@ must_fail "volsync repo paths without the backup grant" <<'Y'
 homelab-common: {volsync: [{name: d, targets: [{repo: garage, schedule: "0 1 * * *"}]}]}
 Y
 
+# naming: exact or -<name> suffix collapses to the release, a substring does not
+helm template openwrt-backup "$C" --namespace t -f "$G" -f - > "$out_dir/names.yaml" 2>&1 <<'Y' || { echo "FAIL: naming render"; cat "$out_dir/names.yaml"; exit 1; }
+homelab-common:
+  workloads:
+    - {name: openwrt, containers: [{name: a, image: {repository: x, tag: "1"}}]}
+    - {name: backup, containers: [{name: a, image: {repository: x, tag: "1"}}]}
+  configMaps:
+    - {name: openwrt-backup, data: {a: b}}
+Y
+
 # limitRange defaults: null = requests-only
 tpl > "$out_dir/lr.yaml" <<'Y' || { echo "FAIL: limitRange render"; cat "$out_dir/lr.yaml"; exit 1; }
 homelab-common: {limitRange: {enabled: true, defaults: null}}
@@ -88,6 +98,7 @@ homelab-common:
         data: {claim: t-data, mountPath: /data, containers: [side]}
     - name: api                     # defaults: Recreate on RWO, reloader, legacy selector
       legacySelector: {app: api}
+      labels: {tier: backend}
       containers:
         - name: api
           image: {repository: ghcr.io/x/api, tag: "2.0"}
@@ -112,9 +123,10 @@ homelab-common:
   limitRange: {enabled: true}
 Y
 
-python3 - "$out_dir/render.yaml" "$out_dir/lr.yaml" <<'P' || fail=1
+python3 - "$out_dir/render.yaml" "$out_dir/lr.yaml" "$out_dir/names.yaml" <<'P' || fail=1
 import sys, yaml
 docs = {(d['kind'], d['metadata']['name']): d for d in yaml.safe_load_all(open(sys.argv[1])) if d}
+names = {(d['kind'], d['metadata']['name']) for d in yaml.safe_load_all(open(sys.argv[3])) if d}
 lr_only_req = next(d for d in yaml.safe_load_all(open(sys.argv[2])) if d and d['kind'] == 'LimitRange')['spec']['limits'][0]
 web, api, cj = docs[('Deployment', 't-web')], docs[('Deployment', 't-api')], docs[('CronJob', 't-job')]
 p, a = web['spec']['template']['spec'], api['spec']['template']['spec']
@@ -130,6 +142,8 @@ checks = {
   'persistence only into listed container': 'volumeMounts' not in p['containers'][0] and p['containers'][1]['volumeMounts'][0]['mountPath'] == '/data',
   'auto selector name+instance': web['spec']['selector']['matchLabels'] == {'app.kubernetes.io/name': 't-web', 'app.kubernetes.io/instance': 't'},
   'standard labels on metadata': web['metadata']['labels'] == std,
+  'workload labels on its Service': docs[('Service', 't-api')]['metadata']['labels'].get('tier') == 'backend' and api['metadata']['labels'].get('tier') == 'backend',
+  'name substring of release does not collapse': {('Deployment', 'openwrt-backup-openwrt'), ('Deployment', 'openwrt-backup'), ('ConfigMap', 'openwrt-backup')} <= names,
   'service generated from ports': docs[('Service', 't-web')]['spec']['ports'] == [{'name': 'http', 'port': 80, 'targetPort': 'http'}],
   'legacy selector on Deployment and Service': api['spec']['selector']['matchLabels'] == {'app': 'api'} and docs[('Service', 't-api')]['spec']['selector'] == {'app': 'api'},
   'pod template carries legacy + standard labels': a and api['spec']['template']['metadata']['labels']['app'] == 'api' and api['spec']['template']['metadata']['labels']['app.kubernetes.io/name'] == 't-api',

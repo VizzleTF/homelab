@@ -95,7 +95,7 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-{{ include "homelab-common.metadata" (dict "name" $name "app" $name "root" $) }}
+{{ include "homelab-common.metadata" (dict "name" $name "app" $name "root" $ "meta" (dict "labels" $w.labels)) }}
 spec:
   {{- toYaml $svc | nindent 2 }}
 {{- end }}

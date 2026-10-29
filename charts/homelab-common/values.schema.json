@@ -350,7 +350,7 @@
       "additionalProperties": false,
       "required": ["name", "containers"],
       "properties": {
-        "name": { "type": "string", "description": "Item name; the object is <release>-<name>, or <release> when the release name contains it." },
+        "name": { "type": "string", "description": "Item name; the object is <release>-<name>, or <release> when the release name equals it or ends with -<name>." },
         "fullnameOverride": { "type": "string", "description": "Exact object name instead of the naming rule." },
         "type": { "type": "string", "enum": ["deployment", "cronjob"], "description": "Controller kind; default deployment." },
         "labels": { "$ref": "#/$defs/StringMap", "description": "Extra labels on the controller and its Service; they win over the standard ones." },

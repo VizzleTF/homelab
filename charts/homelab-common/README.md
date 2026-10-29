@@ -58,8 +58,8 @@ checked.
 
 Pod (`pod:`) and container bodies are native Kubernetes fields. The chart adds:
 
-- names: `fullnameOverride`, else the release name when it contains `name`,
-  else `<release>-<name>` (same rule for `configMaps` and `secrets`);
+- names: `fullnameOverride`, else the release name when it equals `name` or
+  ends with `-<name>`, else `<release>-<name>` (same rule for `configMaps` and `secrets`);
 - labels `app.kubernetes.io/{name,instance,managed-by}` on every object, and
   the selector `app.kubernetes.io/{name,instance}` (`legacySelector` keeps the
   immutable selector of a Deployment created before 1.19);

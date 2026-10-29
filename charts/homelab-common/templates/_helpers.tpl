@@ -1,6 +1,8 @@
 {{/*
 Resource name of a workloads[]/configMaps[]/secrets[] item:
-the release name when it already contains the item name, else <release>-<name>.
+the release name when it equals the item name or ends with -<name>, else
+<release>-<name>. No substring match: workloads openwrt and backup of release
+openwrt-backup must not collapse into one object.
 */}}
 {{- define "homelab-common.app.fullname" -}}
 {{- $a := .app }}
@@ -9,7 +11,7 @@ the release name when it already contains the item name, else <release>-<name>.
 {{- $a.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
 {{- $name := $a.name | default "app" }}
-{{- if contains $name $root.Release.Name }}
+{{- if or (eq $name $root.Release.Name) (hasSuffix (printf "-%s" $name) $root.Release.Name) }}
 {{- $root.Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
 {{- printf "%s-%s" $root.Release.Name $name | trunc 63 | trimSuffix "-" }}
