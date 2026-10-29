@@ -753,6 +753,7 @@ homelab-common:
               disable_mlock = true
               HCL
               bao server -config=/tmp/cfg.hcl >/tmp/server.log 2>&1 &
+              pid=$!
               export BAO_ADDR=http://127.0.0.1:8200
               st() { rc=0; bao status -format=json >/tmp/st.json 2>/dev/null || rc=$?; echo "$rc"; }   # 0 unsealed, 2 sealed, 1 error
               i=0
@@ -771,6 +772,13 @@ homelab-common:
               i=0
               until [ "$(st)" = 2 ]; do
                 i=$((i + 1)); [ "$i" -le 60 ] || { echo NOT_SEALED_AFTER_RESTORE; tail -5 /tmp/server.log; exit 1; }; sleep 1
+              done
+              # bao 2.7 keeps reporting the drill's own seal config until restart: reload it from storage.
+              kill "$pid"; wait "$pid" || true
+              bao server -config=/tmp/cfg.hcl >>/tmp/server.log 2>&1 &
+              i=0
+              until [ "$(st)" = 2 ]; do
+                i=$((i + 1)); [ "$i" -le 60 ] || { echo NOT_SEALED_AFTER_RESTART; tail -5 /tmp/server.log; exit 1; }; sleep 1
               done
               n=$(sed -n 's/.*"n": *\([0-9]*\).*/\1/p' /tmp/st.json)
               echo "SEAL_SHARES=${n:-0}"
