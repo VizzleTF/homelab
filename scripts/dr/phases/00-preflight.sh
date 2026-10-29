@@ -49,7 +49,7 @@ keys=$(jq -r '.unseal_keys_b64 | length' "$tmp")
 [[ "$keys" = "3" ]] || die "Shamir bundle has $keys keys, expected 3"
 log_ok "Shamir bundle valid (3 unseal keys + root token)"
 
-size=$(stat -c '%s' "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
+size=$(file_size "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
 [[ "$size" -gt 1024 ]] || die "Raft snapshot suspiciously small: ${size} bytes"
 log_ok "Raft snapshot present (${size} bytes)"
 

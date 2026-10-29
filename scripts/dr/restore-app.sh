@@ -25,15 +25,23 @@ source "$(dirname "$0")/lib/volsync-restore.sh"
 
 # Claims created by an upstream chart's volumeClaimTemplate are not in
 # persistentVolumeClaims[]; their size comes from that chart's values.
-declare -A VCT_SIZE=(
-  [database-storage-obsidian-livesync-couchdb-0]=5Gi   # obsidian-livesync persistentVolume.size
-  [wazuh-data-wazuh-manager-master-0]=20Gi             # wazuh cluster.spec.manager.master.storageSize
-)
+# case, not declare -A: macOS ships bash 3.2.
+vct_size() {
+  case "$1" in
+    database-storage-obsidian-livesync-couchdb-0) echo 5Gi ;;  # obsidian-livesync persistentVolume.size
+    wazuh-data-wazuh-manager-master-0) echo 20Gi ;;            # wazuh cluster.spec.manager.master.storageSize
+  esac
+}
 # Old keys of the hand-written table, for existing runbooks.
-declare -A ALIAS=(
-  [rsstt]=rss-to-telegram-bot [immich]=immich-library
-  [opencloud]=opencloud-data [trek]=trek-uploads
-)
+alias_of() {
+  case "$1" in
+    rsstt) echo rss-to-telegram-bot ;;
+    immich) echo immich-library ;;
+    opencloud) echo opencloud-data ;;
+    trek) echo trek-uploads ;;
+    *) echo "$1" ;;
+  esac
+}
 
 # Print "name|namespace|claim|size|accessMode|cache" for every volsync entry.
 volume_table() {
@@ -50,19 +58,22 @@ volume_table() {
          (.accessMode // ($pvc.accessModes // [])[0] // "ReadWriteOnce"),
          (.cacheCapacity // "2Gi")] | join("|")'
   done | while IFS='|' read -r name ns claim size mode cache; do
-    [[ -n $size ]] || size=${VCT_SIZE[$claim]:-}
+    [[ -n $size ]] || size=$(vct_size "$claim")
     echo "$name|$ns|$claim|$size|$mode|$cache"
   done
 }
 
 if [[ "${1:-}" == --list ]]; then
-  volume_table | column -t -s'|' -N NAME,NAMESPACE,PVC,SIZE,MODE,CACHE
+  # No `column -N` (util-linux only); "-" keeps an empty field from collapsing a column.
+  { echo "NAME|NAMESPACE|PVC|SIZE|MODE|CACHE"; volume_table; } \
+    | awk -F'|' -v OFS='|' '{ for (i = 1; i <= NF; i++) if ($i == "") $i = "-"; print }' \
+    | column -t -s'|'
   exit 0
 fi
 
 APP="${1:-}"
 [[ -n "$APP" ]] || die "usage: $0 <volsync-name> | --list | <name> <repo> <pvc> <size> [mode] [uid]"
-APP=${ALIAS[$APP]:-$APP}
+APP=$(alias_of "$APP")
 
 if [[ -n "${2:-}" ]]; then
   REPO="$2"; PVC="${3:?pvc required}"; SIZE="${4:?size required}"

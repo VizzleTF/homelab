@@ -64,6 +64,10 @@ load_bootstrap_env() {
   set +a
 }
 
+# Size in bytes and mtime in epoch seconds, on GNU (Linux) and BSD (macOS) userland.
+file_size()  { wc -c < "$1" | tr -d ' '; }
+file_mtime() { stat -c '%Y' "$1" 2>/dev/null || stat -f '%m' "$1"; }
+
 require_kubectl() {
   kubectl cluster-info --request-timeout=5s >/dev/null 2>&1 \
     || die "kubectl not configured / cluster unreachable. Set KUBECONFIG."

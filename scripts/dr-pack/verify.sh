@@ -72,8 +72,8 @@ if [[ -f "$DR_PACK_DIR/01-bootstrap.env" ]]; then
 fi
 
 if [[ -f "$DR_PACK_DIR/02-vault-raft-snapshot.snap" ]]; then
-  size=$(stat -c '%s' "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
-  age_days=$(( ( $(date +%s) - $(stat -c '%Y' "$DR_PACK_DIR/02-vault-raft-snapshot.snap") ) / 86400 ))
+  size=$(file_size "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
+  age_days=$(( ( $(date +%s) - $(file_mtime "$DR_PACK_DIR/02-vault-raft-snapshot.snap") ) / 86400 ))
   check "raft snapshot >1KB"        "[ '$size' -gt 1024 ]"
   check "raft snapshot <7 days old" "[ '$age_days' -lt 7 ]"
 fi

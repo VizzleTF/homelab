@@ -96,7 +96,7 @@ kubectl -n openbao exec openbao-0 -- env \
 kubectl -n openbao cp openbao/openbao-0:/tmp/raft.snap "$DR_PACK_DIR/02-vault-raft-snapshot.snap"
 kubectl -n openbao exec openbao-0 -- rm /tmp/raft.snap >/dev/null
 chmod 600 "$DR_PACK_DIR/02-vault-raft-snapshot.snap"
-SNAP_SIZE=$(stat -c '%s' "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
+SNAP_SIZE=$(file_size "$DR_PACK_DIR/02-vault-raft-snapshot.snap")
 log_ok "wrote 02-vault-raft-snapshot.snap (${SNAP_SIZE} bytes)"
 
 # --- 03 cluster topology ----------------------------------------------------
