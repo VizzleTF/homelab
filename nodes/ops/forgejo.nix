@@ -14,6 +14,8 @@
     acceptTerms = true;
     defaults.email = "vizzle@example.com";
     certs."git.example.com" = {
+      # Old name kept until ArgoCD and every remote use git.example.com (docs/domain-example-dev.md).
+      extraDomainNames = [ "git.example.com" ];
       dnsProvider = "cloudflare";
       # CF_DNS_API_TOKEN (same as cert-manager), mode 0600, outside git.
       environmentFile = "/var/lib/secrets/cloudflare-dns.env";
