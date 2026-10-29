@@ -33,8 +33,9 @@ spec:
               kubectl -n victoria-logs logs ds/victoria-logs-vector --tail=100
 
         - alert: VictoriaLogsDiskUsageHigh
+          # Filesystem fill of the storage volume: same label set on both series, unlike vl_data_size_bytes (type=) vs free (path=).
           expr: |
-            vl_data_size_bytes / vl_free_disk_space_bytes > 0.8
+            1 - vl_free_disk_space_bytes{path="/storage"} / vl_total_disk_space_bytes{path="/storage"} > 0.8
           for: 10m
           labels:
             severity: warning
@@ -45,7 +46,7 @@ spec:
               Опции: увеличить PVC, снизить retentionPeriod (сейчас 7d), сузить
               retentionDiskSpaceUsage (сейчас 9GiB).
 
-        # Без VictoriaLogsRowsDropped: каскад DiskUsageHigh/Down (Alert Cleanup.md #24).
+        # No VictoriaLogsRowsDropped: cascades from DiskUsageHigh/Down (Alert Cleanup.md #24).
 
         - alert: VectorDown
           expr: absent(up{job=~".*vector.*"}) == 1 or up{job=~".*vector.*"} == 0
@@ -60,4 +61,4 @@ spec:
               kubectl -n victoria-logs get ds
               kubectl -n victoria-logs logs ds/victoria-logs-vector --tail=100
 
-        # Без VectorSinkErrors: каскад VictoriaLogsDown (Alert Cleanup.md #36).
+        # No VectorSinkErrors: cascades from VictoriaLogsDown (Alert Cleanup.md #36).
