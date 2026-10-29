@@ -61,7 +61,7 @@ if [[ -f "$DR_PACK_DIR/01-bootstrap.env" ]]; then
   fi
   # Without the restic passwords the pack is useless (OpenBao, their home, is
   # restored from a backup they encrypt): check them explicitly, not just MISSING.
-  for k in RESTIC_PASSWORD_GARAGE RESTIC_PASSWORD_OVH GARAGE_RESTIC_ACCESS_KEY OVH_S3_ACCESS_KEY; do
+  for k in RESTIC_PASSWORD_GARAGE RESTIC_PASSWORD_OVH GARAGE_RESTIC_ACCESS_KEY OVH_S3_ACCESS_KEY OVH_CRYPT_PASSWORD OVH_CRYPT_PASSWORD2; do
     if grep -qE "^${k}=.+" "$DR_PACK_DIR/01-bootstrap.env"; then
       log_ok "01-bootstrap.env carries $k"
     else
@@ -82,7 +82,8 @@ fi
 # not one: it equals the vault master password (~/.zshrc GPG_PASSPHRASE=$BW_PASSWORD).
 VW_ITEMS='08 - Restic repo passwords (backup v2)
 09 - S3 keys backup v2 (restic-apps, snapshots, OVH)
-11 - Forgejo instance secrets'
+11 - Forgejo instance secrets
+12 - OVH rclone crypt (snapshots, tfstate)'
 
 vw_client=""
 if command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then

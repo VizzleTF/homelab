@@ -45,7 +45,7 @@ chmod 600 "$DR_PACK_DIR/00-shamir.json.gpg"
 log_ok "wrote 00-shamir.json.gpg"
 
 # --- 01 bootstrap env ------------------------------------------------------
-log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
+log_info "writing 01-bootstrap.env (CF + Garage + OVH + OVH crypt + OpenWrt)"
 {
   echo "# Refreshed: $(date -Iseconds)"
   # Phases 03/04 need the Cloudflare token. Read from the cluster: the
@@ -71,6 +71,9 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
   echo "GARAGE_SNAPSHOTS_SECRET=$(sn RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY)"
   echo "OVH_S3_ACCESS_KEY=$(sn RCLONE_CONFIG_OVH_ACCESS_KEY_ID)"
   echo "OVH_S3_SECRET_KEY=$(sn RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY)"
+  # rclone crypt key of the OVH snapshot and tfstate copies (rclone-obscured).
+  echo "OVH_CRYPT_PASSWORD=$(sn RCLONE_CONFIG_OVHCRYPT_PASSWORD)"
+  echo "OVH_CRYPT_PASSWORD2=$(sn RCLONE_CONFIG_OVHCRYPT_PASSWORD2)"
 
   echo "GARAGE_RESTIC_ACCESS_KEY=$(rs garage AWS_ACCESS_KEY_ID)"
   echo "GARAGE_RESTIC_SECRET=$(rs garage AWS_SECRET_ACCESS_KEY)"

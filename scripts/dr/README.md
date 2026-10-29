@@ -30,7 +30,7 @@ scripts/dr/restore.sh phase 06-vault-restore
 ```
 ~/dr-pack/
 ├── 00-shamir.json.gpg          # gpg -c; by convention the passphrase is the Vaultwarden master password
-├── 01-bootstrap.env            # CF_API_TOKEN, GARAGE_RESTIC_*, GARAGE_SNAPSHOTS_*, OVH_S3_*, RESTIC_PASSWORD_GARAGE/_OVH, optional OPENWRT_PASS
+├── 01-bootstrap.env            # CF_API_TOKEN, GARAGE_RESTIC_*, GARAGE_SNAPSHOTS_*, OVH_S3_*, OVH_CRYPT_PASSWORD/2, RESTIC_PASSWORD_GARAGE/_OVH, optional OPENWRT_PASS
 ├── 02-vault-raft-snapshot.snap # Raft snapshot that build.sh takes from the live openbao-0
 └── 03-cluster.env              # cluster topology: GATEWAY_EXTERNAL_IP, GATEWAY_INTERNAL_IP, GATEWAY_TLS_IP
 ```
@@ -50,7 +50,7 @@ Forgejo is not part of this rebuild: it runs on the ops node, outside the cluste
 | 02 | storage | git (local-path-provisioner, Longhorn, snapshot-controller, VolSync charts) |
 | 03 | tls | `01-bootstrap.env` (CF_API_TOKEN), git (cert-manager) |
 | 04 | dns | `01-bootstrap.env` (CF token, optional `OPENWRT_PASS`), git (external-dns CF chart, OCI external-dns-openwrt chart and router host from its values); bootstrap Secrets labelled `homelab.dr/bootstrap=true` |
-| 05 | snapshot-fetch | `01-bootstrap.env` (Garage/OVH keys) — pulls the freshest OpenBao Raft snapshot from S3 if the DR pack copy is older than 7 days |
+| 05 | snapshot-fetch | `01-bootstrap.env` (Garage/OVH keys; OVH copies need `OVH_CRYPT_PASSWORD/2`, rclone crypt) — pulls the freshest OpenBao Raft snapshot from S3 if the DR pack copy is older than 7 days |
 | 06 | vault-restore | `00-shamir.json.gpg` + `02-vault-raft-snapshot.snap` |
 | 07 | eso | OpenBao now holds everything else; ESO policies and roles from `scripts/openbao-eso-access.sh` |
 | 08 | cnpg | git (CNPG operator chart); Cluster CRs and barman recovery come with ArgoCD |

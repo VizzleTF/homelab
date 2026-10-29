@@ -71,6 +71,12 @@ homelab-common:
         - secretKey: ovh_sk
           vaultPath: shared/s3-ovh
           property: ACCESS_SECRET_KEY
+        - secretKey: ovh_crypt_pw
+          vaultPath: shared/ovh-crypt
+          property: password
+        - secretKey: ovh_crypt_pw2
+          vaultPath: shared/ovh-crypt
+          property: password2
       templateData:
         RCLONE_CONFIG_GARAGE_TYPE: "s3"
         RCLONE_CONFIG_GARAGE_PROVIDER: "Other"
@@ -86,6 +92,13 @@ homelab-common:
         RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+        # OVH snapshots are rclone-crypt encrypted: same remote as openbao and the ops node.
+        RCLONE_CONFIG_OVHCRYPT_TYPE: "crypt"
+        RCLONE_CONFIG_OVHCRYPT_REMOTE: "ovh:offsite-homelab/crypt"
+        RCLONE_CONFIG_OVHCRYPT_FILENAME_ENCRYPTION: "off"
+        RCLONE_CONFIG_OVHCRYPT_DIRECTORY_NAME_ENCRYPTION: "false"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD: "{{ .ovh_crypt_pw }}"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD2: "{{ .ovh_crypt_pw2 }}"
 
   # Shared by the three CronJobs, mounted at /etc/drill. Results live in ConfigMap
   # restore-drill-state (created by the first run, not by ArgoCD), one key per
@@ -463,7 +476,7 @@ homelab-common:
               if [ $(( WEEK % 2 )) -eq 0 ]; then
                 SNAP_TARGET=garage; SNAP_ROOT=garage:snapshots; PG=cnpg/cnpg-cluster
               else
-                SNAP_TARGET=ovh; SNAP_ROOT=ovh:offsite-homelab/snapshots; PG=immich/immich-cluster
+                SNAP_TARGET=ovh; SNAP_ROOT=ovhcrypt:snapshots; PG=immich/immich-cluster
               fi
               SRC_NS=${PG%/*}; SRC=${PG#*/}
               NS=drill-core

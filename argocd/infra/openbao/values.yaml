@@ -150,7 +150,7 @@ homelab-common:
           args:
             - |
               set -eu
-              for dst in garage:snapshots/openbao ovh:offsite-homelab/snapshots/openbao; do
+              for dst in garage:snapshots/openbao ovhcrypt:snapshots/openbao; do
                 echo "=== copy -> $dst"
                 rclone copy /snap "$dst" --verbose
                 echo "=== prune >90d in $dst"
@@ -266,6 +266,8 @@ homelab-common:
                   echo "GARAGE_SNAPSHOTS_SECRET=$RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY"
                   echo "OVH_S3_ACCESS_KEY=$RCLONE_CONFIG_OVH_ACCESS_KEY_ID"
                   echo "OVH_S3_SECRET_KEY=$RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY"
+                  echo "OVH_CRYPT_PASSWORD=$RCLONE_CONFIG_OVHCRYPT_PASSWORD"
+                  echo "OVH_CRYPT_PASSWORD2=$RCLONE_CONFIG_OVHCRYPT_PASSWORD2"
                   cf=$(kubectl -n cert-manager get secret cloudflare-api-token -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d || true)
                   echo "CF_API_TOKEN=${cf:-MISSING-cloudflare-token}"
                   # Optional (phase 04 skips OpenWrt without it); host and login are in git.
@@ -410,6 +412,12 @@ homelab-common:
         - secretKey: ovh_sk
           vaultPath: shared/s3-ovh
           property: ACCESS_SECRET_KEY
+        - secretKey: ovh_crypt_pw
+          vaultPath: shared/ovh-crypt
+          property: password
+        - secretKey: ovh_crypt_pw2
+          vaultPath: shared/ovh-crypt
+          property: password2
       templateData:
         RCLONE_CONFIG_GARAGE_TYPE: "s3"
         RCLONE_CONFIG_GARAGE_PROVIDER: "Other"
@@ -425,6 +433,14 @@ homelab-common:
         RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+        # Raft snapshots on OVH go through crypt (dr-pack is gpg already). Same
+        # remote as tfstate-mirror and the ops node; passwords stored rclone-obscured.
+        RCLONE_CONFIG_OVHCRYPT_TYPE: "crypt"
+        RCLONE_CONFIG_OVHCRYPT_REMOTE: "ovh:offsite-homelab/crypt"
+        RCLONE_CONFIG_OVHCRYPT_FILENAME_ENCRYPTION: "off"
+        RCLONE_CONFIG_OVHCRYPT_DIRECTORY_NAME_ENCRYPTION: "false"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD: "{{ .ovh_crypt_pw }}"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD2: "{{ .ovh_crypt_pw2 }}"
     - name: dr-pack-creds
       vaultPath: shared/dr-pack
       data:

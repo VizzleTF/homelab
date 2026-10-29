@@ -18,6 +18,12 @@ homelab-common:
         - secretKey: ovh_sk
           vaultPath: shared/s3-ovh
           property: ACCESS_SECRET_KEY
+        - secretKey: ovh_crypt_pw
+          vaultPath: shared/ovh-crypt
+          property: password
+        - secretKey: ovh_crypt_pw2
+          vaultPath: shared/ovh-crypt
+          property: password2
       templateData:
         RCLONE_CONFIG_GARAGE_TFSTATE_TYPE: "s3"
         RCLONE_CONFIG_GARAGE_TFSTATE_PROVIDER: "Other"
@@ -33,6 +39,14 @@ homelab-common:
         RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+        # Off-site copies are encrypted; same remote as openbao and the ops node.
+        # Passwords are stored rclone-obscured. Names stay plain (state keys only).
+        RCLONE_CONFIG_OVHCRYPT_TYPE: "crypt"
+        RCLONE_CONFIG_OVHCRYPT_REMOTE: "ovh:offsite-homelab/crypt"
+        RCLONE_CONFIG_OVHCRYPT_FILENAME_ENCRYPTION: "off"
+        RCLONE_CONFIG_OVHCRYPT_DIRECTORY_NAME_ENCRYPTION: "false"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD: "{{ .ovh_crypt_pw }}"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD2: "{{ .ovh_crypt_pw2 }}"
 
   workloads:
     # rclone copy, not sync: source deletes must not reach OVH. Corrupt
@@ -52,14 +66,14 @@ homelab-common:
           args:
             - |
               set -eu
-              echo "[$(date -u)] starting rclone copy garage_tfstate:terraform-state -> ovh:offsite-homelab/terraform-state/"
+              echo "[$(date -u)] starting rclone copy garage_tfstate:terraform-state -> ovhcrypt:terraform-state/"
               rclone copy \
                 --s3-acl=private \
                 --transfers=2 \
                 --checkers=4 \
                 --stats=1m \
                 --stats-one-line \
-                garage_tfstate:terraform-state ovh:offsite-homelab/terraform-state/
+                garage_tfstate:terraform-state ovhcrypt:terraform-state/
               echo "[$(date -u)] copy complete"
           envFrom:
             - secretRef:

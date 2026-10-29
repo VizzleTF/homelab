@@ -25,6 +25,8 @@ global:
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
         # Snapshots without the DR pack.
         snapshots: [shared/s3-snapshots]
+        # rclone crypt key of the OVH copies (snapshots, terraform state).
+        ovh-crypt: [shared/ovh-crypt]
         # Authentik reads these for its blueprints' !Env.
         oidc-clients: [argocd/oidc, victoria-metrics/oidc, immich/oidc, wazuh/oidc, trek/oidc, forgejo/oidc]
         # external-dns owns it; cert-manager DNS-01 reads it.
@@ -32,7 +34,7 @@ global:
       namespaces:
         argocd: [valkey, telegram]
         authentik: [oidc-clients]
-        backup-drill: [backup, cnpg-backup, snapshots]
+        backup-drill: [backup, cnpg-backup, snapshots, ovh-crypt]
         cert-manager: [cloudflare]
         cleanbot: [backup]
         cnpg: [s3-ovh, cnpg-backup, db-roles]
@@ -41,13 +43,13 @@ global:
         may: [backup]
         netbird: [backup]
         obsidian-livesync: [backup]
-        openbao: [backup, openbao-ops]
+        openbao: [backup, openbao-ops, ovh-crypt]
         opencloud: [backup]
         openwrt-backup: [s3-ovh]
         renovate: [telegram]
         robusta: [telegram]
         rsstt: [backup]
-        tfstate-mirror: [s3-ovh]
+        tfstate-mirror: [s3-ovh, ovh-crypt]
         trek: [backup]
         vaultwarden: [backup]
         victoria-metrics: [telegram]

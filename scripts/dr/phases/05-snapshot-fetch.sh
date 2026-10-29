@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Phase 05 — pull a fresh OpenBao Raft snapshot from S3 when the DR pack copy is
-# stale. Snapshots are plain files (`snapshots/openbao/raft-*.snap`, CronJob
-# openbao/openbao-raft-snapshot); rclone runs in the cluster so the operator
-# needs none. Garage first, OVH fallback.
+# stale. Snapshots are files under `snapshots/openbao/raft-*.snap` (CronJob
+# openbao/openbao-raft-snapshot): plain on Garage, rclone crypt on OVH
+# (`offsite-homelab/crypt/`, key OVH_CRYPT_PASSWORD{,2}); rclone runs in the
+# cluster so the operator needs none. Garage first, OVH fallback.
 
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -26,14 +27,26 @@ case "$TARGET" in
   garage)
     require_env GARAGE_SNAPSHOTS_ACCESS_KEY
     require_env GARAGE_SNAPSHOTS_SECRET
-    ENDPOINT="https://s3.example.com"; REGION="garage"; PATH_PREFIX="snapshots/openbao"
+    ENDPOINT="https://s3.example.com"; REGION="garage"; SRC="s:snapshots/openbao"
     AK="$GARAGE_SNAPSHOTS_ACCESS_KEY"; SK="$GARAGE_SNAPSHOTS_SECRET"
+    CRYPT_ENV=()
     ;;
   ovh)
     require_env OVH_S3_ACCESS_KEY
     require_env OVH_S3_SECRET_KEY
-    ENDPOINT="https://s3.de.io.cloud.ovh.net"; REGION="de"; PATH_PREFIX="offsite-homelab/snapshots/openbao"
+    require_env OVH_CRYPT_PASSWORD
+    require_env OVH_CRYPT_PASSWORD2
+    ENDPOINT="https://s3.de.io.cloud.ovh.net"; REGION="de"; SRC="c:snapshots/openbao"
     AK="$OVH_S3_ACCESS_KEY"; SK="$OVH_S3_SECRET_KEY"
+    # Must match RCLONE_CONFIG_OVHCRYPT_* in argocd/infra/openbao/values.yaml.
+    CRYPT_ENV=(
+      --env="RCLONE_CONFIG_C_TYPE=crypt"
+      --env="RCLONE_CONFIG_C_REMOTE=s:offsite-homelab/crypt"
+      --env="RCLONE_CONFIG_C_FILENAME_ENCRYPTION=off"
+      --env="RCLONE_CONFIG_C_DIRECTORY_NAME_ENCRYPTION=false"
+      --env="RCLONE_CONFIG_C_PASSWORD=$OVH_CRYPT_PASSWORD"
+      --env="RCLONE_CONFIG_C_PASSWORD2=$OVH_CRYPT_PASSWORD2"
+    )
     ;;
   *) die "unknown DR_RESTIC_TARGET: $TARGET (garage|ovh)" ;;
 esac
@@ -51,10 +64,11 @@ kubectl -n dr-fetch run snapshot-fetch --restart=Never --image="rclone/rclone:${
   --env="RCLONE_CONFIG_S_FORCE_PATH_STYLE=true" \
   --env="RCLONE_CONFIG_S_ACCESS_KEY_ID=$AK" \
   --env="RCLONE_CONFIG_S_SECRET_ACCESS_KEY=$SK" \
+  ${CRYPT_ENV[@]+"${CRYPT_ENV[@]}"} \
   --command -- sh -c "set -eu
-    latest=\$(rclone lsf s:$PATH_PREFIX | sort | tail -1)
+    latest=\$(rclone lsf $SRC | sort | tail -1)
     echo \"latest: \$latest\"
-    rclone copyto \"s:$PATH_PREFIX/\$latest\" /tmp/raft.snap
+    rclone copyto \"$SRC/\$latest\" /tmp/raft.snap
     ls -lh /tmp/raft.snap
     sleep 300" >/dev/null
 

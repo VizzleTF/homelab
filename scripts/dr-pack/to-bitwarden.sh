@@ -50,12 +50,15 @@ fi
 # Names continue items 01..07 in the same folder.
 # 11: without SECRET_KEY a Forgejo DB restored on a new ops node cannot decrypt
 # its Authentik client secret, 2FA and push-mirror passwords.
+# 12: rclone-obscured crypt key of the OVH etcd/OpenBao snapshots and tfstate
+# (use as RCLONE_CONFIG_<remote>_PASSWORD{,2}; `rclone reveal` prints the plain one).
 # Format: name | path:fields[,fields];path:fields
 ITEMS='
 08 - Restic repo passwords (backup v2)|shared/restic-garage:password;shared/restic-ovh:password
 09 - S3 keys backup v2 (restic-apps, snapshots, OVH)|shared/s3-restic-apps:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-snapshots:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/s3-ovh:ACCESS_KEY_ID,ACCESS_SECRET_KEY
 10 - DR pack passphrase (off-site)|shared/dr-pack:passphrase
 11 - Forgejo instance secrets|forgejo/instance-secrets:SECRET_KEY,INTERNAL_TOKEN,JWT_SECRET,LFS_JWT_SECRET,MINIO_ACCESS_KEY_ID,MINIO_SECRET_ACCESS_KEY
+12 - OVH rclone crypt (snapshots, tfstate)|shared/ovh-crypt:password,password2
 '
 
 folder_id=""

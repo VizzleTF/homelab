@@ -13,6 +13,15 @@
       EnvironmentFile = "/var/lib/secrets/etcd-snapshot.env";
       PrivateTmp = true;
     };
+    # The OVH copy goes through rclone crypt; the env file adds
+    # RCLONE_CONFIG_OVHCRYPT_PASSWORD{,2} (rclone-obscured, OpenBao shared/ovh-crypt).
+    # Same remote as the openbao and tfstate-mirror CronJobs.
+    environment = {
+      RCLONE_CONFIG_OVHCRYPT_TYPE = "crypt";
+      RCLONE_CONFIG_OVHCRYPT_REMOTE = "ovh:offsite-homelab/crypt";
+      RCLONE_CONFIG_OVHCRYPT_FILENAME_ENCRYPTION = "off";
+      RCLONE_CONFIG_OVHCRYPT_DIRECTORY_NAME_ENCRYPTION = "false";
+    };
     path = [
       pkgs.talosctl
       pkgs.rclone
@@ -42,7 +51,7 @@
       test -s "$snap"
       ls -lh "$snap"
 
-      for dst in garage:snapshots/etcd ovh:offsite-homelab/snapshots/etcd; do
+      for dst in garage:snapshots/etcd ovhcrypt:snapshots/etcd; do
         echo "=== copy -> $dst"
         rclone copy "$snap" "$dst"
         echo "=== prune >30d in $dst"
@@ -50,7 +59,7 @@
       done
 
       rclone size garage:snapshots/etcd
-      rclone size ovh:offsite-homelab/snapshots/etcd
+      rclone size ovhcrypt:snapshots/etcd
     '';
   };
 

@@ -7,7 +7,7 @@ Generates and validates the minimal disaster-recovery bundle used by `scripts/dr
 | File | Purpose | Sensitivity |
 |---|---|---|
 | `00-shamir.json.gpg` | OpenBao 3 unseal keys + root token from the `openbao-keys` and `openbao-root-token` Secrets, `gpg --symmetric` (AES256). By convention the passphrase is the Vaultwarden master password (`GPG_PASSPHRASE=$BW_PASSWORD`), so it is not stored as a separate entry. | RED — full OpenBao root |
-| `01-bootstrap.env` | Pre-OpenBao bootstrap secrets, read from live cluster Secrets: `CF_API_TOKEN`, `GARAGE_RESTIC_*`, `GARAGE_SNAPSHOTS_*`, `OVH_S3_*`, `RESTIC_PASSWORD_GARAGE`/`_OVH`, optional `OPENWRT_PASS` (router host and login are in git) | RED |
+| `01-bootstrap.env` | Pre-OpenBao bootstrap secrets, read from live cluster Secrets: `CF_API_TOKEN`, `GARAGE_RESTIC_*`, `GARAGE_SNAPSHOTS_*`, `OVH_S3_*`, `OVH_CRYPT_PASSWORD`/`2` (rclone-obscured crypt key of the OVH snapshot and tfstate copies), `RESTIC_PASSWORD_GARAGE`/`_OVH`, optional `OPENWRT_PASS` (router host and login are in git) | RED |
 | `02-vault-raft-snapshot.snap` | OpenBao Raft snapshot taken from the live `openbao-0` (`bao operator raft snapshot save`). | RED |
 | `03-cluster.env` | Gateway IPs (`GATEWAY_EXTERNAL_IP`, `GATEWAY_INTERNAL_IP`, `GATEWAY_TLS_IP`); not secret | yellow |
 
@@ -33,7 +33,7 @@ bash scripts/dr-pack/to-bitwarden.sh [--dry-run]
 
 Unlock the password manager in a separate WSL terminal, not via `!` in Claude Code: `rbw unlock` needs pinentry on a real TTY (`pinentry error: Inappropriate ioctl for device`), and `bw unlock` needs an interactive readline (`ERR_USE_AFTER_CLOSE`). The rbw agent then serves the Claude session too; for `bw`, export `BW_SESSION` there and run the script from that terminal.
 
-`verify.sh` checks that the four files exist, that the Shamir bundle decrypts with 3 keys and a root token, and that the Raft snapshot is over 1 KB and under 7 days old. With `rbw` or `bw` unlocked it also checks the Vaultwarden entries `08 - Restic repo passwords (backup v2)`, `09 - S3 keys backup v2 (restic-apps, snapshots, OVH)` and `11 - Forgejo instance secrets`. `to-bitwarden.sh` writes those three plus `10 - DR pack passphrase (off-site)` into the `Infra / Homelab DR` folder. Entry 11 holds Forgejo's `SECRET_KEY` and the other instance secrets: without them a dump restored on a new ops node cannot decrypt Authentik client secrets, 2FA or mirror passwords, and OpenBao is not up yet in a full loss.
+`verify.sh` checks that the four files exist, that the Shamir bundle decrypts with 3 keys and a root token, and that the Raft snapshot is over 1 KB and under 7 days old. With `rbw` or `bw` unlocked it also checks the Vaultwarden entries `08 - Restic repo passwords (backup v2)`, `09 - S3 keys backup v2 (restic-apps, snapshots, OVH)`, `11 - Forgejo instance secrets` and `12 - OVH rclone crypt (snapshots, tfstate)`. `to-bitwarden.sh` writes those four plus `10 - DR pack passphrase (off-site)` into the `Infra / Homelab DR` folder. Entry 11 holds Forgejo's `SECRET_KEY` and the other instance secrets: without them a dump restored on a new ops node cannot decrypt Authentik client secrets, 2FA or mirror passwords, and OpenBao is not up yet in a full loss.
 
 `build.sh` requires:
 
