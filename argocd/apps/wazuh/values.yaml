@@ -76,6 +76,10 @@ cluster:
         # ClusterIP in place (it copies nodePorts): delete the Service once.
         service:
           type: ClusterIP
+          # Non-empty on purpose: ArgoCD server-side diff sends an empty map as null,
+          # which the CRD rejects (annotations must be an object).
+          annotations:
+            homelab.example.com/lan-service: wazuh-manager-lb
           ports:
             - name: api
               port: 55000
