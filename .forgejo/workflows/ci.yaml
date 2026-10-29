@@ -201,7 +201,8 @@ jobs:
   argocd-diff:
     # Renders touched Applications for main and PR head in kind (runner dind).
     # Fails on render errors and kubeconform/pluto; a pruned resource or changed
-    # CRD fails unless the PR has the `diff-reviewed` label (add it, re-run).
+    # CRD fails unless the PR has the `diff-reviewed` label (add it, re-run). A run
+    # whose gate list differs from the reviewed one removes the label.
     # Only the cluster runner has the `diff-preview` label: kind needs its dind.
     if: github.event_name == 'pull_request'
     runs-on: diff-preview
@@ -358,13 +359,27 @@ jobs:
           if target-branch/scripts/diff-review-gate.sh output/base-branch.yaml output/target-branch.yaml > gate.log 2>&1; then
             echo "nothing to review" >> checks.md
           else
-            labels=$(curl -fsS -H "Authorization: token ${TOKEN}" "${API}/issues/${PR_NUMBER}/labels" | yq -p json '.[].name')
-            if grep -qx 'diff-reviewed' <<<"$labels"; then
+            # The label covers the gate list shown in the comment it was added after. Not
+            # cleared on synchronize: `forgejo-pr.sh rerun` pushes an empty commit and
+            # Renovate force-pushes rebases, both with an unchanged list.
+            gate_sha=$(sha256sum gate.log | cut -d' ' -f1)
+            # A failed read must not cost a valid label: no comments, no removal.
+            comments=$(curl -fsS -H "Authorization: token ${TOKEN}" "${API}/issues/${PR_NUMBER}/comments") || comments=""
+            reviewed_sha=$(yq -p json '.[] | select(.body | contains("<!-- argocd-diff -->")) | .body' <<<"${comments:-[]}" \
+              | sed -n 's/^<!-- gate-sha: \([0-9a-f]*\) -->$/\1/p' | tail -n 1)
+            label_id=$(curl -fsS -H "Authorization: token ${TOKEN}" "${API}/issues/${PR_NUMBER}/labels" \
+              | yq -p json '.[] | select(.name == "diff-reviewed") | .id')
+            if [ -n "$label_id" ] && [ "$reviewed_sha" = "$gate_sha" ]; then
               echo "Passed by the \`diff-reviewed\` label:" >> checks.md
+            elif [ -n "$label_id" ] && [ -n "$comments" ]; then
+              fail=1
+              curl -fsS -X DELETE -H "Authorization: token ${TOKEN}" "${API}/issues/${PR_NUMBER}/labels/${label_id}" >/dev/null
+              echo "**Blocked** until the PR has the \`diff-reviewed\` label: the list changed since it was added, so it was removed (review again, re-label, re-run this job):" >> checks.md
             else
               fail=1
               echo "**Blocked** until the PR has the \`diff-reviewed\` label (then re-run this job):" >> checks.md
             fi
+            echo "<!-- gate-sha: ${gate_sha} -->" >> checks.md
             cat gate.log >> checks.md
           fi
           cat gate.log
