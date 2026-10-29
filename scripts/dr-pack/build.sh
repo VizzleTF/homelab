@@ -79,14 +79,9 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OpenWrt)"
   echo "RESTIC_PASSWORD_GARAGE=$(rs garage RESTIC_PASSWORD)"
   echo "RESTIC_PASSWORD_OVH=$(rs ovh RESTIC_PASSWORD)"
 
-  OW_HOST=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.host}' 2>/dev/null | base64 -d || true)
-  OW_USER=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.username}' 2>/dev/null | base64 -d || true)
+  # Router host and rpcd login are in git (external-dns-openwrt values); only the password is secret.
   OW_PASS=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)
-  if [[ -n "$OW_HOST" ]]; then
-    echo "OPENWRT_HOST=$OW_HOST"
-    echo "OPENWRT_USER=$OW_USER"
-    echo "OPENWRT_PASS=$OW_PASS"
-  fi
+  [[ -z "$OW_PASS" ]] || echo "OPENWRT_PASS=$OW_PASS"
 } > "$DR_PACK_DIR/01-bootstrap.env"
 chmod 600 "$DR_PACK_DIR/01-bootstrap.env"
 log_ok "wrote 01-bootstrap.env"

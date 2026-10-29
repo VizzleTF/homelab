@@ -7,7 +7,7 @@ Generates and validates the minimal disaster-recovery bundle used by `scripts/dr
 | File | Purpose | Sensitivity |
 |---|---|---|
 | `00-shamir.json.gpg` | OpenBao 3 unseal keys + root token from the `openbao-keys` and `openbao-root-token` Secrets, `gpg --symmetric` (AES256). By convention the passphrase is the Vaultwarden master password (`GPG_PASSPHRASE=$BW_PASSWORD`), so it is not stored as a separate entry. | RED — full OpenBao root |
-| `01-bootstrap.env` | Pre-OpenBao bootstrap secrets, read from live cluster Secrets: `CF_API_TOKEN`, `GARAGE_RESTIC_*`, `GARAGE_SNAPSHOTS_*`, `OVH_S3_*`, `RESTIC_PASSWORD_GARAGE`/`_OVH`, optional `OPENWRT_*` | RED |
+| `01-bootstrap.env` | Pre-OpenBao bootstrap secrets, read from live cluster Secrets: `CF_API_TOKEN`, `GARAGE_RESTIC_*`, `GARAGE_SNAPSHOTS_*`, `OVH_S3_*`, `RESTIC_PASSWORD_GARAGE`/`_OVH`, optional `OPENWRT_PASS` (router host and login are in git) | RED |
 | `02-vault-raft-snapshot.snap` | OpenBao Raft snapshot taken from the live `openbao-0` (`bao operator raft snapshot save`). | RED |
 | `03-cluster.env` | Gateway IPs (`GATEWAY_EXTERNAL_IP`, `GATEWAY_INTERNAL_IP`, `GATEWAY_TLS_IP`); not secret | yellow |
 

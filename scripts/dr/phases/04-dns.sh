@@ -27,24 +27,25 @@ helm_apply external-dns external-dns/external-dns external-dns \
   --version "$(chart_version external-dns)" \
   -f "$REPO_ROOT/argocd/infra/external-dns/values.yaml"
 
-# OpenWrt only if OPENWRT_HOST/USER/PASS are in the DR pack.
-if [ -n "${OPENWRT_HOST:-}" ] && [ -n "${OPENWRT_USER:-}" ] && [ -n "${OPENWRT_PASS:-}" ]; then
+# OpenWrt only if OPENWRT_PASS is in the DR pack; router host and login come
+# from the app's values in git, the chart reads only the password from the Secret.
+if [ -n "${OPENWRT_PASS:-}" ]; then
   log_info "creating openwrt-credentials Secret"
   kubectl create ns external-dns-openwrt 2>/dev/null || true
   kubectl -n external-dns-openwrt create secret generic openwrt-credentials \
-    --from-literal=host="$OPENWRT_HOST" \
-    --from-literal=username="$OPENWRT_USER" \
     --from-literal=password="$OPENWRT_PASS" \
     --dry-run=client -o yaml \
     | kubectl label --local -f - homelab.dr/bootstrap=true -o yaml \
     | kubectl apply -f - >/dev/null
 
-  log_info "installing external-dns-openwrt"
-  helm_apply external-dns-openwrt external-dns/external-dns external-dns-openwrt \
+  OW_DIR="$REPO_ROOT/argocd/infra/external-dns-openwrt"
+  OW_CHART="oci://$(yq -r '.repoURL' "$OW_DIR/config.yaml")/$(yq -r '.chart' "$OW_DIR/config.yaml")"
+  log_info "installing external-dns-openwrt ($OW_CHART)"
+  helm_apply external-dns-openwrt "$OW_CHART" external-dns-openwrt \
     --version "$(chart_version external-dns-openwrt)" \
-    -f "$REPO_ROOT/argocd/infra/external-dns-openwrt/values.yaml"
+    -f "$OW_DIR/values.yaml"
 else
-  log_warn "OPENWRT_* not in DR pack — skipping external-dns-openwrt (will be installed later via ESO after Vault restore)"
+  log_warn "OPENWRT_PASS not in DR pack — skipping external-dns-openwrt (ArgoCD installs it after the OpenBao restore)"
 fi
 
 log_ok "phase 04 dns complete"
