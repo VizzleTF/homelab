@@ -38,7 +38,7 @@ homelab-common:
         - name: valkey
           image:
             repository: valkey/valkey
-            tag: 9.1.2-alpine
+            tag: 9.1.3-alpine
           # No maxmemory on purpose. Persistence off: RDB wrote ~4 GB/day into an emptyDir.
           # After a restart rerun "missing" jobs in the immich admin UI (BullMQ loses them).
           command:
