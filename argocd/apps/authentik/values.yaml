@@ -591,8 +591,6 @@ homelab-common:
                 redirect_uris:
                   - matching_mode: strict
                     url: https://git.example.com/user/oauth2/Authentik/callback
-                  - matching_mode: strict
-                    url: https://git.example.com/user/oauth2/Authentik/callback
                 signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
                 property_mappings:
                   - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
