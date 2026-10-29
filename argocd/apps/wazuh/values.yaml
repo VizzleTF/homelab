@@ -70,12 +70,12 @@ cluster:
                 - matchExpressions:
                     - key: node-role.kubernetes.io/control-plane
                       operator: DoesNotExist
-        # For agents/syslog outside the cluster. ports REPLACES the operator defaults:
-        # dropping one silently unpublishes it.
+        # In-cluster only; the LAN uses manifests/service-manager-lb.yaml (eTP Local,
+        # which this CRD lacks). ports REPLACES the operator defaults: dropping one
+        # silently unpublishes it. The operator cannot turn its LoadBalancer into
+        # ClusterIP in place (it copies nodePorts): delete the Service once.
         service:
-          type: LoadBalancer
-          annotations:
-            io.cilium/lb-ipam-ips: "10.11.10.140"
+          type: ClusterIP
           ports:
             - name: api
               port: 55000
@@ -88,8 +88,9 @@ cluster:
             - name: syslog
               port: 514
               protocol: UDP
-        # Syslog is SNATed (ECMP): `location` is a node IP, the sender is predecoder.hostname.
-        # Don't set externalTrafficPolicy: Local — the LB IP left BGP, all agents dropped.
+        # eTP Local on the LB keeps the sender IP. A 2026-09-18 hand patch to Local
+        # lost the BGP route (cause unknown, before the worker-01 affinity): check
+        # `birdc show route for 10.11.10.140` after any change to the LB Service.
         # Raw XML: the operator renders no second <remote>, vulnerability-detection,
         # command or active-response. allowed-ips is mandatory, else remoted drops all.
         # Active response is SSH brute force only: web-scan bans would hit CGNAT VPN users.

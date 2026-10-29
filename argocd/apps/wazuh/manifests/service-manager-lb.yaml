@@ -1,0 +1,34 @@
+# LAN entry for agents and syslog. Not the operator's Service: its CRD has no
+# externalTrafficPolicy. Local keeps the sender IP (no SNAT, so no remote-node
+# or kube-apiserver identity) and BGP announces 10.11.10.140 only from the
+# node running the manager. 55000/1516 stay on the operator's ClusterIP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh-manager-lb
+  namespace: wazuh
+  annotations:
+    io.cilium/lb-ipam-ips: "10.11.10.140"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  # No NodePorts: they would open the same ports on every node IP.
+  allocateLoadBalancerNodePorts: false
+  selector:
+    app.kubernetes.io/instance: wazuh
+    app.kubernetes.io/name: wazuh-manager
+    wazuh.com/cluster: wazuh
+    wazuh.com/manager-node-type: master
+  ports:
+    - name: agent-events
+      port: 1514
+      targetPort: 1514
+      protocol: TCP
+    - name: agent-auth
+      port: 1515
+      targetPort: 1515
+      protocol: TCP
+    - name: syslog
+      port: 514
+      targetPort: 514
+      protocol: UDP

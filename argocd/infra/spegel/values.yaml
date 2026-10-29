@@ -20,3 +20,8 @@ homelab-common:
   # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
+    allow:
+      # containerd on every node mirrors through NodePort 30020; a backend on
+      # another node sees the node IP (remote-node).
+      - entities: [remote-node]
+        ports: [5000]
