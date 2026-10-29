@@ -330,6 +330,18 @@ homelab-common:
                       ak_message("Passwords don't match.")
                       return False
                   return True
+            - model: authentik_policies_password.passwordpolicy
+              id: policy-password-strength
+              identifiers:
+                name: invitation-password-strength
+              attrs:
+                password_field: password
+                check_static_rules: true
+                length_min: 12
+                # zxcvbn runs offline; HIBP would send hash prefixes to an external API
+                check_zxcvbn: true
+                zxcvbn_score_threshold: 3
+                error_message: Password needs at least 12 characters.
 
             - model: authentik_stages_invitation.invitationstage
               id: stage-invitation
@@ -350,6 +362,7 @@ homelab-common:
                   - !KeyOf prompt-password-repeat
                 validation_policies:
                   - !KeyOf policy-password-equal
+                  - !KeyOf policy-password-strength
             - model: authentik_stages_user_write.userwritestage
               id: stage-write
               identifiers:
