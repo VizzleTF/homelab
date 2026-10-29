@@ -77,7 +77,7 @@ for cs_dir, configs in ((APPS_CS, apps), (INFRA_CS, infra)) if HAVE_VAULT else (
 
 # 4. Wikilinks. Targets: vault notes.
 notes = {p.stem for p in VAULT.rglob("*.md")}
-docs = list(VAULT.rglob("*.md")) + [REPO / "CLAUDE.md"] + list((REPO / ".claude").rglob("*.md"))
+docs = list(VAULT.rglob("*.md")) + [REPO / "CLAUDE.md"] + [p for p in (REPO / ".claude").rglob("*.md") if "worktrees" not in p.parts]
 code_span = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 for doc in docs if HAVE_VAULT else ():
     text = code_span.sub("", doc.read_text())

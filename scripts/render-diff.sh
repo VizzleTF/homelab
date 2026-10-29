@@ -48,7 +48,7 @@ git worktree add -q --detach "$tmp/tree" "$base"
 # --no-renames: a moved app folder must list both its old and its new name.
 changed=$( { git diff --no-renames --name-only "$base" -- argocd/; git ls-files --others --exclude-standard argocd/; } | sort -u)
 apps=("$@")
-for a in "${apps[@]}"; do  # a typo must not pass as "no diff"
+for a in ${apps[@]+"${apps[@]}"}; do  # a typo must not pass as "no diff"
   found=$a; [[ $a == argocd ]] || found=$(ls {"$repo","$tmp/tree"}/argocd/{apps,infra}/"$a"/config.yaml 2>/dev/null || true)
   [[ -n $found ]] || { echo "no app $a at $short or in the working tree" >&2; exit 2; }
 done
@@ -88,7 +88,7 @@ render() {
 
 : > "$tmp/missing"
 for side in base head; do
-  for app in "${apps[@]}"; do
+  for app in ${apps[@]+"${apps[@]}"}; do
     if [[ $side == base ]]; then render "$tmp/tree" "$app" "" base; else render "$repo" "$app" "$hc" head; fi
     echo ---
   done > "$tmp/$side.yaml"

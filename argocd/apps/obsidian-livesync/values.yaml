@@ -64,7 +64,7 @@ homelab-common:
   networkPolicy:
     enabled: true
 
-  # No moverSecurityContext: CouchDB files are root-owned, the mover must run as root.
+  # No moverSecurityContext: CouchDB files are 5984:5984 0644, so the unprivileged mover can read them.
   volsync:
     - name: obsidian-livesync
       claim: database-storage-obsidian-livesync-couchdb-0
