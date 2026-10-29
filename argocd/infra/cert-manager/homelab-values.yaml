@@ -24,6 +24,8 @@ homelab-common:
       dnsNames:
         - "*.example.com"
         - "example.com"
+        - "*.example.com"
+        - "example.com"
 
   limitRange:
     enabled: true

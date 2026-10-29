@@ -16,6 +16,7 @@ externalDNS:
     - service
   domainFilters:
     - example.com
+    - example.com
     - local
   # Chart policy is sync: safe ONLY with ownershipID; drop the marker -> switch to upsert-only.
   interval: 5m  # pinned: --events covers new records, the loop is the safety net
