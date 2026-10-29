@@ -97,6 +97,12 @@ EOF
     "kubectl -n $ns get replicationdestination dr-${repo} -o jsonpath='{.status.lastSyncTime}' | grep -q ." \
     "$timeout"
 
+  # Only after success: a failed restore keeps them for debugging and a retry.
+  # The cache PVC is owned by the RD; delete it explicitly in case GC lags.
+  kubectl -n "$ns" delete replicationdestination "dr-${repo}" --ignore-not-found >/dev/null
+  kubectl -n "$ns" delete pvc "volsync-dst-dr-${repo}-cache" --ignore-not-found --wait=false >/dev/null
+  kubectl -n "$ns" delete secret "$secret" --ignore-not-found >/dev/null
+
   log_ok "$ns/$pvc restored from $target"
   return 0
 }

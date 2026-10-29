@@ -15,12 +15,31 @@ require_kubectl
 RESTORE_SCRIPT="$(dirname "$0")/../restore-app.sh"
 [ -x "$RESTORE_SCRIPT" ] || die "missing restore-app.sh"
 
-mapfile -t VOLUMES < <("$RESTORE_SCRIPT" --list | awk 'NR > 1 { print $1 }' | grep -v '^immich-library$'; echo immich-library)
-log_info "volumes to restore: ${VOLUMES[*]}"
+# "name namespace pvc" rows; no mapfile, macOS ships bash 3.2.
+VOLUMES=$("$RESTORE_SCRIPT" --list | awk 'NR > 1 {
+  r = $1 " " $2 " " $3; if ($1 == "immich-library") last = r; else print r
+} END { if (last != "") print last }')
+[ -n "$VOLUMES" ] || die "restore-app.sh --list returned no volumes"
+log_info "volumes to restore: $(awk '{ print $1 }' <<<"$VOLUMES" | tr '\n' ' ')"
 
-for vol in "${VOLUMES[@]}"; do
+# A failed restore stops the phase: phase 10 would start the app on an empty PVC.
+# On a rerun, a PVC without its dr-<name> ReplicationDestination was restored
+# earlier (cleaned up on success); one with it failed and is retried in place.
+FAILED=()
+# fd 3: restore-app.sh and kubectl must not eat the list on stdin.
+while read -r vol ns pvc <&3; do
+  force=0
+  if kubectl -n "$ns" get pvc "$pvc" >/dev/null 2>&1; then
+    if ! kubectl -n "$ns" get replicationdestination "dr-$vol" >/dev/null 2>&1; then
+      log_skip "$vol: $ns/$pvc already restored"
+      continue
+    fi
+    force=1
+  fi
   log_info "restoring volume: $vol"
-  "$RESTORE_SCRIPT" "$vol" || log_warn "$vol restore failed — continuing"
-done
+  DR_FORCE=$force "$RESTORE_SCRIPT" "$vol" || { log_error "$vol restore failed"; FAILED+=("$vol"); }
+done 3<<<"$VOLUMES"
+
+[ ${#FAILED[@]} -eq 0 ] || die "restore failed for: ${FAILED[*]} — fix and rerun phase 09 before phase 10"
 
 log_ok "phase 09 apps-restore complete"
