@@ -35,7 +35,7 @@ no `global` defaults of its own.
 | `persistentVolumeClaims` | PVCs, always with `helm.sh/resource-policy: keep`; `storageClassName` required |
 | `volsync` | restic backups of a PVC to every repository in `global.volsync.repos`; `drill` (default true) labels the ReplicationSources `homelab.dr/drill=<name>` for the weekly restore drill, `false` for volumes larger than its `DRILL_SIZE` |
 | `cnpgDatabases` | CloudNativePG `Database` CRs |
-| `networkPolicy` | default-deny ingress CiliumNetworkPolicy `default-ingress` plus `allow` entries |
+| `networkPolicy` | default-deny ingress CiliumNetworkPolicy `default-ingress` (own namespace, `host`, `kube-apiserver`, `ingress`, `health`) plus `allow` entries: `namespaces` or `entities: [remote-node]`, optional TCP `ports`. `remote-node` is never open by default: LoadBalancer/NodePort traffic SNATed by another node carries it |
 | `limitRange` | namespace LimitRange `default-limits`; `defaults: null` = requests-only (no default limits) |
 | `rbac` | ServiceAccount + ClusterRole + ClusterRoleBinding sets |
 | `authentikBlueprints` | Authentik blueprint ConfigMaps |

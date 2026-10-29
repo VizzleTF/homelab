@@ -335,9 +335,10 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["namespaces"],
+            "oneOf": [{ "required": ["namespaces"] }, { "required": ["entities"] }],
             "properties": {
               "namespaces": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+              "entities": { "type": "array", "items": { "enum": ["remote-node"] }, "minItems": 1, "uniqueItems": true, "description": "Cilium entities instead of namespaces. remote-node: host-network clients on other nodes and LoadBalancer/NodePort traffic SNATed by another node." },
               "ports": { "type": "array", "items": { "type": ["integer", "string"] } }
             }
           }

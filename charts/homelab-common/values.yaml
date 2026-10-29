@@ -156,7 +156,9 @@ homelab-common:
   #             launch_url: https://myapp.example.com
 
   # Default-deny ingress (CiliumNetworkPolicy "default-ingress"). Always open:
-  # the namespace itself, host/remote-node/kube-apiserver/ingress/health.
+  # the namespace itself, host/kube-apiserver/ingress/health. An allow entry
+  # names namespaces or entities; remote-node = host-network clients on other
+  # nodes and LoadBalancer/NodePort traffic SNATed by another node.
   networkPolicy: {}
   # Example:
   # networkPolicy:
@@ -164,3 +166,5 @@ homelab-common:
   #   allow:
   #     - namespaces: [victoria-metrics]
   #       ports: [9187]
+  #     - entities: [remote-node]
+  #       ports: [5000]

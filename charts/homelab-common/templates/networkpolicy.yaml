@@ -1,9 +1,11 @@
 {{- $np := (index .Values "homelab-common" | default dict).networkPolicy }}
 {{- if and $np $np.enabled }}
 {{- /* Default-deny ingress for the release namespace. Always allowed: the
-     namespace itself, node/API-server traffic (probes, webhooks, exec), the
-     Cilium gateway (host/ingress identities) and cilium-health. Anything else
-     is listed in networkPolicy.allow. Egress is not touched. */}}
+     namespace itself, the local node (kubelet probes), the API server
+     (webhooks), the Cilium gateway (ingress identity) and cilium-health.
+     remote-node is not: LoadBalancer/NodePort traffic SNATed by another node
+     carries it and would reach every port from the LAN; list it per port in
+     networkPolicy.allow (entities). Egress is not touched. */}}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -20,17 +22,21 @@ spec:
             k8s:io.kubernetes.pod.namespace: {{ .Release.Namespace }}
     - fromEntities:
         - host
-        - remote-node
         - kube-apiserver
         - ingress
         - health
     {{- range $np.allow | default list }}
+    {{- if .entities }}
+    - fromEntities:
+        {{- toYaml .entities | nindent 8 }}
+    {{- else }}
     - fromEndpoints:
         - matchExpressions:
             - key: k8s:io.kubernetes.pod.namespace
               operator: In
               values:
                 {{- toYaml .namespaces | nindent 16 }}
+    {{- end }}
       {{- with .ports }}
       toPorts:
         - ports:

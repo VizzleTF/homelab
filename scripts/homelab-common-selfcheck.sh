@@ -55,6 +55,12 @@ Y
 must_fail "templateEngineVersion v1 (the ExternalSecret v1 CRD allows only v2)" <<'Y'
 homelab-common: {externalSecrets: [{name: a, vaultPath: t/a, templateEngineVersion: v1, data: [{secretKey: k, property: p}]}]}
 Y
+must_fail "allow entry with both namespaces and entities" <<'Y'
+homelab-common: {networkPolicy: {enabled: true, allow: [{namespaces: [a], entities: [remote-node]}]}}
+Y
+must_fail "allow entity outside the enum" <<'Y'
+homelab-common: {networkPolicy: {enabled: true, allow: [{entities: [world]}]}}
+Y
 must_fail "volsync repo paths without the backup grant" <<'Y'
 homelab-common: {volsync: [{name: d, targets: [{repo: garage, schedule: "0 1 * * *"}]}]}
 Y
@@ -121,6 +127,11 @@ homelab-common:
     - {name: t-data, targets: [{repo: garage, schedule: "0 1 * * *"}]}
     - {name: t-big, claim: t-data, drill: false, targets: [{repo: garage, schedule: "0 2 * * *"}]}
   limitRange: {enabled: true}
+  networkPolicy:
+    enabled: true
+    allow:
+      - {namespaces: [victoria-metrics], ports: [9187]}
+      - {entities: [remote-node], ports: [5000]}
 Y
 
 python3 - "$out_dir/render.yaml" "$out_dir/lr.yaml" "$out_dir/names.yaml" <<'P' || fail=1
@@ -130,6 +141,7 @@ names = {(d['kind'], d['metadata']['name']) for d in yaml.safe_load_all(open(sys
 lr_only_req = next(d for d in yaml.safe_load_all(open(sys.argv[2])) if d and d['kind'] == 'LimitRange')['spec']['limits'][0]
 web, api, cj = docs[('Deployment', 't-web')], docs[('Deployment', 't-api')], docs[('CronJob', 't-job')]
 p, a = web['spec']['template']['spec'], api['spec']['template']['spec']
+np = docs[('CiliumNetworkPolicy', 'default-ingress')]['spec']['ingress']
 std = {'app.kubernetes.io/name': 't-web', 'app.kubernetes.io/instance': 't', 'app.kubernetes.io/managed-by': 'Helm'}
 checks = {
   'user automountServiceAccountToken true kept': p['automountServiceAccountToken'] is True,
@@ -164,6 +176,9 @@ checks = {
   'volsync drill false -> no label': 'homelab.dr/drill' not in docs[('ReplicationSource', 't-big-garage')]['metadata']['labels'],
   'limitRange enabled -> 500m/512Mi, 50m/64Mi': docs[('LimitRange', 'default-limits')]['spec']['limits'][0] == {'type': 'Container', 'default': {'cpu': '500m', 'memory': '512Mi'}, 'defaultRequest': {'cpu': '50m', 'memory': '64Mi'}},
   'limitRange defaults null -> requests only': 'default' not in lr_only_req and lr_only_req['defaultRequest'] == {'cpu': '50m', 'memory': '64Mi'},
+  'default-ingress never opens remote-node unconditionally': [r for r in np if 'toPorts' not in r and 'remote-node' in r.get('fromEntities', [])] == [],
+  'allow entities -> fromEntities on its ports only': {'fromEntities': ['remote-node'], 'toPorts': [{'ports': [{'port': '5000', 'protocol': 'TCP'}]}]} in np,
+  'allow namespaces -> fromEndpoints on its ports': any(r.get('fromEndpoints', [{}])[0].get('matchExpressions', [{}])[0].get('values') == ['victoria-metrics'] and r['toPorts'][0]['ports'] == [{'port': '9187', 'protocol': 'TCP'}] for r in np),
 }
 for k, v in checks.items():
     print(('ok   ' if v else 'FAIL ') + k)
