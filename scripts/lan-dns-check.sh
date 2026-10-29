@@ -3,7 +3,8 @@
 # not mistaken for a broken external-dns-openwrt pipeline.
 #
 # The router hijacks ALL port-53 traffic to mihomo (Nikki, :1053), which forwards
-# `+.example.com` to dnsmasq and CACHES negative answers: `nslookup <name>
+# `+.example.com` to dnsmasq (rule in /etc/nikki/mixin.yaml, merged over the
+# subscription profile) and CACHES negative answers: `nslookup <name>
 # 10.11.12.1` shows mihomo's cache, so NXDOMAIN (or a removed name) can persist
 # long after dnsmasq is right. See [[reference_openwrt_dnsmasq_reload_ujail]].
 #
@@ -44,7 +45,7 @@ for arg in "$@"; do
   esac
 done
 [[ -n "$host" ]] || { usage >&2; exit 2; }
-host="${host,,}"; host="${host%.}"
+host=$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]'); host="${host%.}"  # ${,,} needs bash 4, macOS ships 3.2
 [[ "$host" =~ ^[a-z0-9-]+(\.[a-z0-9-]+)*$ ]] || { echo "bad host: $host" >&2; exit 2; }
 [[ "$host" == *.* ]] || host="${host}.${DOMAIN}"
 
