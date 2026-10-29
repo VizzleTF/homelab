@@ -46,6 +46,12 @@ homelab-common:
           property: ACCESS_KEY_ID
         - secretKey: ovh_sk
           property: ACCESS_SECRET_KEY
+        - secretKey: ovh_crypt_pw
+          vaultPath: shared/ovh-crypt
+          property: password
+        - secretKey: ovh_crypt_pw2
+          vaultPath: shared/ovh-crypt
+          property: password2
       templateData:
         RCLONE_CONFIG_OVH_TYPE: "s3"
         RCLONE_CONFIG_OVH_PROVIDER: "Other"
@@ -54,6 +60,14 @@ homelab-common:
         RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+        # Dumps on OVH go through crypt; same remote as openbao, tfstate-mirror
+        # and the ops node. Passwords stored rclone-obscured. Names stay plain.
+        RCLONE_CONFIG_OVHCRYPT_TYPE: "crypt"
+        RCLONE_CONFIG_OVHCRYPT_REMOTE: "ovh:offsite-homelab/crypt"
+        RCLONE_CONFIG_OVHCRYPT_FILENAME_ENCRYPTION: "off"
+        RCLONE_CONFIG_OVHCRYPT_DIRECTORY_NAME_ENCRYPTION: "false"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD: "{{ .ovh_crypt_pw }}"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD2: "{{ .ovh_crypt_pw2 }}"
 
   # `app` is the unused initdb placeholder.
   cnpgDatabases:
@@ -123,11 +137,11 @@ homelab-common:
           args:
             - |
               set -eu
-              echo "[$(date -u)] rclone copy /dump -> ovh:offsite-homelab/pg-logical/cnpg-cluster/"
-              rclone copy /dump ovh:offsite-homelab/pg-logical/cnpg-cluster/ \
+              echo "[$(date -u)] rclone copy /dump -> ovhcrypt:pg-logical/cnpg-cluster/"
+              rclone copy /dump ovhcrypt:pg-logical/cnpg-cluster/ \
                 --s3-acl=private --stats-one-line --stats=2m
               echo "[$(date -u)] prune >90d"
-              rclone delete ovh:offsite-homelab/pg-logical/cnpg-cluster/ \
+              rclone delete ovhcrypt:pg-logical/cnpg-cluster/ \
                 --min-age 2160h --rmdirs || true
           envFrom:
             - secretRef:

@@ -28,6 +28,12 @@ homelab-common:
         - secretKey: ovh_sk
           vaultPath: shared/s3-ovh
           property: ACCESS_SECRET_KEY
+        - secretKey: ovh_crypt_pw
+          vaultPath: shared/ovh-crypt
+          property: password
+        - secretKey: ovh_crypt_pw2
+          vaultPath: shared/ovh-crypt
+          property: password2
       templateData:
         RCLONE_CONFIG_GARAGE_TYPE: "s3"
         RCLONE_CONFIG_GARAGE_PROVIDER: "Other"
@@ -43,6 +49,14 @@ homelab-common:
         RCLONE_CONFIG_OVH_FORCE_PATH_STYLE: "true"
         RCLONE_CONFIG_OVH_ACCESS_KEY_ID: "{{ .ovh_ak }}"
         RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY: "{{ .ovh_sk }}"
+        # Router configs on OVH go through crypt; same remote as openbao,
+        # tfstate-mirror and the ops node. Passwords stored rclone-obscured.
+        RCLONE_CONFIG_OVHCRYPT_TYPE: "crypt"
+        RCLONE_CONFIG_OVHCRYPT_REMOTE: "ovh:offsite-homelab/crypt"
+        RCLONE_CONFIG_OVHCRYPT_FILENAME_ENCRYPTION: "off"
+        RCLONE_CONFIG_OVHCRYPT_DIRECTORY_NAME_ENCRYPTION: "false"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD: "{{ .ovh_crypt_pw }}"
+        RCLONE_CONFIG_OVHCRYPT_PASSWORD2: "{{ .ovh_crypt_pw2 }}"
 
   workloads:
     - name: config-backup
@@ -76,7 +90,7 @@ homelab-common:
                 root@10.11.12.1 "sysupgrade -b -" > "/tmp/b/owrt-router-$ts.tar.gz"
               ls -lh /tmp/b/
               gzip -t /tmp/b/*.tar.gz
-              for r in garage:config-backups/openwrt ovh:offsite-homelab/openwrt; do
+              for r in garage:config-backups/openwrt ovhcrypt:openwrt; do
                 echo "[$(date -u)] rclone copy -> $r/"
                 rclone copy /tmp/b "$r/" --s3-acl=private --stats-one-line
                 rclone delete "$r/" --min-age 2160h --rmdirs || true

@@ -71,7 +71,8 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OVH crypt + OpenWrt)"
   echo "GARAGE_SNAPSHOTS_SECRET=$(sn RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY)"
   echo "OVH_S3_ACCESS_KEY=$(sn RCLONE_CONFIG_OVH_ACCESS_KEY_ID)"
   echo "OVH_S3_SECRET_KEY=$(sn RCLONE_CONFIG_OVH_SECRET_ACCESS_KEY)"
-  # rclone crypt key of the OVH snapshot and tfstate copies (rclone-obscured).
+  # rclone crypt key of the OVH snapshot, tfstate, pg_dump and router config
+  # copies (rclone-obscured).
   echo "OVH_CRYPT_PASSWORD=$(sn RCLONE_CONFIG_OVHCRYPT_PASSWORD)"
   echo "OVH_CRYPT_PASSWORD2=$(sn RCLONE_CONFIG_OVHCRYPT_PASSWORD2)"
 

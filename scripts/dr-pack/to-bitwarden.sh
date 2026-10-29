@@ -50,7 +50,8 @@ fi
 # Names continue items 01..07 in the same folder.
 # 11: without SECRET_KEY a Forgejo DB restored on a new ops node cannot decrypt
 # its Authentik client secret, 2FA and push-mirror passwords.
-# 12: rclone-obscured crypt key of the OVH etcd/OpenBao snapshots and tfstate
+# 12: rclone-obscured crypt key of the OVH etcd/OpenBao snapshots, tfstate,
+# pg_dump and router config (item name kept: renaming makes a duplicate)
 # (use as RCLONE_CONFIG_<remote>_PASSWORD{,2}; `rclone reveal` prints the plain one).
 # Format: name | path:fields[,fields];path:fields
 ITEMS='
