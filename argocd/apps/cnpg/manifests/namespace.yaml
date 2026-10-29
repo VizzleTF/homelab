@@ -1,5 +1,6 @@
-# Cluster default is privileged. Prune/Delete=false: deleting the app must never
-# take the namespace and cnpg-cluster's local-path PVCs with it.
+# baseline equals the cluster PodSecurity default; kept explicit.
+# Prune/Delete=false: deleting the app must never take the namespace and
+# cnpg-cluster's local-path PVCs with it.
 apiVersion: v1
 kind: Namespace
 metadata:

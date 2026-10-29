@@ -1,4 +1,5 @@
-# Kyverno is the only pod-security gate: Talos PodSecurity defaults to privileged.
+# Pod security: Talos PodSecurity enforces baseline by default (privileged-labelled
+# namespaces excepted); kyverno-policies adds its own baseline with failurePolicy Ignore.
 # Reports off: Enforce rejects at admission; reports cost ~55 etcd writes/min on
 # the fsync-bound SSD. omitEvents: background scan emitted 1400+ duplicate Events.
 features:

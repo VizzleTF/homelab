@@ -54,10 +54,12 @@ name: PodSecurity
 configuration:
   apiVersion: pod-security.admission.config.k8s.io/v1alpha1
   kind: PodSecurityConfiguration
+  # baseline: namespaces that need more carry pod-security.kubernetes.io/enforce=privileged
+  # (argocd/*/*/manifests/namespace.yaml); apply only after those labels are synced.
   defaults:
     audit: restricted
     audit-version: latest
-    enforce: privileged
+    enforce: baseline
     enforce-version: latest
     warn: restricted
     warn-version: latest
