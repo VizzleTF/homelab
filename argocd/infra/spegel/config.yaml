@@ -1,4 +1,4 @@
 chart: spegel
 repoURL: ghcr.io/spegel-org/helm-charts
-targetRevision: "0.8.0"
+targetRevision: "0.8.1"
 wave: "-3"
