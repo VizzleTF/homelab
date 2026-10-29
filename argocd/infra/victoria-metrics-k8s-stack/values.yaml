@@ -136,8 +136,10 @@ defaultRules:
     PersistentQueueRunsOutOfSpaceIn12Hours: {enabled: false}
     PersistentQueueRunsOutOfSpaceIn4Hours: {enabled: false}
 
-    # Trip on every vmsingle restart (2-3 min) during syncs; a real outage is
-    # covered by VMSingleDown / VMAlertDown.
+    # Trip on every vmsingle restart (2-3 min) during syncs; a lasting outage is
+    # covered by ServiceDown (vm stack rules: up == 0 for vmsingle/vmalert jobs, 2m)
+    # and TargetDown. A full vmsingle or vmalert outage halts evaluation itself,
+    # so no in-cluster rule fires then (Watchdog is disabled).
     AlertingRulesError: {enabled: false}
     ConfigurationReloadFailure: {enabled: false}
     RemoteWriteDroppingData: {enabled: false}
