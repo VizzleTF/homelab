@@ -82,6 +82,16 @@ spec:
       expr: "status.readyInstances == object.spec.instances"
       timeout: 15m
 
+    # Readiness probe is `bao status`, which fails while sealed: all ready = all unsealed.
+    # has(): readyReplicas is omitted from status when it is 0.
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      namespace: openbao
+      name: openbao
+      description: "All OpenBao pods unsealed and ready"
+      expr: "has(status.readyReplicas) && status.readyReplicas == object.spec.replicas"
+      timeout: 15m
+
   talosctl:
     image:
       repository: ghcr.io/siderolabs/talosctl
