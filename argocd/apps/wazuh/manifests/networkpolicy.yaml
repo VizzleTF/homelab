@@ -1,9 +1,6 @@
 # Adds to the homelab-common policy. 55000 and 1516 stay in-namespace.
 # Vector's audit syslog may arrive from a node IP or the API VIP (Cilium: world).
 # LAN agents come through wazuh-manager-lb (eTP Local): no SNAT, identity world.
-# The remote-node deny guards 55000/1516 while the operator's Service is still a
-# LoadBalancer (SNAT on control-plane nodes = kube-apiserver+remote-node, open in
-# default-ingress); drop it once wazuh-manager-master is ClusterIP.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -43,12 +40,3 @@ spec:
         - ports:
             - port: "514"
               protocol: UDP
-  ingressDeny:
-    - fromEntities:
-        - remote-node
-      toPorts:
-        - ports:
-            - port: "55000"
-              protocol: TCP
-            - port: "1516"
-              protocol: TCP
