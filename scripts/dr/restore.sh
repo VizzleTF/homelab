@@ -55,6 +55,8 @@ Env vars:
   KUBECONFIG         kubeconfig path
   BAO_TOKEN          OpenBao root token (alternative to decrypting the Shamir bundle;
                      legacy VAULT_TOKEN still honoured)
+  DR_CNPG_EMPTY_OK   1 = let phase 10 run while the CNPG Cluster manifests
+                     still bootstrap with initdb (deliberately empty databases)
 EOF
     ;;
 esac

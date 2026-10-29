@@ -55,7 +55,7 @@ Forgejo is not part of this rebuild: it runs on the ops node, outside the cluste
 | 07 | eso | OpenBao now holds everything else; ESO policies and roles from `scripts/openbao-eso-access.sh` |
 | 08 | cnpg | git (CNPG operator chart); Cluster CRs and barman recovery come with ArgoCD |
 | 09 | apps | VolSync restic repositories, one volume per app via `restore-app.sh`; runs before ArgoCD so the PVCs do not exist yet, ArgoCD adopts them |
-| 10 | argocd | Forgejo on the ops node must answer; deletes the bootstrap Secrets so ESO owns them, installs ArgoCD, then ApplicationSets render everything |
+| 10 | argocd | Refuses to start while `argocd/apps/{cnpg,immich}/manifests/cluster.yaml` bootstrap with `initdb` (ArgoCD would create empty databases): switch both to `bootstrap.recovery`, merge to main, rerun; `DR_CNPG_EMPTY_OK=1` for a deliberately empty rebuild. Forgejo on the ops node must answer; deletes the bootstrap Secrets so ESO owns them, installs ArgoCD, then ApplicationSets render everything |
 
 Chart versions are read at run time from git (`chart_version` in `lib/common.sh`): `argocd/infra/<name>/config.yaml` `targetRevision`, and `argocd/standalone/*.yaml` for Gateway API and ArgoCD. DR installs exactly what ArgoCD runs, so Renovate bumps need no second edit here.
 

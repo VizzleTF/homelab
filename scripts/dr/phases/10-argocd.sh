@@ -9,6 +9,24 @@ source "$(dirname "$0")/../lib/common.sh"
 
 require_kubectl
 
+# Gate: ArgoCD creates the CNPG Clusters from git; with bootstrap.initdb they
+# come up as empty databases instead of the barman backup.
+if [ "${DR_CNPG_EMPTY_OK:-0}" != "1" ]; then
+  for f in argocd/apps/cnpg/manifests/cluster.yaml argocd/apps/immich/manifests/cluster.yaml; do
+    [ "$(yq -r '.spec.bootstrap | has("recovery")' "$REPO_ROOT/$f")" = "true" ] \
+      || die "$f bootstraps with initdb: ArgoCD would create an EMPTY database.
+  Switch spec.bootstrap to recovery from the barman object store in both Cluster
+  manifests (obsidian/113 Backups/Disaster Recovery — Full Cluster Rebuild.md,
+  Phase 5; obsidian/113 Backups/CNPG Barman Recovery.md), merge it to main
+  (ArgoCD reads Forgejo main, not this checkout), pull, and rerun:
+    scripts/dr/restore.sh phase 10-argocd
+  For a deliberately empty rebuild: DR_CNPG_EMPTY_OK=1 scripts/dr/restore.sh phase 10-argocd"
+  done
+  log_ok "CNPG Clusters bootstrap from recovery"
+else
+  log_warn "DR_CNPG_EMPTY_OK=1: CNPG Clusters may bootstrap empty (initdb)"
+fi
+
 log_info "checking Forgejo on the ops node (git.example.com)"
 curl -fsS --max-time 10 https://git.example.com/api/healthz >/dev/null \
   || die "git.example.com does not answer — ArgoCD has no source. Fix the ops node first: obsidian/113 Backups/Forgejo Recovery.md"
