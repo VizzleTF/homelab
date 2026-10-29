@@ -38,12 +38,12 @@
           url = "https://10.11.11.100:6443/readyz";
           interval = "2m";
           client.insecure = true; # kube CA is not in the node trust store
-          # Talos has no anonymous health endpoint: 401 = apiserver answered; a dead
-          # one refuses. No SA token on the node just for /readyz; depth is the
-          # ingress check's job.
+          # /readyz is readable anonymously (system:public-info-viewer): 200 "ok"
+          # once the apiserver is ready; depth is the ingress check's job.
           conditions = [
             "[CONNECTED] == true"
-            "[STATUS] == 401"
+            "[STATUS] == 200"
+            "[BODY] == ok"
           ];
           alerts = [ { type = "telegram"; description = "Kubernetes API is unreachable"; } ];
         }

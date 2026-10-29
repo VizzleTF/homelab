@@ -21,6 +21,9 @@
       dnsResolver = "1.1.1.1:53";
       # Forgejo reads the cert directly.
       group = "git";
+      # Forgejo loads the cert only at start and has no ExecReload, so this is a
+      # restart (a few seconds of downtime) after each renewal, ~every 60 days.
+      reloadServices = [ "forgejo.service" ];
     };
   };
 

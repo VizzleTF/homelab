@@ -31,6 +31,12 @@
         echo "no dump found in /var/lib/forgejo/dump — nothing to ship"
         exit 1
       fi
+      # Dump runs at 01:30, this at 02:15: an older file means forgejo-dump failed.
+      age_min=$(( ($(date +%s) - $(stat -c %Y "$dump")) / 60 ))
+      if [ "$age_min" -gt 120 ]; then
+        echo "newest dump $dump is $age_min min old (>120) — forgejo-dump did not produce a fresh one"
+        exit 1
+      fi
       echo "shipping $dump"
 
       # Same repo layout as the cluster's restic backups.

@@ -86,11 +86,13 @@
   environment.systemPackages = with pkgs; [
     curl
     git
+    gnupg # scripts/dr/phases/00-preflight.sh decrypts the Shamir bundle with gpg
     htop
     jq
     kubectl
     kubernetes-helm
     openbao # the `bao` CLI; the HashiCorp vault binary is deliberately absent
+    openssl # also required by 00-preflight.sh
     rclone
     restic
     rsync
