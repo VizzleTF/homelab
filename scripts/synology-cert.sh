@@ -67,7 +67,7 @@ list_certs_remote() {
       [ -f "$entry/cert.pem" ] || continue
       subj=$(openssl x509 -in "$entry/cert.pem" -noout -subject 2>/dev/null | sed 's/^subject= *//')
       san=$(openssl x509 -in "$entry/cert.pem" -noout -ext subjectAltName 2>/dev/null \
-            | tr '\n,' '  ' | sed 's/.*DNS://; s/  */ /g')
+            | tr '\n,' '  ' | sed 's/^.*Alternative Name: *//; s/DNS://g; s/  */ /g')
       end=$(openssl x509 -in "$entry/cert.pem" -noout -enddate 2>/dev/null | sed 's/^notAfter=//')
       printf '%s\t%s\t%s\t%s\n' "$entry" "$subj" "$san" "$end"
     done
@@ -117,8 +117,9 @@ resolve_archive_id() {
     fi
   done < <(list_certs_remote)
   matches=$(printf '%s' "$matches" | tr ' ' '\n' | grep -v '^$' | head -2)
-  case "$(printf '%s\n' "$matches" | wc -l)" in
-    0|"") return ;;
+  # grep -c, not wc -l: BSD wc pads the count with spaces, so "1)" never matched.
+  case "$(printf '%s' "$matches" | grep -c . || true)" in
+    0) return ;;
     1) printf '%s' "$matches" ;;
     *) printf 'AMBIGUOUS\n%s' "$matches" ;;
   esac
