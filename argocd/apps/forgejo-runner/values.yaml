@@ -28,11 +28,12 @@ runner:
           - ubuntu-20.04:docker://node:20-bookworm
         envs:  # pinned: null drops the chart's dummy A_TEST_ENV_NAME_* entries
       container:
-        privileged: true
         options:  # pinned: null default, renders only when set here
         workdir_parent:  # pinned: null default, renders only when set here
+        # Only argocd-diff's `-v /var/run/docker.sock` (the dind socket); kind's privileged
+        # containers come from dind via that socket, so job containers stay unprivileged.
         valid_volumes:
-          - "**"
+          - /var/run/docker.sock
       host:
         workdir_parent:  # pinned: null default, renders only when set here
 
