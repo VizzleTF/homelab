@@ -14,7 +14,8 @@ features:
       - PolicySkipped
       - PolicyViolation
 
-# One replica is safe: policies use failurePolicy Ignore, so a restart only skips checks.
+# One replica is safe: policies use failurePolicy Ignore, so a restart only skips checks
+# restrict-backup-drill-writes is Fail, but only for the backup-drill SA (native VAP).
 # 15 s lease retry cuts etcd lease writes ~7x vs the 2 s default (2026-10).
 admissionController:
   container:

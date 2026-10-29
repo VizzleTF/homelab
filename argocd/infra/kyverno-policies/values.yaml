@@ -24,3 +24,43 @@ vpolExclude:
 
 # Not the default Fail: a Kyverno outage would block all admissions cluster-wide.
 failurePolicy: Ignore
+
+# backup-drill's ClusterRole is cluster-wide (RBAC cannot scope to a drill-* prefix);
+# this confines its writes to drill-* namespaces. Generated as a native VAP, so it is
+# enforced by the apiserver: covers kube-system/kyverno (skipped by Kyverno's webhooks)
+# and holds during a Kyverno outage. Not affected by vpolExclude above.
+customPolicies:
+  - apiVersion: policies.kyverno.io/v1
+    kind: ValidatingPolicy
+    metadata:
+      name: restrict-backup-drill-writes
+      annotations:
+        policies.kyverno.io/title: Restrict backup-drill writes
+        policies.kyverno.io/description: >-
+          The backup-drill service account may create, update or delete objects only
+          in drill-* namespaces and its own namespace, and only drill-* Namespaces.
+    spec:
+      autogen:
+        validatingAdmissionPolicy:
+          enabled: true
+      evaluation:
+        # Uses request.userInfo: admission-only
+        background:
+          enabled: false
+      failurePolicy: Fail
+      validationActions: [Deny]
+      matchConstraints:
+        resourceRules:
+          - apiGroups: ["*"]
+            apiVersions: ["*"]
+            operations: [CREATE, UPDATE, DELETE]
+            resources: ["*/*"]
+      matchConditions:
+        - name: backup-drill-sa
+          expression: "request.userInfo.username == 'system:serviceaccount:backup-drill:backup-drill'"
+      validations:
+        - expression: >-
+            request.resource.group == '' && request.resource.resource == 'namespaces'
+            ? request.name.startsWith('drill-')
+            : has(request.namespace) && (request.namespace.startsWith('drill-') || request.namespace == 'backup-drill')
+          message: backup-drill may write only inside drill-* namespaces (or backup-drill) and manage only drill-* Namespaces.

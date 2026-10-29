@@ -95,6 +95,7 @@ homelab-common:
         name: backup-drill
         # Cluster-wide: RBAC cannot scope to a drill-* name prefix. Keep it free of
         # rights to modify other workloads (deployments/statefulsets/daemonsets).
+        # Writes outside drill-* are denied by the kyverno-policies restrict-backup-drill-writes VAP.
         rules:
           - apiGroups: [""]
             resources: ["namespaces"]
