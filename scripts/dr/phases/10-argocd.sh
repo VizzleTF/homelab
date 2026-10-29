@@ -19,6 +19,34 @@ helm repo update argo >/dev/null
 
 kubectl create ns argocd 2>/dev/null || true
 
+HELM_REPO_HOMELAB=https://git.example.com/api/packages/vizzle/helm
+
+# ArgoCD's Redis is valkey (externalRedis), which only ArgoCD deploys: install it
+# from git first, with the apps AppSet's homelab-common pin; ArgoCD adopts it.
+VALKEY_HC_VERSION="$(yq -r '.spec.templatePatch' "$REPO_ROOT/argocd/appsets/apps-appset.yaml" \
+  | awk '/chart: homelab-common/ { getline; gsub(/"/, "", $2); print $2 }')"
+[ -n "$VALKEY_HC_VERSION" ] || die "no homelab-common version in argocd/appsets/apps-appset.yaml"
+log_info "installing valkey (homelab-common $VALKEY_HC_VERSION)"
+helm_apply valkey homelab-common valkey \
+  --repo "$HELM_REPO_HOMELAB" --version "$VALKEY_HC_VERSION" \
+  -f "$REPO_ROOT/argocd/values/global.yaml" -f "$REPO_ROOT/argocd/apps/valkey/values.yaml"
+
+# The argo-cd chart needs argocd-valkey (externalRedis.existingSecret) to start,
+# and the repo-creds ExternalSecret comes from the standalone argocd app, which
+# cannot render without those creds ($values is the SSH monorepo): apply the
+# ESO objects from a local render first; ArgoCD adopts them.
+HC_VERSION="$(chart_version standalone/argocd-application.yaml '.spec.sources[] | select(.chart == "homelab-common") | .targetRevision')"
+log_info "applying the argocd SecretStore + argocd-valkey and repo-creds ExternalSecrets (homelab-common $HC_VERSION)"
+helm template argocd homelab-common --repo "$HELM_REPO_HOMELAB" \
+  --version "$HC_VERSION" --namespace argocd \
+  -f "$REPO_ROOT/argocd/values/global.yaml" -f "$REPO_ROOT/argocd/values/argocd.yaml" \
+  | yq 'select(.kind == "ServiceAccount" or .kind == "SecretStore" or (.kind == "ExternalSecret" and (.metadata.name == "argocd-repo-creds-forgejo" or .metadata.name == "argocd-valkey")))' \
+  | kubectl apply -f -
+
+wait_for "argocd-valkey Secret synced" \
+  "kubectl -n argocd get secret argocd-valkey >/dev/null 2>&1" \
+  120
+
 ARGOCD_CHART_VERSION="$(chart_version standalone/argocd-application.yaml '.spec.sources[] | select(.chart == "argo-cd") | .targetRevision')"
 log_info "installing ArgoCD chart with homelab values"
 helm_apply argocd argo/argo-cd argocd \
@@ -29,17 +57,6 @@ wait_for "argocd-server Ready" \
   "kubectl -n argocd rollout status deploy/argocd-server --timeout=300s"
 wait_for "argocd-repo-server Ready" \
   "kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s"
-
-# The repo-creds ExternalSecret comes from the standalone argocd app, which
-# cannot render without those creds ($values is the SSH monorepo): apply the
-# ESO objects from a local render first; ArgoCD adopts them.
-HC_VERSION="$(chart_version standalone/argocd-application.yaml '.spec.sources[] | select(.chart == "homelab-common") | .targetRevision')"
-log_info "applying the argocd SecretStore + repo-creds ExternalSecret (homelab-common $HC_VERSION)"
-helm template argocd homelab-common --repo https://git.example.com/api/packages/vizzle/helm \
-  --version "$HC_VERSION" --namespace argocd \
-  -f "$REPO_ROOT/argocd/values/global.yaml" -f "$REPO_ROOT/argocd/values/argocd.yaml" \
-  | yq 'select(.kind == "ServiceAccount" or .kind == "SecretStore" or (.kind == "ExternalSecret" and .metadata.name == "argocd-repo-creds-forgejo"))' \
-  | kubectl apply -f -
 
 # The root project + Application need the Forgejo repo-creds template (all AppProjects).
 wait_for "argocd-repo-creds-forgejo Secret synced" \
