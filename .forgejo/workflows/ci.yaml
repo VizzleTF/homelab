@@ -396,6 +396,13 @@ jobs:
           echo "::error::kubeconform, pluto or the review gate failed — see the PR comment"
           exit 1
 
+      - name: Clean up
+        # Sibling containers on the dind host outlive a cancelled or timed-out job.
+        if: always()
+        run: |
+          docker rm -f argocd-diff-preview argocd-diff-preview-control-plane >/dev/null 2>&1 || true
+          rm -f secrets/repo.yaml
+
   mirror-to-github:
     # Post-merge only; workflow_dispatch re-runs the mirror without a re-merge.
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
