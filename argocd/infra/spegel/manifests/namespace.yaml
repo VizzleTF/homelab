@@ -1,0 +1,10 @@
+# PodSecurity default is baseline; pods here need more (containerd socket and content store hostPaths).
+# Prune/Delete=false: deleting the app must never delete the namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spegel
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false

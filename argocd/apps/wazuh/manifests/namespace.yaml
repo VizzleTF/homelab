@@ -1,9 +1,12 @@
 # For the VolSync annotation: 0600 files of uid 999 and root, no single uid reads all.
+# privileged PodSecurity: indexer sysctl init container (privileged, SYS_ADMIN), manager seccomp Unconfined.
 # Prune/Delete=false: deleting the app must never delete the namespace.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: wazuh
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
   annotations:
     volsync.backube/privileged-movers: "true"
     argocd.argoproj.io/sync-options: Prune=false,Delete=false

@@ -1,0 +1,10 @@
+# PodSecurity default is baseline; pods here need more (privileged dind sidecar).
+# Prune/Delete=false: deleting the app must never delete the namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: forgejo-runner
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false

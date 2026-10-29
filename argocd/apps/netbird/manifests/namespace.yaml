@@ -1,0 +1,10 @@
+# PodSecurity default is baseline; pods here need more (WireGuard routing peers: NET_ADMIN/SYS_ADMIN, /dev/net/tun hostPath).
+# Prune/Delete=false: deleting the app must never delete the namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netbird
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
