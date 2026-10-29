@@ -770,7 +770,7 @@ ship_one() {
   pr="${pr%%$'\n'*}"
   if [[ -z "$pr" ]]; then
     local range=(--no-merges --cherry-pick --right-only "origin/$BASE_BRANCH...$b")
-    [[ -n "$title" ]] || title=$(git log --reverse --format=%s "${range[@]}" | head -1)
+    [[ -n "$title" ]] || title=$(git log --reverse --format=%s "${range[@]}" | sed -n 1p)
     [[ -n "$body" ]] || body=$(git log --reverse --format='## %s%n%n%b' "${range[@]}")
     check_body "$body" || { echo "pass the PR text explicitly: $0 full $b -- <title> <body>" >&2; drop_temp_wt; return 4; }
   elif [[ -n "$title" ]]; then
