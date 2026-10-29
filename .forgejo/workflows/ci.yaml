@@ -277,17 +277,13 @@ jobs:
           set -euo pipefail
           # Read-only deploy key for the throwaway ArgoCD in kind.
           mkdir -p secrets argocd-config
-          # git.example.com stays while main may still point there (domain move); drop with it.
-          for host in git.example.com git.example.com; do
-            SSH_KEY="$SSH_KEY" HOST="$host" yq -n '
-              .apiVersion = "v1" | .kind = "Secret"
-              | .metadata.name = "homelab-repo-" + (strenv(HOST) | sub("\.", "-"))
-              | .metadata.namespace = "argocd"
-              | .metadata.labels."argocd.argoproj.io/secret-type" = "repo-creds"
-              | .stringData.type = "git"
-              | .stringData.url = "ssh://git@" + strenv(HOST) + ":22/vizzle"
-              | .stringData.sshPrivateKey = strenv(SSH_KEY)' > "secrets/repo-${host}.yaml"
-          done
+          SSH_KEY="$SSH_KEY" yq -n '
+            .apiVersion = "v1" | .kind = "Secret"
+            | .metadata.name = "homelab-repo" | .metadata.namespace = "argocd"
+            | .metadata.labels."argocd.argoproj.io/secret-type" = "repo-creds"
+            | .stringData.type = "git"
+            | .stringData.url = "ssh://git@git.example.com:22/vizzle"
+            | .stringData.sshPrivateKey = strenv(SSH_KEY)' > secrets/repo.yaml
           # Host keys and ArgoCD chart version come from main, so a PR cannot swap them.
           yq -n '.configs.ssh.extraHosts = load("base-branch/argocd/values/argocd.yaml").configs.ssh.extraHosts' \
             > argocd-config/values.yaml
