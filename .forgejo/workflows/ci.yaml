@@ -447,6 +447,9 @@ jobs:
       - name: Sanitize history for GitHub mirror
         env:
           SANITIZE_RULES: ${{ secrets.MIRROR_SANITIZE_RULES }}
+          # Appended rules: the main secret is write-only, so new rules go here instead
+          # of retyping it.
+          SANITIZE_RULES_EXTRA: ${{ secrets.MIRROR_SANITIZE_RULES_EXTRA }}
         run: |
           set -euo pipefail
           if [ -z "${SANITIZE_RULES:-}" ]; then
@@ -454,6 +457,9 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$SANITIZE_RULES" > /tmp/replacements.txt
+          if [ -n "${SANITIZE_RULES_EXTRA:-}" ]; then
+            printf '%s\n' "$SANITIZE_RULES_EXTRA" >> /tmp/replacements.txt
+          fi
           git filter-repo --replace-text /tmp/replacements.txt --force
           rm -f /tmp/replacements.txt
 
