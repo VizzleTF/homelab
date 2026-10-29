@@ -162,8 +162,13 @@ homelab-common:
             # patch: volsync.backube/privileged-movers on its drill namespace
             verbs: ["get", "list", "create", "delete", "patch"]
           - apiGroups: [""]
-            resources: ["persistentvolumeclaims", "secrets", "pods", "pods/log"]
+            resources: ["persistentvolumeclaims", "pods", "pods/log"]
             verbs: ["get", "list", "create", "delete"]
+          # Create-only: no Secret reads anywhere (credentials come from the ESO Secrets
+          # above via envFrom); the drill Secrets die with their drill-* namespace.
+          - apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["create"]
           - apiGroups: ["volsync.backube"]
             resources: ["replicationdestinations"]
             verbs: ["get", "list", "create", "delete"]
