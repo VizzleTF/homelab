@@ -113,6 +113,11 @@
       "groupName": "talos"
     },
     {
+      "description": "Kubernetes (siderolabs/kubelet in nodes.yaml and the tuppr KubernetesUpgrade) moves one minor at a time: Kubernetes upgrades only one minor at a time and tuppr does not stop an N -> N+2 jump. separateMultipleMinor opens one update per minor instead of jumping to the latest.",
+      "matchPackageNames": ["ghcr.io/siderolabs/kubelet"],
+      "separateMultipleMinor": true
+    },
+    {
       "description": "Lint tools and pre-commit itself are pinned in .mise.toml (CI reads it), .pre-commit-config.yaml (hook revs). One PR bumps all copies so CI and the hooks run the same version.",
       "matchPackageNames": ["/yamllint/", "/gitleaks/", "/shellcheck/", "pre-commit"],
       "groupName": "lint-tools"

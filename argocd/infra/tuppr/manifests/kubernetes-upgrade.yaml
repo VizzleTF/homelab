@@ -1,6 +1,6 @@
-# tuppr does not enforce a safe path: Renovate separateMinorPatch must keep
-# minor and patch apart, or N -> N+2 slips through. Before a minor bump, Talos
-# must already ship this kubelet (siderolabs/kubelet lags upstream).
+# tuppr does not enforce a safe path: the renovate.json separateMultipleMinor rule
+# for siderolabs/kubelet opens one PR per minor, or N -> N+2 slips through. Before a
+# minor bump, Talos must already ship this kubelet (siderolabs/kubelet lags upstream).
 apiVersion: tuppr.home-operations.com/v1alpha1
 kind: KubernetesUpgrade
 metadata:
