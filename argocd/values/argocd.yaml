@@ -214,7 +214,6 @@ homelab-common:
         name: cloudflare-issuer
       dnsNames:
         - "*.example.com"
-        - "*.example.com"
 
   tlsRoutes:
     - name: argocd

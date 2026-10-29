@@ -35,7 +35,6 @@ txtOwnerId: homelab-cloudflare
 
 domainFilters:
   - example.com
-  - example.com
 
 resources:
   limits:
