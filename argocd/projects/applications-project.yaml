@@ -19,7 +19,6 @@ spec:
     - {namespace: '!backup-drill', server: '*'}
     - {namespace: '!cert-manager', server: '*'}
     - {namespace: '!cilium-secrets', server: '*'}
-    - {namespace: '!cloudflared', server: '*'}
     - {namespace: '!cnpg-system', server: '*'}
     - {namespace: '!external-dns*', server: '*'}
     - {namespace: '!external-secrets-system', server: '*'}

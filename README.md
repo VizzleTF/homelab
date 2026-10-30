@@ -30,8 +30,8 @@ A single-tenant home cluster: four bare-metal Talos nodes managed by ArgoCD, wit
 | Cluster OS            | Talos Linux (bare-metal)                | Immutable, no SSH, API-only via `talosctl`                           |
 | Provisioning          | Terraform + `siderolabs/talos`          | Per-node entries in `terraform_talos/configs/nodes.yaml`             |
 | CNI                   | Cilium                                  | eBPF, kube-proxy replacement, WireGuard pod-to-pod, BGP to OpenWrt   |
-| Ingress               | Cilium Gateway API                      | Three Gateways: public, internal, TLS passthrough; experimental-channel CRDs |
-| External access       | Cloudflared tunnel                      | Catch-all into the public Gateway; external-dns writes CNAMEs        |
+| Ingress               | Cilium Gateway API                      | Two Gateways: internal, TLS passthrough; experimental-channel CRDs |
+| External access       | NetBird mesh + Reverse Proxy on a VPS   | Apps are LAN + mesh only; the proxy publishes single services (cleanbot webhook) |
 | TLS                   | cert-manager + Cloudflare DNS-01        | One wildcard secret in `kube-system`, every Gateway references it    |
 | Storage               | Longhorn + local-path                   | Longhorn is the default class (2 replicas, `Retain`); self-replicating or disposable stores (the shared CNPG cluster, OpenBao Raft, vmsingle) use local-path |
 | Secrets               | OpenBao HA + External Secrets Operator  | MPL 2.0 fork of Vault 1.14.x, API-compatible; KV v2 mount `home`     |
@@ -104,7 +104,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the de
 | **-3**  | kubelet-csr-approver, metrics-server, spegel, volsync |
 | **-2**  | external-secrets, cnpg-operator, keda, external-dns, external-dns-openwrt, victoria-metrics-k8s-stack |
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, tuppr, victoria-logs, wazuh-operator |
-| **0**   | cloudflared, intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, snmp-exporter, tfstate-mirror |
+| **0**   | intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, snmp-exporter, tfstate-mirror |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, kyverno-policies, backup-drill |
 | **2**   | renovate; apps: atuin, authentik, cleanbot, immich, lampac, may, obsidian-livesync, opencloud, rss-to-telegram-bot, spotify-backup, trek, vaultwarden, wazuh |
 | **3**   | forgejo-runner, netbird, crowdsec-scraper, openwrt-backup |
@@ -128,11 +128,8 @@ Cold storage and backups live off-cluster on a Synology NAS, exposed as Garage S
 ## Networking
 
 ```
-Internet  →  Cloudflare tunnel (cloudflared deployment in-cluster)
-                ↓ catch-all
-            cilium-gateway              public hosts        (10.11.10.137)
-
-LAN       →  cilium-gateway-internal    LAN-only            (10.11.10.138)
+Internet  →  NetBird Reverse Proxy (VPS vps-fi) → mesh ↓   published services only
+LAN, mesh →  cilium-gateway-internal    every HTTPRoute     (10.11.10.138)
 LAN + TLS →  cilium-gateway-tls         TLSRoute passthrough (10.11.10.139)
 ```
 
@@ -148,9 +145,9 @@ Cilium peers eBGP with OpenWrt (BIRD2) from every node (ASN `65010` ↔ `65000`)
 
 One wildcard cert lives in `kube-system/wildcard-tls`; every Gateway references it. cert-manager renews it via Cloudflare DNS-01.
 
-external-dns writes records both ways: Cloudflare for public hosts, OpenWrt for the LAN. dnsmasq cannot store TXT records, so the OpenWrt instance (a forked webhook provider) runs with `registry: noop`. The provider marks the uci records it owns, and that marker makes `policy: sync` safe.
+external-dns writes the LAN records to OpenWrt; mesh clients use the router as their nameserver. Public records (NetBird, its proxy) are manual in Cloudflare. dnsmasq cannot store TXT records, so the OpenWrt instance (a forked webhook provider) runs with `registry: noop`. The provider marks the uci records it owns, and that marker makes `policy: sync` safe.
 
-To expose a new public service, add `httpRoutes:` to the app's `values.yaml`. `homelab-common` renders the HTTPRoute, external-dns picks up the host, and the tunnel routes it.
+To serve a new app, add `httpRoutes:` to the app's `values.yaml`: `homelab-common` renders the HTTPRoute on the internal gateway and external-dns adds the LAN record. To publish one to the internet, add a service on the NetBird Reverse Proxy (`docs/netbird-reverse-proxy.md`).
 
 Every namespace except `kube-system`, `netbird` and `longhorn-system` has a default-deny ingress `CiliumNetworkPolicy` (`longhorn-system` relies on the chart's per-component `NetworkPolicy` objects plus `longhorn-ui-gateway-only`); a new cross-namespace client needs an `allow` entry in the target namespace. The same namespaces get `lan-egress-deny`: no egress to private ranges except pods, Services and the release's `networkPolicy.lanEgress` (NAS, router, ops node), so a compromised image cannot reach the LAN.
 

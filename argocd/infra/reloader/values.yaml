@@ -1,6 +1,6 @@
 # Opt-in via workload annotation (homelab-common `workloads` add it; upstream charts set it).
 # Not annotatable — restart by hand after secret rotation: couchdb (obsidian-livesync),
-# trek, robusta-runner, cloudflared DaemonSet, wazuh-manager-master/worker StatefulSets.
+# trek, robusta-runner, wazuh-manager-master/worker StatefulSets.
 
 reloader:
   # Without both, Secret changes made while reloader was down or before it

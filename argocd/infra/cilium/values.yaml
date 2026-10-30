@@ -67,8 +67,9 @@ gatewayAPI:
   enabled: true
   enableAlpn: true
   enableAppProtocol: true
-  # Default true since 1.20; true makes x-envoy-external-address the cloudflared
-  # pod IP instead of the real client IP.
+  # Default true since 1.20. Set false for the removed cloudflared; the gateway
+  # Services use externalTrafficPolicy Cluster, so flipping it alone may still
+  # give the SNAT'd node IP — check the client IP in a backend log first.
   useRemoteAddress: false
 
 # All nodes share one L2 (10.11.11.x).
