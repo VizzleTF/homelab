@@ -37,7 +37,7 @@ scripts/dr/restore.sh phase 06-vault-restore
 
 Generate / refresh with `bash scripts/dr-pack/build.sh` (see [`../dr-pack/README.md`](../dr-pack/README.md)).
 
-After OpenBao is restored, every other secret (Forgejo SSH key, OIDC client secrets, Cloudflared tunnel JSON, OpenWrt creds, all S3 keys) is read from it, so none of them live in the DR pack.
+After OpenBao is restored, every other secret (Forgejo SSH key, OIDC client secrets, OpenWrt creds, all S3 keys) is read from it, so none of them live in the DR pack.
 
 Forgejo is not part of this rebuild: it runs on the ops node, outside the cluster. Phase 10 only checks that `git.example.com` answers. If the ops node is lost too, recover it first (`obsidian/113 Backups/Forgejo Recovery.md`).
 

@@ -1,4 +1,4 @@
-# Port 2381 comes from a Talos controlplane patch (obsidian/112 ArgoCD/Infrastructure/Monitoring Stack.md).
+# Port 2381 comes from the Talos controlplane patch (terraform_talos/modules/talos/patches/controlplane.yaml.tftpl).
 # Label discovery, not static IPs: node replacement needs no edit here.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMNodeScrape

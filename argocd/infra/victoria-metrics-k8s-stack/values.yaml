@@ -342,13 +342,6 @@ grafana:
       etcd:
         gnetId: 21473
         revision: 3
-      # Data pushed by the VPS CrowdSec instances via crowdsec-scraper
-      crowdsec-cti:
-        gnetId: 21689
-        revision: 1
-        datasource:
-          - name: DS_PROMETHEUS
-            value: VictoriaMetrics
 
 prometheus-node-exporter:
   resources:

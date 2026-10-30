@@ -36,7 +36,7 @@ homelab-common:
     - name: cleanbot
       hostname: cleanbot
       # Public side: NetBird Reverse Proxy on vps-fi (manual CNAME cleanbot → proxy.example.com),
-      # which reaches this route over the mesh. docs/netbird-reverse-proxy.md
+      # which reaches this route over the mesh. obsidian 115 Decisions/ADR-002
       gateway: internal
       service:
         name: cleanbot

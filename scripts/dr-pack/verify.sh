@@ -83,7 +83,8 @@ fi
 VW_ITEMS='08 - Restic repo passwords (backup v2)
 09 - S3 keys backup v2 (restic-apps, snapshots, OVH)
 11 - Forgejo instance secrets
-12 - OVH rclone crypt (snapshots, tfstate)'
+12 - OVH rclone crypt (snapshots, tfstate)
+13 - VPS restic (restic-vps)'
 
 vw_client=""
 if command -v rbw >/dev/null 2>&1 && rbw unlocked >/dev/null 2>&1; then

@@ -4,8 +4,8 @@
 #
 # acme.sh uses custom paths (as ~/.acme.sh/renew.sh on the box): --home
 # ~/.acme.sh --config-home ~/.acme.sh/data --cert-home ~/.acme.sh/certs.
-# ~/.acme.sh/cf.env holds the same CF token as OpenBao
-# home/homelab/k8s/external-dns/cloudflare.
+# ~/.acme.sh/cf.env holds the NAS's own CF token, not cert-manager's
+# (OpenBao home/homelab/k8s/external-dns/cloudflare).
 # DSM archive ids are random 6-char dirs; the right one is found by matching
 # cert.pem subject/SAN against the domain.
 set -euo pipefail
