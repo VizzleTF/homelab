@@ -203,6 +203,10 @@ homelab-common:
   # :8081 has no auth; keep it unreachable from other namespaces.
   networkPolicy:
     enabled: true
+    # Standalone Application: argocd/values/infra.yaml does not reach it.
+    lanEgressDeny: true
+    # Forgejo on the ops node: git over ssh and the helm registry.
+    lanEgress: [10.11.11.153/32]
 
   certificates:
     - name: argocd-server-tls

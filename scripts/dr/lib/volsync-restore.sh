@@ -88,6 +88,9 @@ spec:
     cacheStorageClassName: local-path
     cacheCapacity: ${cache}
     cacheAccessModes: [ReadWriteOnce]${mover_sc}
+    # The mover reads the NAS restic repo: exempt from lan-egress-deny (homelab-common).
+    moverPodLabels:
+      homelab.lan-egress/exempt: volsync
 EOF
 
   # 1 min per Gi, never under 15 min.
