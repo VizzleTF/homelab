@@ -32,7 +32,7 @@ global:
         ovh-crypt: [shared/ovh-crypt]
         # Authentik reads these for its blueprints' !Env.
         oidc-clients: [argocd/oidc, victoria-metrics/oidc, immich/oidc, wazuh/oidc, trek/oidc, forgejo/oidc]
-        # external-dns owns it; cert-manager DNS-01 reads it.
+        # cert-manager DNS-01 reads it; path name left from the retired Cloudflare external-dns.
         cloudflare: [external-dns/cloudflare]
       namespaces:
         argocd: [valkey, telegram]

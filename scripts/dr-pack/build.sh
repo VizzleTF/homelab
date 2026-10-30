@@ -48,12 +48,11 @@ log_ok "wrote 00-shamir.json.gpg"
 log_info "writing 01-bootstrap.env (CF + Garage + OVH + OVH crypt + OpenWrt)"
 {
   echo "# Refreshed: $(date -Iseconds)"
-  # Phases 03/04 need the Cloudflare token. Read from the cluster: the
+  # Phase 03 (cert-manager DNS-01) needs the Cloudflare token. Read from the cluster: the
   # operator's env var name varies and the pack once shipped MISSING.
   # An explicit CF_API_TOKEN still wins.
   CF_TOKEN="${CF_API_TOKEN:-}"
   [[ -n "$CF_TOKEN" ]] || CF_TOKEN=$(kubectl -n cert-manager get secret cloudflare-api-token     -o jsonpath='{.data.api-token}' 2>/dev/null | base64 -d)
-  [[ -n "$CF_TOKEN" ]] || CF_TOKEN=$(kubectl -n external-dns get secret external-dns-cloudflare     -o jsonpath='{.data.cloudflare_api_token}' 2>/dev/null | base64 -d)
   echo "CF_API_TOKEN=${CF_TOKEN:-MISSING-cloudflare-token}"
 
   # S3 keys and restic passwords, from the live ESO-managed Secrets:

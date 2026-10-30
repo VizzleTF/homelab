@@ -49,7 +49,7 @@ Forgejo is not part of this rebuild: it runs on the ops node, outside the cluste
 | 01 | network | git (Cilium + Gateway API charts) |
 | 02 | storage | git (local-path-provisioner, Longhorn, snapshot-controller, VolSync charts) |
 | 03 | tls | `01-bootstrap.env` (CF_API_TOKEN), git (cert-manager) |
-| 04 | dns | `01-bootstrap.env` (CF token, optional `OPENWRT_PASS`), git (external-dns CF chart, OCI external-dns-openwrt chart and router host from its values); bootstrap Secrets labelled `homelab.dr/bootstrap=true` |
+| 04 | dns | `01-bootstrap.env` (optional `OPENWRT_PASS`), git (OCI external-dns-openwrt chart and router host from its values); bootstrap Secrets labelled `homelab.dr/bootstrap=true` |
 | 05 | snapshot-fetch | `01-bootstrap.env` (Garage/OVH keys; OVH copies need `OVH_CRYPT_PASSWORD/2`, rclone crypt) — pulls the freshest OpenBao Raft snapshot from S3 if the DR pack copy is older than 7 days |
 | 06 | vault-restore | `00-shamir.json.gpg` + `02-vault-raft-snapshot.snap` |
 | 07 | eso | OpenBao now holds everything else; ESO policies and roles from `scripts/openbao-eso-access.sh` |

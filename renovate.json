@@ -135,14 +135,6 @@
       "automerge": false,
       "addLabels": ["needs-review"],
       "groupName": "forgejo-runner"
-    },
-    {
-      "description": "external-dns does not automerge: it owns real DNS records with policy: sync, and a breaking change shows only after the fact. On 2026-09-12 the 1.21.1 -> 1.22.0 automerge took external DNS down for four hours (annotation prefix changed without fallback). Read the release notes. The rule stays last because a later matching rule wins; its own group keeps it out of the infra batch.",
-      "matchPackageNames": ["external-dns"],
-      "matchDatasources": ["helm"],
-      "automerge": false,
-      "addLabels": ["needs-review"],
-      "groupName": "external-dns"
     }
   ],
   "customManagers": [

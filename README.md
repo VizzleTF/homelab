@@ -102,7 +102,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the de
 | **-5**  | cilium, cert-manager |
 | **-4**  | longhorn, openbao, snapshot-controller, local-path-provisioner |
 | **-3**  | kubelet-csr-approver, metrics-server, spegel, volsync |
-| **-2**  | external-secrets, cnpg-operator, keda, external-dns, external-dns-openwrt, victoria-metrics-k8s-stack |
+| **-2**  | external-secrets, cnpg-operator, keda, external-dns-openwrt, victoria-metrics-k8s-stack |
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, tuppr, victoria-logs, wazuh-operator |
 | **0**   | intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, snmp-exporter, tfstate-mirror |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, kyverno-policies, backup-drill |
@@ -145,9 +145,9 @@ Cilium peers eBGP with OpenWrt (BIRD2) from every node (ASN `65010` ↔ `65000`)
 
 One wildcard cert lives in `kube-system/wildcard-tls`; every Gateway references it. cert-manager renews it via Cloudflare DNS-01.
 
-external-dns writes the LAN records to OpenWrt; mesh clients use the router as their nameserver. Public records (NetBird, its proxy) are manual in Cloudflare. dnsmasq cannot store TXT records, so the OpenWrt instance (a forked webhook provider) runs with `registry: noop`. The provider marks the uci records it owns, and that marker makes `policy: sync` safe.
+external-dns-openwrt writes the LAN records to OpenWrt; mesh clients use the router as their nameserver. Public records (NetBird, its proxy) are manual in Cloudflare. dnsmasq cannot store TXT records, so the OpenWrt instance (a forked webhook provider) runs with `registry: noop`. The provider marks the uci records it owns, and that marker makes `policy: sync` safe.
 
-To serve a new app, add `httpRoutes:` to the app's `values.yaml`: `homelab-common` renders the HTTPRoute on the internal gateway and external-dns adds the LAN record. To publish one to the internet, add a service on the NetBird Reverse Proxy (`docs/netbird-reverse-proxy.md`).
+To serve a new app, add `httpRoutes:` to the app's `values.yaml`: `homelab-common` renders the HTTPRoute on the internal gateway and external-dns-openwrt adds the LAN record. To publish one to the internet, add a service on the NetBird Reverse Proxy (`docs/netbird-reverse-proxy.md`).
 
 Every namespace except `kube-system`, `netbird` and `longhorn-system` has a default-deny ingress `CiliumNetworkPolicy` (`longhorn-system` relies on the chart's per-component `NetworkPolicy` objects plus `longhorn-ui-gateway-only`); a new cross-namespace client needs an `allow` entry in the target namespace. The same namespaces get `lan-egress-deny`: no egress to private ranges except pods, Services and the release's `networkPolicy.lanEgress` (NAS, router, ops node), so a compromised image cannot reach the LAN.
 
