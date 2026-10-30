@@ -8,11 +8,11 @@ spec:
   groups:
     - name: vps-host
       rules:
-        # `< 4`: обрыв mesh — один VpsScraperMeshDown вместо четырёх critical.
+        # Хоть один таргет жив: обрыв mesh — один VpsScraperMeshDown вместо critical на каждый хост.
         - alert: VpsHostDown
           expr: |
             up{job="node"} == 0
-              and on() count(up{job="node"} == 0) < 4
+              and on() count(up{job="node"} == 1) > 0
           for: 10m
           labels:
             severity: critical
@@ -24,15 +24,16 @@ spec:
               ssh {{ $labels.host }} 'uptime; systemctl is-active netbird prometheus-node-exporter'
 
         - alert: VpsScraperMeshDown
-          expr: count(up{job="node"} == 0) == 4
+          # Без числа хостов: новый VPS в scrape не ломает правило.
+          expr: count(up{job="node"} == 1) == 0 or absent(up{job="node"})
           for: 5m
           labels:
             severity: critical
           annotations:
             summary: "Скрейпер потерял mesh — не видно ни одного VPS"
             description: |
-              Разом пропали все четыре таргета — это почти всегда netbird-sidecar
-              скрейпера, а не четыре одновременно упавших VPS.
+              Разом пропали все таргеты — это почти всегда netbird-sidecar
+              скрейпера, а не одновременно упавшие VPS.
               kubectl -n crowdsec-scraper get pods
               kubectl -n crowdsec-scraper exec deploy/crowdsec-scraper -c netbird -- netbird status
 

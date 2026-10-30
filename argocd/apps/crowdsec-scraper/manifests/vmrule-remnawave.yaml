@@ -98,11 +98,13 @@ spec:
               Ручной перезапуск: ssh vps-panel 'sudo vpn-healthcheck'
 
         # Без правила последняя единица выглядит как здоровье.
-        # Cron */30 (since 2026-10-30): two missed runs.
+        # Cron */30 (since 2026-10-30): two missed runs. unless-ветка вместо absent():
+        # лежит vps-panel или mesh — серии up нет, и правило молчит само.
         - alert: VpnHealthcheckStale
           expr: |
             time() - vpn_health_last_run_timestamp_seconds{job="node"} > 3600
-              or absent(vpn_health_last_run_timestamp_seconds{job="node"})
+              or (up{job="node",host="vps-panel"} == 1
+                    unless on(host) vpn_health_last_run_timestamp_seconds{job="node"})
           for: 30m
           labels:
             severity: warning
@@ -137,6 +139,19 @@ spec:
               ssh {{ $labels.host }} 'docker ps -a --filter name=remnanode; pgrep -c rw-core'
               Поднимать только compose: cd /opt/remnanode && docker compose up -d
 
+        # rw-core жив, а сокета нет или он завис: 5xx всем, ночью без трафика не видно.
+        - alert: XhttpSocketDown
+          expr: xhttp_socket_up{job="node"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.host }}: /dev/shm/xrxh.socket нет или не отвечает"
+            description: |
+              nginx отдаёт /xhttppath/ в этот сокет; без него XHTTP не работает ни у кого.
+              ssh {{ $labels.host }} 'ls -la /dev/shm/xrxh.socket; curl -s -o /dev/null -w "%{http_code}\n" --unix-socket /dev/shm/xrxh.socket http://localhost/'
+              Пересоздать: cd /opt/remnanode && docker compose up -d --force-recreate
+
         # Любое значение > 0 = 5xx всем.
         - alert: XhttpNginxEmfile
           expr: xhttp_emfile_window{job="node"} > 0
@@ -149,14 +164,15 @@ spec:
               Проверить worker_rlimit_nofile 65535 и worker_connections 16384 в nginx.conf.
               ssh {{ $labels.host }} 'grep -E "rlimit|worker_conn" /etc/nginx/nginx.conf'
 
-        # Фон ~0.5 за окно плюс всплески при reload xray; 30 за 15m — уже нет.
+        # Фон ~0.5 за окно плюс всплески при reload xray. Среднее за 15m: одно тихое
+        # окно между всплесками не сбрасывает for.
         - alert: XhttpErrorsHigh
-          expr: xhttp_5xx_window{job="node"} > 30
-          for: 15m
+          expr: avg_over_time(xhttp_5xx_window{job="node"}[15m]) > 30
+          for: 5m
           labels:
             severity: warning
           annotations:
-            summary: "{{ $labels.host }}: {{ $value }} XHTTP 5xx за 5m"
+            summary: "{{ $labels.host }}: в среднем {{ $value | humanize }} XHTTP 5xx за 5m"
             description: |
               ssh {{ $labels.host }} "awk '\$5 ~ /^\/xhttppath\// && \$7 ~ /^5/' /var/log/nginx/access.log | tail"
               ssh {{ $labels.host }} 'tail -50 /var/log/nginx/error.log'
