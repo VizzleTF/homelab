@@ -8,8 +8,8 @@ spec:
     - '*'
   # Apps stay out of platform namespaces: a bad upstream chart cannot
   # overwrite them. victoria-metrics is allowed (cnpg, crowdsec-scraper ship
-  # VM objects there). shortcut: deny list mirrors infra namespaces by hand,
-  # add a new infra namespace here.
+  # VM objects there). A new infra namespace goes here; scripts/audit-docs.py
+  # fails CI when one is missing.
   destinations:
     - namespace: '*'
       server: https://kubernetes.default.svc

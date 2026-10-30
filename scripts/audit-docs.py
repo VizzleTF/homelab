@@ -3,7 +3,7 @@
 
 Covers what a script can verify without judgement: the config.yaml contract
 of every argocd/{apps,infra}/* folder, the homelab-common legacySelector guard,
-cheatsheets without an argocd folder, broken wikilinks, repo paths in backticks that do not exist, apps-appset vs infra-appset parity,
+cheatsheets without an argocd folder, broken wikilinks, repo paths in backticks that do not exist, apps-appset vs infra-appset parity, infra namespaces denied to the applications project,
 and Authentik blueprints (grant_types set, no launch_url, no ambiguous profile
 !Find, every blueprint ConfigMap mounted by blueprints.configMaps and back).
 Facts in prose (commands, runbook steps) need a reviewer: see the
@@ -14,6 +14,7 @@ Without the vault (CI) the cheatsheet and wikilink checks are skipped.
 Output: `path: level: message`. Exit 1 on any error.
 """
 import argparse
+import fnmatch
 import re
 import sys
 from pathlib import Path
@@ -222,6 +223,16 @@ def appset_norm(kind):
 if appset_norm("apps") != appset_norm("infra"):
     report("argocd/appsets/infra-appset.yaml", "error",
            "AppSets differ beyond name/generator path/project/part-of; keep them in step")
+
+# 12. Project `applications` denies every infra namespace (apps must not write
+# there); victoria-metrics is shared on purpose (apps ship VM objects into it).
+APPS_IN_INFRA_NS = {"victoria-metrics"}
+proj = yaml.safe_load((REPO / "argocd/projects/applications-project.yaml").read_text())
+denied = [d["namespace"][1:] for d in proj["spec"]["destinations"] if d["namespace"].startswith("!")]
+for ns in sorted({v["namespace"] for v in infra.values()} - APPS_IN_INFRA_NS):
+    if not any(fnmatch.fnmatch(ns, pat) for pat in denied):
+        report("argocd/projects/applications-project.yaml", "error",
+               f"infra namespace {ns} is not denied to the applications project; add '!{ns}'")
 
 if not HAVE_VAULT:
     report(VAULT, "warning", "vault not found: registry, cheatsheet and wikilink checks skipped")
