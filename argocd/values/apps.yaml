@@ -1,0 +1,7 @@
+# homelab-common values for every argocd/apps release: after global.yaml,
+# before the app's own values (which win).
+homelab-common:
+  networkPolicy:
+    # No egress to private ranges except pods; exceptions per app in
+    # networkPolicy.lanEgress. A compromised image must not reach NAS/router/ops.
+    lanEgressDeny: true

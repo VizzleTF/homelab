@@ -29,7 +29,8 @@ for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml \
   app=$(basename "$(dirname "$f")"); [[ "$f" == argocd/values/argocd.yaml ]] && app=argocd
   ns=$(sed -n 's/^namespace:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$(dirname "$f")/config.yaml" 2>/dev/null || true)
   ns=${ns:-$app}
-  render() { helm template "$app" "$1" --namespace "$ns" -f argocd/values/global.yaml -f "$f"; }
+  cls=(); [[ "$f" == argocd/values/* ]] || cls=(-f "argocd/values/$(cut -d/ -f2 <<<"$f").yaml")  # apps/infra.yaml
+  render() { helm template "$app" "$1" --namespace "$ns" -f argocd/values/global.yaml "${cls[@]}" -f "$f"; }
   render "$tmp/homelab-common-$pin.tgz" > "$tmp/old.yaml"
   render charts/homelab-common > "$tmp/new.yaml"
   if ! diff -q "$tmp/old.yaml" "$tmp/new.yaml" >/dev/null; then

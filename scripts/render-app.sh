@@ -2,7 +2,7 @@
 # Render one ApplicationSet app as ArgoCD does, manifests to stdout. Sources
 # mirror argocd/appsets/{apps,infra}-appset.yaml:
 #   1. upstream chart (config.yaml) with values.yaml — unless homelabOnly: true
-#   2. homelab-common with global.yaml + the WHOLE values.yaml (or
+#   2. homelab-common with global.yaml + {apps,infra}.yaml + the WHOLE values.yaml (or
 #      homelabValuesFile); the chart reads its `homelab-common:` key itself
 #   3. raw manifests/*.yaml — when extraManifests: true
 # homelab-common is the appset-pinned chart-museum version; HC_LOCAL=1 uses
@@ -67,12 +67,14 @@ trap 'exit 143' TERM; trap 'exit 130' INT; trap 'exit 129' HUP  # else a signal 
     fi
 
     hcv=$(get homelabValuesFile); hc_values="$dir/${hcv:-values.yaml}"
+    # Absent on a base older than the class files (render-diff.sh renders it with this script).
+    class_values=(); [[ -f "argocd/values/$kind.yaml" ]] && class_values=(-f "argocd/values/$kind.yaml")
     if [[ "${HC_LOCAL:-}" == 1 ]]; then
-      tpl charts/homelab-common -f argocd/values/global.yaml -f "$hc_values"
+      tpl charts/homelab-common -f argocd/values/global.yaml "${class_values[@]}" -f "$hc_values"
     else
       hc_ver=$(grep -A1 'chart: homelab-common' "$appset" | sed -n 's/.*targetRevision: "\(.*\)"/\1/p')
       tpl homelab-common --repo https://git.example.com/api/packages/vizzle/helm --version "$hc_ver" \
-        -f argocd/values/global.yaml -f "$hc_values"
+        -f argocd/values/global.yaml "${class_values[@]}" -f "$hc_values"
     fi
 
     if [[ "$(get extraManifests)" == "true" ]]; then

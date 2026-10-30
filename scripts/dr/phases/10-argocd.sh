@@ -47,7 +47,8 @@ VALKEY_HC_VERSION="$(yq -r '.spec.templatePatch' "$REPO_ROOT/argocd/appsets/apps
 log_info "installing valkey (homelab-common $VALKEY_HC_VERSION)"
 helm_apply valkey homelab-common valkey \
   --repo "$HELM_REPO_HOMELAB" --version "$VALKEY_HC_VERSION" \
-  -f "$REPO_ROOT/argocd/values/global.yaml" -f "$REPO_ROOT/argocd/apps/valkey/values.yaml"
+  -f "$REPO_ROOT/argocd/values/global.yaml" -f "$REPO_ROOT/argocd/values/apps.yaml" \
+  -f "$REPO_ROOT/argocd/apps/valkey/values.yaml"
 
 # The argo-cd chart needs argocd-valkey (externalRedis.existingSecret) to start,
 # and the repo-creds ExternalSecret comes from the standalone argocd app, which

@@ -3,6 +3,9 @@ homelab-common:
   # No VMServiceScrape reads it, so no victoria-metrics allow.
   networkPolicy:
     enabled: true
+    # WireGuard mesh peer: ICE candidates are arbitrary private IPs of
+    # remote peers, no fixed exception list.
+    lanEgressDeny: false
 
   # Peer key: without it the scraper loses mesh access. `name` is the restic repo
   # path and must be unique cluster-wide (the netbird ns has a PVC of the same name).

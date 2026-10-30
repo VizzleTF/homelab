@@ -1,0 +1,4 @@
+# homelab-common values for every argocd/infra release: after global.yaml,
+# before the release's own values (which win). Kept in step with apps.yaml;
+# lanEgressDeny for infra comes after its exceptions are mapped.
+homelab-common: {}

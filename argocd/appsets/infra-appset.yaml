@@ -46,9 +46,9 @@ spec:
     metadata:
       annotations:
         # CI argocd-diff renders an app only when these paths change.
-        argocd-diff-preview/watch-pattern: "{{ .path.path }}/.*, argocd/appsets/.*, argocd/values/global.yaml"
-        # Regenerate only on the app's folder or global.yaml, not every monorepo commit.
-        argocd.argoproj.io/manifest-generate-paths: "/{{ .path.path }};/argocd/values/global.yaml"
+        argocd-diff-preview/watch-pattern: "{{ .path.path }}/.*, argocd/appsets/.*, argocd/values/global.yaml, argocd/values/infra.yaml"
+        # Regenerate only on the app's folder or the shared values files, not every monorepo commit.
+        argocd.argoproj.io/manifest-generate-paths: "/{{ .path.path }};/argocd/values/global.yaml;/argocd/values/infra.yaml"
       labels:
         app.kubernetes.io/managed-by: argocd-applicationset
         app.kubernetes.io/part-of: infrastructure
@@ -66,10 +66,11 @@ spec:
         {{- end }}
         - repoURL: https://git.example.com/api/packages/vizzle/helm
           chart: homelab-common
-          targetRevision: "2.2.4"
+          targetRevision: "2.3.0"
           helm:
             valueFiles:
               - "$values/argocd/values/global.yaml"
+              - "$values/argocd/values/infra.yaml"
               - "$values/{{ .path.path }}/{{ dig "homelabValuesFile" "values.yaml" . }}"
         - repoURL: ssh://git@git.example.com:22/vizzle/homelab.git
           targetRevision: HEAD

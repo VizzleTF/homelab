@@ -2,6 +2,8 @@ homelab-common:
   # A new app that needs Postgres: add its namespace to the 5432 entry.
   networkPolicy:
     enabled: true
+    # NAS (s3.example.com): Barman WAL archive and pg_dump uploads.
+    lanEgress: [10.11.12.237/32]
     allow:
       - namespaces: [cnpg-system]
       - namespaces: [victoria-metrics]

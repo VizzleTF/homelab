@@ -78,6 +78,8 @@ dnsConfig:
 homelab-common:
   networkPolicy:
     enabled: true
+    # Forgejo on the ops node (git.example.com resolves to it in-cluster).
+    lanEgress: [10.11.11.153/32]
 
   externalSecrets:
     # PreSync wave -10: must exist before the chart's pre-install register Job.

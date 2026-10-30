@@ -3,6 +3,8 @@
 homelab-common:
   networkPolicy:
     enabled: true
+    # Router (ssh sysupgrade -b) and NAS (s3.example.com upload).
+    lanEgress: [10.11.12.1/32, 10.11.12.237/32]
 
   externalSecrets:
     # Admin id_rsa; its pubkey is in the router's /etc/dropbear/authorized_keys.

@@ -53,15 +53,17 @@ for f in argocd/apps/*/values.yaml argocd/apps/*/homelab-values.yaml \
   grep -qE '^homelab-common:|^global:' "$f" || continue
   # Release and namespace as ArgoCD sets them: the vaultPath assert (2.2) checks
   # paths against the release namespace.
+  cls=()
   if [[ $f == argocd/values/argocd.yaml ]]; then
     app=argocd ns=argocd
   else
+    cls=(-f "argocd/values/$(cut -d/ -f2 <<<"$f").yaml")  # apps.yaml / infra.yaml
     dir=$(dirname "$f") app=$(basename "$(dirname "$f")")
     ns=$(sed -n 's/^namespace:[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$dir/config.yaml")
     ns=${ns:-$app}
   fi
   if ! helm template "$app" charts/homelab-common --namespace "$ns" \
-        -f argocd/values/global.yaml -f "$f" \
+        -f argocd/values/global.yaml "${cls[@]}" -f "$f" \
         | kc -; then
     echo "  FAIL: $f"
     fails=$((fails + 1))

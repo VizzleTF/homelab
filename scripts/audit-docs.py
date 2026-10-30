@@ -214,11 +214,11 @@ if "## Sync waves" in readme:
         if listed[name] != waves[name]:
             report("README.md", "error", f"{name}: README wave {listed[name]} != config {waves[name]}")
 
-# 11. The two AppSets differ only in name, generator path, project and the
-# part-of label (drift happened once: homelabOnly landed in infra-appset only).
+# 11. The two AppSets differ only in name, generator path, project, the
+# per-class values file and the part-of label (drift happened once: homelabOnly landed in infra-appset only).
 def appset_norm(kind):
     text = (REPO / f"argocd/appsets/{kind}-appset.yaml").read_text()
-    return re.sub(r"\b(applications|infrastructure)\b|(?<=argocd/)(apps|infra)(?=/)", "@", text)
+    return re.sub(r"\b(applications|infrastructure)\b|(?<=argocd/)(apps|infra)(?=/)|(?<=argocd/values/)(apps|infra)(?=\.yaml)", "@", text)
 if appset_norm("apps") != appset_norm("infra"):
     report("argocd/appsets/infra-appset.yaml", "error",
            "AppSets differ beyond name/generator path/project/part-of; keep them in step")
