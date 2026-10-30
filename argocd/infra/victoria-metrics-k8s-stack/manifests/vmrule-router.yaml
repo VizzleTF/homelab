@@ -1,0 +1,43 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: router
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: router
+      rules:
+        - alert: RouterExporterDown
+          expr: up{job="router"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Router metrics are not scrapeable"
+            description: "Метрики роутера 10.11.12.1:9101 не собираются 5 минут. Роутер держит BGP LB-пула, DNS и выход в интернет. После owut upgrade пакеты prometheus-node-exporter-ucode-* надо ставить заново."
+
+        - alert: RouterConntrackHigh
+          expr: node_nf_conntrack_entries{job="router"} / node_nf_conntrack_entries_limit{job="router"} > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Router conntrack table is {{ $value | humanizePercentage }} full"
+            description: "При заполнении таблицы роутер начнёт отбрасывать новые соединения. Посмотреть, кто их держит: conntrack -L на 10.11.12.1."
+
+        - alert: RouterMemoryLow
+          expr: node_memory_MemAvailable_bytes{job="router"} / node_memory_MemTotal_bytes{job="router"} < 0.1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Router has less than 10% memory available"
+            description: "У роутера 512 МБ RAM. При нехватке OOM-killer прибьёт nikki/mihomo или dnsmasq."
+
+        - alert: RouterRebooted
+          expr: changes(node_boot_time_seconds{job="router"}[15m]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Router rebooted"
+            description: "Роутер перезагрузился за последние 15 минут. Если это не owut upgrade, проверить logread и питание."

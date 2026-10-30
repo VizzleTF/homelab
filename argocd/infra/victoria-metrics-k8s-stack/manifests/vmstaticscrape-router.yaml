@@ -1,0 +1,18 @@
+# OpenWrt router: prometheus-node-exporter-ucode, installed by hand (obsidian 111 Memory/Networking Architecture § OpenWrt).
+# Router firewall accepts :9101 only from 10.11.11.0/24 (pods leave with the node IP).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: router
+  namespace: victoria-metrics
+spec:
+  jobName: router
+  targetEndpoints:
+    - targets:
+        - 10.11.12.1:9101
+      scheme: http
+      path: /metrics
+      interval: 60s
+      labels:
+        job: router
+        instance: router

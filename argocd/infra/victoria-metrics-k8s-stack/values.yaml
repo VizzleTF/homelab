@@ -432,8 +432,8 @@ kubeEtcd:
 homelab-common:
   networkPolicy:
     enabled: true
-    # ops node exporters (vmstaticscrape-ops-node).
-    lanEgress: [10.11.11.153/32]
+    # ops node and router exporters (vmstaticscrape-{ops-node,router}).
+    lanEgress: [10.11.11.153/32, 10.11.12.1/32]
     allow:
       # PromQL queries and crowdsec-scraper remote write
       - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper]
@@ -536,6 +536,12 @@ homelab-common:
                 target_matchers:
                   - alertname="TargetDown"
                 equal: ['cluster']
+
+              - source_matchers:
+                  - alertname="RouterExporterDown"
+                target_matchers:
+                  - alertname="TargetDown"
+                equal: ['job']
 
               - source_matchers:
                   - severity="critical"
