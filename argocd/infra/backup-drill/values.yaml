@@ -343,7 +343,8 @@ homelab-common:
               echo ENTRIES=$(wc -l < /tmp/l); echo VERIFY_OK' ;;
                 netbird-vps-fi) VERIFY='set -e
               apk add --no-cache restic sqlite >/dev/null
-              restic restore latest --target /restore
+              # Talos labels emptyDir files with security.selinux, which the pod may not remove
+              restic restore latest --target /restore --exclude-xattr "security.*"
               d=$(find /restore -type d -path "*/stage/db" | head -1)
               [ -n "$d" ] || { echo NO_DB; exit 1; }
               for f in store.db idp.db; do [ -s "$d/$f" ] || { echo "NO_$f"; exit 1; }; r=$(sqlite3 "$d/$f" "PRAGMA integrity_check;"); [ "$r" = ok ] || { echo "INTEGRITY $f $r"; exit 1; }; done
