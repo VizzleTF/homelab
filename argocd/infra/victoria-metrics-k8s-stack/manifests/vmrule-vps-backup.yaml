@@ -7,7 +7,7 @@ spec:
   groups:
     - name: vps-backup
       rules:
-        # Textfile metrics of backups that run on the VPS fleet (vpn repo node-configs/bin),
+        # Textfile metrics of backups that run on the VPS fleet (vps/node-configs/bin),
         # scraped over the NetBird mesh by crowdsec-scraper. A dead scraper shows up as
         # TargetDown{cluster="vps"}, not here: the series then go absent, not stale.
         - alert: VpsBackupStale

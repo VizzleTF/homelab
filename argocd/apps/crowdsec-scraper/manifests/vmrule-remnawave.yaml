@@ -82,7 +82,7 @@ spec:
               remnawave_process_heap_used_bytes рядом — обычно это утечка heap.
 
     # Textfile-метрики (job=node): vpn-healthcheck на vps-panel раз в сутки, xhttp-health.sh */5.
-    # Исходники: vpn-репо node-configs/bin/{vpn-healthcheck,xhttp-health.sh}.
+    # Исходники: vps/node-configs/bin/{vpn-healthcheck,xhttp-health.sh}.
     - name: remnawave-host-scripts
       rules:
         # Подробности только в логе на хосте.

@@ -39,3 +39,11 @@ __pycache__/
 !/.claude/hooks/
 !/.claude/settings.json
 # vault_secrets_backup.yaml: covered by *secret*.yaml and .git-hooks/blocklist.sh.
+
+# VPS fleet (vps/): router backups and node templates carry real secrets (tunnel
+# keys, PSKs, the node SECRET_KEY); they live in Vaultwarden, never in git.
+vps/backups/
+vps/**/*template*.tar.gz
+vps/node-configs/router/pkgs/
+vps/**/*.bak
+vps/**/*.bak.*

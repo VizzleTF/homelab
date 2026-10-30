@@ -356,9 +356,9 @@ homelab-common:
 
               # Host-shipped repos hold files, not a volume: a per-app script checks them.
               # forgejo-ops (ops node): the `forgejo dump` tar.zst has the DB and the repositories.
-              # netbird-vps-fi (vpn repo node-configs/bin/netbird-backup.sh): SQLite copies are
+              # netbird-vps-fi (vps/node-configs/bin/netbird-backup.sh): SQLite copies are
               # intact, the store has peers, config.yaml is there.
-              # vps-vps-panel (vpn repo node-configs/bin/vps-backup.sh): the panel DB dump has users,
+              # vps-vps-panel (vps/node-configs/bin/vps-backup.sh): the panel DB dump has users,
               # the panel .env and nginx.conf are there.
               case "$APP" in
                 forgejo-ops) VERIFY='set -e

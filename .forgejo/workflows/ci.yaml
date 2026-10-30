@@ -459,10 +459,12 @@ jobs:
       - name: Strip workspace-only paths for GitHub mirror
         run: |
           set -euo pipefail
+          # vps/: the VPS fleet (hosts, family networks); Forgejo only, never on GitHub.
           git filter-repo --force \
             --invert-paths \
             --path CLAUDE.md \
-            --path .claude/
+            --path .claude/ \
+            --path vps/
 
       - name: Sanitize history for GitHub mirror
         env:
@@ -470,7 +472,7 @@ jobs:
           # Appended rules: the main secret is write-only, so new rules go here instead
           # of retyping it.
           SANITIZE_RULES_EXTRA: ${{ secrets.MIRROR_SANITIZE_RULES_EXTRA }}
-          # VPS fleet (vpn repo); editable copy in OpenBao home/homelab/forgejo/mirror-sanitize-vps.
+          # VPS fleet mentions outside vps/; editable copy in OpenBao home/homelab/forgejo/mirror-sanitize-vps.
           SANITIZE_RULES_VPS: ${{ secrets.MIRROR_SANITIZE_RULES_VPS }}
         run: |
           set -euo pipefail

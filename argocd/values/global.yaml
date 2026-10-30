@@ -17,7 +17,7 @@ global:
     access:
       grants:
         backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, shared/s3-ovh]
-        # VPS fleet restic (vpn repo vps-backup.sh, netbird-backup.sh): own Garage key and passwords
+        # VPS fleet restic (vps/node-configs/bin: vps-backup.sh, netbird-backup.sh): own Garage key and passwords
         vps-backup: [shared/s3-restic-vps, shared/restic-vps-garage, shared/restic-vps-ovh]
         s3-ovh: [shared/s3-ovh]
         cnpg-backup: [shared/s3-cnpg-backup]
