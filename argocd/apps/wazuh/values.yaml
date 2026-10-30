@@ -15,7 +15,7 @@ externalSecrets:
 cluster:
   name: wazuh
   spec:
-    version: "4.14.7"
+    # version: chart default, so Renovate's wazuh-cluster bumps move it
     storageClassName: longhorn
 
     indexer:

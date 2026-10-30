@@ -128,7 +128,7 @@ homelab-common:
         - name: notify
           image:
             repository: badouralix/curl-jq
-            tag: "latest@sha256:3670578737d1d2019b10a4f9e607284101feb9fdd6b0478e78ea87bf61d96145"
+            tag: "latest@sha256:7f3c18b2a7d72e8f6f89d5395f171d37a83d6015b6de718e5f4c5396305981b7"
           # No versioned tags; ":latest" defaults to Always even with a digest.
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "/scripts/digest.sh"]
