@@ -63,7 +63,7 @@ global:
 
   gateway:
     internal:
-      name: cilium-gateway-internal
+      name: cilium-gateway
       namespace: kube-system
     tls:
       name: cilium-gateway-tls

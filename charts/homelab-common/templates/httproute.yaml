@@ -37,7 +37,7 @@ spec:
       name: {{ $gw.name }}
       namespace: {{ $gw.namespace }}
       {{- /* HTTPS only; the http listener just redirects
-           (argocd/infra/cilium/manifests/cilium-gateway-internal-redirect.yaml). */}}
+           (argocd/infra/cilium/manifests/cilium-gateway-redirect.yaml). */}}
       sectionName: https
   hostnames:
     - {{ $hostname }}

@@ -31,12 +31,11 @@ kubectl apply -f "$REPO_ROOT/argocd/infra/cilium/manifests/cilium-lb-ippool.yaml
 log_info "applying CiliumBGP {ClusterConfig,PeerConfig,Advertisement}"
 kubectl apply -f "$REPO_ROOT/argocd/infra/cilium/manifests/cilium-bgp.yaml"
 
-log_info "applying Cilium Gateways (external + internal + tls-passthrough)"
+log_info "applying Cilium Gateways (main + tls-passthrough)"
 kubectl apply -f "$REPO_ROOT/argocd/infra/cilium/manifests/cilium-gateway.yaml"
-kubectl apply -f "$REPO_ROOT/argocd/infra/cilium/manifests/cilium-gateway-internal.yaml"
 kubectl apply -f "$REPO_ROOT/argocd/infra/cilium/manifests/cilium-gateway-tls.yaml"
 
-for gw in cilium-gateway cilium-gateway-internal cilium-gateway-tls; do
+for gw in cilium-gateway cilium-gateway-tls; do
   wait_for "$gw Programmed" \
     "kubectl -n kube-system get gateway $gw -o jsonpath='{.status.conditions[?(@.type==\"Programmed\")].status}' | grep -q True"
 done

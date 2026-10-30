@@ -114,7 +114,7 @@ log_info "writing 03-cluster.env (cluster topology snapshot)"
 {
   echo "# Refreshed: $(date -Iseconds)"
   echo "GATEWAY_EXTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
-  echo "GATEWAY_INTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway-internal -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
+  echo "GATEWAY_INTERNAL_IP=$(kubectl -n kube-system get gateway cilium-gateway -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
   echo "GATEWAY_TLS_IP=$(kubectl -n kube-system get gateway cilium-gateway-tls -o jsonpath='{.spec.addresses[0].value}' 2>/dev/null)"
 } > "$DR_PACK_DIR/03-cluster.env"
 log_ok "wrote 03-cluster.env"

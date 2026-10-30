@@ -129,7 +129,7 @@ Cold storage and backups live off-cluster on a Synology NAS, exposed as Garage S
 
 ```
 Internet  →  NetBird Reverse Proxy (VPS vps-fi) → mesh ↓   published services only
-LAN, mesh →  cilium-gateway-internal    every HTTPRoute     (10.11.10.138)
+LAN, mesh →  cilium-gateway             every HTTPRoute     (10.11.10.138)
 LAN + TLS →  cilium-gateway-tls         TLSRoute passthrough (10.11.10.139)
 ```
 
