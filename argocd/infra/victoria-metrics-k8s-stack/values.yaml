@@ -528,7 +528,7 @@ homelab-common:
               - source_matchers:
                   - alertname="VpsScraperMeshDown"
                 target_matchers:
-                  - alertname=~"VpsHostDown|VpsCrowdsecDown|VpsTextfileScrapeError|RemnawavePanelMetricsAbsent|RemnawaveNodeDown|TargetDown"
+                  - alertname=~"VpsHostDown|VpsTextfileScrapeError|RemnawavePanelMetricsAbsent|RemnawaveNodeDown|TargetDown"
 
               # The chart's TargetDown has no host label for VPS
               - source_matchers:

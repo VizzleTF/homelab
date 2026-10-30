@@ -54,12 +54,7 @@ homelab-common:
             external_labels:
               cluster: vps
           scrape_configs:
-            # CrowdSec runs only on vps-panel (off on dp/ape/vps-fi since 2026-09-12).
-            - job_name: crowdsec
-              metrics_path: /metrics
-              static_configs:
-                - targets: ["100.64.0.0:6060"]
-                  labels: {host: vps-panel}
+            # No CrowdSec on the VPS since 2026-10-30 (vps-panel was the last; it saw only host :80).
             - job_name: node
               metrics_path: /metrics
               static_configs:

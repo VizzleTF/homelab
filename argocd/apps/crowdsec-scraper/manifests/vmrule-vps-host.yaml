@@ -115,13 +115,3 @@ spec:
               ssh {{ $labels.host }} 'ls -la /var/lib/prometheus/node-exporter/'
               Файл должен быть 644 (node_exporter работает от prometheus) и писаться
               через временный файл + mv (атомарная замена).
-
-        - alert: VpsCrowdsecDown
-          expr: up{job="crowdsec"} == 0
-          for: 15m
-          labels:
-            severity: warning
-          annotations:
-            summary: "{{ $labels.host }}: CrowdSec не отвечает"
-            description: |
-              ssh {{ $labels.host }} 'systemctl status crowdsec --no-pager'
