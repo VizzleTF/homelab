@@ -20,6 +20,16 @@ spec:
             summary: "VPS backup is stale: {{ $labels.backup }} → {{ $labels.target }}"
             description: "{{ $labels.backup }} не доходил до {{ $labels.target }} более 26 часов. Для netbird-vps-fi это база всего mesh: без неё каждое устройство регистрируется заново."
 
+        # Хост скрейпится, а метрик бэкапа нет: .prom удалён, не читается или бэкап не установлен.
+        - alert: VpsBackupMissing
+          expr: up{job="node"} == 1 unless on(host) homelab_vps_backup_timestamp
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "VPS {{ $labels.host }}: нет метрик бэкапа"
+            description: "На {{ $labels.host }} нет ни одной серии homelab_vps_backup_*: vps-backup не установлен или его .prom не читается. ssh {{ $labels.host }} 'systemctl list-timers vps-backup; ls -l /var/lib/prometheus/node-exporter/'"
+
         - alert: VpsBackupFailed
           expr: homelab_vps_backup_success == 0
           for: 15m

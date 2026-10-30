@@ -103,7 +103,7 @@ spec:
             description: |
               ssh {{ $labels.host }} 'uptime; top -bn1 | head -20'
 
-        # Обычно скрипт пишет .prom не атомарно.
+        # .prom не читается: права (umask 077 даёт 600, node_exporter работает от prometheus) или неатомарная запись.
         - alert: VpsTextfileScrapeError
           expr: node_textfile_scrape_error{job="node"} > 0
           for: 15m
@@ -113,7 +113,8 @@ spec:
             summary: "{{ $labels.host }}: node_exporter не может прочитать textfile-метрики"
             description: |
               ssh {{ $labels.host }} 'ls -la /var/lib/prometheus/node-exporter/'
-              Писать .prom строго через временный файл + mv (атомарная замена).
+              Файл должен быть 644 (node_exporter работает от prometheus) и писаться
+              через временный файл + mv (атомарная замена).
 
         - alert: VpsCrowdsecDown
           expr: up{job="crowdsec"} == 0
@@ -124,19 +125,3 @@ spec:
             summary: "{{ $labels.host }}: CrowdSec не отвечает"
             description: |
               ssh {{ $labels.host }} 'systemctl status crowdsec --no-pager'
-
-        # http-crawl-non_statics на vps-panel банит реальных подписчиков (чанки XHTTP).
-        - alert: VpsCrowdsecDecisionsSpike
-          expr: |
-            delta(
-              sum by(host) (cs_active_decisions{job="crowdsec",origin="crowdsec",action="ban"})[30m:1m]
-            ) > 20
-          for: 0m
-          labels:
-            severity: warning
-          annotations:
-            summary: "{{ $labels.host }}: +{{ $value | humanize }} активных банов за 30m"
-            description: |
-              ssh {{ $labels.host }} 'cscli decisions list'
-              Если в reason преобладает http-crawl-non_statics — это ложный бан
-              подписчика, а не атака: cscli decisions delete --ip <ip>
