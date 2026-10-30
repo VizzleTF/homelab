@@ -60,9 +60,6 @@ global:
     domain: example.com
 
   gateway:
-    external:
-      name: cilium-gateway
-      namespace: kube-system
     internal:
       name: cilium-gateway-internal
       namespace: kube-system

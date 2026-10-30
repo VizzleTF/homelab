@@ -30,7 +30,7 @@ no `global` defaults of its own.
 | `workloads` | Deployment (default) or CronJob (`type: cronjob`), plus a Service from the containers' ports |
 | `configMaps`, `secrets` | plain ConfigMaps and Secrets (secrets only for generated, non-sensitive objects) |
 | `externalSecrets` | ExternalSecrets read from OpenBao through the release's own SecretStore (rendered automatically) |
-| `httpRoutes`, `tlsRoutes` | Gateway API routes on the external, internal or both gateways; TLS passthrough |
+| `httpRoutes`, `tlsRoutes` | Gateway API routes on the internal gateway (LAN and NetBird mesh); TLS passthrough |
 | `certificates` | cert-manager Certificates |
 | `persistentVolumeClaims` | PVCs, always with `helm.sh/resource-policy: keep`; `storageClassName` required |
 | `volsync` | restic backups of a PVC to every repository in `global.volsync.repos`; `drill` (default true) labels the ReplicationSources `homelab.dr/drill=<name>` for the weekly restore drill, `false` for volumes larger than its `DRILL_SIZE` |

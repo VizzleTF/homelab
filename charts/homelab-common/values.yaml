@@ -19,7 +19,6 @@ homelab-common:
   # Example:
   # - name: myapp
   #   hostname: myapp  # Will be suffixed with global.dns.domain
-  #   gateway: external  # or "internal" or "both"
   #   service:
   #     name: myapp
   #     port: 8080

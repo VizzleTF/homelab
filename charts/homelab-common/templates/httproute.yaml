@@ -1,7 +1,6 @@
 {{- $hc := index .Values "homelab-common" | default dict }}
 {{- $g := .Values.global | default dict }}
 {{- range $r := $hc.httpRoutes | default list }}
-{{- $gateway := .gateway | default "external" }}
 {{- $hostname := .hostname }}
 {{- if not (contains "." $hostname) }}
 {{- $hostname = printf "%s.%s" $hostname $g.dns.domain }}
@@ -16,24 +15,18 @@
 {{- $svc = dict "name" "keda-loading-proxy" "namespace" "keda" "port" 8080 }}
 {{- end }}
 
-{{- range $kind := list "external" "internal" }}
-{{- if or (eq $gateway $kind) (eq $gateway "both") }}
-{{- $gw := index $g.gateway $kind }}
+{{- $gw := $g.gateway.internal }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ $r.name }}{{ if eq $gateway "both" }}-{{ $kind }}{{ end }}
+  name: {{ $r.name }}
   namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
   annotations:
     external-dns.kubernetes.io/hostname: {{ $hostname }}
-    {{- if eq $kind "external" }}
-    external-dns.kubernetes.io/cloudflare-proxied: "true"
-    {{- else }}
     external-dns.kubernetes.io/internal-dns: "true"
-    {{- end }}
     {{- with $r.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -43,12 +36,9 @@ spec:
       kind: Gateway
       name: {{ $gw.name }}
       namespace: {{ $gw.namespace }}
-      {{- if eq $kind "internal" }}
-      {{- /* HTTPS only on the LAN gateway; its http listener just redirects
-           (argocd/infra/cilium/manifests/cilium-gateway-internal-redirect.yaml).
-           External routes stay on both: cloudflared reaches origin over :80. */}}
+      {{- /* HTTPS only; the http listener just redirects
+           (argocd/infra/cilium/manifests/cilium-gateway-internal-redirect.yaml). */}}
       sectionName: https
-      {{- end }}
   hostnames:
     - {{ $hostname }}
   rules:
@@ -56,32 +46,23 @@ spec:
         - path:
             type: PathPrefix
             value: {{ $r.pathPrefix | default "/" }}
-      {{- /* Alt-Svc: clear (internal only) — the same hostname is served by
-           Cloudflare externally (which advertises `alt-svc: h3=":443"`) and by
-           this TCP-only internal gateway on the LAN. Browsers cache Alt-Svc per
-           origin, not per IP, so at home they keep trying QUIC against the
-           internal gateway and fail with ERR_QUIC_PROTOCOL_ERROR. `clear`
-           invalidates that cache (RFC 7838). */}}
-      {{- if or (eq $kind "internal") $r.filters }}
+      {{- /* Alt-Svc: clear — browsers still hold Cloudflare's `alt-svc: h3=":443"`
+           for hosts it once proxied; this gateway is TCP-only, so a cached entry
+           fails with ERR_QUIC_PROTOCOL_ERROR. `clear` invalidates it (RFC 7838). */}}
       filters:
-        {{- if eq $kind "internal" }}
         - type: ResponseHeaderModifier
           responseHeaderModifier:
             set:
               - name: Alt-Svc
                 value: clear
-        {{- end }}
         {{- with $r.filters }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- end }}
       backendRefs:
         - name: {{ $svc.name }}
           {{- with $svc.namespace }}
           namespace: {{ . }}
           {{- end }}
           port: {{ $svc.port }}
-{{- end }}
-{{- end }}
 
 {{- end }}
