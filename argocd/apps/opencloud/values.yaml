@@ -36,7 +36,7 @@ homelab-common:
   httpRoutes:
     - name: opencloud
       hostname: opencloud
-      gateway: external
+      gateway: internal
       service:
         name: opencloud
         port: 9200

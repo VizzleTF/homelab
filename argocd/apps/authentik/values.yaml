@@ -656,7 +656,7 @@ homelab-common:
   httpRoutes:
     - name: authentik
       hostname: authentik
-      gateway: external
+      gateway: internal
       service:
         name: authentik-server
         port: 80

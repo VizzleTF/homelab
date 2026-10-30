@@ -36,8 +36,7 @@ homelab-common:
   httpRoutes:
     - name: may
       hostname: may
-      # External only: see the split-horizon / QUIC comment in immich/values.yaml.
-      gateway: external
+      gateway: internal
       service:
         name: may
         port: 5050

@@ -259,9 +259,7 @@ homelab-common:
   httpRoutes:
     - name: immich
       hostname: immich
-      # No split-horizon: cached HTTP/3 Alt-Svc hits the TCP-only internal gateway
-      # (ERR_QUIC_PROTOCOL_ERROR). Cloudflare's 100 MB upload cap applies.
-      gateway: external
+      gateway: internal
       service:
         name: immich-server
         port: 2283

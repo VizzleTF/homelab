@@ -60,10 +60,9 @@ homelab-common:
   httpRoutes:
     - name: trek
       hostname: trek
-      # External only: see the split-horizon / QUIC comment in immich/values.yaml.
-      gateway: external
-      # Envoy stamps X-Forwarded-Proto: http (tunnel hits :80); with FORCE_HTTPS
-      # trek redirects forever -> ERR_TOO_MANY_REDIRECTS.
+      gateway: internal
+      # With FORCE_HTTPS trek redirects forever (ERR_TOO_MANY_REDIRECTS) when a hop
+      # sends X-Forwarded-Proto: http, as the Cloudflare tunnel on :80 did.
       filters:
         - type: RequestHeaderModifier
           requestHeaderModifier:
