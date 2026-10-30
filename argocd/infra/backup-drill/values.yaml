@@ -271,7 +271,7 @@ homelab-common:
               # Apps = volsync entries with homelab-common `drill` on (label homelab.dr/drill).
               VOLS=$(kubectl get replicationsources -A -l homelab.dr/drill -o jsonpath='{range .items[*]}{.metadata.labels.homelab\.dr/drill}{"\n"}{end}' | sort -u)
               [ -n "$VOLS" ] || { echo "no ReplicationSource labelled homelab.dr/drill"; exit 1; }
-              APPS="$VOLS forgejo-ops"   # forgejo-ops is the ops-node dump, not VolSync
+              APPS="$VOLS forgejo-ops netbird-vps-fi"   # restic repos shipped by hosts, not VolSync
               set -- $APPS
               COUNT=$#
               WEEK=$(( $(date -u +%s) / 604800 ))
@@ -296,7 +296,8 @@ homelab-common:
               cleanup() { kubectl delete ns "$NS" --wait=false >/dev/null 2>&1 || true; }
 
               report() {
-                ok="$1"; detail="$2"
+                # Log tails can carry quotes or backslashes that break the alert JSON
+                ok="$1"; detail=$(printf %s "$2" | tr -d '"\\')
                 now=$(date -u +%s); dur=$((now - START))
 
                 # No endsAt: BusyBox date silently turns "-d '+10 minutes'" into "now" and
@@ -324,23 +325,55 @@ homelab-common:
 
               kubectl create ns "$NS" >/dev/null 2>&1 || true
 
-              # forgejo-ops is a `forgejo dump` tar.zst, not a volume: check its size and
-              # that it contains the database and the repositories.
-              if [ "$APP" = "forgejo-ops" ]; then
-                kubectl -n "$NS" create secret generic drill-restic                             --from-literal=RESTIC_REPOSITORY="$REPO_URL"                             --from-literal=RESTIC_PASSWORD="$PW"                             --from-literal=AWS_ACCESS_KEY_ID="$AK"                             --from-literal=AWS_SECRET_ACCESS_KEY="$SK" >/dev/null
+              # Host-shipped repos hold files, not a volume: a per-app script checks them.
+              # forgejo-ops (ops node): the `forgejo dump` tar.zst has the DB and the repositories.
+              # netbird-vps-fi (vpn repo node-configs/bin/netbird-backup.sh): SQLite copies are
+              # intact, the store has peers, config.yaml is there.
+              case "$APP" in
+                forgejo-ops) VERIFY='set -e
+              apk add --no-cache restic zstd tar >/dev/null
+              restic restore latest --target /restore
+              f=$(find /restore -name "forgejo-dump-*.tar.zst" | head -1)
+              [ -n "$f" ] || { echo NO_DUMP; exit 1; }
+              sz=$(stat -c%s "$f"); echo SIZE=$sz
+              [ "$sz" -gt 104857600 ] || { echo TOO_SMALL; exit 1; }
+              tar --zstd -tf "$f" > /tmp/l
+              grep -q -e forgejo-db.sql -e gitea-db.sql /tmp/l || { echo NO_DB; exit 1; }
+              grep -q "^repos/" /tmp/l || { echo NO_REPOS; exit 1; }
+              echo ENTRIES=$(wc -l < /tmp/l); echo VERIFY_OK' ;;
+                netbird-vps-fi) VERIFY='set -e
+              apk add --no-cache restic sqlite >/dev/null
+              restic restore latest --target /restore
+              d=$(find /restore -type d -path "*/stage/db" | head -1)
+              [ -n "$d" ] || { echo NO_DB; exit 1; }
+              for f in store.db idp.db; do [ -s "$d/$f" ] || { echo "NO_$f"; exit 1; }; r=$(sqlite3 "$d/$f" "PRAGMA integrity_check;"); [ "$r" = ok ] || { echo "INTEGRITY $f $r"; exit 1; }; done
+              p=$(sqlite3 "$d/store.db" "select count(*) from peers;"); echo PEERS=$p
+              [ "$p" -gt 0 ] || { echo NO_PEERS; exit 1; }
+              [ -s "$d/../netbird/config.yaml" ] || { echo NO_CONFIG; exit 1; }
+              echo VERIFY_OK' ;;
+                *) VERIFY= ;;
+              esac
+              if [ -n "$VERIFY" ]; then
+                kubectl -n "$NS" create secret generic drill-restic \
+                  --from-literal=RESTIC_REPOSITORY="$REPO_URL" \
+                  --from-literal=RESTIC_PASSWORD="$PW" \
+                  --from-literal=AWS_ACCESS_KEY_ID="$AK" \
+                  --from-literal=AWS_SECRET_ACCESS_KEY="$SK" >/dev/null
+                kubectl -n "$NS" create configmap drill-verify --from-literal=verify.sh="$VERIFY" >/dev/null
 
-                kubectl -n "$NS" run verify-dump --restart=Never --image="alpine:$ALPINE_TAG"                             --overrides='{"spec":{"securityContext":{"runAsUser":0,"runAsGroup":0},"containers":[{"name":"verify-dump","image":"alpine:'"$ALPINE_TAG"'","command":["sh","-c","set -e; apk add --no-cache restic zstd tar >/dev/null; restic restore latest --target /restore; f=$(find /restore -name \"forgejo-dump-*.tar.zst\" | head -1); [ -n \"$f\" ] || { echo NO_DUMP; exit 1; }; sz=$(stat -c%s \"$f\"); echo SIZE=$sz; [ \"$sz\" -gt 104857600 ] || { echo TOO_SMALL; exit 1; }; tar --zstd -tf \"$f\" > /tmp/l; grep -q -e forgejo-db.sql -e gitea-db.sql /tmp/l || { echo NO_DB; exit 1; }; grep -q \"^repos/\" /tmp/l || { echo NO_REPOS; exit 1; }; echo ENTRIES=$(wc -l < /tmp/l); echo VERIFY_OK"],"envFrom":[{"secretRef":{"name":"drill-restic"}}],"volumeMounts":[{"name":"r","mountPath":"/restore"}]}],"volumes":[{"name":"r","emptyDir":{"sizeLimit":"8Gi"}}],"restartPolicy":"Never"}}' >/dev/null
+                kubectl -n "$NS" run verify-dump --restart=Never --image="alpine:$ALPINE_TAG" \
+                  --overrides='{"spec":{"securityContext":{"runAsUser":0,"runAsGroup":0},"containers":[{"name":"verify-dump","image":"alpine:'"$ALPINE_TAG"'","command":["sh","/verify/verify.sh"],"envFrom":[{"secretRef":{"name":"drill-restic"}}],"volumeMounts":[{"name":"r","mountPath":"/restore"},{"name":"v","mountPath":"/verify"}]}],"volumes":[{"name":"r","emptyDir":{"sizeLimit":"8Gi"}},{"name":"v","configMap":{"name":"drill-verify"}}],"restartPolicy":"Never"}}' >/dev/null
 
                 DDEADLINE=$(( $(date -u +%s) + 1200 ))
                 while :; do
                   phase=$(kubectl -n "$NS" get pod verify-dump -o jsonpath='{.status.phase}' 2>/dev/null || true)
                   [ "$phase" = "Succeeded" ] && break
-                  [ "$phase" = "Failed" ] && { report 0 "dump verification failed: $(kubectl -n "$NS" logs verify-dump 2>&1 | tail -3 | tr '\n' ' ')"; exit 1; }
-                  [ "$(date -u +%s)" -gt "$DDEADLINE" ] && { report 0 "dump verification timed out"; exit 1; }
+                  [ "$phase" = "Failed" ] && { report 0 "verification failed: $(kubectl -n "$NS" logs verify-dump 2>&1 | tail -3 | tr '\n' ' ')"; exit 1; }
+                  [ "$(date -u +%s)" -gt "$DDEADLINE" ] && { report 0 "verification timed out"; exit 1; }
                   sleep 15
                 done
 
-                SUMMARY=$(kubectl -n "$NS" logs verify-dump 2>&1 | grep -E "SIZE=|ENTRIES=|VERIFY_OK" | tr '\n' ' ')
+                SUMMARY=$(kubectl -n "$NS" logs verify-dump 2>&1 | grep -E "SIZE=|ENTRIES=|PEERS=|VERIFY_OK" | tr '\n' ' ')
                 echo "$SUMMARY"
                 report 1 "$SUMMARY"
                 exit 0
