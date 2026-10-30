@@ -50,7 +50,7 @@ spec:
 {{- /* Deny-only egress to private ranges: a compromised image reaches the
      internet and the cluster, not the NAS, router or ops node. Deny wins over
      allow in Cilium, so exceptions are whole IPs in `except`. Pods (10.244/16)
-     stay open; node IPs carry host/remote-node/kube-apiserver identities that
+     and Services (10.96/12) stay open; node IPs carry host/remote-node/kube-apiserver identities that
      CIDR rules do not match. VolSync movers carry the exempt label. */}}
 ---
 apiVersion: cilium.io/v2
@@ -73,6 +73,9 @@ spec:
         - cidr: 10.0.0.0/8
           except:
             - 10.244.0.0/16
+            # Service CIDR: ClusterIP traffic socket-LB did not translate
+            # (non-TCP/UDP, nested netns like DinD) still carries the VIP.
+            - 10.96.0.0/12
             {{- range $np.lanEgress | default list }}
             - {{ . }}
             {{- end }}

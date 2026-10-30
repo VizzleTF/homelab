@@ -183,7 +183,7 @@ checks = {
   'limitRange defaults null -> requests only': 'default' not in lr_only_req and lr_only_req['defaultRequest'] == {'cpu': '50m', 'memory': '64Mi'},
   'default-ingress never opens remote-node unconditionally': [r for r in np if 'toPorts' not in r and 'remote-node' in r.get('fromEntities', [])] == [],
   'allow entities -> fromEntities on its ports only': {'fromEntities': ['remote-node'], 'toPorts': [{'ports': [{'port': '5000', 'protocol': 'TCP'}]}]} in np,
-  'lan-egress-deny: deny-only, pods + lanEgress excepted': (lambda e: e['enableDefaultDeny'] == {'egress': False, 'ingress': False} and e['egressDeny'][0]['toCIDRSet'][0] == {'cidr': '10.0.0.0/8', 'except': ['10.244.0.0/16', '10.11.12.237/32']} and [c['cidr'] for c in e['egressDeny'][0]['toCIDRSet']] == ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'])(docs[('CiliumNetworkPolicy', 'lan-egress-deny')]['spec']),
+  'lan-egress-deny: deny-only, pods + lanEgress excepted': (lambda e: e['enableDefaultDeny'] == {'egress': False, 'ingress': False} and e['egressDeny'][0]['toCIDRSet'][0] == {'cidr': '10.0.0.0/8', 'except': ['10.244.0.0/16', '10.96.0.0/12', '10.11.12.237/32']} and [c['cidr'] for c in e['egressDeny'][0]['toCIDRSet']] == ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'])(docs[('CiliumNetworkPolicy', 'lan-egress-deny')]['spec']),
   'volsync movers exempt from lan-egress-deny': docs[('ReplicationSource', 't-data-garage')]['spec']['restic']['moverPodLabels'] == {'homelab.lan-egress/exempt': 'volsync'},
   'allow namespaces -> fromEndpoints on its ports': any(r.get('fromEndpoints', [{}])[0].get('matchExpressions', [{}])[0].get('values') == ['victoria-metrics'] and r['toPorts'][0]['ports'] == [{'port': '9187', 'protocol': 'TCP'}] for r in np),
 }
