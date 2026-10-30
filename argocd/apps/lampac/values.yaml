@@ -72,7 +72,7 @@ homelab-common:
           # Tags exist as `X.Y.Z` and `vX.Y.Z`; renovate.json locks the non-v scheme.
           image:
             repository: ghcr.io/lampac-nextgen/lampac
-            tag: "1.87.2"
+            tag: "1.87.3"
           ports:
             - name: http
               containerPort: 9118

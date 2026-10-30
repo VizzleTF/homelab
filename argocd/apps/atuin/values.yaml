@@ -40,7 +40,7 @@ homelab-common:
         - name: atuin
           image:
             repository: ghcr.io/atuinsh/atuin
-            tag: "18.24.3"
+            tag: "18.24.4"
           args: ["start"]
           ports:
             - name: http
