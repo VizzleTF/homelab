@@ -35,7 +35,8 @@ spec:
             description: "У роутера 512 МБ RAM. При нехватке OOM-killer прибьёт nikki/mihomo или dnsmasq."
 
         - alert: RouterRebooted
-          expr: changes(node_boot_time_seconds{job="router"}[15m]) > 0
+          # Not changes(): VictoriaMetrics counts a new series as a change and fired on the first scrape.
+          expr: time() - node_boot_time_seconds{job="router"} < 15 * 60
           labels:
             severity: warning
           annotations:
