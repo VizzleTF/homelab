@@ -168,3 +168,6 @@ homelab-common:
   #       ports: [9187]
   #     - entities: [remote-node]
   #       ports: [5000]
+  #   # Deny egress to private ranges except pods and these IPs (needs enabled).
+  #   lanEgressDeny: true
+  #   lanEgress: [10.11.12.237/32]

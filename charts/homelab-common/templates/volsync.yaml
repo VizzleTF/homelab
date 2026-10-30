@@ -80,6 +80,9 @@ spec:
     pruneIntervalDays: 14
     retain:
       {{- toYaml ($t.retain | default $repo.retain | default (dict "daily" 7 "weekly" 4)) | nindent 6 }}
+    # Exempt from lan-egress-deny: the mover writes to the NAS restic repo.
+    moverPodLabels:
+      homelab.lan-egress/exempt: volsync
     {{- with $item.moverSecurityContext }}
     moverSecurityContext:
       {{- toYaml . | nindent 6 }}

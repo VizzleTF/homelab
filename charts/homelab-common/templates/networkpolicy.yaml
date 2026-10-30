@@ -5,7 +5,7 @@
      (webhooks), the Cilium gateway (ingress identity) and cilium-health.
      remote-node is not: LoadBalancer/NodePort traffic SNATed by another node
      carries it and would reach every port from the LAN; list it per port in
-     networkPolicy.allow (entities). Egress is not touched. */}}
+     networkPolicy.allow (entities). Egress: see lan-egress-deny below. */}}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -46,4 +46,37 @@ spec:
             {{- end }}
       {{- end }}
     {{- end }}
+{{- if $np.lanEgressDeny }}
+{{- /* Deny-only egress to private ranges: a compromised image reaches the
+     internet and the cluster, not the NAS, router or ops node. Deny wins over
+     allow in Cilium, so exceptions are whole IPs in `except`. Pods (10.244/16)
+     stay open; node IPs carry host/remote-node/kube-apiserver identities that
+     CIDR rules do not match. VolSync movers carry the exempt label. */}}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: lan-egress-deny
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "homelab-common.labels" (dict "root" $) | nindent 4 }}
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: homelab.lan-egress/exempt
+        operator: DoesNotExist
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  egressDeny:
+    - toCIDRSet:
+        - cidr: 10.0.0.0/8
+          except:
+            - 10.244.0.0/16
+            {{- range $np.lanEgress | default list }}
+            - {{ . }}
+            {{- end }}
+        - cidr: 172.16.0.0/12
+        - cidr: 192.168.0.0/16
+{{- end }}
 {{- end }}

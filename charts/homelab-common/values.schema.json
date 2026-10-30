@@ -140,7 +140,7 @@
         "persistentVolumeClaims": { "type": "array", "description": "PVCs, kept on uninstall (helm.sh/resource-policy: keep).", "items": { "$ref": "#/$defs/PVCSpec" } },
         "volsync": { "type": "array", "description": "VolSync restic backups of a PVC to the global repos.", "items": { "$ref": "#/$defs/VolsyncSpec" } },
         "authentikBlueprints": { "type": "array", "description": "Authentik blueprint ConfigMaps (rendered into ns authentik).", "items": { "$ref": "#/$defs/AuthentikBlueprintSpec" } },
-        "networkPolicy": { "$ref": "#/$defs/NetworkPolicySpec", "description": "Default-deny ingress CiliumNetworkPolicy default-ingress plus allow entries." }
+        "networkPolicy": { "$ref": "#/$defs/NetworkPolicySpec", "description": "Default-deny ingress CiliumNetworkPolicy default-ingress plus allow entries; optional lan-egress-deny." }
       }
     },
     "VaultPath": {
@@ -330,6 +330,8 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
+        "lanEgressDeny": { "type": "boolean", "description": "Also render lan-egress-deny: no egress to 10/8, 172.16/12, 192.168/16 except pods and lanEgress. Needs enabled." },
+        "lanEgress": { "type": "array", "items": { "type": "string", "pattern": "^10\\.([0-9]{1,3}\\.){2}[0-9]{1,3}/[0-9]{1,2}$" }, "uniqueItems": true, "description": "CIDRs inside 10.0.0.0/8 this release may still reach (NAS, router, ops node)." },
         "allow": {
           "type": "array",
           "items": {
