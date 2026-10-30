@@ -12,7 +12,7 @@ spec:
     # `obsidian/112 ArgoCD/Infrastructure/all/tuppr.md`.
     # github-releases: the ghcr installer image stops at 1.13 (renamed metal-installer).
     # renovate: datasource=github-releases depName=siderolabs/talos
-    version: v1.14.4
+    version: v1.14.5
 
   parallelism: 1
 
@@ -96,4 +96,4 @@ spec:
     image:
       repository: ghcr.io/siderolabs/talosctl
       # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-      tag: v1.14.4
+      tag: v1.14.5
