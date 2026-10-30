@@ -6,12 +6,46 @@ metadata:
 spec:
   sourceRepos:
     - '*'
+  # Apps stay out of platform namespaces: a bad upstream chart cannot
+  # overwrite them. victoria-metrics is allowed (cnpg, crowdsec-scraper ship
+  # VM objects there). shortcut: deny list mirrors infra namespaces by hand,
+  # add a new infra namespace here.
   destinations:
     - namespace: '*'
       server: https://kubernetes.default.svc
+    - {namespace: '!default', server: '*'}
+    - {namespace: '!kube-*', server: '*'}
+    - {namespace: '!argocd', server: '*'}
+    - {namespace: '!backup-drill', server: '*'}
+    - {namespace: '!cert-manager', server: '*'}
+    - {namespace: '!cilium-secrets', server: '*'}
+    - {namespace: '!cloudflared', server: '*'}
+    - {namespace: '!cnpg-system', server: '*'}
+    - {namespace: '!external-dns*', server: '*'}
+    - {namespace: '!external-secrets-system', server: '*'}
+    - {namespace: '!keda', server: '*'}
+    - {namespace: '!kubelet-csr-approver', server: '*'}
+    - {namespace: '!kyverno', server: '*'}
+    - {namespace: '!local-path-provisioner', server: '*'}
+    - {namespace: '!longhorn-system', server: '*'}
+    - {namespace: '!openbao', server: '*'}
+    - {namespace: '!reloader', server: '*'}
+    - {namespace: '!renovate', server: '*'}
+    - {namespace: '!robusta', server: '*'}
+    - {namespace: '!smartctl-exporter', server: '*'}
+    - {namespace: '!snapshot-controller', server: '*'}
+    - {namespace: '!spegel', server: '*'}
+    - {namespace: '!system-upgrade', server: '*'}
+    - {namespace: '!tfstate-mirror', server: '*'}
+    - {namespace: '!victoria-logs', server: '*'}
+    - {namespace: '!volsync-system', server: '*'}
+    - {namespace: '!wazuh-operator', server: '*'}
+  # Only what apps render today; a chart that adds CRDs, webhooks or
+  # PVs/StorageClasses fails sync instead of landing silently.
   clusterResourceWhitelist:
-    - group: '*'
-      kind: '*'
+    - {group: '', kind: Namespace}
+    - {group: rbac.authorization.k8s.io, kind: ClusterRole}
+    - {group: rbac.authorization.k8s.io, kind: ClusterRoleBinding}
   # Warn about objects in app namespaces that no Application tracks. Ignored:
   # what operators and StatefulSets create without an ownerReference.
   orphanedResources:
