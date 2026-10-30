@@ -35,6 +35,8 @@ jobs:
           [ -n "$VERSION" ] || { echo "::error::shellcheck-py rev not found in .pre-commit-config.yaml"; exit 1; }
           /tmp/yamllint/bin/pip install --quiet "shellcheck-py==${VERSION}"
           git ls-files -z '*.sh' '.git-hooks/*' | xargs -0 /tmp/yamllint/bin/shellcheck -x -S warning
+          # Scripts embedded in values/manifests; PyYAML comes with yamllint.
+          /tmp/yamllint/bin/python scripts/shellcheck-inline.py /tmp/yamllint/bin/shellcheck
       - name: Lint Claude skills
         run: python3 scripts/lint-skills.py
       - name: Audit docs (repo side)
