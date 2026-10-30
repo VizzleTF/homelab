@@ -1,0 +1,79 @@
+# Status codes: SYNOLOGY-*-MIB (systemStatus/powerStatus/fans 1 = normal;
+# diskStatus 4 SystemPartitionFailed, 5 Crashed; diskHealthStatus 2 Warning,
+# 3 Critical, 4 Failing; raidStatus 11 Degrade, 12 Crashed, others are
+# transient repair/scrub/sync states).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: nas
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: nas
+      rules:
+        - alert: NasSnmpDown
+          expr: up{job="nas"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NAS is not answering SNMP"
+            description: "snmp_exporter 10 минут не может опросить NAS 10.11.12.237. Либо NAS лежит (Garage S3, бэкапы VolSync, CNPG Barman), либо в DSM выключен SNMPv3 или сменился пароль (home/homelab/k8s/snmp-exporter/synology)."
+
+        - alert: NasRaidDegraded
+          expr: raidStatus{job="nas"} == 11 or raidStatus{job="nas"} == 12
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NAS {{ $labels.raidName }} is degraded or crashed"
+            description: "raidStatus={{ $value }} (11 Degrade, 12 Crashed). Ещё один отказ диска — потеря данных. Проверить Storage Manager в DSM."
+
+        - alert: NasDiskUnhealthy
+          expr: diskStatus{job="nas"} >= 4 or diskHealthStatus{job="nas"} > 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NAS disk {{ $labels.diskID }} is unhealthy"
+            description: "Диск {{ $labels.diskID }} сообщает статус {{ $value }}. Готовить замену, проверить Storage Manager в DSM."
+
+        - alert: NasDiskBadSectors
+          # SSDs report -1 (not supported): increase() stays 0 until a disk reports real counts.
+          expr: increase(diskBadSector{job="nas"}[1d]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "NAS disk {{ $labels.diskID }} gained bad sectors"
+            description: "За сутки на диске {{ $labels.diskID }} прибавилось {{ $value }} bad sectors. Рост — ранний признак отказа."
+
+        - alert: NasSystemFault
+          expr: |
+            systemStatus{job="nas"} != 1 or powerStatus{job="nas"} != 1
+              or systemFanStatus{job="nas"} != 1 or cpuFanStatus{job="nas"} != 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NAS reports a hardware fault"
+            description: "Synology сообщает сбой системы, питания или вентилятора (статус {{ $value }}, норма 1). Проверить Info Center в DSM."
+
+        - alert: NasDiskTemperatureHigh
+          # All disks are SSD; M.2 NVMe idle at 43-54°C (2026-10-30), so HDD-style 55°C would flap.
+          expr: diskTemperature{job="nas"} > 70
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "NAS disk {{ $labels.diskID }} is at {{ $value }}°C"
+            description: "Диск выше 70 °C полчаса, NVMe скоро начнёт троттлить. Проверить вентиляторы и температуру в стойке."
+
+        - alert: NasVolumeFull
+          # Storage pools report 0 free once fully allocated to volumes: volumes only.
+          expr: raidFreeSize{job="nas",raidName=~"Volume.*"} / raidTotalSize{job="nas",raidName=~"Volume.*"} < 0.1
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "NAS {{ $labels.raidName }} is {{ $value | humanizePercentage }} free"
+            description: "На томе меньше 10% места. Туда пишут Garage S3 и бэкапы."

@@ -1,0 +1,56 @@
+# SNMPv3 polling of the Synology NAS. No prometheus-operator CRDs: the scrape
+# (with target/module/auth params) and alerts live in manifests/ as VM objects.
+fullnameOverride: snmp-exporter
+
+# Only the auth; modules (synology, if_mib, system) come from the image's
+# /etc/snmp_exporter/snmp.yml, added via extraArgs. ${VAR}s come from envFrom.
+config: |-
+  auths:
+    synology_v3:
+      version: 3
+      username: ${SNMP_SYNOLOGY_USERNAME}
+      security_level: authPriv
+      password: ${SNMP_SYNOLOGY_AUTH_PASSWORD}
+      auth_protocol: SHA
+      priv_protocol: AES
+      priv_password: ${SNMP_SYNOLOGY_PRIV_PASSWORD}
+
+extraArgs:
+  - --config.file=/etc/snmp_exporter/snmp.yml
+  - --config.expand-environment-variables
+
+envFrom:
+  - secretRef:
+      name: snmp-synology
+
+# Chart Role only grants get on endpoints, which the exporter never reads.
+rbac:
+  create: false
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+homelab-common:
+  networkPolicy:
+    enabled: true
+    # Synology NAS, SNMP udp/161.
+    lanEgress: [10.11.12.237/32]
+    allow:
+      - namespaces: [victoria-metrics]
+        ports: [9116]
+
+  externalSecrets:
+    - name: snmp-synology
+      vaultPath: snmp-exporter/synology
+      data:
+        - secretKey: SNMP_SYNOLOGY_USERNAME
+          property: username
+        - secretKey: SNMP_SYNOLOGY_AUTH_PASSWORD
+          property: auth_password
+        - secretKey: SNMP_SYNOLOGY_PRIV_PASSWORD
+          property: priv_password

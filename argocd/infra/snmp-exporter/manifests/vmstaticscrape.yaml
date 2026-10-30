@@ -1,0 +1,22 @@
+# snmp_exporter is a proxy: vmagent asks it to walk the NAS (target param).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: nas
+  namespace: victoria-metrics
+spec:
+  jobName: nas
+  targetEndpoints:
+    - targets:
+        - snmp-exporter.snmp-exporter.svc:9116
+      scheme: http
+      path: /snmp
+      params:
+        target: [10.11.12.237]
+        module: [synology, if_mib, system]
+        auth: [synology_v3]
+      interval: 60s
+      scrapeTimeout: 30s
+      labels:
+        job: nas
+        instance: nas

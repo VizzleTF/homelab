@@ -14,7 +14,7 @@ spec:
             severity: critical
           annotations:
             summary: "Router metrics are not scrapeable"
-            description: "Метрики роутера 10.11.12.1:9101 не собираются 5 минут. Роутер держит BGP LB-пула, DNS и выход в интернет. После owut upgrade пакеты prometheus-node-exporter-ucode-* надо ставить заново."
+            description: "Метрики роутера 10.11.12.1:9101 не собираются 5 минут. Роутер держит BGP LB-пула, DNS и выход в интернет. Проверить на роутере: service prometheus-node-exporter-ucode status и правило firewall node_exporter_allow."
 
         - alert: RouterConntrackHigh
           expr: node_nf_conntrack_entries{job="router"} / node_nf_conntrack_entries_limit{job="router"} > 0.8

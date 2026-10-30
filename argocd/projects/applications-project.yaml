@@ -34,6 +34,7 @@ spec:
     - {namespace: '!robusta', server: '*'}
     - {namespace: '!smartctl-exporter', server: '*'}
     - {namespace: '!snapshot-controller', server: '*'}
+    - {namespace: '!snmp-exporter', server: '*'}
     - {namespace: '!spegel', server: '*'}
     - {namespace: '!system-upgrade', server: '*'}
     - {namespace: '!tfstate-mirror', server: '*'}

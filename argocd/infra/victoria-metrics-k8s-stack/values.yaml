@@ -537,6 +537,13 @@ homelab-common:
                   - alertname="TargetDown"
                 equal: ['cluster']
 
+              # NAS unreachable over SNMP -> its status alerts carry no data anyway
+              - source_matchers:
+                  - alertname="NasSnmpDown"
+                target_matchers:
+                  - alertname=~"NasRaidDegraded|NasDiskUnhealthy|NasDiskBadSectors|NasSystemFault|NasDiskTemperatureHigh|NasVolumeFull|TargetDown"
+                equal: ['job']
+
               - source_matchers:
                   - alertname="RouterExporterDown"
                 target_matchers:
