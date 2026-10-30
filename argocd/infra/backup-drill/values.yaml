@@ -49,6 +49,26 @@ homelab-common:
       templateData:
         OVH_AK: "{{ .ak }}"
         OVH_SK: "{{ .sk }}"
+    # VPS fleet repos (bucket restic-vps, own Garage key and restic passwords; OVH key shared)
+    - name: drill-restic-vps
+      data:
+        - secretKey: ak
+          vaultPath: shared/s3-restic-vps
+          property: ACCESS_KEY_ID
+        - secretKey: sk
+          vaultPath: shared/s3-restic-vps
+          property: ACCESS_SECRET_KEY
+        - secretKey: pw_garage
+          vaultPath: shared/restic-vps-garage
+          property: password
+        - secretKey: pw_ovh
+          vaultPath: shared/restic-vps-ovh
+          property: password
+      templateData:
+        VPS_GARAGE_AK: "{{ .ak }}"
+        VPS_GARAGE_SK: "{{ .sk }}"
+        PW_VPS_GARAGE: "{{ .pw_garage }}"
+        PW_VPS_OVH: "{{ .pw_ovh }}"
     # restore-drill-core: CNPG barman bucket and the OpenBao/etcd snapshots bucket
     - name: drill-s3-cnpg
       vaultPath: shared/s3-cnpg-backup
@@ -250,6 +270,10 @@ homelab-common:
                 name: drill-s3-garage
             - secretRef:
                 name: drill-s3-ovh
+            # optional: an unsynced VPS secret fails only the VPS apps, not the whole rotation
+            - secretRef:
+                name: drill-restic-vps
+                optional: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -271,7 +295,7 @@ homelab-common:
               # Apps = volsync entries with homelab-common `drill` on (label homelab.dr/drill).
               VOLS=$(kubectl get replicationsources -A -l homelab.dr/drill -o jsonpath='{range .items[*]}{.metadata.labels.homelab\.dr/drill}{"\n"}{end}' | sort -u)
               [ -n "$VOLS" ] || { echo "no ReplicationSource labelled homelab.dr/drill"; exit 1; }
-              APPS="$VOLS forgejo-ops netbird-vps-fi"   # restic repos shipped by hosts, not VolSync
+              APPS="$VOLS forgejo-ops netbird-vps-fi vps-vps-panel"   # restic repos shipped by hosts, not VolSync
               set -- $APPS
               COUNT=$#
               WEEK=$(( $(date -u +%s) / 604800 ))
@@ -283,9 +307,14 @@ homelab-common:
               if [ -n "${DRILL_APP:-}" ]; then APP=$DRILL_APP; TARGET=${DRILL_TARGET:?set DRILL_TARGET too}; fi
               case " $* " in *" $APP "*) ;; *) echo "app $APP is not in the rotation: $*"; exit 1 ;; esac
 
+              # VPS hosts ship to their own bucket/prefix with their own Garage key and passwords
+              case "$APP" in
+                netbird-vps-fi|vps-*) B=restic-vps; GAK="${VPS_GARAGE_AK:?drill-restic-vps not synced}"; GSK="$VPS_GARAGE_SK"; PWG="$PW_VPS_GARAGE"; PWO="$PW_VPS_OVH" ;;
+                *) B=restic-apps; GAK="$GARAGE_AK"; GSK="$GARAGE_SK"; PWG="$PW_GARAGE"; PWO="$PW_OVH" ;;
+              esac
               case "$TARGET" in
-                garage) REPO_URL="s3:https://s3.example.com/restic-apps/$APP"; AK="$GARAGE_AK"; SK="$GARAGE_SK"; PW="$PW_GARAGE" ;;
-                ovh)    REPO_URL="s3:https://s3.de.io.cloud.ovh.net/offsite-homelab/restic-apps/$APP"; AK="$OVH_AK"; SK="$OVH_SK"; PW="$PW_OVH" ;;
+                garage) REPO_URL="s3:https://s3.example.com/$B/$APP"; AK="$GAK"; SK="$GSK"; PW="$PWG" ;;
+                ovh)    REPO_URL="s3:https://s3.de.io.cloud.ovh.net/offsite-homelab/$B/$APP"; AK="$OVH_AK"; SK="$OVH_SK"; PW="$PWO" ;;
                 *)      echo "unknown target $TARGET"; exit 1 ;;
               esac
 
@@ -329,6 +358,8 @@ homelab-common:
               # forgejo-ops (ops node): the `forgejo dump` tar.zst has the DB and the repositories.
               # netbird-vps-fi (vpn repo node-configs/bin/netbird-backup.sh): SQLite copies are
               # intact, the store has peers, config.yaml is there.
+              # vps-vps-panel (vpn repo node-configs/bin/vps-backup.sh): the panel DB dump has users,
+              # the panel .env and nginx.conf are there.
               case "$APP" in
                 forgejo-ops) VERIFY='set -e
               apk add --no-cache restic zstd tar >/dev/null
@@ -351,6 +382,17 @@ homelab-common:
               p=$(sqlite3 "$d/store.db" "select count(*) from peers;"); echo PEERS=$p
               [ "$p" -gt 0 ] || { echo NO_PEERS; exit 1; }
               [ -s "$d/../netbird/config.yaml" ] || { echo NO_CONFIG; exit 1; }
+              echo VERIFY_OK' ;;
+                vps-vps-panel) VERIFY='set -e
+              apk add --no-cache restic >/dev/null
+              restic restore latest --target /restore --exclude-xattr "security.*"
+              f=$(find /restore -path "*/stage/db/remnawave.sql.gz" | head -1)
+              [ -n "$f" ] || { echo NO_DUMP; exit 1; }
+              gzip -t "$f"; echo SIZE=$(stat -c%s "$f")
+              u=$(gunzip -c "$f" | sed -n "/^COPY public.users /,/^[\\\\]\\.\$/p" | wc -l)
+              echo ENTRIES=$((u - 2))
+              [ "$u" -gt 2 ] || { echo NO_USERS; exit 1; }
+              for c in .env nginx.conf; do [ -s "/restore/opt/remnawave/$c" ] || { echo "NO_$c"; exit 1; }; done
               echo VERIFY_OK' ;;
                 *) VERIFY= ;;
               esac

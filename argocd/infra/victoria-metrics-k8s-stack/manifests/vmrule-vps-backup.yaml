@@ -11,7 +11,7 @@ spec:
         # scraped over the NetBird mesh by crowdsec-scraper. A dead scraper shows up as
         # TargetDown{cluster="vps"}, not here: the series then go absent, not stale.
         - alert: VpsBackupStale
-          # Daily at 03:40 UTC; 26h like OpsBackupStale
+          # Daily (vps-backup 01:45-02:45 UTC, netbird-backup 03:40 UTC); 26h like OpsBackupStale
           expr: time() - homelab_vps_backup_timestamp > 26 * 3600
           for: 30m
           labels:
@@ -27,4 +27,4 @@ spec:
             severity: critical
           annotations:
             summary: "VPS backup failed: {{ $labels.backup }} → {{ $labels.target }}"
-            description: "Последний прогон {{ $labels.backup }} на {{ $labels.host }} не отгрузился в {{ $labels.target }}. Подробности: journalctl -u netbird-backup на {{ $labels.host }}."
+            description: "Последний прогон {{ $labels.backup }} на {{ $labels.host }} не отгрузился в {{ $labels.target }}. Подробности: journalctl -u netbird-backup (backup=netbird-vps-fi) или -u vps-backup на {{ $labels.host }}."

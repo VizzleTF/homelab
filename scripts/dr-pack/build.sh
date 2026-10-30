@@ -82,6 +82,12 @@ log_info "writing 01-bootstrap.env (CF + Garage + OVH + OVH crypt + OpenWrt)"
   # restored from a backup: the scheme's only circular dependency.
   echo "RESTIC_PASSWORD_GARAGE=$(rs garage RESTIC_PASSWORD)"
   echo "RESTIC_PASSWORD_OVH=$(rs ovh RESTIC_PASSWORD)"
+  # VPS fleet repos (bucket/prefix restic-vps): own Garage key and passwords; OVH key as above.
+  vp() { local v; v=$(kubectl -n backup-drill get secret drill-restic-vps -o jsonpath="{.data.$1}" 2>/dev/null | base64 -d || true); echo "${v:-MISSING-drill-restic-vps}"; }
+  echo "GARAGE_RESTIC_VPS_ACCESS_KEY=$(vp VPS_GARAGE_AK)"
+  echo "GARAGE_RESTIC_VPS_SECRET=$(vp VPS_GARAGE_SK)"
+  echo "RESTIC_VPS_PASSWORD_GARAGE=$(vp PW_VPS_GARAGE)"
+  echo "RESTIC_VPS_PASSWORD_OVH=$(vp PW_VPS_OVH)"
 
   # Router host and rpcd login are in git (external-dns-openwrt values); only the password is secret.
   OW_PASS=$(kubectl -n external-dns-openwrt get secret openwrt-credentials -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || true)

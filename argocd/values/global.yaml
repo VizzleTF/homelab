@@ -17,6 +17,8 @@ global:
     access:
       grants:
         backup: [shared/restic-garage, shared/restic-ovh, shared/s3-restic-apps, shared/s3-ovh]
+        # VPS fleet restic (vpn repo vps-backup.sh, netbird-backup.sh): own Garage key and passwords
+        vps-backup: [shared/s3-restic-vps, shared/restic-vps-garage, shared/restic-vps-ovh]
         s3-ovh: [shared/s3-ovh]
         cnpg-backup: [shared/s3-cnpg-backup]
         db-roles: [authentik/authentik, atuin/atuin]
@@ -35,7 +37,7 @@ global:
       namespaces:
         argocd: [valkey, telegram]
         authentik: [oidc-clients]
-        backup-drill: [backup, cnpg-backup, snapshots, ovh-crypt]
+        backup-drill: [backup, cnpg-backup, snapshots, ovh-crypt, vps-backup]
         cert-manager: [cloudflare]
         cleanbot: [backup]
         cnpg: [s3-ovh, cnpg-backup, db-roles, ovh-crypt]
