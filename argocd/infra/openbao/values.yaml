@@ -215,6 +215,8 @@ homelab-common:
                   name: dr-pack-restic-pw
               - secretRef:
                   name: dr-pack-restic-pw-ovh
+              - secretRef:
+                  name: dr-pack-restic-vps
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
@@ -264,6 +266,10 @@ homelab-common:
                   echo "RESTIC_PASSWORD_OVH=$PW_OVH"
                   echo "GARAGE_RESTIC_ACCESS_KEY=$GARAGE_RESTIC_AK"
                   echo "GARAGE_RESTIC_SECRET=$GARAGE_RESTIC_SK"
+                  echo "GARAGE_RESTIC_VPS_ACCESS_KEY=$VPS_GARAGE_AK"
+                  echo "GARAGE_RESTIC_VPS_SECRET=$VPS_GARAGE_SK"
+                  echo "RESTIC_VPS_PASSWORD_GARAGE=$PW_VPS_GARAGE"
+                  echo "RESTIC_VPS_PASSWORD_OVH=$PW_VPS_OVH"
                   echo "GARAGE_SNAPSHOTS_ACCESS_KEY=$RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID"
                   echo "GARAGE_SNAPSHOTS_SECRET=$RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY"
                   echo "OVH_S3_ACCESS_KEY=$RCLONE_CONFIG_OVH_ACCESS_KEY_ID"
@@ -474,6 +480,26 @@ homelab-common:
           property: password
       templateData:
         PW_OVH: "{{ .pw }}"
+    # VPS fleet restic (vps-backup.sh, netbird-backup.sh): without it the off-site pack cannot open restic-vps.
+    - name: dr-pack-restic-vps
+      data:
+        - secretKey: ak
+          vaultPath: shared/s3-restic-vps
+          property: ACCESS_KEY_ID
+        - secretKey: sk
+          vaultPath: shared/s3-restic-vps
+          property: ACCESS_SECRET_KEY
+        - secretKey: pw_garage
+          vaultPath: shared/restic-vps-garage
+          property: password
+        - secretKey: pw_ovh
+          vaultPath: shared/restic-vps-ovh
+          property: password
+      templateData:
+        VPS_GARAGE_AK: "{{ .ak }}"
+        VPS_GARAGE_SK: "{{ .sk }}"
+        PW_VPS_GARAGE: "{{ .pw_garage }}"
+        PW_VPS_OVH: "{{ .pw_ovh }}"
 
   httpRoutes:
     - name: openbao

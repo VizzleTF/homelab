@@ -52,6 +52,7 @@ fi
 # its Authentik client secret, 2FA and push-mirror passwords.
 # 12: rclone-obscured crypt key of the OVH etcd/OpenBao snapshots, tfstate,
 # pg_dump and router config (item name kept: renaming makes a duplicate)
+# 13: VPS fleet restic-vps repos (Garage key + passwords; OVH key is item 09).
 # (use as RCLONE_CONFIG_<remote>_PASSWORD{,2}; `rclone reveal` prints the plain one).
 # Format: name | path:fields[,fields];path:fields
 ITEMS='
@@ -60,6 +61,7 @@ ITEMS='
 10 - DR pack passphrase (off-site)|shared/dr-pack:passphrase
 11 - Forgejo instance secrets|forgejo/instance-secrets:SECRET_KEY,INTERNAL_TOKEN,JWT_SECRET,LFS_JWT_SECRET,MINIO_ACCESS_KEY_ID,MINIO_SECRET_ACCESS_KEY
 12 - OVH rclone crypt (snapshots, tfstate)|shared/ovh-crypt:password,password2
+13 - VPS restic (restic-vps)|shared/s3-restic-vps:ACCESS_KEY_ID,ACCESS_SECRET_KEY;shared/restic-vps-garage:password;shared/restic-vps-ovh:password
 '
 
 folder_id=""

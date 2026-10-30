@@ -46,7 +46,7 @@ global:
         may: [backup]
         netbird: [backup]
         obsidian-livesync: [backup]
-        openbao: [backup, openbao-ops, ovh-crypt]
+        openbao: [backup, openbao-ops, ovh-crypt, vps-backup]
         opencloud: [backup]
         openwrt-backup: [s3-ovh, ovh-crypt]
         renovate: [telegram]

@@ -38,7 +38,7 @@ spec:
               remnawave_node_status=0 больше 10 минут для node_name={{ $labels.node_name }}
               (uuid={{ $labels.node_uuid }}).
               Прежде чем подозревать саму ноду — проверить DNS/регистратора и баны
-              CrowdSec: оба сценария уже случались и выглядели как «нода сломалась».
+              Wazuh (iptables -S INPUT): оба сценария уже выглядели как «нода сломалась».
               ssh vps-panel 'rwapi GET /api/nodes | jq -r ".response[] | \"\(.name) \(.isConnected)\""'
               dig +short {{ $labels.node_name }}.vpn.example.org
 
@@ -81,7 +81,7 @@ spec:
               Backend панели throttled. Смотреть remnawave_process_rss_bytes и
               remnawave_process_heap_used_bytes рядом — обычно это утечка heap.
 
-    # Textfile-метрики (job=node): vpn-healthcheck на vps-panel раз в сутки, xhttp-health.sh */5.
+    # Textfile-метрики (job=node): vpn-healthcheck на vps-panel */30, xhttp-health.sh */5.
     # Исходники: vps/node-configs/bin/{vpn-healthcheck,xhttp-health.sh}.
     - name: remnawave-host-scripts
       rules:
@@ -97,7 +97,7 @@ spec:
               ssh vps-panel 'sudo cat /var/log/vpn-health.last'
               Ручной перезапуск: ssh vps-panel 'sudo vpn-healthcheck'
 
-        # 26h; без правила вчерашняя единица выглядит как здоровье.
+        # Без правила последняя единица выглядит как здоровье.
         # Cron */30 (since 2026-10-30): two missed runs.
         - alert: VpnHealthcheckStale
           expr: |
