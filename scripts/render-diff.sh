@@ -2,8 +2,7 @@
 # Diff the rendered manifests of ArgoCD apps (scripts/render-app.sh) at <base>
 # (default: merge-base with origin/main) vs the working tree incl. uncommitted
 # edits, object by object. Prints the review-gate summary first
-# (scripts/diff-review-gate.sh). CI argocd-diff renders the tip of main instead:
-# rebase when main moved under the same apps. config.yaml
+# (scripts/diff-review-gate.sh). CI argocd-diff uses the same merge-base. config.yaml
 # ignoreDiff.jqPathExpressions are dropped on both sides (cilium regenerates
 # its CA on every render). --hc-local renders
 # the working tree with local charts/homelab-common (base keeps the pin); for

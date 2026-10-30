@@ -199,7 +199,7 @@ jobs:
           if-no-files-found: ignore
 
   argocd-diff:
-    # Renders touched Applications for main and PR head in kind (runner dind).
+    # Renders touched Applications for the merge-base with main and PR head in kind (runner dind).
     # Fails on render errors and kubeconform/pluto; a pruned resource or changed
     # CRD fails unless the PR has the `diff-reviewed` label (add it, re-run). A run
     # whose gate list differs from the reviewed one removes the label.
@@ -228,9 +228,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           path: target-branch
+          fetch-depth: 0
+      # Base = merge-base, not the tip of main: a stale branch would otherwise show every
+      # PR merged since it forked as reverted, and that drift resets the review gate.
+      - name: Resolve merge-base and PR head
+        id: refs
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          echo "base=$(git -C target-branch merge-base "origin/${BASE_REF}" HEAD)" >> "$GITHUB_OUTPUT"
+          echo "head=$(git -C target-branch rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ steps.refs.outputs.base }}
           path: base-branch
 
       - name: Install docker CLI, yq, pluto, kubeconform
@@ -271,7 +282,9 @@ jobs:
       - name: Render main and PR head
         env:
           SSH_KEY: ${{ secrets.DIFF_PREVIEW_SSH_KEY }}
-          HEAD_REF: ${{ github.head_ref }}
+          # Full SHAs: a Renovate force-push mid-run cannot swap the rendered head.
+          HEAD_SHA: ${{ steps.refs.outputs.head }}
+          BASE_SHA: ${{ steps.refs.outputs.base }}
           BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
@@ -284,11 +297,16 @@ jobs:
             | .stringData.type = "git"
             | .stringData.url = "ssh://git@git.example.com:22/vizzle"
             | .stringData.sshPrivateKey = strenv(SSH_KEY)' > secrets/repo.yaml
-          # Host keys and ArgoCD chart version come from main, so a PR cannot swap them.
-          yq -n '.configs.ssh.extraHosts = load("base-branch/argocd/values/argocd.yaml").configs.ssh.extraHosts' \
+          # Host keys and ArgoCD chart version come from the tip of main (not the merge-base),
+          # so a PR cannot swap them and a stale branch does not get rotated-out host keys.
+          mkdir -p main-tip
+          git -C target-branch show "origin/${BASE_REF}:argocd/values/argocd.yaml" > main-tip/argocd.yaml
+          git -C target-branch show "origin/${BASE_REF}:argocd/standalone/argocd-application.yaml" \
+            > main-tip/argocd-application.yaml
+          yq -n '.configs.ssh.extraHosts = load("main-tip/argocd.yaml").configs.ssh.extraHosts' \
             > argocd-config/values.yaml
           ARGOCD_CHART=$(yq '.spec.sources[] | select(.chart == "argo-cd") | .targetRevision' \
-            base-branch/argocd/standalone/argocd-application.yaml)
+            main-tip/argocd-application.yaml)
 
           # Paths resolve on the dind host: use docker cp, not bind mounts.
           # One retry: a blipping chart repo (GHCR, codeberg) fails the render.
@@ -297,8 +315,8 @@ jobs:
             docker create --name argocd-diff-preview --network host \
               -v /var/run/docker.sock:/var/run/docker.sock \
               -e REPO=vizzle/homelab \
-              -e BASE_BRANCH="$BASE_REF" \
-              -e TARGET_BRANCH="$HEAD_REF" \
+              -e BASE_BRANCH="$BASE_SHA" \
+              -e TARGET_BRANCH="$HEAD_SHA" \
               -e ARGOCD_CHART_VERSION="$ARGOCD_CHART" \
               -e ARGOCD_UI_URL=https://argocd.example.com \
               -e OUTPUT_BRANCH_MANIFESTS=true \

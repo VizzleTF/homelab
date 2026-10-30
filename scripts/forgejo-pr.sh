@@ -777,8 +777,8 @@ ship_one() {
     echo "note: reusing PR #$pr; its title and body stay as they are" >&2
   fi
 
-  # argocd-diff compares with the current main: a stale branch shows other PRs'
-  # resources as removed (a false review gate).
+  # argocd-diff renders the PR head, not the merge result: rebase so CI checks what
+  # main will hold.
   if ! git merge-base --is-ancestor "origin/$BASE_BRANCH" "$b"; then
     if ! git -C "$WT" rebase -q "origin/$BASE_BRANCH"; then
       git -C "$WT" diff --name-only --diff-filter=U >&2
