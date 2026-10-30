@@ -72,6 +72,7 @@ argocd/
 │       └── manifests/                # optional raw K8s yamls (extraManifests: true)
 ├── infra/                            # Same shape as apps/, per-component
 └── values/
+    ├── apps.yaml / infra.yaml        # homelab-common values per AppSet (lanEgressDeny)
     ├── argocd.yaml                   # values for the standalone argocd Application
     └── global.yaml                   # $values target for homelab-common globals
 
@@ -151,7 +152,7 @@ external-dns writes records both ways: Cloudflare for public hosts, OpenWrt for 
 
 To expose a new public service, add `httpRoutes:` to the app's `values.yaml`. `homelab-common` renders the HTTPRoute, external-dns picks up the host, and the tunnel routes it.
 
-Every namespace except `kube-system`, `netbird` and `longhorn-system` has a default-deny ingress `CiliumNetworkPolicy` (`longhorn-system` relies on the chart's per-component `NetworkPolicy` objects plus `longhorn-ui-gateway-only`); a new cross-namespace client needs an `allow` entry in the target namespace.
+Every namespace except `kube-system`, `netbird` and `longhorn-system` has a default-deny ingress `CiliumNetworkPolicy` (`longhorn-system` relies on the chart's per-component `NetworkPolicy` objects plus `longhorn-ui-gateway-only`); a new cross-namespace client needs an `allow` entry in the target namespace. The same namespaces get `lan-egress-deny`: no egress to private ranges except pods, Services and the release's `networkPolicy.lanEgress` (NAS, router, ops node), so a compromised image cannot reach the LAN.
 
 ---
 
