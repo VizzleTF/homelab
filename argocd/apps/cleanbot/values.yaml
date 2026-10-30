@@ -35,7 +35,9 @@ homelab-common:
   httpRoutes:
     - name: cleanbot
       hostname: cleanbot
-      gateway: external
+      # Public side: NetBird Reverse Proxy on vps-fi (manual CNAME cleanbot → proxy.example.com),
+      # which reaches this route over the mesh. docs/netbird-reverse-proxy.md
+      gateway: internal
       service:
         name: cleanbot
         port: 8080
