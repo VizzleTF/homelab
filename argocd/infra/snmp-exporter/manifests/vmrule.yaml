@@ -39,8 +39,8 @@ spec:
             description: "Диск {{ $labels.diskID }} сообщает статус {{ $value }}. Готовить замену, проверить Storage Manager в DSM."
 
         - alert: NasDiskBadSectors
-          # SSDs report -1 (not supported): increase() stays 0 until a disk reports real counts.
-          expr: increase(diskBadSector{job="nas"}[1d]) > 0
+          # SSDs report -1 (not supported). Not increase(): VictoriaMetrics counts a new series' first value as growth.
+          expr: diskBadSector{job="nas"} - diskBadSector{job="nas"} offset 1d > 0
           labels:
             severity: warning
           annotations:
