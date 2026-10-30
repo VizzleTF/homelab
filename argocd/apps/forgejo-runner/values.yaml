@@ -8,7 +8,7 @@ knownLastVersion: true
 image:
   registry: code.forgejo.org  # pinned: Renovate needs registry+repository next to tag
   repository: forgejo/runner  # pinned: Renovate needs registry+repository next to tag
-  tag: "13.2.0"
+  tag: "13.2.1"
 
 runner:
   config:
