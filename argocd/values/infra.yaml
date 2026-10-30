@@ -1,4 +1,7 @@
 # homelab-common values for every argocd/infra release: after global.yaml,
-# before the release's own values (which win). Kept in step with apps.yaml;
-# lanEgressDeny for infra comes after its exceptions are mapped.
-homelab-common: {}
+# before the release's own values (which win).
+homelab-common:
+  networkPolicy:
+    # No egress to private ranges except pods; exceptions per release in
+    # networkPolicy.lanEgress (NAS, router, ops node).
+    lanEgressDeny: true

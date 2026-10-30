@@ -11,7 +11,8 @@
 # Usage: scripts/render-diff.sh [--base <ref>] [--hc-local] [app ...]
 #   no app: every app whose argocd/{apps,infra}/<app>/ differs from <base>, argocd
 #   for argocd/standalone/argocd-application.yaml or argocd/values/, every app plus
-#   argocd for argocd/values/global.yaml or argocd/appsets/ (CI watch-patterns).
+#   argocd for argocd/values/global.yaml or argocd/appsets/ (CI watch-patterns),
+#   every apps/infra app for argocd/values/{apps,infra}.yaml.
 #   `git fetch` first when origin/main may be stale.
 # Exit codes (3 wins over 1, 1 over 4):
 #   0  nothing for the review gate (the diff, if any, is printed)
@@ -57,6 +58,10 @@ if [[ ${#apps[@]} -eq 0 ]]; then
     if grep -qE '^argocd/(values/global\.yaml|appsets/.*)$' <<<"$changed"; then
       for c in argocd/{apps,infra}/*/config.yaml; do basename "$(dirname "$c")"; done; echo argocd
     fi
+    for k in apps infra; do  # per-class values file: every app of that class
+      grep -qxF "argocd/values/$k.yaml" <<<"$changed" || continue
+      for c in argocd/"$k"/*/config.yaml; do basename "$(dirname "$c")"; done
+    done
   } | sort -u)
   while IFS= read -r a; do [[ -n $a ]] && apps+=("$a"); done <<<"$list"
 fi

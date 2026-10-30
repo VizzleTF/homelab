@@ -130,6 +130,8 @@ homelab-common:
   # only Grafana and vmagent may connect.
   networkPolicy:
     enabled: true
+    # syslog forward to the wazuh-manager LB IP (UDP via LB untested).
+    lanEgress: [10.11.10.140/32]
     allow:
       - namespaces: [victoria-metrics]
         ports: [9428, 9090]

@@ -67,6 +67,8 @@ homelab-common:
   # No scrape here, so no victoria-metrics allow.
   networkPolicy:
     enabled: true
+    # Forgejo on the ops node (git.example.com).
+    lanEgress: [10.11.11.153/32]
 
   externalSecrets:
     - name: renovate-forgejo-token

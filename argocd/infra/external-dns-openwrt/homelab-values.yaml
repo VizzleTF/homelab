@@ -2,6 +2,8 @@
 homelab-common:
   networkPolicy:
     enabled: true
+    # OpenWrt router API (records via LuCI/ubus).
+    lanEgress: [10.11.12.1/32]
     allow:
       - namespaces: [victoria-metrics]
 

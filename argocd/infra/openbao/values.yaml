@@ -85,6 +85,8 @@ homelab-common:
   # Own namespace (raft, autounseal, backup jobs) is allowed implicitly.
   networkPolicy:
     enabled: true
+    # NAS (s3.example.com): raft snapshots and the DR pack.
+    lanEgress: [10.11.12.237/32]
     allow:
       - namespaces: [external-secrets-system]
         ports: [8200]

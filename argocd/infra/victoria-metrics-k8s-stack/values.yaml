@@ -432,6 +432,8 @@ kubeEtcd:
 homelab-common:
   networkPolicy:
     enabled: true
+    # ops node exporters (vmstaticscrape-ops-node).
+    lanEgress: [10.11.11.153/32]
     allow:
       # PromQL queries and crowdsec-scraper remote write
       - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper]

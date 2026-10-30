@@ -2,6 +2,8 @@ homelab-common:
   # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
+    # NAS (s3.example.com): tfstate bucket.
+    lanEgress: [10.11.12.237/32]
 
   externalSecrets:
     - name: tfstate-mirror-rclone-env

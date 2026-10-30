@@ -3,6 +3,9 @@ homelab-common:
   # Metrics are pushed, not scraped: no allow for victoria-metrics
   networkPolicy:
     enabled: true
+    # NAS (s3.example.com): restic repos and snapshots; its ReplicationDestination
+    # movers lack the VolSync exempt label.
+    lanEgress: [10.11.12.237/32]
 
   limitRange:
     enabled: true
