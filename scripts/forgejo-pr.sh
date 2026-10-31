@@ -296,8 +296,17 @@ cleanup_local_branch() {
 
   local current
   current=$(git symbolic-ref --short -q HEAD || echo "")
+  # A linked worktree: the base branch belongs to the main checkout another session may use; detach here.
+  local linked=0
+  [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]] && linked=1
   if [[ "$current" = "$branch" ]]; then
-    if ! git checkout "$BASE_BRANCH" >/dev/null 2>&1; then
+    if [[ "$linked" = 1 ]]; then
+      git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null || true
+      if ! git checkout --detach "origin/$BASE_BRANCH" >/dev/null 2>&1; then
+        echo "could not detach the worktree from '$branch' — local branch kept" >&2
+        return 0
+      fi
+    elif ! git checkout "$BASE_BRANCH" >/dev/null 2>&1; then
       echo "could not switch off '$branch' (uncommitted changes?) — local branch kept" >&2
       return 0
     fi
@@ -310,7 +319,9 @@ cleanup_local_branch() {
     echo "could not delete local branch '$branch'" >&2
   fi
 
-  if git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null \
+  if [[ "$linked" = 1 ]]; then
+    echo "note: worktree; the main checkout's $BASE_BRANCH is not refreshed" >&2
+  elif git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null \
     && git merge --ff-only "origin/$BASE_BRANCH" >/dev/null 2>&1; then
     echo "fast-forwarded $BASE_BRANCH to origin/$BASE_BRANCH" >&2
   else

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Self-check the Claude Code hooks in .claude/hooks on fixtures: validate-yaml.sh
 # (past false failures must pass, bad files fail), helm-repo.sh (a stale
-# `<repo>/<chart>` read is flagged), bash-guard.py and program-gate.sh --selftest.
+# `<repo>/<chart>` read is flagged), bash-guard.py, session-guard.py and program-gate.sh --selftest.
 # Runs in CI kubeconform and `task ci:kubeconform`; needs jq, yamllint,
 # kubeconform, python3 and network for the kubeconform schemas.
 set -uo pipefail
@@ -41,6 +41,7 @@ check_helm 0 "helm template x charts/homelab-common -f argocd/values/global.yaml
 check_helm 2 "helm show values cilium/cilium" "repo/chart read with no fresh helm repo update"
 
 python3 .claude/hooks/bash-guard.py --selftest || fail=1
+python3 .claude/hooks/session-guard.py --selftest || fail=1
 bash scripts/program-gate.sh --selftest || fail=1
 
 [[ $fail -eq 0 ]] && echo "hooks-selfcheck: clean"
