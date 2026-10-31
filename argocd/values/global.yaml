@@ -24,6 +24,8 @@ global:
         db-roles: [authentik/authentik, atuin/atuin]
         valkey: [valkey/valkey]
         telegram: [shared/telegram]
+        # Heartbeat tokens of the outside Gatus on vps-fi (docs/monitoring-architecture.md)
+        gatus-heartbeat: [shared/gatus-heartbeat]
         openbao-ops: [shared/s3-snapshots, shared/dr-pack]
         # Snapshots without the DR pack.
         snapshots: [shared/s3-snapshots]
@@ -55,7 +57,7 @@ global:
         tfstate-mirror: [s3-ovh, ovh-crypt]
         trek: [backup]
         vaultwarden: [backup]
-        victoria-metrics: [telegram]
+        victoria-metrics: [telegram, gatus-heartbeat]
         wazuh: [backup]
 
   dns:

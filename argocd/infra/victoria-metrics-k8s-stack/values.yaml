@@ -12,7 +12,8 @@ victoria-metrics-operator:
 
 defaultRules:
   rules:
-    Watchdog: {enabled: false}
+    # Always firing; Alertmanager pushes it to Gatus on vps-fi (route deadmans-switch below)
+    Watchdog: {enabled: true}
     InfoInhibitor: {enabled: false}
     # Single Alertmanager replica
     AlertmanagerClusterCrashlooping: {enabled: false}
@@ -138,8 +139,8 @@ defaultRules:
 
     # Trip on every vmsingle restart (2-3 min) during syncs; a lasting outage is
     # covered by ServiceDown (vm stack rules: up == 0 for vmsingle/vmalert jobs, 2m)
-    # and TargetDown. A full vmsingle or vmalert outage halts evaluation itself,
-    # so no in-cluster rule fires then (Watchdog is disabled).
+    # and TargetDown. A broken single rule: VmalertRuleFailing (vmrule-coverage-gaps).
+    # A halted vmalert or Alertmanager: the Watchdog heartbeat stops reaching vps-fi.
     AlertingRulesError: {enabled: false}
     ConfigurationReloadFailure: {enabled: false}
     RemoteWriteDroppingData: {enabled: false}
@@ -186,7 +187,8 @@ defaultRules:
 
 vmsingle:
   spec:
-    retentionPeriod: "7d"
+    # Weekly pushes (dr-pack) must outlive the [30d] windows of their rules; ~12 GB.
+    retentionPeriod: "30d"
     storageMetadata:
       annotations:
         helm.sh/resource-policy: keep
@@ -468,6 +470,9 @@ homelab-common:
       data:
         - secretKey: bot_token
           property: bot_token
+        - secretKey: am_token
+          vaultPath: shared/gatus-heartbeat
+          property: am_token
       templateData:
         alertmanager.yaml: |
             global:
@@ -480,6 +485,14 @@ homelab-common:
               repeat_interval: 12h
               receiver: 'robusta'
               routes:
+                # Heartbeat to the outside Gatus on vps-fi (docs/monitoring-architecture.md);
+                # silence stops it, so the page comes from vps-fi after ~10 minutes.
+                - matchers:
+                    - alertname="Watchdog"
+                  receiver: 'deadmans-switch'
+                  group_wait: 0s
+                  group_interval: 1m
+                  repeat_interval: 1m
                 - matchers:
                     - alertname=~"RobustaRunnerDown|AlertmanagerNotificationsFailing"
                   receiver: 'telegram-direct'
@@ -554,6 +567,14 @@ homelab-common:
                 webhook_configs:
                   - url: http://robusta-runner.robusta.svc.cluster.local/api/alerts
                     send_resolved: true
+              - name: 'deadmans-switch'
+                webhook_configs:
+                  - url: https://status.example.com/api/v1/endpoints/homelab_alertmanager/external?success=true
+                    send_resolved: false
+                    http_config:
+                      authorization:
+                        type: Bearer
+                        credentials: '{{ .am_token }}'
               - name: 'telegram-direct'
                 telegram_configs:
                   - bot_token: '{{ .bot_token }}'

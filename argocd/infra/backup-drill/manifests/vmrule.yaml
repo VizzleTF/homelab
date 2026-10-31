@@ -1,5 +1,5 @@
 # The drills keep each {app,target} result in ConfigMap backup-drill/restore-drill-state;
-# restore-drill-metrics re-pushes all of it daily (vmsingle keeps 7d), the drills on
+# restore-drill-metrics re-pushes all of it daily (vmsingle keeps 30d), the drills on
 # every run. Values carry the stored run time, so Stale compares it, not sample age.
 # An instant query sees only 5 minutes back: keep the [8d] last_over_time wrappers,
 # they bridge missed daily pushes up to the weekly drill push.

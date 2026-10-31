@@ -20,6 +20,25 @@ spec:
               никуда не уходят. Проверить robusta-runner и логи vmalertmanager:
               kubectl -n victoria-metrics logs vmalertmanager-victoria-metrics-k8s-stack-0 -c alertmanager --tail=50
 
+    - name: rule-health
+      rules:
+        # A broken rule (many-to-many, bad label join) errors on every 1m evaluation, ~15
+        # per window; vmsingle restarts peaked at 10 held 15m (backtest 7d, 2026-10-30).
+        # A vmsingle outage fails every rule at once: that is the Watchdog's job, not this one.
+        - alert: VmalertRuleFailing
+          expr: |
+            sum by (group, alertname) (increase(vmalert_alerting_rules_errors_total[15m])) > 12
+              unless on() count(sum by (group, alertname) (increase(vmalert_alerting_rules_errors_total[15m])) > 12) > 10
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Правило {{ $labels.group }}/{{ $labels.alertname }} не вычисляется"
+            description: |
+              vmalert получает ошибку на каждом прогоне этого правила — оно молчит,
+              даже если условие выполнено. Текст ошибки:
+              scripts/vm.sh rules errors
+              kubectl -n victoria-metrics logs deploy/vmalert-victoria-metrics-k8s-stack -c vmalert --tail=100 | grep {{ $labels.alertname }}
     - name: cronjobs
       rules:
         # KubeJobFailed misses CronJobs that stop running; 8d = weekly schedule + margin
