@@ -73,7 +73,7 @@ spec:
     storageClassName: {{ $vsg.storageClass }}
     accessModes:
       - {{ $item.accessMode | default "ReadWriteOnce" }}
-    cacheStorageClassName: {{ $vsg.cacheStorageClass }}
+    cacheStorageClassName: {{ $item.cacheStorageClass | default $vsg.cacheStorageClass }}
     cacheCapacity: {{ $item.cacheCapacity | default $vsg.cacheCapacity }}
     cacheAccessModes:
       - ReadWriteOnce

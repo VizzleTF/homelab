@@ -89,6 +89,7 @@
         "copyMethod": { "type": "string", "enum": ["Snapshot", "Clone", "Direct"] },
         "accessMode": { "type": "string" },
         "cacheCapacity": { "type": "string" },
+        "cacheStorageClass": { "type": "string", "description": "Restic cache class; default global.volsync.cacheStorageClass (local-path, pinned to one node). copyMethod Direct needs a movable one (longhorn-volsync-clone): the mover follows the app pod." },
         "moverSecurityContext": { "type": "object" },
         "moverResources": { "type": "object" },
         "drill": { "type": "boolean", "description": "In the weekly restore drill (label homelab.dr/drill=<name> on its ReplicationSources); default true. false for volumes larger than the drill's DRILL_SIZE or without both garage and ovh targets." },

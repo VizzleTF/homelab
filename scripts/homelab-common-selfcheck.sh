@@ -128,7 +128,7 @@ homelab-common:
     - {name: repo, fullnameOverride: helm-oci, labels: {argocd.argoproj.io/secret-type: repository}, stringData: {type: helm}}
   volsync:
     - {name: t-data, targets: [{repo: garage, schedule: "0 1 * * *"}]}
-    - {name: t-big, claim: t-data, drill: false, targets: [{repo: garage, schedule: "0 2 * * *"}]}
+    - {name: t-big, claim: t-data, drill: false, cacheStorageClass: longhorn-volsync-clone, targets: [{repo: garage, schedule: "0 2 * * *"}]}
   limitRange: {enabled: true}
   networkPolicy:
     enabled: true
@@ -178,6 +178,7 @@ checks = {
   'pvc storageClassName rendered': docs[('PersistentVolumeClaim', 't-data')]['spec']['storageClassName'] == 'longhorn',
   'own-namespace vaultPath under pathPrefix': docs[('ExternalSecret', 't-app')]['spec']['data'][0]['remoteRef']['key'] == 'homelab/k8s/t/app',
   'volsync drill label by default': docs[('ReplicationSource', 't-data-garage')]['metadata']['labels'].get('homelab.dr/drill') == 't-data',
+  'volsync cache class: global default, item override': docs[('ReplicationSource', 't-data-garage')]['spec']['restic']['cacheStorageClassName'] == 'local-path' and docs[('ReplicationSource', 't-big-garage')]['spec']['restic']['cacheStorageClassName'] == 'longhorn-volsync-clone',
   'volsync drill false -> no label': 'homelab.dr/drill' not in docs[('ReplicationSource', 't-big-garage')]['metadata']['labels'],
   'limitRange enabled -> 500m/512Mi, 50m/64Mi': docs[('LimitRange', 'default-limits')]['spec']['limits'][0] == {'type': 'Container', 'default': {'cpu': '500m', 'memory': '512Mi'}, 'defaultRequest': {'cpu': '50m', 'memory': '64Mi'}},
   'limitRange defaults null -> requests only': 'default' not in lr_only_req and lr_only_req['defaultRequest'] == {'cpu': '50m', 'memory': '64Mi'},
