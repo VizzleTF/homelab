@@ -20,10 +20,18 @@
         header = "homelab watchdog";
       };
 
-      # From /var/lib/secrets/gatus.env, same bot as other homelab notifications.
-      alerting.telegram = {
-        token = "\${TELEGRAM_BOT_TOKEN}";
-        id = "\${TELEGRAM_CHAT_ID}";
+      # From /var/lib/secrets/gatus.env, same bot as other homelab notifications. Bot API through
+      # the custom provider: the built-in telegram one opens trigger and resolve with the same
+      # "Gatus" header. Descriptions must stay free of double quotes.
+      alerting.custom = {
+        url = "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage";
+        method = "POST";
+        headers."Content-Type" = "application/json";
+        body = ''{"chat_id": "''${TELEGRAM_CHAT_ID}", "text": "[ALERT_TRIGGERED_OR_RESOLVED] [ENDPOINT_GROUP]/[ENDPOINT_NAME]\n[ALERT_DESCRIPTION]"}'';
+        placeholders.ALERT_TRIGGERED_OR_RESOLVED = {
+          TRIGGERED = "🔴 FIRING";
+          RESOLVED = "✅ RESOLVED";
+        };
         default-alert = {
           # Rides out a probe missed during a node reboot.
           failure-threshold = 3;
@@ -47,7 +55,7 @@
             "[STATUS] == 200"
             "[BODY] == ok"
           ];
-          alerts = [ { type = "telegram"; description = "Kubernetes API is unreachable"; } ];
+          alerts = [ { type = "custom"; description = "Kubernetes API is unreachable"; } ];
         }
         {
           name = "cluster ingress";
@@ -56,7 +64,7 @@
           url = "https://argocd.example.com/healthz";
           interval = "2m";
           conditions = [ "[STATUS] == 200" ];
-          alerts = [ { type = "telegram"; description = "Internal gateway or DNS is broken"; } ];
+          alerts = [ { type = "custom"; description = "Internal gateway or DNS is broken"; } ];
         }
         {
           name = "forgejo";
@@ -64,7 +72,7 @@
           url = "https://git.example.com/api/healthz";
           interval = "2m";
           conditions = [ "[STATUS] == 200" ];
-          alerts = [ { type = "telegram"; description = "Forgejo on the ops node is down"; } ];
+          alerts = [ { type = "custom"; description = "Forgejo on the ops node is down"; } ];
         }
         {
           name = "garage s3";
@@ -73,7 +81,7 @@
           url = "https://s3.example.com";
           interval = "5m";
           conditions = [ "[STATUS] < 500" ];
-          alerts = [ { type = "telegram"; description = "Garage S3 on the NAS is unreachable"; } ];
+          alerts = [ { type = "custom"; description = "Garage S3 on the NAS is unreachable"; } ];
         }
         {
           name = "s3 certificate";
@@ -82,7 +90,7 @@
           url = "https://s3.example.com";
           interval = "1h";
           conditions = [ "[CERTIFICATE_EXPIRATION] > 240h" ];
-          alerts = [ { type = "telegram"; description = "s3.example.com certificate expires in under 10 days (acme.sh on the NAS)"; } ];
+          alerts = [ { type = "custom"; description = "s3.example.com certificate expires in under 10 days (acme.sh on the NAS)"; } ];
         }
         {
           name = "wildcard certificate";
@@ -92,7 +100,7 @@
           url = "https://argocd.example.com/healthz";
           interval = "1h";
           conditions = [ "[CERTIFICATE_EXPIRATION] > 240h" ];
-          alerts = [ { type = "telegram"; description = "*.example.com certificate expires in under 10 days (cert-manager)"; } ];
+          alerts = [ { type = "custom"; description = "*.example.com certificate expires in under 10 days (cert-manager)"; } ];
         }
         {
           name = "wazuh-manager lb";
@@ -101,7 +109,7 @@
           url = "tcp://10.11.10.140:1514";
           interval = "5m";
           conditions = [ "[CONNECTED] == true" ];
-          alerts = [ { type = "telegram"; description = "Wazuh manager LB 10.11.10.140 unreachable (BGP route?)"; } ];
+          alerts = [ { type = "custom"; description = "Wazuh manager LB 10.11.10.140 unreachable (BGP route?)"; } ];
         }
         {
           name = "outside watchdog";
@@ -113,7 +121,7 @@
             "[STATUS] == 200"
             "[BODY].status == UP"
           ];
-          alerts = [ { type = "telegram"; description = "Outside watchdog on vps-fi is down: ssh vps-fi 'cd /opt/gatus && docker compose ps'"; } ];
+          alerts = [ { type = "custom"; description = "Outside watchdog on vps-fi is down: ssh vps-fi 'cd /opt/gatus && docker compose ps'"; } ];
         }
       ];
     };
