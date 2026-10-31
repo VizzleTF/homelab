@@ -64,7 +64,7 @@ homelab-common:
         - name: cleanbot
           image:
             repository: git.example.com/vizzle/cleanbot
-            tag: "0.2.9"
+            tag: "0.2.10"
           ports:
             - name: http
               containerPort: 8080
