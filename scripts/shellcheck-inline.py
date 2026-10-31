@@ -80,20 +80,21 @@ def main():
     shellcheck = sys.argv[1] if len(sys.argv) > 1 else "shellcheck"
     files = subprocess.run(["git", "ls-files", "argocd/*.yaml"], check=True,
                            capture_output=True, text=True).stdout.split()
-    tmp = Path(tempfile.mkdtemp())
     scripts = []
-    for f in files:
-        for doc in yaml.safe_load_all(Path(f).read_text()):
-            for name, shell, body in scripts_in(doc):
-                if "{{" in body:
-                    continue
-                for name, shell, body in expand(name, shell, body):
-                    out = tmp / f"{f.replace('/', '__')}__{name}__{len(scripts)}.{shell}"
-                    out.write_text(body)
-                    scripts.append((str(out), shell))
     rc = 0
-    for path, shell in scripts:
-        rc |= subprocess.run([shellcheck, "-S", "warning", "-s", shell, path]).returncode
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        for f in files:
+            for doc in yaml.safe_load_all(Path(f).read_text()):
+                for name, shell, body in scripts_in(doc):
+                    if "{{" in body:
+                        continue
+                    for name, shell, body in expand(name, shell, body):
+                        out = tmp / f"{f.replace('/', '__')}__{name}__{len(scripts)}.{shell}"
+                        out.write_text(body)
+                        scripts.append((str(out), shell))
+        for path, shell in scripts:
+            rc |= subprocess.run([shellcheck, "-S", "warning", "-s", shell, path]).returncode
     print(f"checked {len(scripts)} inline scripts", file=sys.stderr)
     sys.exit(1 if rc else 0)
 
