@@ -150,6 +150,9 @@ homelab-common:
       claim: immich-library-pvc
       accessMode: ReadWriteOnce
       cacheCapacity: 10Gi
+      # Direct pins the mover to the server's node; a local-path cache pins it to
+      # its own node, so a moved server left the mover Pending (2026-10-31).
+      cacheStorageClass: longhorn-volsync-clone
       # Direct: Snapshot clones (1 TiB) could not be placed and volumes faulted.
       # Read is not atomic. Server moving mid-run leaves a stale restic lock (volsync cheatsheet).
       copyMethod: Direct
