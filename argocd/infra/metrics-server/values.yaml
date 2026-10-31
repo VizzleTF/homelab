@@ -1,6 +1,3 @@
-args:
-  - --kubelet-insecure-tls
-
 resources:
   requests:
     memory: 32Mi
