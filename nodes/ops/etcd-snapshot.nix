@@ -26,9 +26,27 @@
       pkgs.talosctl
       pkgs.rclone
       pkgs.coreutils
+      pkgs.gnused
     ];
     script = ''
       set -euo pipefail
+
+      # Per-target result for node_exporter (alerts: vmrule-ops-node.yaml). A target that
+      # fails keeps its last success time, so staleness still alerts. Same as vps-backup.sh.
+      prom=/var/lib/node-exporter/textfile/etcd-snapshot.prom
+      declare -A OK TS
+      for t in garage ovh; do
+        OK[$t]=0
+        TS[$t]=$(sed -n "s/^homelab_ops_backup_timestamp{backup=\"etcd-snapshot\",target=\"$t\"} //p" "$prom" 2>/dev/null || true)
+        TS[$t]=''${TS[$t]:-0}
+      done
+      write_prom() {
+        for t in garage ovh; do
+          echo "homelab_ops_backup_success{backup=\"etcd-snapshot\",target=\"$t\"} ''${OK[$t]}"
+          echo "homelab_ops_backup_timestamp{backup=\"etcd-snapshot\",target=\"$t\"} ''${TS[$t]}"
+        done > "$prom.tmp" && mv "$prom.tmp" "$prom"
+      }
+      trap write_prom EXIT
 
       ts=$(date -u +%Y-%m-%dT%H%M)
       snap="/tmp/etcd-''${ts}.snap"
@@ -51,15 +69,20 @@
       test -s "$snap"
       ls -lh "$snap"
 
-      for dst in garage:snapshots/etcd ovhcrypt:snapshots/etcd; do
+      # Each target on its own: a dead NAS must not stop the OVH copy.
+      rc=0
+      for t in garage ovh; do
+        dst=garage:snapshots/etcd
+        [ "$t" = ovh ] && dst=ovhcrypt:snapshots/etcd
         echo "=== copy -> $dst"
-        rclone copy "$snap" "$dst"
-        echo "=== prune >30d in $dst"
-        rclone delete "$dst" --min-age 30d
+        if rclone copy "$snap" "$dst" && rclone delete "$dst" --min-age 30d && rclone size "$dst"; then
+          OK[$t]=1
+          TS[$t]=$(date +%s)
+        else
+          echo "$t: failed"; rc=1
+        fi
       done
-
-      rclone size garage:snapshots/etcd
-      rclone size ovhcrypt:snapshots/etcd
+      exit $rc
     '';
   };
 

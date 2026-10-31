@@ -1,6 +1,8 @@
 # Dead man's switch: the in-cluster alerting dies with the cluster, this does not.
 # Answers only "is the homelab alive"; anything richer belongs in the cluster stack.
-{ ... }:
+# It shares power and ISP with the cluster, so it reports to the outside Gatus on vps-fi
+# (status.example.com) and watches that one back: homelab docs/monitoring-architecture.md.
+{ pkgs, ... }:
 
 {
   services.gatus = {
@@ -73,11 +75,75 @@
           conditions = [ "[STATUS] < 500" ];
           alerts = [ { type = "telegram"; description = "Garage S3 on the NAS is unreachable"; } ];
         }
+        {
+          name = "s3 certificate";
+          group = "storage";
+          # acme.sh cron on the NAS; when it breaks, every restic, rclone and barman copy fails.
+          url = "https://s3.example.com";
+          interval = "1h";
+          conditions = [ "[CERTIFICATE_EXPIRATION] > 240h" ];
+          alerts = [ { type = "telegram"; description = "s3.example.com certificate expires in under 10 days (acme.sh on the NAS)"; } ];
+        }
+        {
+          name = "wildcard certificate";
+          group = "cluster";
+          # cert-manager wildcard-tls: a renewal stuck in pending is Progressing, not Degraded,
+          # so ArgoCD notifications stay quiet (internal.example incident).
+          url = "https://argocd.example.com/healthz";
+          interval = "1h";
+          conditions = [ "[CERTIFICATE_EXPIRATION] > 240h" ];
+          alerts = [ { type = "telegram"; description = "*.example.com certificate expires in under 10 days (cert-manager)"; } ];
+        }
+        {
+          name = "wazuh-manager lb";
+          group = "cluster";
+          # LB IPs live on BGP routes; this one lost its route once and agents went silent.
+          url = "tcp://10.11.10.140:1514";
+          interval = "5m";
+          conditions = [ "[CONNECTED] == true" ];
+          alerts = [ { type = "telegram"; description = "Wazuh manager LB 10.11.10.140 unreachable (BGP route?)"; } ];
+        }
+        {
+          name = "outside watchdog";
+          group = "watchdog";
+          # Gatus on vps-fi: if it dies, a dead house goes unreported.
+          url = "https://status.example.com/health";
+          interval = "5m";
+          conditions = [
+            "[STATUS] == 200"
+            "[BODY].status == UP"
+          ];
+          alerts = [ { type = "telegram"; description = "Outside watchdog on vps-fi is down: ssh vps-fi 'cd /opt/gatus && docker compose ps'"; } ];
+        }
       ];
     };
   };
 
   systemd.services.gatus.serviceConfig.EnvironmentFile = "/var/lib/secrets/gatus.env";
+
+  # Heartbeat to the outside Gatus while this one runs. OPS_HEARTBEAT_TOKEN in gatus.env,
+  # source OpenBao homelab/k8s/shared/gatus-heartbeat (ops_token).
+  systemd.services.gatus-heartbeat = {
+    description = "Report the inside watchdog alive to Gatus on vps-fi";
+    serviceConfig = {
+      Type = "oneshot";
+      EnvironmentFile = "/var/lib/secrets/gatus.env";
+      ExecCondition = "${pkgs.systemd}/bin/systemctl is-active --quiet gatus";
+    };
+    path = [ pkgs.curl ];
+    script = ''
+      curl -fsS -o /dev/null -m 10 --retry 3 -X POST \
+        -H "Authorization: Bearer $OPS_HEARTBEAT_TOKEN" \
+        "https://status.example.com/api/v1/endpoints/homelab_ops-gatus/external?success=true"
+    '';
+  };
+  systemd.timers.gatus-heartbeat = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*:0/5";
+      Persistent = true;
+    };
+  };
 
   networking.firewall.allowedTCPPorts = [ 8080 ];
 }

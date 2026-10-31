@@ -24,7 +24,7 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "Backup on the ops node is stale: {{ $labels.backup }}"
+            summary: "Backup on the ops node is stale: {{ $labels.backup }} -> {{ $labels.target }}"
             description: "Задача {{ $labels.backup }} не отчитывалась более 26 часов. Бэкап, который тихо перестал делаться, выглядит как рабочий до дня восстановления."
 
         - alert: OpsBackupFailed
@@ -33,7 +33,7 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "Backup on the ops node failed: {{ $labels.backup }}"
+            summary: "Backup on the ops node failed: {{ $labels.backup }} -> {{ $labels.target }}"
             description: "Последний прогон {{ $labels.backup }} завершился с ошибкой. Подробности: journalctl -u {{ $labels.backup }} на 10.11.11.153."
 
         - alert: OpsNodeDiskFilling
@@ -66,6 +66,23 @@ spec:
             summary: "Ops node NVMe {{ $labels.device }} is {{ $labels.state }}"
             description: "Контроллер NVMe {{ $labels.device }} ({{ $labels.model }}) в состоянии {{ $labels.state }}: диск не читается, Forgejo и Postgres падают, SSH обрывает соединение. Лечится перезагрузкой по питанию; затем smartctl -a /dev/{{ $labels.device }}. Повторяется — менять диск."
 
+        - alert: OpsCertExpiringSoon
+          # Daily cert-expiry-metrics (nodes/ops/metrics.nix); talosconfig of etcd-snapshot.
+          expr: homelab_cert_expiry_timestamp{job="ops-node"} - time() < 30 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ops node: certificate {{ $labels.cert }} expires in under 30 days"
+            description: "Перевыпустить: talosctl config new --roles os:etcd:backup (etcd-snapshot.nix), положить в /var/lib/secrets/talosconfig и OpenBao k8s/kube-system/talos-etcd-backup. Истёкший сертификат молча останавливает etcd-снапшоты."
+        - alert: OpsCertMetricMissing
+          expr: up{job="ops-node"} == 1 unless on(job) homelab_cert_expiry_timestamp{job="ops-node"}
+          for: 26h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ops node: cert-expiry-metrics does not export"
+            description: "ssh root@10.11.11.153 'systemctl status cert-expiry-metrics; journalctl -u cert-expiry-metrics -n 20'"
         - alert: ForgejoWebhookFailing
           # Forgejo never retries, ArgoCD silently falls back to polling.
           # 30m = two runs of forgejo-webhook-status (nodes/ops/metrics.nix).

@@ -19,26 +19,37 @@
     "d /var/lib/node-exporter/textfile 0755 root root -"
   ];
 
-  # Backup outcome as a metric that can go stale and alert. Label `backup`, not
-  # `job`: the scrape sets job="ops-node" and a textfile `job` becomes
-  # `exported_job`, so alerts would name the scrape, not the failed task.
-  systemd.services.forgejo-dump-offsite.postStop = ''
-    d=/var/lib/node-exporter/textfile
-    ok=0
-    [ "$EXIT_STATUS" = "0" ] && ok=1
-    printf 'homelab_ops_backup_success{backup="forgejo-dump-offsite"} %s\nhomelab_ops_backup_timestamp{backup="forgejo-dump-offsite"} %s\n' \
-      "$ok" "$(date +%s)" > "$d/forgejo-dump-offsite.prom.tmp"
-    mv "$d/forgejo-dump-offsite.prom.tmp" "$d/forgejo-dump-offsite.prom"
-  '';
+  # Backup outcome per target (homelab_ops_backup_{success,timestamp}{backup,target}) is
+  # written by forgejo-dump-offsite and etcd-snapshot themselves. Label `backup`, not
+  # `job`: the scrape sets job="ops-node" and a textfile `job` becomes `exported_job`.
 
-  systemd.services.etcd-snapshot.postStop = ''
-    d=/var/lib/node-exporter/textfile
-    ok=0
-    [ "$EXIT_STATUS" = "0" ] && ok=1
-    printf 'homelab_ops_backup_success{backup="etcd-snapshot"} %s\nhomelab_ops_backup_timestamp{backup="etcd-snapshot"} %s\n' \
-      "$ok" "$(date +%s)" > "$d/etcd-snapshot.prom.tmp"
-    mv "$d/etcd-snapshot.prom.tmp" "$d/etcd-snapshot.prom"
-  '';
+  # The etcd-snapshot talosconfig has a 1-year client cert (etcd-snapshot.nix); an expired
+  # one silently ends the snapshots.
+  systemd.services.cert-expiry-metrics = {
+    description = "Export client certificate expiry of local credentials";
+    serviceConfig.Type = "oneshot";
+    path = [
+      pkgs.openssl
+      pkgs.gnugrep
+      pkgs.gawk
+      pkgs.coreutils
+    ];
+    script = ''
+      set -euo pipefail
+      d=/var/lib/node-exporter/textfile
+      end=$(grep -m1 'crt:' /var/lib/secrets/talosconfig | awk '{print $2}' | base64 -d \
+        | openssl x509 -noout -enddate | cut -d= -f2)
+      printf 'homelab_cert_expiry_timestamp{cert="talosconfig"} %s\n' "$(date -d "$end" +%s)" > "$d/cert-expiry.prom.tmp"
+      mv "$d/cert-expiry.prom.tmp" "$d/cert-expiry.prom"
+    '';
+  };
+  systemd.timers.cert-expiry-metrics = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+    };
+  };
 
   # Forgejo never retries or exposes webhook failures and ArgoCD silently polls.
   # last_status: 0 none yet, 1 succeeded, 2 failed. Label the host, never the
