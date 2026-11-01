@@ -201,7 +201,7 @@ homelab-common:
         initContainers:
           # Three steps: no single image has kubectl+jq+curl, gpg and rclone.
           - name: collect
-            image: alpine/k8s:1.37.1
+            image: alpine/k8s:1.37.2
             command: ["/bin/sh", "-c"]
             env:
               - name: HOME

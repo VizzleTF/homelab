@@ -242,7 +242,7 @@ homelab-common:
         - name: drill
           image:
             repository: alpine/k8s
-            tag: "1.37.1"
+            tag: "1.37.2"
           command: ["/bin/sh", "-c"]
           env:
             - name: VM_URL
@@ -513,7 +513,7 @@ homelab-common:
         - name: drill
           image:
             repository: alpine/k8s
-            tag: "1.37.1"
+            tag: "1.37.2"
           command: ["/bin/sh", "-c"]
           env:
             - name: VM_URL
@@ -910,7 +910,7 @@ homelab-common:
         - name: push
           image:
             repository: alpine/k8s
-            tag: "1.37.1"
+            tag: "1.37.2"
           command: ["/bin/sh", "-c"]
           env:
             - name: VM_URL
