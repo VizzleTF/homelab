@@ -54,10 +54,18 @@ homelab-common:
             httpGet:
               path: /healthz
               port: http
+              # The server validates Host before /healthz; kubelet sends the pod IP.
+              httpHeaders:
+                - name: Host
+                  value: netbird-mcp.example.com
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
+              # The server validates Host before /healthz; kubelet sends the pod IP.
+              httpHeaders:
+                - name: Host
+                  value: netbird-mcp.example.com
             periodSeconds: 20
           securityContext:
             allowPrivilegeEscalation: false
