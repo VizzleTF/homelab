@@ -118,6 +118,11 @@ cluster:
             <white_list>127.0.0.1</white_list>
             <white_list>10.0.0.0/8</white_list>
             <white_list>100.64.0.0/10</white_list>
+            <!-- VPS fleet: a ban between them breaks panel->node and backup traffic -->
+            <white_list>192.0.2.10</white_list>
+            <white_list>192.0.2.11</white_list>
+            <white_list>192.0.2.12</white_list>
+            <white_list>192.0.2.13</white_list>
           </global>
           <command>
             <name>firewall-drop</name>
@@ -508,6 +513,11 @@ wazuhAgentGroups:
             <!-- rewritten by every ldconfig run, i.e. every package upgrade -->
             <ignore>/etc/ld.so.cache</ignore>
           </syscheck>
+          <!-- auditd watches on VPS (vps/node-configs/hardening/50-homelab.rules) -->
+          <localfile>
+            <log_format>audit</log_format>
+            <location>/var/log/audit/audit.log</location>
+          </localfile>
         </agent_config>
 
 opensearchISMPolicies:
