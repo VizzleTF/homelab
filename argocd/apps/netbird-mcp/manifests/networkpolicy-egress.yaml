@@ -1,5 +1,5 @@
 # Egress allowlist: the pod holds an admin PAT for the NetBird mesh, so it may
-# reach only the management API and cluster DNS. docs/netbird-mcp.md
+# reach only the management API and cluster DNS. obsidian 116 Plans/netbird-mcp.md
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

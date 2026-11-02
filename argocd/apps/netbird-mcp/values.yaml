@@ -39,7 +39,7 @@ homelab-common:
       containers:
         - name: netbird-mcp
           image:
-            # Built from reviewed upstream commit a5083cf (daniel100097/netbird-mcp); bump only after reviewing the diff. docs/netbird-mcp.md
+            # Built from reviewed upstream commit a5083cf (daniel100097/netbird-mcp); bump only after reviewing the diff. obsidian 116 Plans/netbird-mcp.md
             repository: git.example.com/vizzle/netbird-mcp
             tag: "a5083cf@sha256:4a9d93ce70b2bc218ca8c21a188ce1c8b6295f56cb5cfc72ca61c4f7c20b0fb8"
           ports:
