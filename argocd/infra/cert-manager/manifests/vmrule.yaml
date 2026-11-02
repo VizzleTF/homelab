@@ -1,0 +1,37 @@
+# A renewal stuck in pending keeps the Certificate Progressing, not Degraded,
+# so ArgoCD stays quiet (internal.example incident). These rules see it directly.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: cert-manager
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: cert-manager
+      rules:
+        - alert: CertManagerCertNotReady
+          expr: certmanager_certificate_ready_status{condition="True"} == 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} не Ready больше часа"
+            description: "kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }}; kubectl -n {{ $labels.namespace }} get certificaterequest,order,challenge"
+
+        # renewal_timestamp = notAfter - renewBefore: independent of the cert's lifetime.
+        - alert: CertManagerRenewalOverdue
+          expr: time() > certmanager_certificate_renewal_timestamp_seconds + 86400
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} не продлился за сутки после срока продления"
+            description: "cert-manager должен был продлить сертификат, но не смог. Для cloudflare-issuer чаще всего DNS-01: токен Cloudflare или TXT-запись. kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }}"
+
+        - alert: CertManagerMetricsMissing
+          expr: absent(certmanager_certificate_expiration_timestamp_seconds)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Нет метрик cert-manager"
+            description: "VMServiceScrape cert-manager ничего не собирает: алерты на сертификаты слепы. kubectl -n cert-manager get pods; проверить allow victoria-metrics в cert-manager/homelab-values.yaml."

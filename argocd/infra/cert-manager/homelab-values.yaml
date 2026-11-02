@@ -1,8 +1,11 @@
 # Kept apart from values.yaml: the chart has a strict values schema.
 homelab-common:
-  # No VMServiceScrape reads its metrics, so victoria-metrics gets no allow.
   networkPolicy:
     enabled: true
+    allow:
+      # manifests/vmservicescrape.yaml (controller metrics)
+      - namespaces: [victoria-metrics]
+        ports: [9402]
 
   externalSecrets:
     # Name/key fixed: ClusterIssuer, DR phase 03 and the dr-pack read cloudflare-api-token/api-token.
