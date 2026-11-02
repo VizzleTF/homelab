@@ -430,8 +430,8 @@ homelab-common:
     # ops node and router exporters (vmstaticscrape-{ops-node,router}).
     lanEgress: [10.11.11.153/32, 10.11.12.1/32]
     allow:
-      # PromQL queries and crowdsec-scraper remote write
-      - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper]
+      # PromQL queries, crowdsec-scraper remote write, pushed CronJob metrics
+      - namespaces: [openbao, backup-drill, robusta, crowdsec-scraper, netbird]
         ports: [8428]
       - namespaces: [backup-drill, wazuh, robusta]
         ports: [9093]

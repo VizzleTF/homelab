@@ -26,6 +26,12 @@ homelab-common:
           property: setup-key
       templateData:
         NB_SETUP_KEY: '{{ index . "setup-key" }}'
+    # Owner PAT: only the owner sees every user's PATs (admin gets 403 on them).
+    - name: netbird-api
+      vaultPath: netbird/api
+      data:
+        - secretKey: NETBIRD_API_TOKEN
+          property: token
 
   persistentVolumeClaims:
     - name: netbird-peer
@@ -130,3 +136,68 @@ homelab-common:
         state:
           claim: netbird-peer-2
           mountPath: /var/lib/netbird
+
+    # PATs and setup keys expire (PAT max 365 days); VMRule CredentialExpiring alerts.
+    - name: credential-expiry
+      type: cronjob
+      schedule: "40 3 * * *"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: export
+          image:
+            repository: python
+            tag: "3.15.2-alpine"
+          command: [python3, -c]
+          args:
+            - |
+              import json, os, time, urllib.request
+              from datetime import datetime, timezone
+
+              api = "https://netbird.example.com/api"
+              hdr = {"Authorization": "Token " + os.environ["NETBIRD_API_TOKEN"]}
+
+              def get(path):
+                  req = urllib.request.Request(api + path, headers=hdr)
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      return json.load(r)
+
+              def ts(iso):  # API gives nanoseconds; seconds are enough
+                  return int(datetime.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
+
+              lines = []
+              users = get("/users") + get("/users?service_user=true")
+              for u in {u["id"]: u for u in users}.values():
+                  for t in get(f"/users/{u['id']}/tokens"):
+                      lines.append(f'homelab_credential_expiry_timestamp{{system="netbird",kind="pat",owner="{u["name"]}",name="{t["name"]}"}} {ts(t["expiration_date"])}')
+              # Expired and revoked keys are already unusable; the audit lists them for cleanup.
+              for k in get("/setup-keys"):
+                  if k["state"] == "valid":
+                      lines.append(f'homelab_credential_expiry_timestamp{{system="netbird",kind="setup_key",owner="",name="{k["name"]}"}} {ts(k["expires"])}')
+              lines.append(f'homelab_credential_expiry_last_run_timestamp{{system="netbird"}} {int(time.time())}')
+              body = ("\n".join(lines) + "\n").encode()
+              urllib.request.urlopen(urllib.request.Request(os.environ["VM_URL"] + "/api/v1/import/prometheus", data=body, method="POST"), timeout=30)
+              print(body.decode())
+          env:
+            - name: VM_URL
+              value: http://vmsingle-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+          envFrom:
+            - secretRef:
+                name: netbird-api
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
