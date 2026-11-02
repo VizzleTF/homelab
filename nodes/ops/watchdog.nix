@@ -96,8 +96,9 @@
           name = "wildcard certificate";
           group = "cluster";
           # cert-manager wildcard-tls: a renewal stuck in pending is Progressing, not Degraded,
-          # so ArgoCD notifications stay quiet (internal.example incident).
-          url = "https://argocd.example.com/healthz";
+          # so ArgoCD notifications stay quiet (internal.example incident). Any cilium-gateway host:
+          # argocd.example.com is passthrough and serves its own argocd-server-tls.
+          url = "https://pass.example.com/alive";
           interval = "1h";
           conditions = [ "[CERTIFICATE_EXPIRATION] > 240h" ];
           alerts = [ { type = "custom"; description = "*.example.com certificate expires in under 10 days (cert-manager)"; } ];
