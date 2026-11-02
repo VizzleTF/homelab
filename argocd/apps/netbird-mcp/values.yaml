@@ -1,0 +1,74 @@
+homelab-common:
+  networkPolicy:
+    enabled: true
+
+  externalSecrets:
+    - name: netbird-mcp-secrets
+      vaultPath: netbird-mcp/api
+      data:
+        - secretKey: NETBIRD_API_TOKEN
+          property: token
+        - secretKey: MCP_AUTH_TOKEN
+          property: token
+          vaultPath: netbird-mcp/mcp-auth
+
+  httpRoutes:
+    - name: netbird-mcp
+      hostname: netbird-mcp
+      service:
+        name: netbird-mcp
+        port: 3000
+
+  configMaps:
+    - name: netbird-mcp
+      data:
+        MCP_TRANSPORT: http
+        NETBIRD_API_URL: https://netbird.example.com/api
+        NETBIRD_READ_ONLY: "false"
+        MCP_ALLOWED_HOSTS: netbird-mcp.example.com
+
+  workloads:
+    - name: netbird-mcp
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: netbird-mcp
+          image:
+            # Built from reviewed upstream commit a5083cf (daniel100097/netbird-mcp); bump only after reviewing the diff. docs/netbird-mcp.md
+            repository: git.example.com/vizzle/netbird-mcp
+            tag: "a5083cf@sha256:4a9d93ce70b2bc218ca8c21a188ce1c8b6295f56cb5cfc72ca61c4f7c20b0fb8"
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: netbird-mcp-secrets
+            - configMapRef:
+                name: netbird-mcp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

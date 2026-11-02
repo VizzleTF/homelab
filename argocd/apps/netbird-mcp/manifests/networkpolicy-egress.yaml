@@ -1,0 +1,27 @@
+# Egress allowlist: the pod holds an admin PAT for the NetBird mesh, so it may
+# reach only the management API and cluster DNS. docs/netbird-mcp.md
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress-netbird-only
+  namespace: netbird-mcp
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchName: netbird.example.com
+    - toFQDNs:
+        - matchName: netbird.example.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
