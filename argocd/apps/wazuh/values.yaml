@@ -273,6 +273,16 @@ wazuhRules:
           </rule>
         </group>
 
+        <!-- auditd on the VPS (vps/node-configs/hardening/50-homelab.rules): the stock
+             parent 80700 is level 0 and the stock watch rules only know their CDB keys. -->
+        <group name="audit,vps_audit,">
+          <rule id="100240" level="3">
+            <if_sid>80700</if_sid>
+            <field name="audit.key">^identity$|^sudoers$|^sshd$|^ssh_keys$|^cron$|^systemd$|^localbin$|^docker$|^nginx$|^sysctl$|^modules$|^priv_exec$</field>
+            <description>Auditd $(audit.key): $(audit.exe) by auid $(audit.auid)</description>
+          </rule>
+        </group>
+
         <group name="homelab_noise,">
           <!-- IDs must be >= 100000, so noise is silenced by child rules. A child
                starves stock if_matched_sid correlations, so the needed ones are
