@@ -97,7 +97,8 @@ cluster:
         # `birdc show route for 10.11.10.140` after any change to the LB Service.
         # Raw XML: the operator renders no second <remote>, vulnerability-detection,
         # command or active-response. allowed-ips is mandatory, else remoted drops all.
-        # Active response is SSH brute force only: web-scan bans would hit CGNAT VPN users.
+        # Active response: SSH and NetBird sign-in brute force (100233) only; web-scan
+        # bans would hit CGNAT VPN users.
         extraConfig: |
           <remote>
             <connection>syslog</connection>
@@ -136,7 +137,7 @@ cluster:
           <active-response>
             <command>firewall-drop</command>
             <location>local</location>
-            <rules_id>100204,100208,5763</rules_id>
+            <rules_id>100204,100208,5763,100233</rules_id>
             <timeout>3600</timeout>
           </active-response>
       workers:
@@ -228,6 +229,45 @@ wazuhRules:
       ruleName: homelab_noise
       description: "Silence known-benign high-volume events"
       rules: |
+        <!-- NetBird embedded IdP on vps-fi (Dex): only the host nginx access log carries
+             the client IP. 303 = signed in; 200 = form re-rendered on bad credentials;
+             4xx incl. 429 from the nginx limit. Must precede 100201, which silences 4xx.
+             Plan: obsidian 116 Plans/netbird-login-protection.md -->
+        <group name="netbird_auth,">
+          <rule id="100230" level="5">
+            <if_sid>31530</if_sid>
+            <url>^/oauth2/auth/local/login|^/oauth2/mfa/totp</url>
+            <id>^303</id>
+            <description>NetBird: sign-in step succeeded</description>
+            <group>authentication_success,</group>
+          </rule>
+          <rule id="100231" level="5">
+            <if_sid>31530</if_sid>
+            <url>^/oauth2/auth/local/login|^/oauth2/mfa/totp</url>
+            <id>^2</id>
+            <description>NetBird: sign-in step failed</description>
+            <group>authentication_failed,netbird_auth_failed,</group>
+          </rule>
+          <rule id="100232" level="5">
+            <if_sid>31101</if_sid>
+            <url>^/oauth2/auth/local/login|^/oauth2/mfa/totp</url>
+            <!-- GET 400 is a stale sign-in link, not an attempt -->
+            <protocol>POST</protocol>
+            <description>NetBird: sign-in step rejected</description>
+            <group>authentication_failed,netbird_auth_failed,</group>
+          </rule>
+          <!-- Level 12: Telegram via Alertmanager; firewall-drop in extraConfig. -->
+          <rule id="100233" level="12" frequency="5" timeframe="600" ignore="60">
+            <if_matched_group>netbird_auth_failed</if_matched_group>
+            <same_source_ip />
+            <description>NetBird: brute force on sign-in, source banned for 1h</description>
+            <mitre>
+              <id>T1110</id>
+            </mitre>
+            <group>authentication_failures,attack,</group>
+          </rule>
+        </group>
+
         <group name="homelab_noise,">
           <!-- IDs must be >= 100000, so noise is silenced by child rules. A child
                starves stock if_matched_sid correlations, so the needed ones are
@@ -263,7 +303,7 @@ wazuhRules:
             <description>sshd: non-existent user (silenced; see 100204)</description>
             <group>authentication_failed,invalid_login,</group>
           </rule>
-          <rule id="100204" level="6" frequency="8" timeframe="120" ignore="60">
+          <rule id="100204" level="6" frequency="5" timeframe="600" ignore="60">
             <if_matched_sid>100203</if_matched_sid>
             <same_source_ip />
             <description>sshd: brute force trying to get access to the system. Non existent user.</description>
@@ -283,7 +323,7 @@ wazuhRules:
             <description>sshd: too many authentication failures (silenced; see 100208)</description>
             <group>homelab_ssh_preauth,</group>
           </rule>
-          <rule id="100208" level="6" frequency="8" timeframe="120" ignore="60">
+          <rule id="100208" level="6" frequency="5" timeframe="600" ignore="60">
             <if_matched_group>homelab_ssh_preauth</if_matched_group>
             <same_source_ip />
             <description>sshd: brute force, repeated preauth failures from same source ip.</description>
