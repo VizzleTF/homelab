@@ -1,0 +1,6 @@
+chart: x509-certificate-exporter
+repoURL: https://charts.enix.io
+targetRevision: "4.2.4"
+wave: "0"
+extraManifests: true
+homelabValuesFile: homelab-values.yaml

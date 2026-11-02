@@ -1,0 +1,26 @@
+# Expiry of every certificate kept in a Secret, operator-made CAs and webhook
+# certs included. No prometheus-operator CRDs: scrape and alerts live in
+# manifests/ as VM objects. Plan: obsidian 116 Plans/cert-expiry-monitoring.md
+image:
+  # pinned: the exporter reads every Secret in the cluster; bump with the chart (4.2.4)
+  digest: sha256:3863f835ba95af6b8130a0ab0d8063b2a6136adc495111b017371637d0137a88
+
+secretsExporter:
+  # CNPG, Cilium and Wazuh keep their CAs in Opaque Secrets.
+  secretTypes:
+    - type: kubernetes.io/tls
+      keyPatterns: ['^(tls|ca)\.crt$']
+    - type: Opaque
+      keyPatterns: ['^(tls|ca)\.crt$']
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+prometheusServiceMonitor:
+  create: false
+prometheusRules:
+  create: false

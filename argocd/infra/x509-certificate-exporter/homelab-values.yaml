@@ -1,0 +1,7 @@
+# Kept apart from values.yaml: the chart has a strict values schema.
+homelab-common:
+  networkPolicy:
+    enabled: true
+    allow:
+      - namespaces: [victoria-metrics]
+        ports: [9793]

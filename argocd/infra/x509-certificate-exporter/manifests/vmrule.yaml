@@ -1,0 +1,45 @@
+# CNPG renews its 90-day certs 7 days before expiry, so 6 days left means a
+# renewal is a day late; cert-manager failures surface earlier through
+# CertManagerRenewalOverdue (cert-manager app).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: x509-certificate-exporter
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: x509-certificate-exporter
+      rules:
+        - alert: CertificateExpiringSoon
+          expr: (x509_cert_not_after - time()) < 6 * 86400 and x509_cert_expired == 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Сертификат {{ $labels.secret_namespace }}/{{ $labels.secret_name }} ({{ $labels.subject_CN }}) истекает через {{ $value | humanizeDuration }}"
+            description: "Владелец секрета не продлил сертификат вовремя. cert-manager: kubectl describe certificate -n {{ $labels.secret_namespace }}; операторы (CNPG, Kyverno, Wazuh, webhooks): логи оператора."
+
+        - alert: CertificateExpiringCritical
+          expr: (x509_cert_not_after - time()) < 2 * 86400 and x509_cert_expired == 0
+          labels:
+            severity: critical
+          annotations:
+            summary: "Сертификат {{ $labels.secret_namespace }}/{{ $labels.secret_name }} истекает через {{ $value | humanizeDuration }}"
+            description: "Меньше двух суток. См. CertificateExpiringSoon."
+
+        - alert: CertificateExpired
+          expr: x509_cert_expired == 1
+          labels:
+            severity: critical
+          annotations:
+            summary: "Сертификат {{ $labels.secret_namespace }}/{{ $labels.secret_name }} ({{ $labels.subject_CN }}) просрочен"
+            description: "TLS через этот секрет уже не работает. Продлить у владельца или удалить мёртвый секрет."
+
+        - alert: CertificateReadErrors
+          expr: x509_read_errors > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "x509-certificate-exporter не читает часть сертификатов"
+            description: "kubectl -n x509-certificate-exporter logs deploy/x509-certificate-exporter | grep -i error"

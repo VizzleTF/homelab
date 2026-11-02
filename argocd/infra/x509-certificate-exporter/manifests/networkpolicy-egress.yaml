@@ -1,0 +1,12 @@
+# The exporter can read every Secret in the cluster, so it talks to the API
+# server only (no DNS needed: in-cluster config uses the Service IP).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress-apiserver-only
+  namespace: x509-certificate-exporter
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
