@@ -257,7 +257,7 @@ homelab-common:
             # which in "keinos/sqlite3:<tag>" would be the 3 of the name.
             - name: ALPINE_TAG
               # renovate: datasource=docker depName=alpine
-              value: "3.24.3"
+              value: "3.24.4"
             - name: SQLITE_TAG
               # renovate: datasource=docker depName=keinos/sqlite3
               value: "3.54.1"
@@ -522,7 +522,7 @@ homelab-common:
               value: http://vmalertmanager-victoria-metrics-k8s-stack.victoria-metrics.svc:9093
             - name: ALPINE_TAG
               # renovate: datasource=docker depName=alpine
-              value: "3.24.3"
+              value: "3.24.4"
             - name: RCLONE_TAG
               # renovate: datasource=docker depName=rclone/rclone
               value: "1.75.2"
