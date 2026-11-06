@@ -25,6 +25,8 @@ server:
                   values: ["true"]
   controllers:
     main:
+      # RWO library volume: a rolling update deadlocks on Multi-Attach when the new pod lands on another node.
+      strategy: Recreate
       # Not immich-valkey: it rotates together with valkey (valkey cheatsheet).
       annotations:
         secret.reloader.stakater.com/reload: immich-main-user-credentials,immich-oidc-secret
