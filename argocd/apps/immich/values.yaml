@@ -328,7 +328,7 @@ homelab-common:
         - name: upload
           image:
             repository: rclone/rclone
-            tag: "1.75.2"
+            tag: "1.76.0"
           command: ["/bin/sh", "-c"]
           args:
             - |
