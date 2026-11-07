@@ -85,17 +85,18 @@ spec:
     # Исходники: vps/node-configs/bin/{vpn-healthcheck,xhttp-health.sh}.
     - name: remnawave-host-scripts
       rules:
-        # Подробности только в логе на хосте.
+        # Подробности только в логе на хосте. "_" -> " ": Robusta шлёт в Telegram legacy
+        # Markdown, непарный "_" (backup_local) в *summary* роняет sendMessage.
         - alert: VpnHealthcheckFailed
           expr: vpn_health_check{job="node"} == 0
           for: 0m
           labels:
             severity: warning
           annotations:
-            summary: "vpn-healthcheck: секция {{ $labels.check }} не прошла"
+            summary: 'vpn-healthcheck на vps-panel: проверка {{ reReplaceAll "_" " " $labels.check }} дала WARN или FAIL'
             description: |
-              ssh vps-panel 'sudo cat /var/log/vpn-health.last'
-              Ручной перезапуск: ssh vps-panel 'sudo vpn-healthcheck'
+              Причина: `ssh vps-panel 'sudo cat /var/log/vpn-health.last'`
+              Перепроверить: `ssh vps-panel 'sudo vpn-healthcheck'`
 
         # Без правила последняя единица выглядит как здоровье.
         # Cron */30 (since 2026-10-30): two missed runs. unless-ветка вместо absent():

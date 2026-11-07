@@ -68,6 +68,15 @@ sinksConfig:
 
 customPlaybooks:
 
+  # Replaces DefaultPrometheusAlertEnricher: same message without the
+  # "Alert labels.txt" attachment. Without any enricher the alert sends nothing.
+  - name: "MinimalPrometheusAlertEnricher"
+    triggers:
+      - on_prometheus_alert:
+          status: "all"
+    actions:
+      - minimal_default_enricher: {}
+
   - name: "DeleteEvictedPods"
     triggers:
       - on_pod_evicted: {}
@@ -118,10 +127,12 @@ customPlaybooks:
       - cleanup_robusta_pods:
           hours_back: 1
 
-# They send to robusta_ui_sink (absent here) and only leave completed jobs.
+# KRR/Maintenance send to robusta_ui_sink (absent here) and only leave completed
+# jobs; DefaultPrometheusAlertEnricher is replaced above.
 disabledPlaybooks:
   - WeeklyKRRScan
   - RobustaMaintenance
+  - DefaultPrometheusAlertEnricher
 
 homelab-common:
   networkPolicy:
