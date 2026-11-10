@@ -119,7 +119,7 @@ homelab-common:
         - name: vmagent
           image:
             repository: victoriametrics/vmagent
-            tag: v1.155.0
+            tag: v1.156.0
           args:
             - -promscrape.config=/etc/vmagent/scrape.yaml
             # No config-reloader sidecar.
