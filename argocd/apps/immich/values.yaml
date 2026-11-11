@@ -3,9 +3,9 @@ _shared_config:
   # github-releases, not docker: ghcr immich-app has too many PR tags ("no-result").
   # One PR bumps server and ML together; -openvino suffix via customManager in renovate.json.
   # renovate: datasource=github-releases depName=immich-app/immich
-  version: &version "v3.3.6"
+  version: &version "v3.4.0"
   # renovate: immich-ml
-  ml_tag: &ml_tag "v3.3.6-openvino"
+  ml_tag: &ml_tag "v3.4.0-openvino"
 
 # Server-only: top-level controllers/defaultPodOptions/persistence leak into the ML pod.
 server:
