@@ -1,6 +1,6 @@
 chart: trek
 repoURL: https://chart.liketrek.com
-targetRevision: "5.1.2"
+targetRevision: "5.1.3"
 wave: "2"
 # Travel-only: scaled to 1 by hand before a trip, back to 0 after; the chart
 # hardcodes replicas: 1, so ArgoCD ignores the field.
