@@ -16,20 +16,9 @@ homelab-common:
         - secretKey: ACCESS_SECRET_KEY
           property: ACCESS_SECRET_KEY
 
-  # LAN and mesh reach only the sync API, as the NetBird Reverse Proxy does.
-  httpRoutes:
-    - name: alerse-sync-api
-      hostname: alerse-sync
-      pathPrefix: /v3/
-      service:
-        name: alerse-sync
-        port: 8295
-    - name: alerse-sync-health
-      hostname: alerse-sync
-      pathPrefix: /health
-      service:
-        name: alerse-sync
-        port: 8295
+  # No HTTPRoute: the NetBird Reverse Proxy reaches the Service through the
+  # in-cluster routing peers, so no LAN host can name a client to the server.
+  # obsidian 116 Plans/alerse-sync.md, stage 2.
 
   limitRange:
     enabled: true
@@ -58,7 +47,7 @@ homelab-common:
         - name: alerse-sync
           image:
             repository: ghcr.io/vizzletf/alerse-sync
-            tag: "0.2.0@sha256:b7b2c65d818d157203bb08d1486c6f3ae34317899a0f1a0a95db19500bab0dbc"
+            tag: "0.2.1@sha256:5a46e2e122a5b8b51a77fad73261a745fb5b9ff3f6f03f760083b645732ddcf2"
           ports:
             - name: http
               containerPort: 8295
@@ -80,10 +69,28 @@ homelab-common:
               value: "200"
             - name: NEW_CHAINS_PER_IP_PER_DAY
               value: "20"
+            # Sized for the owner's people (up to 10); bans, per-device limits and
+            # the unknown-account lookup budget are on by default since 0.2.1.
+            - name: MAX_ACCOUNTS
+              value: "10"
+            - name: NEW_ACCOUNTS_PER_IP_PER_DAY
+              value: "2"
+            - name: MAX_DEVICES_PER_ACCOUNT
+              value: "10"
+            - name: NEW_DEVICES_PER_ACCOUNT_PER_DAY
+              value: "3"
+            - name: MAX_CHAINS_PER_ACCOUNT
+              value: "30"
+            - name: MAX_REQUEST_BYTES
+              value: 8MiB
+            - name: RATE_LIMIT_PER_MINUTE
+              value: "120"
+            - name: RATE_LIMIT_PER_IP_PER_MINUTE
+              value: "600"
             - name: INACTIVE_CHAIN_TTL
               value: 365d
-            # The gateway's Envoy connects from the pod network; the network
-            # policy lets only the gateway in, so only it can name a client.
+            # The NetBird routing peers connect from the pod network; the network
+            # policy lets only them (and kubelet) in, so only the proxy names a client.
             - name: TRUSTED_PROXY
               value: 10.244.0.0/16
             - name: METRICS_ADDR

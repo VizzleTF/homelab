@@ -43,3 +43,25 @@ spec:
               Кто-то упирается в лимиты: перебор паролей (login*), флуд цепочек
               или кодов привязки. Сервер отказывает сам; посмотреть, откуда, можно
               только в логе прокси на vps-fi.
+
+        - alert: AlerseSyncBan
+          expr: sum(increase(arcomium_sync_limited_total{namespace="alerse-sync", limit="ban"}[15m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "alerse-sync: адрес забанен за поток отказов"
+            description: |
+              Адрес получил 30 отказов за 10 минут и закрыт на 15 минут до любой работы.
+              Если это свой пользователь — сломанный клиент; иначе кто-то флудит.
+              Адрес — в логе прокси на vps-fi: ssh vps-fi 'docker logs --since 30m netbird-proxy'
+
+        - alert: AlerseSyncUnknownLookups
+          expr: sum(increase(arcomium_sync_limited_total{namespace="alerse-sync", limit="unknown_lookups"}[15m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "alerse-sync: исчерпан бюджет поиска неизвестных аккаунтов"
+            description: |
+              Сервер отказывает запросам с ключами устройств, которых нет в памяти,
+              сверх общего бюджета в секунду: кто-то шлёт выдуманные токены.
+              Свои устройства после рестарта пода тоже попадают сюда, но коротко.

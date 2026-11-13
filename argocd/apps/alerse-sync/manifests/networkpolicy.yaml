@@ -12,8 +12,9 @@ spec:
     matchLabels:
       app.kubernetes.io/name: alerse-sync
   ingress:
-    # The gateway (LAN, mesh, NetBird Reverse Proxy) and kubelet probes.
-    - fromEntities: [ingress, host]
+    # Kubelet probes. No `ingress`: through cilium-gateway any LAN host could
+    # set X-Forwarded-For and name any client to the per-address limits.
+    - fromEntities: [host]
       toPorts:
         - ports:
             - port: "8295"
