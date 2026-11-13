@@ -20,7 +20,7 @@ homelab-common:
   httpRoutes:
     - name: alerse-sync-api
       hostname: alerse-sync
-      pathPrefix: /v2/
+      pathPrefix: /v3/
       service:
         name: alerse-sync
         port: 8295
@@ -58,7 +58,7 @@ homelab-common:
         - name: alerse-sync
           image:
             repository: ghcr.io/vizzletf/alerse-sync
-            tag: "0.1.5@sha256:6a62ec1ebc09f4e91253f87bcd6d495bff583f1ba778a5f18caaacfda4b35081"
+            tag: "0.2.0@sha256:b7b2c65d818d157203bb08d1486c6f3ae34317899a0f1a0a95db19500bab0dbc"
           ports:
             - name: http
               containerPort: 8295
