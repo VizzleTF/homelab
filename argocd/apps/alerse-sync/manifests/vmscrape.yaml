@@ -1,0 +1,32 @@
+# Server metrics (requests, refusals by limit, logins) and Postgres with the
+# barman plugin. The network policy lets only vmagent in on these ports.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: alerse-sync
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames: [alerse-sync]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alerse-sync
+  endpoints:
+    - port: metrics
+      interval: 30s
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: alerse-sync-db
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames: [alerse-sync]
+  selector:
+    matchLabels:
+      cnpg.io/cluster: alerse-sync-db
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

@@ -1,0 +1,45 @@
+# Public service: an outage, server errors and anyone pushing at the limits
+# (password guessing, chain or pairing floods) page. obsidian 116 Plans/alerse-sync.md
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: alerse-sync
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: alerse-sync
+      rules:
+        - alert: AlerseSyncDown
+          expr: absent(up{namespace="alerse-sync", job="alerse-sync"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "alerse-sync: ни один сервер не отвечает"
+            description: |
+              Синхронизация браузеров Alerse стоит у всех пользователей sync.alerse.app.
+              kubectl -n alerse-sync get pods; kubectl -n alerse-sync logs deploy/alerse-sync --tail=100
+
+        - alert: AlerseSyncServerErrors
+          expr: |
+            sum(rate(arcomium_sync_requests_total{namespace="alerse-sync", result=~"5.."}[10m]))
+              / sum(rate(arcomium_sync_requests_total{namespace="alerse-sync"}[10m])) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "alerse-sync: больше 5% ответов 5xx"
+            description: |
+              Чаще всего это недоступный Postgres (alerse-sync-db) или исчерпанные слоты.
+              kubectl -n alerse-sync logs deploy/alerse-sync --tail=100
+
+        - alert: AlerseSyncLimitFlood
+          expr: sum by (limit) (increase(arcomium_sync_limited_total{namespace="alerse-sync"}[15m])) > 100
+          labels:
+            severity: warning
+          annotations:
+            summary: "alerse-sync: лимит {{ $labels.limit }} сработал больше 100 раз за 15 минут"
+            description: |
+              Кто-то упирается в лимиты: перебор паролей (login*), флуд цепочек
+              или кодов привязки. Сервер отказывает сам; посмотреть, откуда, можно
+              только в логе прокси на vps-fi.

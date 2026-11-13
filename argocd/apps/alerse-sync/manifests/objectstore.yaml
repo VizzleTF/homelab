@@ -1,0 +1,28 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: alerse-sync-db-store
+  namespace: alerse-sync
+spec:
+  retentionPolicy: "7d"
+  instanceSidecarConfiguration:
+    # Garage returns 400 on HeadBucket without a region.
+    env:
+      - name: AWS_DEFAULT_REGION
+        value: garage
+  configuration:
+    destinationPath: "s3://alerse-sync-backups/alerse-sync-db"
+    endpointURL: "https://s3.example.com"
+    s3Credentials:
+      accessKeyId:
+        name: alerse-sync-s3-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: alerse-sync-s3-backup
+        key: ACCESS_SECRET_KEY
+    data:
+      compression: gzip
+      encryption: AES256
+    wal:
+      compression: gzip
+      encryption: AES256

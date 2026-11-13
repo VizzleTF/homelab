@@ -1,0 +1,129 @@
+# Public service: only sync gets in or out. obsidian 116 Plans/alerse-sync.md
+homelab-common:
+  # Off on purpose: its default-ingress opens the whole namespace, and Cilium
+  # allows are additive, so nothing could narrow who reaches Postgres.
+  # manifests/networkpolicy.yaml holds the full ingress and egress allowlists.
+  networkPolicy:
+    enabled: false
+
+  externalSecrets:
+    # Garage bucket alerse-sync-backups, this namespace only.
+    - name: alerse-sync-s3-backup
+      vaultPath: alerse-sync/s3-alerse-sync-backups
+      data:
+        - secretKey: ACCESS_KEY_ID
+          property: ACCESS_KEY_ID
+        - secretKey: ACCESS_SECRET_KEY
+          property: ACCESS_SECRET_KEY
+
+  # LAN and mesh reach only the sync API, as the NetBird Reverse Proxy does.
+  httpRoutes:
+    - name: alerse-sync-api
+      hostname: alerse-sync
+      pathPrefix: /v2/
+      service:
+        name: alerse-sync
+        port: 8295
+    - name: alerse-sync-health
+      hostname: alerse-sync
+      pathPrefix: /health
+      service:
+        name: alerse-sync
+        port: 8295
+
+  limitRange:
+    enabled: true
+
+  workloads:
+    - name: alerse-sync
+      spec:
+        replicas: 2
+      pod:
+        # SHUTDOWN_DELAY, then up to 30 s for requests in progress.
+        terminationGracePeriodSeconds: 45
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: alerse-sync
+      containers:
+        - name: alerse-sync
+          image:
+            repository: ghcr.io/vizzletf/alerse-sync
+            tag: "0.1.5@sha256:6a62ec1ebc09f4e91253f87bcd6d495bff583f1ba778a5f18caaacfda4b35081"
+          ports:
+            - name: http
+              containerPort: 8295
+            - name: metrics
+              containerPort: 9295
+          env:
+            - name: DB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: alerse-sync-db-app
+                  key: uri
+            # Postgres only over TLS with the cluster's own CA, host checked.
+            - name: DATABASE_URL
+              value: "$(DB_URI)?sslmode=verify-full&sslrootcert=/etc/alerse-sync-db-ca/ca.crt"
+            # Refuse data that is not end-to-end encrypted: nothing readable is kept.
+            - name: REQUIRE_CUSTOM_PASSPHRASE
+              value: "true"
+            - name: MAX_CHAINS
+              value: "200"
+            - name: NEW_CHAINS_PER_IP_PER_DAY
+              value: "20"
+            - name: INACTIVE_CHAIN_TTL
+              value: 365d
+            # The gateway's Envoy connects from the pod network; the network
+            # policy lets only the gateway in, so only it can name a client.
+            - name: TRUSTED_PROXY
+              value: 10.244.0.0/16
+            - name: METRICS_ADDR
+              value: ":9295"
+            - name: SHUTDOWN_DELAY
+              value: 10s
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 48Mi
+            limits:
+              cpu: 500m
+              # A sign-in hashes with Argon2id (19 MiB); MAX_CONCURRENT_REQUESTS bounds the rest.
+              memory: 384Mi
+      persistence:
+        db-ca:
+          secret:
+            secretName: alerse-sync-db-ca
+            items:
+              - key: ca.crt
+                path: ca.crt
+          mountPath: /etc/alerse-sync-db-ca

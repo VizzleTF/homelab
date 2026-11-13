@@ -1,0 +1,65 @@
+# Own Postgres: the public sync server shares no database with other apps.
+# Operator-defaulted fields are omitted on purpose. obsidian 116 Plans/alerse-sync.md
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: alerse-sync-db
+  namespace: alerse-sync
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: 2
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.7-standard-bookworm"
+  imagePullPolicy: IfNotPresent
+  primaryUpdateMethod: switchover
+  # No superuser secret: nothing here needs one.
+  enableSuperuserAccess: false
+
+  storage:
+    size: "5Gi"
+    storageClass: longhorn
+
+  env:
+    - name: AWS_DEFAULT_REGION
+      value: garage
+
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "64MB"
+      archive_timeout: "30min"
+      wal_compression: "lz4"
+      # Logins with their client, for Wazuh.
+      log_connections: "on"
+      log_disconnections: "on"
+    # TLS only. CNPG puts its own rules for replication and the operator first
+    # and a catch-all `host all all all` last, which the reject overrides.
+    pg_hba:
+      - hostssl alerse_sync alerse_sync all scram-sha-256
+      - hostnossl all all all reject
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "25m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Init-only. The server creates its own tables.
+  bootstrap:
+    initdb:
+      database: alerse_sync
+      owner: alerse_sync
+      encoding: UTF8
+      localeCollate: C
+      localeCType: C
+
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      # Atomic list: without `enabled` the defaulted field drops -> perpetual OutOfSync.
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: alerse-sync-db-store

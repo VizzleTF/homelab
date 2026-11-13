@@ -1,0 +1,5 @@
+# The official Alerse sync server (sync.alerse.app), public through the NetBird
+# Reverse Proxy. obsidian 116 Plans/alerse-sync.md
+homelabOnly: true
+extraManifests: true
+wave: "2"

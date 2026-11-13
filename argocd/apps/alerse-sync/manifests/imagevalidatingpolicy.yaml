@@ -1,0 +1,34 @@
+# Only images that alerse-sync's release workflow built and signed from a tag
+# run here (keyless cosign, Sigstore). A pinned digest stops a moved tag; this
+# also stops an image pushed with stolen registry credentials.
+# obsidian 116 Plans/alerse-sync.md
+apiVersion: policies.kyverno.io/v1
+kind: NamespacedImageValidatingPolicy
+metadata:
+  name: alerse-sync-signed-image
+  namespace: alerse-sync
+spec:
+  validationActions: [Deny]
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  matchImageReferences:
+    - glob: "ghcr.io/vizzletf/alerse-sync*"
+  attestors:
+    - name: release
+      cosign:
+        keyless:
+          identities:
+            - issuer: https://token.actions.githubusercontent.com
+              subjectRegExp: '^https://github\.com/VizzleTF/alerse-sync/\.github/workflows/release\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+        ctlog:
+          url: https://rekor.sigstore.dev
+  validations:
+    - expression: >-
+        images.containers.filter(i, i.startsWith('ghcr.io/vizzletf/alerse-sync'))
+        .all(i, verifyImageSignatures(i, [attestors.release]) > 0)
+      message: alerse-sync runs only images signed by its release workflow from a tag.

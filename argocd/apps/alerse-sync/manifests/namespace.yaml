@@ -1,0 +1,10 @@
+# restricted: the server and Postgres run non-root without privileges.
+# Prune/Delete=false: deleting the app must never take alerse-sync-db's volumes.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alerse-sync
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
