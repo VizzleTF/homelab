@@ -106,7 +106,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the de
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, tuppr, victoria-logs, wazuh-operator |
 | **0**   | intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, snmp-exporter, tfstate-mirror, x509-certificate-exporter |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, kyverno-policies, backup-drill |
-| **2**   | renovate; apps: alerse-sync, atuin, authentik, cleanbot, immich, lampac, may, netbird-mcp, obsidian-livesync, opencloud, rss-to-telegram-bot, spotify-backup, trek, vaultwarden, wazuh |
+| **2**   | renovate; apps: alerse-site, alerse-sync, atuin, authentik, cleanbot, immich, lampac, may, netbird-mcp, obsidian-livesync, opencloud, rss-to-telegram-bot, spotify-backup, trek, vaultwarden, wazuh |
 | **3**   | forgejo-runner, netbird, crowdsec-scraper, openwrt-backup |
 
 ---

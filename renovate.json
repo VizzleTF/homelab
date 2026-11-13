@@ -68,6 +68,13 @@
       "pinDigests": false
     },
     {
+      "description": "The alerse.app site has no version tags: each push to main rebuilds `latest`. Follow its digest, overriding the digest-off rule above (obsidian 116 Plans/alerse-site.md).",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/vizzletf/alerse-site"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": true
+    },
+    {
       "description": "The Forgejo Actions runner speaks the GHES artifact protocol up to v3. upload/download-artifact 3.2.x+ use the v4 protocol and fail with GHESNotSupportedError.",
       "matchManagers": ["github-actions"],
       "matchPackageNames": ["actions/upload-artifact", "actions/download-artifact"],

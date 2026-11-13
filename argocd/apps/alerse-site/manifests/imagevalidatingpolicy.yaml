@@ -1,0 +1,32 @@
+# Only images that the alerse repo's site workflow built and signed on main run
+# here (keyless cosign, Sigstore). obsidian 116 Plans/alerse-site.md
+apiVersion: policies.kyverno.io/v1
+kind: NamespacedImageValidatingPolicy
+metadata:
+  name: alerse-site-signed-image
+  namespace: alerse-site
+spec:
+  validationActions: [Deny]
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  matchImageReferences:
+    - glob: "ghcr.io/vizzletf/alerse-site*"
+  attestors:
+    - name: site
+      cosign:
+        keyless:
+          identities:
+            - issuer: https://token.actions.githubusercontent.com
+              subjectRegExp: '^https://github\.com/VizzleTF/alerse/\.github/workflows/site\.yml@refs/heads/main$'
+        ctlog:
+          url: https://rekor.sigstore.dev
+  validations:
+    - expression: >-
+        images.containers.filter(i, i.startsWith('ghcr.io/vizzletf/alerse-site'))
+        .all(i, verifyImageSignatures(i, [attestors.site]) > 0)
+      message: alerse-site runs only images signed by the alerse site workflow on main.

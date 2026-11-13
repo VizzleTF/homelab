@@ -1,0 +1,32 @@
+# Public static site: only the NetBird routing peers that carry the Reverse
+# Proxy (network alerse-sync in NetBird) and kubelet probes get in; nothing
+# goes out. obsidian 116 Plans/alerse-site.md
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alerse-site
+  namespace: alerse-site
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: alerse-site
+  ingress:
+    - fromEntities: [host]
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: netbird
+          matchExpressions:
+            - key: app
+              operator: In
+              values: [netbird-peer, netbird-peer-2]
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  # One empty rule turns on default deny for egress with nothing allowed.
+  egress:
+    - {}

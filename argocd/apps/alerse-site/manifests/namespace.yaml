@@ -1,0 +1,7 @@
+# restricted: nginx-unprivileged runs non-root without privileges.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alerse-site
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

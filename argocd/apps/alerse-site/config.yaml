@@ -1,0 +1,5 @@
+# The alerse.app website (static), public through the NetBird Reverse Proxy.
+# obsidian 116 Plans/alerse-site.md
+homelabOnly: true
+extraManifests: true
+wave: "2"

@@ -1,0 +1,68 @@
+# Public static site: only the proxy gets in, nothing goes out.
+# obsidian 116 Plans/alerse-site.md
+homelab-common:
+  # Off on purpose: its default-ingress opens the namespace; the full allowlist
+  # is manifests/networkpolicy.yaml.
+  networkPolicy:
+    enabled: false
+
+  # No HTTPRoute: the NetBird Reverse Proxy reaches the Service through the
+  # in-cluster routing peers, as for alerse-sync.
+
+  limitRange:
+    enabled: true
+
+  workloads:
+    - name: alerse-site
+      spec:
+        replicas: 2
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 101
+          runAsGroup: 101
+          seccompProfile:
+            type: RuntimeDefault
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: alerse-site
+      containers:
+        - name: alerse-site
+          image:
+            repository: ghcr.io/vizzletf/alerse-site
+            # Renovate follows the digest of `latest` (renovate.json, alerse-site rule).
+            tag: "latest@sha256:d163fe68f5bcedb0b73edffd5d81266790050c5d12436a37289a2c0fad79289f"
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+      persistence:
+        # nginx-unprivileged keeps its pid and temp files in /tmp.
+        tmp:
+          emptyDir: {}
+          mountPath: /tmp
