@@ -18,6 +18,19 @@ spec:
         - ports:
             - port: "8295"
               protocol: TCP
+    # The NetBird routing peers that carry the Reverse Proxy straight to the
+    # service (network alerse-sync in NetBird), bypassing the gateway.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: netbird
+          matchExpressions:
+            - key: app
+              operator: In
+              values: [netbird-peer, netbird-peer-2]
+      toPorts:
+        - ports:
+            - port: "8295"
+              protocol: TCP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: victoria-metrics
