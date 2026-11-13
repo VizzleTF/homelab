@@ -1,7 +1,7 @@
 # Renovate's mise manager bumps these; CI and scripts/kubeconform-validate.sh
 # read pins from here.
 [tools]
-helm = "4.3.1"          # CI and chart publish install it via scripts/ci-install-helm.sh
+helm = "4.3.2"          # CI and chart publish install it via scripts/ci-install-helm.sh
 kubectl = "1.37.2"       # match cluster k8s version
 talosctl = "1.14.5"     # CI talos-validate job reads it from here
 terraform = "1.17.2"    # terraform_talos/; CI talos-validate job reads it from here
