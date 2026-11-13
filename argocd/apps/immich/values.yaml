@@ -303,7 +303,7 @@ homelab-common:
         initContainers:
           - name: dump
             # pg_dump must not be older than the server (imageName in manifests/cluster.yaml).
-            image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
+            image: ghcr.io/cloudnative-pg/postgresql:18.7-standard-bookworm
             command: ["/bin/bash", "-c"]
             args:
               - |
