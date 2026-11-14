@@ -85,7 +85,7 @@ homelab-common:
         - name: netbird
           image:
             repository: netbirdio/netbird
-            tag: "0.83.0"
+            tag: "0.83.1"
           securityContext:
             capabilities:
               add:
