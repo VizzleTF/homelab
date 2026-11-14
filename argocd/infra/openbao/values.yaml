@@ -293,7 +293,7 @@ homelab-common:
                 echo "collected $(ls -1 "$work" | wc -l) files"
           - name: encrypt
             # The only image in the cluster with gpg.
-            image: ghcr.io/cloudnative-pg/postgresql:18.6-standard-bookworm
+            image: ghcr.io/cloudnative-pg/postgresql:18.7-standard-bookworm
             command: ["/bin/sh", "-c"]
             env:
               - name: HOME
