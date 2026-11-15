@@ -1,0 +1,65 @@
+name: vps-deploy
+
+# Rolls merged docker-compose changes under vps/ out to the hosts (Renovate automerges them).
+# Host list and the per-host steps live next to the compose files, outside the GitHub mirror.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'vps/node-configs/**/docker-compose*.yml'
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Compose paths to roll out, space-separated'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vps-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Deploy
+        env:
+          SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
+          BEFORE: ${{ github.event.before }}
+          FILES: ${{ inputs.files }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/vps_key"
+          if [ -n "${FILES:-}" ]; then
+            read -ra files <<< "$FILES"
+          else
+            mapfile -t files < <(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- vps/node-configs | grep -E '/docker-compose[^/]*\.yml$' || true)
+          fi
+          echo "files: ${files[*]:-none}"
+          [ "${#files[@]}" -gt 0 ] || exit 0
+          SSH_KEY_FILE="$RUNNER_TEMP/vps_key" RESULT_FILE="$RUNNER_TEMP/result" \
+            bash vps/node-configs/deploy/vps-deploy.sh "${files[@]}"
+
+      - name: Notify Telegram
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          RESULT=$(cat "$RUNNER_TEMP/result" 2>/dev/null || echo "no per-host result, see the run log")
+          TEXT=$(printf '❌ vps-deploy failed\ncommit %s\n%s\n%s/%s/actions/runs/%s' \
+            "${GITHUB_SHA::8}" "$RESULT" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          curl -sf -o /dev/null -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=${TEXT}"

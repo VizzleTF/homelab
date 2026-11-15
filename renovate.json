@@ -144,19 +144,22 @@
       "groupName": "forgejo-runner"
     },
     {
-      "description": "Everything under vps/ (Remnawave, NetBird, Gatus, alerse-site-ru, arcomium-sync) is deployed by hand over SSH, not by ArgoCD, so these PRs never automerge: roll the bump out on the host, then merge. Must come after the first rule (a later matching rule wins).",
+      "description": "Everything under vps/ automerges like the rest of the repo (owner decision 2026-11-15); the vps-deploy workflow rolls each merged compose change out to its hosts with a health gate and rollback, and alerts Telegram on failure (obsidian 116 Plans/vps-auto-update.md). The rules below hold back only the bumps that break a service for sure.",
       "matchFileNames": ["vps/**"],
-      "automerge": false,
-      "addLabels": ["needs-review", "vps"],
-      "prBodyNotes": [
-        "Manual deploy on the host named in the compose path: Remnawave via `/managing-vps update` (panel backup, panel, nodes one at a time), NetBird via `/managing-netbird upgrade`, others with `docker compose up -d` after a `.bak.<MMDD>`. A remnawave/node bump also changes Xray inside the image: check the MLKEM and Go 1.27 traps in obsidian `114 VPS/Remnawave Architecture.md` first. A postgres major needs a dump and restore."
-      ]
+      "addLabels": ["vps"]
     },
     {
-      "description": "dp is the XHTTP client of the dp -> ape bridge. Node images from 3.4.4 ship Xray built with Go 1.27, where xmux.maxConnections is ignored on hung handshakes (XTLS/Xray-core#6797). Hold dp on 3.4.3 until that issue is closed or a release is built with -tags http2legacy, then drop this rule.",
-      "matchFileNames": ["vps/node-configs/remnanode/docker-compose.dp.yml"],
+      "description": "Bridge clients (our dp, the friend's MSK) are XHTTP clients of a cascade bridge. Node images from 3.4.4 ship Xray built with Go 1.27, where xmux.maxConnections is ignored on hung handshakes (XTLS/Xray-core#6797). Hold them on 3.4.3 until that issue is closed or a release is built with -tags http2legacy, then drop this rule.",
+      "matchFileNames": ["vps/node-configs/remnanode/docker-compose.dp.yml", "vps/node-configs/friend/remnanode/docker-compose.msk.yml"],
       "matchPackageNames": ["remnawave/node"],
       "allowedVersions": "<=3.4.3"
+    },
+    {
+      "description": "No postgres majors under vps/: a new major does not start on the old data directory, it needs a dump and restore by hand.",
+      "matchFileNames": ["vps/**"],
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     },
     {
       "description": "NetBird server and reverse proxy share one release tag and move together.",
@@ -165,8 +168,8 @@
       "groupName": "netbird-server"
     },
     {
-      "description": "remnawave-nginx follows nginx stable (even minor); odd minors are mainline.",
-      "matchFileNames": ["vps/node-configs/remnawave/docker-compose.yml"],
+      "description": "nginx under vps/ follows stable (even minor); odd minors are mainline.",
+      "matchFileNames": ["vps/**"],
       "matchPackageNames": ["nginx"],
       "allowedVersions": "/^\\d+\\.\\d*[02468]\\.\\d+$/"
     }
