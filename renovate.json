@@ -142,6 +142,27 @@
       "automerge": false,
       "addLabels": ["needs-review"],
       "groupName": "forgejo-runner"
+    },
+    {
+      "description": "Remnawave panel and nodes (vps/node-configs/{remnawave,remnanode}) are deployed by hand over SSH, not by ArgoCD, so these PRs never automerge: roll the bump out with /managing-vps update, then merge. Must come after the first rule (a later matching rule wins).",
+      "matchFileNames": ["vps/node-configs/remnawave/**", "vps/node-configs/remnanode/**"],
+      "automerge": false,
+      "addLabels": ["needs-review", "vps"],
+      "prBodyNotes": [
+        "Manual deploy: `/managing-vps update` (panel backup, panel, nodes one at a time). A remnawave/node bump also changes Xray inside the image: check the MLKEM and Go 1.27 traps in obsidian `114 VPS/Remnawave Architecture.md` first. A postgres major needs a dump and restore."
+      ]
+    },
+    {
+      "description": "dp is the XHTTP client of the dp -> ape bridge. Node images from 3.4.4 ship Xray built with Go 1.27, where xmux.maxConnections is ignored on hung handshakes (XTLS/Xray-core#6797). Hold dp on 3.4.3 until that issue is closed or a release is built with -tags http2legacy, then drop this rule.",
+      "matchFileNames": ["vps/node-configs/remnanode/docker-compose.dp.yml"],
+      "matchPackageNames": ["remnawave/node"],
+      "allowedVersions": "<=3.4.3"
+    },
+    {
+      "description": "remnawave-nginx follows nginx stable (even minor); odd minors are mainline.",
+      "matchFileNames": ["vps/node-configs/remnawave/docker-compose.yml"],
+      "matchPackageNames": ["nginx"],
+      "allowedVersions": "/^\\d+\\.\\d*[02468]\\.\\d+$/"
     }
   ],
   "customManagers": [
