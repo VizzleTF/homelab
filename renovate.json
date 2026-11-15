@@ -70,7 +70,7 @@
     {
       "description": "The alerse.app site has no version tags: each push to main rebuilds `latest`. Follow its digest, overriding the digest-off rule above (obsidian 116 Plans/alerse-site.md).",
       "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/vizzletf/alerse-site"],
+      "matchPackageNames": ["ghcr.io/vizzletf/alerse-site", "ghcr.io/vizzletf/alerse-site-ru"],
       "matchUpdateTypes": ["digest"],
       "enabled": true
     },
@@ -144,12 +144,12 @@
       "groupName": "forgejo-runner"
     },
     {
-      "description": "Remnawave panel and nodes (vps/node-configs/{remnawave,remnanode}) are deployed by hand over SSH, not by ArgoCD, so these PRs never automerge: roll the bump out with /managing-vps update, then merge. Must come after the first rule (a later matching rule wins).",
-      "matchFileNames": ["vps/node-configs/remnawave/**", "vps/node-configs/remnanode/**"],
+      "description": "Everything under vps/ (Remnawave, NetBird, Gatus, alerse-site-ru, arcomium-sync) is deployed by hand over SSH, not by ArgoCD, so these PRs never automerge: roll the bump out on the host, then merge. Must come after the first rule (a later matching rule wins).",
+      "matchFileNames": ["vps/**"],
       "automerge": false,
       "addLabels": ["needs-review", "vps"],
       "prBodyNotes": [
-        "Manual deploy: `/managing-vps update` (panel backup, panel, nodes one at a time). A remnawave/node bump also changes Xray inside the image: check the MLKEM and Go 1.27 traps in obsidian `114 VPS/Remnawave Architecture.md` first. A postgres major needs a dump and restore."
+        "Manual deploy on the host named in the compose path: Remnawave via `/managing-vps update` (panel backup, panel, nodes one at a time), NetBird via `/managing-netbird upgrade`, others with `docker compose up -d` after a `.bak.<MMDD>`. A remnawave/node bump also changes Xray inside the image: check the MLKEM and Go 1.27 traps in obsidian `114 VPS/Remnawave Architecture.md` first. A postgres major needs a dump and restore."
       ]
     },
     {
@@ -157,6 +157,12 @@
       "matchFileNames": ["vps/node-configs/remnanode/docker-compose.dp.yml"],
       "matchPackageNames": ["remnawave/node"],
       "allowedVersions": "<=3.4.3"
+    },
+    {
+      "description": "NetBird server and reverse proxy share one release tag and move together.",
+      "matchFileNames": ["vps/node-configs/netbird/**"],
+      "matchPackageNames": ["netbirdio/netbird-server", "netbirdio/reverse-proxy"],
+      "groupName": "netbird-server"
     },
     {
       "description": "remnawave-nginx follows nginx stable (even minor); odd minors are mainline.",
