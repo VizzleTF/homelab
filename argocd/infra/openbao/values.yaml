@@ -189,6 +189,7 @@ homelab-common:
       job:
         activeDeadlineSeconds: 1800
       pod:
+        restartPolicy: Never   # OnFailure retries in one pod, which the Job controller deletes on failure: no logs left
         serviceAccountName: openbao-dr-pack
         automountServiceAccountToken: true   # collect uses the SA token for kubectl and the OpenBao login
         securityContext:
@@ -253,9 +254,9 @@ homelab-common:
                 BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
                 JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
                 login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
-                TOKEN=$(curl -sf -X POST "$BAO_ADDR/v1/auth/kubernetes/login" -d "$login" | jq -r .auth.client_token)
+                TOKEN=$(curl -sSf -X POST "$BAO_ADDR/v1/auth/kubernetes/login" -d "$login" | jq -r .auth.client_token)
                 [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "auth failed"; exit 1; }
-                curl -sf -H "X-Vault-Token: $TOKEN" "$BAO_ADDR/v1/sys/storage/raft/snapshot" -o "$work/02-vault-raft-snapshot.snap"
+                curl -sSf -H "X-Vault-Token: $TOKEN" "$BAO_ADDR/v1/sys/storage/raft/snapshot" -o "$work/02-vault-raft-snapshot.snap"
                 unset TOKEN login
                 test -s "$work/02-vault-raft-snapshot.snap"
 

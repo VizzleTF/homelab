@@ -27,3 +27,9 @@ repos:
         language: system
         pass_filenames: false
         files: ^\.claude/skills/
+      - id: audit-docs
+        name: Docs drift, repo side (mirror of CI)
+        entry: python3 scripts/audit-docs.py --vault .no-vault  # like CI: vault checks need a reviewer
+        language: system
+        pass_filenames: false
+        files: ^(argocd/|charts/|\.claude/|README\.md$|scripts/audit-docs\.py$)

@@ -32,6 +32,8 @@ POLL_INTERVAL="${POLL_INTERVAL:-15}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
 APPS_TIMEOUT="${APPS_TIMEOUT:-900}"
 KEEP_BRANCH="${KEEP_BRANCH:-0}"
+OPS_HOST="${OPS_HOST:-root@10.11.11.153}"
+LOG_LINES="${LOG_LINES:-80}"
 UPDATE_OUTDATED="${UPDATE_OUTDATED:-0}"
 
 usage() {
@@ -48,6 +50,7 @@ Usage:
   $0 comment <pr-number> < results.md   (post-merge outcome; after merge pass the number)
   $0 label   <pr-number> <label-name>   (e.g. diff-reviewed)
   $0 diff-comment <pr-number>
+  $0 log     <pr-number>                (tail of each failed job's log, read on the ops node)
   $0 rerun   <pr-number>                (empty commit on the PR branch; renovate/*: ticks rebase-check)
 
 <pr-number> may also be the branch name of an open PR.
@@ -62,6 +65,8 @@ Env:
   POLL_INTERVAL  seconds between CI polls (default: $POLL_INTERVAL)
   POLL_TIMEOUT   max seconds to wait for CI (default: $POLL_TIMEOUT)
   APPS_TIMEOUT   max seconds to wait for the ArgoCD apps (default: $APPS_TIMEOUT)
+  OPS_HOST       ssh target holding Forgejo's job logs (default: $OPS_HOST)
+  LOG_LINES      lines per job for log (default: $LOG_LINES)
   KEEP_BRANCH    if 1, skip post-merge local branch deletion (default: $KEEP_BRANCH)
   UPDATE_OUTDATED if 1, merge $BASE_BRANCH into an outdated PR branch first (default: $UPDATE_OUTDATED)
 EOF
@@ -217,7 +222,7 @@ fresh_diff_body() {
 
 # failure_hints <pr-number> (status payload on stdin) — where each failure is
 # explained: the argocd-diff PR comment if newer than that context's latest
-# `pending` (also a web-UI re-run), else stale; job logs are web-UI only.
+# `pending` (also a web-UI re-run), else stale; job logs come from `log`.
 failure_hints() {
   local pr="$1" payload ctx url body rc
   payload=$(cat)
@@ -227,10 +232,10 @@ failure_hints() {
         if [[ "$ctx" == *argocd-diff* ]]; then
           rc=0; body=$(fresh_diff_body "$pr" "$(jq -r '.sha' <<<"$payload")" "$ctx") || rc=$?
           if [[ $rc -eq 1 ]]; then
-            echo "no argocd-diff comment: the render itself failed — log: $FORGEJO_URL$url" >&2
+            echo "no argocd-diff comment: the render itself failed — log: $0 log $pr" >&2
             continue
           elif [[ $rc -ne 0 ]]; then
-            echo "argocd-diff comment is from a previous run — this run failed before posting; log: $FORGEJO_URL$url" >&2
+            echo "argocd-diff comment is from a previous run — this run failed before posting; log: $0 log $pr" >&2
             continue
           fi
           # Checks part only; the manifest diff follows the heading.
@@ -239,10 +244,10 @@ failure_hints() {
             echo "review gate: check that $0 diff-comment $pr lists only the removals this PR intends;" >&2
             echo "  if so, run as separate commands: $0 label $pr diff-reviewed, then $0 rerun $pr" >&2
           else
-            echo "no blocked check in the comment — job failed elsewhere; log (web UI only): $FORGEJO_URL$url" >&2
+            echo "no blocked check in the comment — job failed elsewhere; log: $0 log $pr" >&2
           fi
         else
-          echo "log (web UI only): $FORGEJO_URL$url" >&2
+          echo "log: $0 log $pr" >&2
         fi
       done
 }
@@ -866,6 +871,33 @@ cmd_wait_apps() {
   wait_apps "$1"
 }
 
+# cmd_log <pr> — the web /logs route needs a session cookie and the API has no log
+# endpoint (Forgejo 15), so read the task's file on the ops node over ssh.
+cmd_log() {
+  local pr sha ctx url run name id page
+  pr=$(resolve_pr "${1:-}") || exit $?
+  require curl
+  require jq
+  sha=$(get_pr_sha "$pr")
+  fetch_status "$sha" \
+    | jq -r '.statuses[]? | select((.status // .state) | IN("failure", "error")) | "\(.context)\t\(.target_url)"' \
+    | while IFS=$'\t' read -r ctx url; do
+        run=$(sed -E 's#.*/runs/([0-9]+)/jobs/.*#\1#' <<<"$url")
+        name=${ctx#* / }; name=${name% (*}; id=""
+        for page in 1 2 3 4 5 6; do  # newest first; 300 tasks cover the open PRs
+          id=$(forgejo_api GET "/api/v1/repos/$FORGEJO_REPO/actions/tasks?limit=50&page=$page" \
+            | jq -r --argjson r "$run" --arg n "$name" '[.workflow_runs[] | select(.run_number == $r and .name == $n)][0].id // empty')
+          [[ -n "$id" ]] && break
+        done
+        [[ -n "$id" ]] || { echo "--- $ctx: no task for run $run in the last 300" >&2; continue; }
+        echo "--- $ctx (run $run, task $id), last $LOG_LINES lines up to the failed step" >&2
+        # -n: ssh must not eat the loop's stdin; a running job has a plain .log;
+        # the cut at the runner's failure line drops the post-step cleanup noise
+        ssh -n -o BatchMode=yes "$OPS_HOST" "f=/var/lib/forgejo/data/actions_log/$FORGEJO_REPO/$(printf %02x $((id % 256)))/$id.log
+          { zstdcat \$f.zst 2>/dev/null || cat \$f; } | awk '{print} /exitcode .[1-9][0-9]*.: failure/ {exit}' | tail -n $LOG_LINES"
+      done
+}
+
 cmd_get() {
   [[ -n "${1:-}" ]] || die_usage
   require curl
@@ -880,6 +912,7 @@ case "${1:-}" in
   full)           shift; cmd_full    "$@" ;;
   label)          shift; cmd_label   "$@" ;;
   diff-comment)   shift; cmd_diff_comment "$@" ;;
+  log)            shift; cmd_log     "$@" ;;
   rerun)          shift; cmd_rerun   "$@" ;;
   ship)           shift; cmd_ship    "$@" ;;
   wait-apps)      shift; cmd_wait_apps "$@" ;;

@@ -20,7 +20,8 @@ spec:
               root-токен и пароли restic в S3 протухают вместе с ротацией
               секретов. Без свежего пакета кластер не поднять с нуля.
               kubectl -n openbao get cronjob,job
-              kubectl -n openbao logs job/<последний> -c collect
+              kubectl -n openbao logs job/<последний> --all-containers
+              Под удалён — логи за 7 дней: scripts/vm.sh logsql 'kubernetes.pod_namespace:openbao kubernetes.pod_name:"openbao-dr-pack-offsite-"* | fields _time, kubernetes.pod_name, kubernetes.container_name, _msg | sort by (_time)' --start 7d
 
         - alert: DrPackNeverRan
           expr: absent(max_over_time(homelab_dr_pack_timestamp[30d])) == 1
@@ -45,4 +46,5 @@ spec:
             description: |
               Последний пакет меньше 20 KiB — вероятно, raft-снапшот пустой или
               обрезан, и восстанавливать из него нечего.
-              kubectl -n openbao logs job/<последний> -c collect
+              kubectl -n openbao logs job/<последний> --all-containers
+              Под удалён — логи за 7 дней: scripts/vm.sh logsql 'kubernetes.pod_namespace:openbao kubernetes.pod_name:"openbao-dr-pack-offsite-"* | fields _time, kubernetes.pod_name, kubernetes.container_name, _msg | sort by (_time)' --start 7d
