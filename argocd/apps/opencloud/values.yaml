@@ -160,6 +160,11 @@ homelab-common:
             # idm stays: it is the user store autoprovisioning writes to.
             - name: OC_EXCLUDE_RUN_SERVICES
               value: idp
+            # App tokens let WebDAV clients (rclone) use basic auth; OIDC has no password flow.
+            - name: OC_ADD_RUN_SERVICES
+              value: auth-app
+            - name: PROXY_ENABLE_APP_AUTH
+              value: "true"
             - name: OC_OIDC_ISSUER
               value: https://authentik.example.com/application/o/opencloud/
             - name: IDP_DOMAIN
