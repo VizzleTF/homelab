@@ -35,7 +35,7 @@ homelab-common:
           image:
             repository: ghcr.io/vizzletf/alerse-site
             # Renovate follows the digest of `latest` (renovate.json, alerse-site rule).
-            tag: "latest@sha256:cd5555e6d8376904312afd61b2cd4e769c650cb69d3449ba772b32ddf713bd02"
+            tag: "latest@sha256:f803dbd32c13648353cde9c843709b284e3fd559c28e2227029d120b73fa6f97"
           ports:
             - name: http
               containerPort: 8080
