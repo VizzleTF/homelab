@@ -23,13 +23,16 @@ repos:
         always_run: true
       - id: lint-skills
         name: Claude skills vs Anthropic best practices
-        entry: python3 scripts/lint-skills.py  # file is 0644 in git
-        language: system
+        entry: python scripts/lint-skills.py  # file is 0644 in git
+        # pre-commit's own venv with PyYAML: survives Homebrew Python upgrades.
+        language: python
+        additional_dependencies: [pyyaml==6.0.3]
         pass_filenames: false
         files: ^\.claude/skills/
       - id: audit-docs
         name: Docs drift, repo side (mirror of CI)
-        entry: python3 scripts/audit-docs.py --vault .no-vault  # like CI: vault checks need a reviewer
-        language: system
+        entry: python scripts/audit-docs.py --vault .no-vault  # like CI: vault checks need a reviewer
+        language: python
+        additional_dependencies: [pyyaml==6.0.3]
         pass_filenames: false
         files: ^(argocd/|charts/|\.claude/|README\.md$|scripts/audit-docs\.py$)
