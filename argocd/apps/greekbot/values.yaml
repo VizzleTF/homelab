@@ -31,8 +31,6 @@ homelab-common:
           property: webhook_secret
         - secretKey: ADMIN_TOKEN
           property: admin_token
-        - secretKey: GROUP_ID
-          property: group_id
         - secretKey: OWNER_ID
           property: owner_id
 
@@ -66,7 +64,7 @@ homelab-common:
         - name: greekbot
           image:
             repository: git.example.com/vizzle/greekbot
-            tag: "0.1.1"
+            tag: "0.2.0"
           ports:
             - name: http
               containerPort: 8080
