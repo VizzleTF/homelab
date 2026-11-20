@@ -54,7 +54,7 @@ homelab-common:
         - name: greekbot
           image:
             repository: git.example.com/vizzle/greekbot
-            tag: "0.7.0"
+            tag: "0.7.1"
           ports:
             - name: http
               containerPort: 8080
