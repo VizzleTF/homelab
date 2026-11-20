@@ -63,6 +63,11 @@ spec:
         login: true
         passwordSecret:
           name: atuin-db-credentials
+      - name: greekbot
+        ensure: present
+        login: true
+        passwordSecret:
+          name: greekbot-db-credentials
 
   # Init-only; mirrors live to avoid SSA churn.
   bootstrap:

@@ -22,6 +22,14 @@ homelab-common:
           schedule: "20 5 * * 0"
 
   externalSecrets:
+    # DB via cnpg-cluster-rw, not the pooler (asyncpg prepared statements). Not URL-encoded: the password is hex.
+    - name: greekbot-db
+      vaultPath: greekbot/db
+      data:
+        - secretKey: password
+          property: password
+      templateData:
+        DATABASE_URL: "postgres://greekbot:{{ .password }}@cnpg-cluster-rw.cnpg.svc.cluster.local:5432/greekbot"
     - name: greekbot-secrets
       vaultPath: greekbot/app-secrets
       data:
@@ -71,6 +79,8 @@ homelab-common:
           envFrom:
             - secretRef:
                 name: greekbot-secrets
+            - secretRef:
+                name: greekbot-db
             - configMapRef:
                 name: greekbot
           readinessProbe:

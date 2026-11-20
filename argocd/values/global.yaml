@@ -21,7 +21,7 @@ global:
         vps-backup: [shared/s3-restic-vps, shared/restic-vps-garage, shared/restic-vps-ovh]
         s3-ovh: [shared/s3-ovh]
         cnpg-backup: [shared/s3-cnpg-backup]
-        db-roles: [authentik/authentik, atuin/atuin]
+        db-roles: [authentik/authentik, atuin/atuin, greekbot/db]
         valkey: [valkey/valkey]
         telegram: [shared/telegram]
         # Heartbeat tokens of the outside Gatus on vps-fi (docs/monitoring-architecture.md)
