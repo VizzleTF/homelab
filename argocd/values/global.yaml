@@ -44,7 +44,6 @@ global:
         cleanbot: [backup]
         cnpg: [s3-ovh, cnpg-backup, db-roles, ovh-crypt]
         crowdsec-scraper: [backup]
-        greekbot: [backup]
         immich: [backup, cnpg-backup, valkey, ovh-crypt]
         may: [backup]
         netbird: [backup]
