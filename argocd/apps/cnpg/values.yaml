@@ -8,7 +8,7 @@ homelab-common:
       - namespaces: [cnpg-system]
       - namespaces: [victoria-metrics]
         ports: [9187, 9127]
-      - namespaces: [authentik, atuin, greekbot]
+      - namespaces: [authentik, atuin]
         ports: [5432]
 
   externalSecrets:
@@ -31,16 +31,6 @@ homelab-common:
           property: password
       templateData:
         username: atuin
-        password: "{{ .password }}"
-
-    - name: greekbot-db-credentials
-      templateType: kubernetes.io/basic-auth
-      data:
-        - secretKey: password
-          vaultPath: greekbot/db
-          property: password
-      templateData:
-        username: greekbot
         password: "{{ .password }}"
 
     - name: cnpg-s3-backup
@@ -89,9 +79,6 @@ homelab-common:
     - name: atuin
       owner: atuin
       clusterName: cnpg-cluster
-    - name: greekbot
-      owner: greekbot
-      clusterName: cnpg-cluster
 
   limitRange:
     enabled: true
@@ -127,7 +114,6 @@ homelab-common:
                 }
                 dump authentik "$AK_USER" "$AK_PASS"
                 dump atuin     "$AT_USER" "$AT_PASS"
-                dump greekbot  "$GB_USER" "$GB_PASS"
                 ls -lh /dump
             env:
               - name: AK_USER
@@ -138,10 +124,6 @@ homelab-common:
                 valueFrom: {secretKeyRef: {name: atuin-db-credentials, key: username}}
               - name: AT_PASS
                 valueFrom: {secretKeyRef: {name: atuin-db-credentials, key: password}}
-              - name: GB_USER
-                valueFrom: {secretKeyRef: {name: greekbot-db-credentials, key: username}}
-              - name: GB_PASS
-                valueFrom: {secretKeyRef: {name: greekbot-db-credentials, key: password}}
             volumeMounts:           # persistence mounts only into containers, not initContainers
               - name: dump
                 mountPath: /dump
