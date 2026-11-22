@@ -24,16 +24,7 @@ homelab-common:
         - secretKey: OWNER_ID
           property: owner_id
 
-  httpRoutes:
-    - name: greekbot
-      hostname: greek
-      # Public side: NetBird Reverse Proxy on vps-fi (manual CNAME greek → proxy.example.com) with path
-      # rules for /tg, /app and /api only; /admin stays reachable from LAN and the mesh. obsidian 116 Plans/greekbot.md
-      gateway: internal
-      service:
-        name: greekbot
-        port: 8080
-
+  # No route: greek.example.com is served from ape for everyone, the LAN included (vps/node-configs/greekbot).
   configMaps:
     - name: greekbot
       data:
