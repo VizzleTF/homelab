@@ -63,9 +63,6 @@ spec:
         login: true
         passwordSecret:
           name: atuin-db-credentials
-      # greekbot moved off the cluster (its data in SQLite on ape); the role goes once its database is dropped
-      - name: greekbot
-        ensure: absent
 
   # Init-only; mirrors live to avoid SSA churn.
   bootstrap:
