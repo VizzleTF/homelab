@@ -95,3 +95,7 @@ homelab-common:
         tmp:
           emptyDir: {}
           mountPath: /tmp
+      # Moved to ape with its data in SQLite (vps/node-configs/greekbot); kept stopped until the move is confirmed,
+      # then this app and its CNPG database go.
+      spec:
+        replicas: 0
