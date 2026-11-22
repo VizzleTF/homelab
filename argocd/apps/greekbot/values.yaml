@@ -4,7 +4,7 @@ homelab-common:
 
   # State lives in Postgres (cnpg-cluster, database greekbot); its backups are CNPG's Barman and the nightly pg_dump.
   externalSecrets:
-    # DB via cnpg-cluster-rw, not the pooler (asyncpg prepared statements). Not URL-encoded: the password is hex.
+    # DB via cnpg-cluster-rw, not the pooler (pgx prepared statements). Not URL-encoded: the password is hex.
     - name: greekbot-db
       vaultPath: greekbot/db
       data:
@@ -54,7 +54,7 @@ homelab-common:
         - name: greekbot
           image:
             repository: git.example.com/vizzle/greekbot
-            tag: "0.9.9"
+            tag: "1.0.1"
           ports:
             - name: http
               containerPort: 8080
