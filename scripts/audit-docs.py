@@ -76,15 +76,19 @@ for cs_dir, configs in ((APPS_CS, apps), (INFRA_CS, infra)) if HAVE_VAULT else (
         if p.stem not in expected | NON_APP_CHEATSHEETS:
             report(p, "error", "cheatsheet without an argocd folder")
 
-# 4. Wikilinks. Targets: vault notes.
-notes = {p.stem for p in VAULT.rglob("*.md")}
+# 4. Wikilinks. Targets: notes anywhere in the whole Obsidian vault, which
+# `obsidian/` is only one folder of; a target may carry a folder path
+# ([[116 Plans/alerse-site|...]]) where two notes share a name.
+vault_root = next((d for d in [VAULT.resolve(), *VAULT.resolve().parents] if (d / ".obsidian").is_dir()), VAULT.resolve())
+vault_notes = [p.relative_to(vault_root).with_suffix("").as_posix() for p in vault_root.rglob("*.md") if ".obsidian" not in p.parts]
+notes = {n.rsplit("/", 1)[-1] for n in vault_notes}
 docs = list(VAULT.rglob("*.md")) + [REPO / "CLAUDE.md"] + [p for p in (REPO / ".claude").rglob("*.md") if "worktrees" not in p.parts]
 code_span = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 for doc in docs if HAVE_VAULT else ():
     text = code_span.sub("", doc.read_text())
     for target in re.findall(r"\[\[([^\]|#]+)", text):
-        t = target.strip()
-        if t and t not in notes:
+        t = target.strip().rstrip("\\")  # a table escapes the alias pipe as \|
+        if t and t not in notes and not any(n == t or n.endswith("/" + t) for n in vault_notes):
             report(doc, "error", f"broken wikilink [[{t}]]")
 
 # 6. Repo paths in backticks that do not exist.
