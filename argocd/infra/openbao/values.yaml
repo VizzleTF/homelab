@@ -251,14 +251,16 @@ homelab-common:
 
                 echo "=== 2/3 raft snapshot ==="
                 # HTTP API: this image has no bao CLI.
-                BAO_ADDR=http://openbao.openbao.svc.cluster.local:8200
+                # Active node only: a standby answers the snapshot with 307, curl -f
+                # takes it as success and writes an empty file (silent fail 2026-11-22).
+                BAO_ADDR=http://openbao-active.openbao.svc.cluster.local:8200
                 JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
                 login=$(printf '{"role":"openbao-snapshot","jwt":"%s"}' "$JWT")
                 TOKEN=$(curl -sSf -X POST "$BAO_ADDR/v1/auth/kubernetes/login" -d "$login" | jq -r .auth.client_token)
                 [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "auth failed"; exit 1; }
                 curl -sSf -H "X-Vault-Token: $TOKEN" "$BAO_ADDR/v1/sys/storage/raft/snapshot" -o "$work/02-vault-raft-snapshot.snap"
                 unset TOKEN login
-                test -s "$work/02-vault-raft-snapshot.snap"
+                test -s "$work/02-vault-raft-snapshot.snap" || { echo "empty raft snapshot"; exit 1; }
 
                 echo "=== 3/3 bootstrap env ==="
                 {
