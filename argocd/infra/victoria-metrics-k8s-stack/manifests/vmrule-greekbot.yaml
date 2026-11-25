@@ -1,0 +1,46 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: greekbot
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: greekbot
+      rules:
+        # Textfile metrics of vps/node-configs/bin/greekbot-health.sh on ape (cron, every 5 minutes).
+        # The public side (https://greek.example.com/app) is watched from outside by Gatus.
+        - alert: GreekbotUnhealthy
+          expr: homelab_greekbot_healthy == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "greekbot unhealthy on {{ $labels.host }}"
+            description: "Контейнер greekbot не healthy: /healthz не отвечает, база недоступна или цикл напоминаний встал. ssh ape 'docker logs --since 30m greekbot'"
+
+        - alert: GreekbotReplicaBehind
+          expr: homelab_greekbot_replica_lag_txid > 0
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "greekbot: Litestream replica is {{ $value }} transactions behind"
+            description: "Реплика greekbot.db в Garage (restic-vps/litestream/greekbot) не догоняет живую базу 30 минут. ssh ape 'docker logs --since 1h greekbot-litestream-1'"
+
+        - alert: GreekbotReplicaUnreadable
+          expr: homelab_greekbot_replica_lag_txid == -1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "greekbot: Litestream state unreadable"
+            description: "greekbot-health.sh не смог прочитать статус Litestream или список LTX в Garage: контейнер litestream лежит, Garage или NetBird DNS недоступны."
+
+        - alert: GreekbotHealthStale
+          expr: time() - homelab_greekbot_check_timestamp_seconds > 1800
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "greekbot-health.sh has not run for 30 minutes"
+            description: "На ape не обновляется /var/lib/prometheus/node-exporter/greekbot.prom: проверь /etc/cron.d/greekbot-health."
