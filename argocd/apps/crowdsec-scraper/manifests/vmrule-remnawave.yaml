@@ -87,9 +87,10 @@ spec:
       rules:
         # Подробности только в логе на хосте. "_" -> " ": Robusta шлёт в Telegram legacy
         # Markdown, непарный "_" (backup_local) в *summary* роняет sendMessage.
+        # for 35m: cron runs every 30 min, so one flaky run (the value holds 30 min) never fires
         - alert: VpnHealthcheckFailed
           expr: vpn_health_check{job="node"} == 0
-          for: 0m
+          for: 35m
           labels:
             severity: warning
           annotations:
