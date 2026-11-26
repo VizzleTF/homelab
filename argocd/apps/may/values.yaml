@@ -1,6 +1,9 @@
 homelab-common:
   networkPolicy:
     enabled: true
+    allow:
+      - namespaces: [may-mcp]
+        ports: [5050]
 
   persistentVolumeClaims:
     - name: may

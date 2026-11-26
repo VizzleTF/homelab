@@ -1,0 +1,80 @@
+homelab-common:
+  networkPolicy:
+    enabled: true
+    lanEgressDeny: true
+
+  externalSecrets:
+    - name: may-mcp-secrets
+      vaultPath: may-mcp/api
+      data:
+        # May API key of the account the MCP acts as (May UI -> Settings -> API).
+        - secretKey: MAY_API_KEY
+          property: may_api_key
+        # Bearer token for MCP clients: openssl rand -hex 32
+        - secretKey: MCP_AUTH_TOKEN
+          property: mcp_auth_token
+
+  httpRoutes:
+    - name: may-mcp
+      hostname: may-mcp
+      service:
+        name: may-mcp
+        port: 3000
+
+  configMaps:
+    - name: may-mcp
+      data:
+        MCP_TRANSPORT: http
+        MAY_URL: http://may.may.svc.cluster.local:5050
+        MAY_READ_ONLY: "false"
+        MCP_ALLOWED_HOSTS: may-mcp.example.com
+
+  workloads:
+    - name: may-mcp
+      pod:
+        dnsConfig:
+          options:
+            - name: ndots
+              value: "2"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        - name: may-mcp
+          image:
+            # Built from git.example.com/vizzle/may-mcp commit 078381a, linux/amd64.
+            repository: git.example.com/vizzle/may-mcp
+            tag: "0.1.0@sha256:cab32a797df9dae257c84ee4de9de04db71cd3cbb20ba88e1517d45bc4e774a1"
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: may-mcp-secrets
+            - configMapRef:
+                name: may-mcp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
