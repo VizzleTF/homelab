@@ -171,12 +171,13 @@ Two targets, and neither is a copy of the other: **Garage** on the Synology (`s3
 |---|---|---|---|---|
 | PVC data | 14 volumes across 11 apps, one `ReplicationSource` per target | `restic-apps/<name>` on both | Garage nightly 00:10–03:30 UTC; OVH mostly Sundays 01:40–08:00 UTC | Garage 7 daily + 4 weekly; OVH 12 weekly + 6 monthly |
 | Forgejo (ops node) | `forgejo dump` via restic | `restic-apps/forgejo-ops` on both | daily 02:15 node-local time | 7 daily + 4 weekly + 6 monthly |
-| Postgres | cnpg-cluster + immich-cluster, Barman WAL + base backups | `cnpg-backups/` on Garage | continuous WAL, base backup daily | 7d, PITR |
+| Postgres | cnpg-cluster, immich-cluster and alerse-sync-db, Barman WAL + base backups | `cnpg-backups/` and `alerse-sync-backups/` on Garage | continuous WAL, base backup daily | 7d, PITR |
 | Postgres, off-site | `pg_dump -Fc` per database, independent of Barman | `crypt/pg-logical/` (rclone crypt) on OVH | 03:50 UTC | 90d |
 | etcd | `talosctl etcd snapshot` from the ops node | `snapshots/etcd/` on Garage, `crypt/snapshots/etcd/` (rclone crypt) on OVH | daily 04:15 node-local time | 30d |
 | OpenBao | Raft snapshot over the HTTP API | `snapshots/openbao/` on Garage, `crypt/snapshots/openbao/` (rclone crypt) on OVH | 02:05 UTC | 90d |
 | DR pack | Shamir keys, root token, Raft snapshot, bootstrap creds in one GPG file | `snapshots/dr-pack/` on both | Sundays 02:40 UTC | last 8 |
 | Terraform state | Garage → OVH mirror | `crypt/terraform-state/` (rclone crypt) on OVH | 08:00 UTC | — |
+| OpenWrt | `sysupgrade -b` of the home router | `config-backups/openwrt/` on Garage, `crypt/openwrt/` (rclone crypt) on OVH | Sundays 05:30 UTC | 90d |
 
 Each volume declares `volsync:` in its values; `homelab-common` renders one `ReplicationSource` per target. Restic repository names are cluster-unique (the name is the path under `restic-apps/`). Everything except the immich library uses `copyMethod: Snapshot` (frozen Longhorn snapshot → clone in `longhorn-volsync-clone`); immich uses `Direct`, a full clone does not fit the disks. A weekly `backup-drill` restores one repository into a throwaway namespace, alternating targets, and alerts on failure.
 

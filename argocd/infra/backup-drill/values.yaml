@@ -363,7 +363,8 @@ homelab-common:
               case "$APP" in
                 forgejo-ops) VERIFY='set -e
               apk add --no-cache restic zstd tar >/dev/null
-              restic restore latest --target /restore
+              # Talos labels emptyDir files with security.selinux, which the pod may not remove
+              restic restore latest --target /restore --exclude-xattr "security.*"
               f=$(find /restore -name "forgejo-dump-*.tar.zst" | head -1)
               [ -n "$f" ] || { echo NO_DUMP; exit 1; }
               sz=$(stat -c%s "$f"); echo SIZE=$sz
