@@ -1,0 +1,51 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: argocd
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: argocd
+      rules:
+        - alert: ArgoAppDegraded
+          expr: argocd_app_info{health_status="Degraded"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD: {{ $labels.name }} Degraded"
+            description: |
+              argocd app get {{ $labels.name }} --show-operation
+              kubectl -n {{ $labels.dest_namespace }} get pods
+
+        # every app has selfHeal: OutOfSync this long means sync keeps failing or is blocked
+        - alert: ArgoAppOutOfSync
+          expr: argocd_app_info{sync_status="OutOfSync"} == 1
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD: {{ $labels.name }} OutOfSync >1h"
+            description: |
+              argocd app diff {{ $labels.name }}; argocd app get {{ $labels.name }} --show-operation
+
+        - alert: ArgoAppSyncFailed
+          expr: increase(argocd_app_sync_total{phase=~"Error|Failed"}[15m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD: sync {{ $labels.name }} → {{ $labels.phase }}"
+            description: |
+              argocd app get {{ $labels.name }} --show-operation
+
+        - alert: ArgoMetricsAbsent
+          expr: absent(argocd_app_info)
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Нет метрик ArgoCD: алерты по приложениям молчат"
+            description: |
+              kubectl -n argocd get svc argocd-application-controller-metrics
+              scripts/vm.sh targets argocd

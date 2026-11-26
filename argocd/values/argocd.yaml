@@ -9,6 +9,9 @@ applicationSet:
       memory: 128Mi
 
 controller:
+  # argocd_app_info for the ArgoCD VMRule (victoria-metrics-k8s-stack/manifests)
+  metrics:
+    enabled: true
   env:
     - name: GOMEMLIMIT
       value: "1700MiB"
@@ -129,35 +132,8 @@ notifications:
     requests:
       cpu: 15m
       memory: 64Mi
-  notifiers:
-    service.telegram: |
-      token: $telegram-token
-  triggers:
-    trigger.on-sync-failed: |
-      - send: [app-sync-failed]
-        when: app.status.operationState.phase in ['Error', 'Failed']
-    trigger.on-health-degraded: |
-      - send: [app-health-degraded]
-        when: app.status.health.status == 'Degraded'
-  templates:
-    template.app-sync-failed: |
-      message: |
-        ❌ *{{.app.metadata.name}}* — sync failed
-        Phase: {{.app.status.operationState.phase}}
-        {{if .app.status.operationState.syncResult.resources}}
-        {{range .app.status.operationState.syncResult.resources -}}
-        - {{.name}}: {{.message}}
-        {{end}}{{end}}
-    template.app-health-degraded: |
-      message: |
-        ⚠️ *{{.app.metadata.name}}* — health degraded
-        Status: {{.app.status.health.status}}
-  subscriptions:
-    - recipients:
-        - telegram:$telegram-chatID
-      triggers:
-        - on-sync-failed
-        - on-health-degraded
+  # Alerts on apps go via vmalert (vmrule-argocd.yaml): a recipient cannot take a
+  # $secret, so telegram:$telegram-chatID never delivered.
 
 redis:
   enabled: false
@@ -207,6 +183,10 @@ homelab-common:
     lanEgressDeny: true
     # Forgejo on the ops node: git over ssh and the helm registry.
     lanEgress: [10.11.11.153/32]
+    allow:
+      # application-controller metrics, manifests/vmservicescrape-argocd.yaml in victoria-metrics-k8s-stack
+      - namespaces: [victoria-metrics]
+        ports: [8082]
 
   certificates:
     - name: argocd-server-tls
@@ -256,7 +236,8 @@ homelab-common:
         - secretKey: webhook.gogs.secret
           property: secret
 
-    # The homelab's one Telegram bot (grant `telegram`).
+    # The homelab's one Telegram bot (grant `telegram`). Unused since app alerts moved to
+    # vmalert; dropping it needs a manual prune (app has prune: false).
     - name: argocd-notifications-secret
       vaultPath: shared/telegram
       data:

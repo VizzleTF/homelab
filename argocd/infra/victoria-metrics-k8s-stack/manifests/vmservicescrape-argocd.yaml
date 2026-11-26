@@ -1,0 +1,18 @@
+# Application controller only: argocd_app_info for vmrule-argocd.yaml. Ingress to
+# :8082 is allowed in argocd/values/argocd.yaml (homelab-common.networkPolicy).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: argocd
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames:
+      - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-metrics
+      app.kubernetes.io/component: application-controller
+  endpoints:
+    - port: http-metrics
+      interval: 60s
