@@ -538,6 +538,11 @@ cmd_merge() {
   local title body payload
   title=$(jq -r '.title' <<<"$meta")
   body=$(jq -r '.body // ""' <<<"$meta")
+  # forgejo passes the message to `git commit` as one argument; past MAX_ARG_STRLEN
+  # (128 KiB) the merge 500s with "argument list too long" (renovate/apps, 171 KB)
+  if (( ${#body} > 30000 )); then
+    body="${body:0:30000}"$'\n\n[truncated; full text in PR #'"$pr"']'
+  fi
   # Merge API fields are CamelCase. default_delete_branch_after_merge is off, so
   # the head branch is deleted here (else it lingers on Forgejo and the NAS mirror).
   payload=$(jq -n \

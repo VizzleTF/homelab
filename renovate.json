@@ -4,7 +4,7 @@
     "config:best-practices",
     ":dependencyDashboard"
   ],
-  "description": "rebaseWhen=behind-base-branch: on the gitea/forgejo platform `auto` rebases only conflicting branches, so a branch that fell behind main never got rebased, automerge returned 405 and stale PRs filled prConcurrentLimit (seen 2026-07-26).",
+  "description": "No rebaseWhen=behind-base-branch: it was for block_on_outdated_branch (405 on a behind branch), which is off since 2026-08-02. With it every daily run rebased each PR because main had moved, CI was still pending when the run ended, and no PR automerged from 2026-11-18 to 2026-11-28.",
   "timezone": "UTC",
   "configMigration": true,
   "osvVulnerabilityAlerts": true,
@@ -27,7 +27,6 @@
   "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "commitMessagePrefix": "chore(deps):",
-  "rebaseWhen": "behind-base-branch",
   "packageRules": [
     {
       "description": "Every update (major, minor, patch, pin) automerges once the required CI checks are green (gitleaks, yamllint, helm-lint, kubeconform, argocd-diff); CI plus ArgoCD health is the gate. No minimumReleaseAge: with the default timestamp-required behaviour GHCR images without an OCI `created` timestamp stayed pending forever (removed 2026-06-14).",
