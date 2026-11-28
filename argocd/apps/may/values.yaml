@@ -62,7 +62,7 @@ homelab-common:
         - name: may
           image:
             repository: ghcr.io/dannymcc/may
-            tag: "0.44.2"
+            tag: "0.46.2"
           ports:
             - name: http
               containerPort: 5050

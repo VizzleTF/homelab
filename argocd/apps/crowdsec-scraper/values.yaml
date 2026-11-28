@@ -85,7 +85,7 @@ homelab-common:
         - name: netbird
           image:
             repository: netbirdio/netbird
-            tag: "0.83.1"
+            tag: "0.84.0"
           securityContext:
             capabilities:
               add:
@@ -119,7 +119,7 @@ homelab-common:
         - name: vmagent
           image:
             repository: victoriametrics/vmagent
-            tag: v1.156.0
+            tag: v1.157.0
           args:
             - -promscrape.config=/etc/vmagent/scrape.yaml
             # No config-reloader sidecar.
