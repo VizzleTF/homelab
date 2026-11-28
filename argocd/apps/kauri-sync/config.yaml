@@ -1,0 +1,5 @@
+# Kauri Clip sync server for the owner's devices, LAN and mesh only.
+# obsidian 116 Plans/kauri-sync.md
+homelabOnly: true
+extraManifests: true
+wave: "2"

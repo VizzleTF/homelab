@@ -1,0 +1,117 @@
+# Full allowlists, ingress and egress: the server takes requests only from the
+# gateway and kubelet and reaches only its own Postgres and cluster DNS;
+# Postgres takes connections only from the server, its own instances and the
+# CNPG operator. obsidian 116 Plans/kauri-sync.md
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kauri-sync-server
+  namespace: kauri-sync
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kauri-sync
+  ingress:
+    # cilium-gateway (LAN and mesh) and kubelet probes.
+    - fromEntities: [ingress, host]
+      toPorts:
+        - ports:
+            - port: "8296"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kauri-sync
+            cnpg.io/cluster: kauri-sync-db
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "**.cluster.local"
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kauri-sync-db
+  namespace: kauri-sync
+spec:
+  endpointSelector:
+    matchLabels:
+      cnpg.io/cluster: kauri-sync-db
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: kauri-sync
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # Replication and the instance manager's status between instances.
+    - fromEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: kauri-sync-db
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+    # Operator and barman plugin (status, backups); probes from kubelet.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+    - fromEntities: [host]
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: victoria-metrics
+            app.kubernetes.io/name: vmagent
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: kauri-sync-db
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+    - toEntities: [kube-apiserver]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cnpg-system
+    # Barman WAL archive and base backups: Garage on the NAS (s3.example.com).
+    - toCIDR: [10.11.12.237/32]
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "**.cluster.local"
+              - matchName: s3.example.com

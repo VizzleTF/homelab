@@ -1,0 +1,17 @@
+# Postgres with the barman plugin; the server has no metrics endpoint.
+# The network policy lets only vmagent in on this port.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: kauri-sync-db
+  namespace: victoria-metrics
+spec:
+  namespaceSelector:
+    matchNames: [kauri-sync]
+  selector:
+    matchLabels:
+      cnpg.io/cluster: kauri-sync-db
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

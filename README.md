@@ -106,7 +106,7 @@ Each component declares a `wave:` in `argocd/{infra,apps}/*/config.yaml`: the de
 | **-1**  | cnpg-barman-plugin, intel-device-plugins-operator, keda-add-ons-http, tuppr, victoria-logs, wazuh-operator |
 | **0**   | intel-device-plugins-gpu, kyverno, reloader, smartctl-exporter, snmp-exporter, tfstate-mirror, x509-certificate-exporter |
 | **1**   | cnpg (shared cluster), valkey, openbao-autounseal, robusta, kyverno-policies, backup-drill |
-| **2**   | renovate; apps: alerse-site, alerse-sync, atuin, authentik, cleanbot, immich, lampac, may, may-mcp, netbird-mcp, obsidian-livesync, opencloud, rss-to-telegram-bot, trek, vaultwarden, wazuh |
+| **2**   | renovate; apps: alerse-site, alerse-sync, atuin, authentik, cleanbot, immich, kauri-sync, lampac, may, may-mcp, netbird-mcp, obsidian-livesync, opencloud, rss-to-telegram-bot, trek, vaultwarden, wazuh |
 | **3**   | forgejo-runner, netbird, crowdsec-scraper, openwrt-backup |
 
 ---
@@ -171,7 +171,7 @@ Two targets, and neither is a copy of the other: **Garage** on the Synology (`s3
 |---|---|---|---|---|
 | PVC data | 14 volumes across 11 apps, one `ReplicationSource` per target | `restic-apps/<name>` on both | Garage nightly 00:10–03:30 UTC; OVH mostly Sundays 01:40–08:00 UTC | Garage 7 daily + 4 weekly; OVH 12 weekly + 6 monthly |
 | Forgejo (ops node) | `forgejo dump` via restic | `restic-apps/forgejo-ops` on both | daily 02:15 node-local time | 7 daily + 4 weekly + 6 monthly |
-| Postgres | cnpg-cluster, immich-cluster and alerse-sync-db, Barman WAL + base backups | `cnpg-backups/` and `alerse-sync-backups/` on Garage | continuous WAL, base backup daily | 7d, PITR |
+| Postgres | cnpg-cluster, immich-cluster, alerse-sync-db and kauri-sync-db, Barman WAL + base backups | `cnpg-backups/`, `alerse-sync-backups/` and `kauri-sync-backups/` on Garage | continuous WAL, base backup daily | 7d, PITR |
 | Postgres, off-site | `pg_dump -Fc` per database, independent of Barman | `crypt/pg-logical/` (rclone crypt) on OVH | 03:50 UTC | 90d |
 | etcd | `talosctl etcd snapshot` from the ops node | `snapshots/etcd/` on Garage, `crypt/snapshots/etcd/` (rclone crypt) on OVH | daily 04:15 node-local time | 30d |
 | OpenBao | Raft snapshot over the HTTP API | `snapshots/openbao/` on Garage, `crypt/snapshots/openbao/` (rclone crypt) on OVH | 02:05 UTC | 90d |

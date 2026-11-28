@@ -1,0 +1,25 @@
+# The server exports no metrics, so its outage comes from kube-state-metrics.
+# Backup freshness and Postgres health are the shared CNPG rules.
+# obsidian 116 Plans/kauri-sync.md
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: kauri-sync
+  namespace: victoria-metrics
+spec:
+  groups:
+    - name: kauri-sync
+      rules:
+        - alert: KauriSyncDown
+          expr: |
+            sum(kube_deployment_status_replicas_available{namespace="kauri-sync", deployment="kauri-sync"}) < 1
+              or absent(kube_deployment_status_replicas_available{namespace="kauri-sync", deployment="kauri-sync"})
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "kauri-sync: ни один сервер не готов"
+            description: |
+              Синхронизация Kauri Clip стоит на всех устройствах.
+              Чаще всего это недоступный Postgres (kauri-sync-db): /readyz проверяет базу.
+              kubectl -n kauri-sync get pods; kubectl -n kauri-sync logs deploy/kauri-sync --tail=100

@@ -1,0 +1,111 @@
+# LAN and mesh only, through cilium-gateway. obsidian 116 Plans/kauri-sync.md
+homelab-common:
+  # Off on purpose: its default-ingress opens the whole namespace, and Cilium
+  # allows are additive, so nothing could narrow who reaches Postgres.
+  # manifests/networkpolicy.yaml holds the full ingress and egress allowlists.
+  networkPolicy:
+    enabled: false
+
+  externalSecrets:
+    # Garage bucket kauri-sync-backups, this namespace only.
+    - name: kauri-sync-s3-backup
+      vaultPath: kauri-sync/s3-kauri-sync-backups
+      data:
+        - secretKey: ACCESS_KEY_ID
+          property: ACCESS_KEY_ID
+        - secretKey: ACCESS_SECRET_KEY
+          property: ACCESS_SECRET_KEY
+
+  # The whole host: the protocol signs paths under /v1/, the server cannot sit
+  # under a prefix, and /health is the only other route.
+  httpRoutes:
+    - name: kauri-sync
+      hostname: kauri-sync
+      service:
+        name: kauri-sync
+        port: 8296
+
+  limitRange:
+    enabled: true
+
+  workloads:
+    - name: kauri-sync
+      spec:
+        replicas: 2
+      pod:
+        # Requests in progress get up to 30 s after SIGTERM.
+        terminationGracePeriodSeconds: 40
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: kauri-sync
+      containers:
+        - name: kauri-sync
+          image:
+            repository: ghcr.io/vizzletf/kauri-sync
+            tag: "0.2.1@sha256:b4067ada3c36ea061c9791cfe9bf3ba26e00ec712fd17a72e5a44c2ed6715fbf"
+          ports:
+            - name: http
+              containerPort: 8296
+          env:
+            - name: DB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: kauri-sync-db-app
+                  key: uri
+            # Postgres only over TLS with the cluster's own CA, host checked.
+            - name: DATABASE_URL
+              value: "$(DB_URI)?sslmode=verify-full&sslrootcert=/etc/kauri-sync-db-ca/ca.crt"
+            # Worst case 20 x 128 MiB fits the 5 Gi volume with room for WAL.
+            - name: MAX_CHAINS
+              value: "20"
+            - name: MAX_BYTES_PER_CHAIN
+              value: 128MiB
+            # No TRUSTED_PROXY: behind cilium-gateway any LAN host could set
+            # X-Forwarded-For, so every client counts as the gateway's address.
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 48Mi
+            limits:
+              cpu: 500m
+              # A write batch is up to 8 MiB and a blob up to 16 MiB per request.
+              memory: 384Mi
+      persistence:
+        db-ca:
+          secret:
+            secretName: kauri-sync-db-ca
+            items:
+              - key: ca.crt
+                path: ca.crt
+          mountPath: /etc/kauri-sync-db-ca
