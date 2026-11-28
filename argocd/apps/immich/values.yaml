@@ -4,8 +4,10 @@ _shared_config:
   # One PR bumps server and ML together; -openvino suffix via customManager in renovate.json.
   # renovate: datasource=github-releases depName=immich-app/immich
   version: &version "v3.4.2"
-  # renovate: immich-ml
-  ml_tag: &ml_tag "v3.4.2-openvino"
+  # TODO: ghcr has no v3.4.2-openvino (cuda/rocm/armnn exist, 2026-11-28); ML held on
+  # v3.4.1. Restore the marker "# renovate: immich-ml" once the openvino tag exists.
+  # renovate-hold: immich-ml
+  ml_tag: &ml_tag "v3.4.1-openvino"
 
 # Server-only: top-level controllers/defaultPodOptions/persistence leak into the ML pod.
 server:
